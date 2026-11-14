@@ -1027,6 +1027,12 @@ TEXT = dict([
     # Now Playing's More sheet: the row that opens the turntable page (patch/vinyl.c, docs/modules/vinyl.md); the page's own name is the same text
     _t('Vinyl Mode', '黑胶模式', '黑膠模式', 'レコードモード', '바이닐 모드', 'Mode vinyle', 'Vinylmodus',
        'Modo vinilo', 'Modalità vinile', 'โหมดแผ่นเสียง', 'Tryb winylu', 'Режим винила', 'Режим вінілу'),
+    # Now Playing's More sheet: the row that opens the Display Mode page (Cassette Mode, Vinyl Mode, Lyrics Mode) and that page's back header
+    _t('Display Mode', '显示模式', '顯示模式', '表示モード', '디스플레이 모드', "Mode d'affichage", 'Anzeigemodus',
+       'Modo de pantalla', 'Modalità schermo', 'โหมดแสดงผล', 'Tryb wyświetlania', 'Режим экрана', 'Режим екрана'),
+    # the Display Mode page's row that opens the full-screen lyrics page (patch/idlelyrics.c, docs/modules/idlelyrics.md)
+    _t('Lyrics Mode', '歌词模式', '歌詞模式', '歌詞モード', '가사 모드', 'Mode paroles', 'Songtextmodus',
+       'Modo letra', 'Modalità testo', 'โหมดเนื้อเพลง', 'Tryb tekstu', 'Режим текста', 'Режим тексту'),
     # Now Playing's More sheet while an episode plays: the row that opens the Podcasts page (patch/podcasts.c podcasts_go)
     _t('Go to Podcasts', '前往播客', '前往 Podcast', 'ポッドキャストへ移動', '팟캐스트로 이동', 'Aller aux podcasts', 'Zu Podcasts',
        'Ir a pódcasts', 'Vai ai podcast', 'ไปที่พอดแคสต์', 'Przejdź do podcastów', 'К подкастам', 'До подкастів'),

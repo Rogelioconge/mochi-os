@@ -33,7 +33,7 @@ Open **Extras → Settings** to customize the player. To return to the stock gri
 | Folders | Extras → Folders lists the card's folders and audio files. With the Playback setting **Folder cover** on, a row with a cover shows it (40 px) in place of its icon: a file's is its album's, a folder's is the album of the first song of the library inside it (also in sub-folders); rows without one keep their icon. Only music in the library gets a cover; the covers are the ones the app has already made (Albums, Cover Flow), none are made here |
 | Shuffle | Shuffle songs, albums or folders from Extras |
 
-In Now Playing, tap **…** for playback options, Look up album, Look up artist, Cassette Mode and Vinyl Mode. For a song playing from Subsonic the two Look up rows open the server's album and the server's artist; while it is streaming (not downloaded), Add to playlist and Delete are dimmed, and it is not added to the card's Recently Played and Most Played lists.
+In Now Playing, tap **…** for playback options, Look up album, Look up artist and Display Mode, which opens Cassette Mode, Vinyl Mode and Lyrics Mode. For a song playing from Subsonic the two Look up rows open the server's album and the server's artist; while it is streaming (not downloaded), Add to playlist and Delete are dimmed, and it is not added to the card's Recently Played and Most Played lists.
 Open its **More** page for **Sleep Timer** (opens Settings > Power, where the timer is set) and the
 online cover and lyrics lookup (Wi-Fi required).
 
@@ -154,10 +154,10 @@ theme under Settings → Now Playing, where **Idle Display** can also open it (o
 lyrics page) after 10 idle seconds on Now Playing. Scrolling the lyrics on Now Playing counts as
 activity: the 10 seconds start once the lyrics return to the current line.
 
-**Lyrics idle display** (Settings → Now Playing → Idle Display → Lyrics) fills the screen (no status bar) with the cover, title and
-artist over the synchronized lyrics after 10 idle seconds. Tap anywhere to close it, drag to browse
+**Lyrics Mode** (**…** → Display Mode → Lyrics Mode, or Settings → Now Playing → Idle Display → Lyrics after 10 idle seconds) fills the screen (no status bar) with the cover, title and
+artist over the synchronized lyrics. Tap anywhere to close it, drag to browse
 the lyrics (they come back to the current line after 3 seconds). The text size follows **Lyrics Text
-Size**. A track without lyrics at that moment opens the Album Cover page instead.
+Size**. For a track without lyrics the Lyrics Mode row is dimmed, and the idle display opens the Album Cover page instead.
 
 **Vinyl Mode** is a turntable Now Playing screen: the cover turns as the record's label while
 playing. Tap the record or the large key to pause/resume, the side keys to skip, the top-left

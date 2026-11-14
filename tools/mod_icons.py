@@ -142,7 +142,7 @@ CARD_GLYPHS = {'Wi-Fi': 'wifi', 'Bluetooth': 'bluetooth', 'Home Screen': 'house'
                'Control Center': 'layout-grid', 'Lock Screen': 'lock', 'Wallpaper': 'image', 'Enable': 'lock', 'Show Time': 'clock', 'Player Style': 'square-play', 'Custom Wallpaper': 'info',
                'Keyboards': '+keyboard', 'About': 'info', 'All System Settings': 'settings', 'Developer': 'code', 'Main Menu': 'list-checks', 'Extras': 'ellipsis',
                'Recent Albums': 'history', 'Daily Mix': 'shuffle', 'Regenerate Daily Mix': 'refresh-cw', 'Update Library': 'refresh-cw',
-               'Landscape': 'rotate-cw-square', 'Volume Buttons': 'volume-2', 'Rebuild Covers': 'image-up', 'Rebuild Artist Photos': 'mic-vocal', 'Idle Display': 'timer', 'Lyrics Text Size': 'mic-vocal', 'Theme': '+cassette-tape', 'Record': '+turntable', 'Base': 'palette', 'Boot to M1+ Music': 'power', 'Open Shanling Home': '@shanling', 'Equalizer': 'sliders-vertical',
+               'Landscape': 'rotate-cw-square', 'Volume Buttons': 'volume-2', 'Rebuild Covers': 'image-up', 'Rebuild Artist Photos': 'mic-vocal', 'Idle Display': 'timer', 'Lyrics Text Size': 'a-large-small', 'Theme': '+cassette-tape', 'Record': '+turntable', 'Base': 'palette', 'Boot to M1+ Music': 'power', 'Open Shanling Home': '@shanling', 'Equalizer': 'sliders-vertical',
                'Screenshot': 'camera', 'Clear Cover Cache': 'trash', 'Clear Track Durations': 'trash', 'Delete Unsupported Files': 'trash', 'Reset All Settings': 'rotate-ccw', 'Cache': 'hard-drive','Settings Files': 'file-cog', 'Download from AutoEq': 'download', 'Podcast Discover': 'compass', 'Podcasts': 'podcast', 'Scrobbling': 'list-music', 'ListenBrainz': '+musicbrainz:filled', 'Upload Scrobbles': 'upload', 'Last.fm': '+lastdotfm:filled', 'Auto Upload': 'clock', 'English': 'languages', 'Chinese (Pinyin)': 'languages', 'Battery Percentage': 'battery-charging', 'Battery': 'battery-full', 'Charge Limit': 'battery-medium',
                'Index Rail': 'list', 'Section Headers': 'list-start', 'Continue Playing': 'skip-forward'}
 
@@ -196,7 +196,7 @@ def wifi_spinner(i, px=WIFI_SPIN_PX, ss=8):
     im = Image.new('RGBA', (px,) * 2, WIFI_GREY + (0,)); im.putalpha(big.resize((px,) * 2, Image.LANCZOS)); return im
 
 
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + ['pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_sleep'] + sorted(ES_ICONS)   # (pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + ['pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_sleep', 'pod_ic_mode'] + sorted(ES_ICONS)   # (pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -212,7 +212,7 @@ POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': (
             'Composers': ('pod_ic_composers', 'feather'), 'Hi-Res': ('pod_ic_hires', '+badge-hr'),
             'Update Library': ('pod_ic_update', 'refresh-cw'), 'Tidal': ('pod_ic_tidal', 'T:brand-tidal'),
             'CD Ripper': ('pod_ic_cdripper', 'disc'), 'Pod': ('pod_ic_ipod', '+ipod'), 'Podcasts': ('pod_ic_podcasts', 'podcast'), 'Search': ('pod_ic_search', 'search'), 'Radio': ('pod_ic_radio', 'radio'),
-            'Cassette Mode': ('pod_ic_tape', '+cassette-tape'), 'Vinyl Mode': ('pod_ic_vinyl', '+turntable'), 'Cover & Lyrics': ('pod_ic_art', '+cover-lyrics'), 'Sleep Timer': ('pod_ic_sleep', 'moon'),   # Now Playing's More sheet rows (tools/mod_lists.py)
+            'Cassette Mode': ('pod_ic_tape', '+cassette-tape'), 'Vinyl Mode': ('pod_ic_vinyl', '+turntable'), 'Cover & Lyrics': ('pod_ic_art', '+cover-lyrics'), 'Sleep Timer': ('pod_ic_sleep', 'moon'), 'Display Mode': ('pod_ic_mode', 'smartphone'),   # Now Playing's More sheet rows (tools/mod_lists.py)
             # the Control Center page (pod_pages.PULLDOWN_TILES): each tile's own glyph (PULLDOWN below); Output's tile shows the text PO / LO, so its row has stock's Output glyph (sset_outputway)
             'Wi-Fi': ('pod_ic_wifi', 'wifi'), 'Bluetooth': ('pod_ic_bt', 'bluetooth'), 'Button Lock': ('pod_ic_lock', 'lock'), 'Gain': ('pod_ic_gain', '+gain-high'),
             'USB Mode': ('pod_ic_usbmode', 'usb'), 'Output': ('pod_ic_output', 'headphones'), 'Playback': ('pod_ic_prefs', 'sliders-horizontal'), 'System': ('pod_ic_sysset', 'settings')}
