@@ -230,6 +230,12 @@ FUNCTIONS = {
 FUNCTIONS.update({
     'widget_set_style':        ('int', 'void *, const char *, const void *', 0x66c448),
     'value_set_uint32':        ('void *', 'void *, unsigned', 0x711858),
+    # The pull-down's close handler (patch/pulldown.c pd_on_close): stock's own cancel of the slide timer, as 0x47514c does it
+    'widget_get_prop':         ('int', 'void *, const char *, void *', 0x6676bc),
+    'widget_set_prop':         ('int', 'void *, const char *, const void *', 0x66e934),
+    'value_uint32':            ('unsigned', 'const void *', 0x712380),
+    'timer_count':             ('unsigned', 'void', 0x6638cc),
+    'widget_remove_timer':     ('int', 'void *, unsigned', 0x668cb0),
     # The album page's Play pill (patch/albumpage.c): the translated text (a wchar_t string) and its width
     # in the widget's own style, as widget_measure_text @0x66c7e0 gets it (widget_get_canvas, widget_prepare_text_style,
     # canvas_measure_text @0x644544; 0 when there is no canvas or no text)
@@ -745,6 +751,8 @@ def patch_playmore(image, ps, payload_len):
 # the widget_foreach visitor 0x473f30), then lays the eight tiles out as the saved file says; any mismatch leaves the stock grid.
 PULLDOWN_INIT = 0x475f04
 PULLDOWN_INIT_PROLOGUE = (0x3c1c0059, 0x279cdfcc, 0x0399e021)
+# on_wm_tsdown_fun (a touch down on the status bar area of every screen): m1plus_tsdown clears a stale lockscreen_pageflag / dropdown_menu_state before stock's own code runs (payload hook 30, docs/modules/pulldown.md "Swipe gates and the window stack").
+TSDOWN = 0x4cd6e8
 # The "inside settings" flags: stock's System Settings / Playback Settings page inits store 1 (0x4ada78 / 0x4a0c88), their Back handlers clear a positive flag, the Home foreground callback clears both, and nothing else does: the
 # Now Playing button (on_backtoplayer_onclick) leaves the page in the window stack behind the player with its flag set. The pull-down's tile visitor (0x473f30) disables a tile and skips its click bind while the flag is
 # positive, its click handlers (0x4754c8 System, 0x475558 Playback) do nothing for a nonzero flag and otherwise store 2 and quit the dialog; on_wm_tsmove_fun then opens the page by navigator_to for a flag of 2. m1plus_pulldown_init
@@ -752,9 +760,11 @@ PULLDOWN_INIT_PROLOGUE = (0x3c1c0059, 0x279cdfcc, 0x0399e021)
 DATA.update({
     'SYSSET_FLAG':        (0xa05a48, 'syssetinto_flag'),     # int: 1 while System Settings is open, 2 for a moment after its tile is tapped
     'PLAYSET_FLAG':       (0xa05a4c, 'playsetinto_flag'),    # int: the same for Playback Settings
+    'LOCK_PAGEFLAG':      (0xa059fc, 'lockscreen_pageflag'),   # int: 1 from the lock page's init until its EVT_WINDOW_CLOSE; on_wm_tsmove_fun opens no pull-down while it is 1 (m1plus_tsdown)
+    'DROPDOWN_STATE':     (0xa05a2c, 'dropdown_menu_state'),   # int: 0 idle; 1 / 2 / 3 while the pull-down opens, is open, is closing; its dialog's EVT_WINDOW_CLOSE stores 0 (m1plus_tsdown)
 })
 FUNCTIONS['window_manager_switch_to'] = ('int', 'void *, void *, void *, int', 0x67891c)   # (wm, current window, target window, close current): stock's own restack of a window already in the stack
-PULLDOWN_PINS += PULLDOWN_FLAG_PINS
+PULLDOWN_PINS += PULLDOWN_FLAG_PINS + TSDOWN_PINS
 PULLDOWN_SITE_WORDS = ((PULLDOWN_OPEN_SITES[0], 0x0411113a), (PULLDOWN_OPEN_SITES[1], 0x04111130))   # the two `bal navigator_to` (0x4d1d80) words the hook replaces
 
 
@@ -764,6 +774,8 @@ def patch_pulldown(image, ps, payload_len):
     check_pins(image, PULLDOWN_PINS)
     check_pins(image, [(a, old, 'on_wm_tsmove_fun: bal navigator_to') for a, old in PULLDOWN_SITE_WORDS])
     hook(image, PULLDOWN_INIT, PULLDOWN_INIT_PROLOGUE, target, 'dialog_dropdown_dialog_init')
+    check(BASE <= ps['m1plus_tsdown'] < BASE + payload_len, 'tsdown entry symbol outside payload')
+    hook(image, TSDOWN, TSDOWN_PROLOGUE, ps['m1plus_tsdown'], 'on_wm_tsdown_fun')
     check(BASE <= ps['pd_open_settings'] < BASE + payload_len, 'pull-down page open symbol outside payload')
     for a in PULLDOWN_OPEN_SITES: struct.pack_into('<I', image, fileoff(image, a), jal(ps['pd_open_settings'], a))   # (PULLDOWN_PINS checked each site's word and its delay slot)
 
@@ -909,6 +921,7 @@ def gen_stock_h(out, demo_path):
     h.append('extern int stock_lockscreen_init_trampoline(void *, void *);')
     h.append('extern int stock_playmore_init_trampoline(void *, void *);')
     h.append('extern int stock_pulldown_init_trampoline(void *, void *);')
+    h.append('extern int stock_tsdown_trampoline(void *, void *);')
     h.append('extern int stock_start_player_trampoline(void);')
     h.append('extern void stock_save_stop_trampoline(void);')
     h.append('extern void stock_save_start_trampoline(int);')
@@ -1008,6 +1021,8 @@ def gen_asm(out, slots):
     # and for the pull-down's init
     asm += ['.globl stock_pulldown_init_trampoline', 'stock_pulldown_init_trampoline:',
             f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', f'j 0x{PULLDOWN_INIT + 12:x}', 'nop']
+    asm += ['.globl stock_tsdown_trampoline', 'stock_tsdown_trampoline:',
+            f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', f'j 0x{TSDOWN + 12:x}', 'nop']
     # and for mclStartPlayer (Internet Radio's hand-over)
     asm += ['.globl stock_start_player_trampoline', 'stock_start_player_trampoline:',
             f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', f'j 0x{START_PLAYER + 12:x}', 'nop']
@@ -1082,7 +1097,7 @@ def compile_payload(out, demo_path, tag=TAG):
     keep = ['--undefined=compact_set_row_layout', '--undefined=m1plus_home_init',
             '--undefined=stock_home_init_trampoline', '--undefined=m1plus_playing_init',
             '--undefined=stock_playing_init_trampoline', '--undefined=m1plus_bigcover_init', '--undefined=stock_bigcover_init_trampoline', '--undefined=m1plus_lockscreen_init', '--undefined=stock_lockscreen_init_trampoline', '--undefined=m1plus_scroll_event',
-            '--undefined=m1plus_playmore_init', '--undefined=stock_playmore_init_trampoline', '--undefined=m1plus_pulldown_init', '--undefined=pd_open_settings', '--undefined=stock_pulldown_init_trampoline', '--undefined=rd_start_player', '--undefined=rd_step', '--undefined=stock_start_player_trampoline', '--undefined=rd_save_stop', '--undefined=rd_save_start', '--undefined=stock_save_stop_trampoline', '--undefined=stock_save_start_trampoline', '--undefined=rn_backtoplayer', '--undefined=stock_backtoplayer_trampoline', '--undefined=pc_id3_path', '--undefined=pc_library_query', '--undefined=pc_sorted_query', '--undefined=stock_dbquery_trampoline', '--undefined=stock_sorted_query_trampoline',
+            '--undefined=m1plus_playmore_init', '--undefined=stock_playmore_init_trampoline', '--undefined=m1plus_pulldown_init', '--undefined=pd_open_settings', '--undefined=stock_pulldown_init_trampoline', '--undefined=m1plus_tsdown', '--undefined=stock_tsdown_trampoline', '--undefined=rd_start_player', '--undefined=rd_step', '--undefined=stock_start_player_trampoline', '--undefined=rd_save_stop', '--undefined=rd_save_start', '--undefined=stock_save_stop_trampoline', '--undefined=stock_save_start_trampoline', '--undefined=rn_backtoplayer', '--undefined=stock_backtoplayer_trampoline', '--undefined=pc_id3_path', '--undefined=pc_library_query', '--undefined=pc_sorted_query', '--undefined=stock_dbquery_trampoline', '--undefined=stock_sorted_query_trampoline',
             '--undefined=sba_parse_tracks', '--undefined=sba_parse_albums', '--undefined=sba_parse_artists', '--undefined=sba_parse_playlists', '--undefined=sba_parse_ping',   # (sbparse.c until sbapi.c calls them)
             '--undefined=m1plus_style_color', '--undefined=m1plus_style_gradient', '--undefined=m1plus_image_add', '--undefined=stock_style_color_trampoline', '--undefined=stock_image_add_trampoline', '--undefined=pal_map', '--undefined=pal_active', '--undefined=pal_background', '--undefined=pal_accent', '--undefined=pal_accent_saved', '--undefined=pal_accent_set', '--undefined=pal_accent_color', '--undefined=pal_fill',
             '--undefined=bc_timed_open', '--undefined=m1_scan_dir', '--undefined=sh_set_mode', '--undefined=sbs_play_record', '--undefined=sh_load_playlist', '--undefined=sh_display_mode', '--undefined=sh_clear_queue', '--undefined=pod_na_site', '--undefined=na_next_key', '--undefined=na_set_cur', '--undefined=na_cur', '--undefined=na_active', '--undefined=stock_setmode_trampoline', '--undefined=stock_loadplaylist_trampoline', '--undefined=ft_created', '--undefined=stock_file_created_trampoline', '--undefined=ll_load', '--undefined=ll_assign', '--undefined=stock_loadclass_trampoline', '--undefined=tz_select', '--undefined=tz_row', '--undefined=tz_label', '--undefined=stock_timezone_trampoline', '--undefined=bp_capacity', '--undefined=lo_set_text', '--undefined=wifi_hub_open', '--undefined=tidal_kb_focus', '--undefined=pod_eq_site', '--undefined=pod_lock_site', '--undefined=pf_items', '--undefined=pf_seen', '--undefined=so_play_src', '--undefined=lib_navidrome', '--undefined=sba_songs_window', '--undefined=sbs_playing', '--undefined=sbs_track']   # (pf_items, pf_seen: accessors of the parser the tests read; so_play_src, albums_open_src: the library seam, no caller yet)
@@ -1309,7 +1324,7 @@ def patch_demo(raw, payload, ps, demo_path):
     check(dynsym(demo_path).get('playsong_id3info') == 0xa0d88c, 'playsong_id3info moved')
     edits = patch_rows(patched, ps)
     # no row edit may touch a PIC prologue (the hooks are the only ones) or a hook site
-    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8
+    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, TSDOWN, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8
               for a, *_ in edits), 'row edit on a hook')
     check(all(not (SCROLL_SLOT <= int(a, 16) < SCROLL_SLOT + 4 or a in {hex(p[0]) for p in SCROLL_PINS}) for a, *_ in edits),
           'row edit on a list gesture word')
@@ -1348,6 +1363,7 @@ def main():
         'hook_lockscreen': {'addr': LOCKSCREEN_INIT, 'target': ps['m1plus_lockscreen_init']},
         'hook_playmore': {'addr': PLAYMORE_INIT, 'target': ps['m1plus_playmore_init']},
         'hook_pulldown': {'addr': PULLDOWN_INIT, 'target': ps['m1plus_pulldown_init']},
+        'hook_tsdown': {'addr': TSDOWN, 'target': ps['m1plus_tsdown']},
         'hook_pulldown_open': {'sites': [hex(a) for a in PULLDOWN_OPEN_SITES], 'target': ps['pd_open_settings']},
         'hook_start_player': {'addr': START_PLAYER, 'target': ps['rd_start_player']},
         'hook_save_stop': {'addr': SAVE_STOP, 'target': ps['rd_save_stop']}, 'hook_save_start': {'addr': SAVE_START, 'target': ps['rd_save_start']},

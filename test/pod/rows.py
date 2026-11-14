@@ -232,6 +232,7 @@ def rows_tests(expect):
     allowed |= {pod.fileoff(built, pod.LOCKSCREEN_INIT), pod.fileoff(built, pod.LOCKSCREEN_INIT) + 4}     # the lock screen init hook (patch/lockscreen.c)
     allowed |= {pod.fileoff(built, pod.PLAYMORE_INIT), pod.fileoff(built, pod.PLAYMORE_INIT) + 4}         # the More dialog init hook
     allowed |= {pod.fileoff(built, pod.PULLDOWN_INIT), pod.fileoff(built, pod.PULLDOWN_INIT) + 4}         # the pull-down init hook
+    allowed |= {pod.fileoff(built, pod.TSDOWN), pod.fileoff(built, pod.TSDOWN) + 4}                       # the touch-down hook (patch/pulldown.c m1plus_tsdown)
     allowed |= {pod.fileoff(built, pod.START_PLAYER), pod.fileoff(built, pod.START_PLAYER) + 4}           # the mclStartPlayer hook (Internet Radio's hand-over)
     allowed |= {pod.fileoff(built, h) + k for h in (pod.SAVE_STOP, pod.SAVE_START) for k in (0, 4)}      # the output-change hooks (Internet Radio)
     allowed |= {pod.fileoff(built, pod.BACKTOPLAYER), pod.fileoff(built, pod.BACKTOPLAYER) + 4}   # the on_backtoplayer_onclick hook

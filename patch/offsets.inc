@@ -499,6 +499,7 @@
 #define EVT_WINDOW_WILL_OPEN 0x12a
 #define EVT_WINDOW_TO_BG 0x12c
 #define EVT_WINDOW_TO_FG 0x12d
+#define EVT_WINDOW_CLOSE 0x12e /* the window manager's close event, before the window is destroyed (the pull-down binds stock's 0x4750ec to it at 0x475f94) */
 #define NP_BAR_STOCK 0xff000000u
 #define NP_BAR_LUM_MAX 119000000u
 /* The lyrics page (patch/lyrics.c, docs/modules/lyrics.md). The view np_lyrics is LY_W x LY_VIEW_H (tools/mod_nowplaying.py LYR_*: the stock list's rectangle);

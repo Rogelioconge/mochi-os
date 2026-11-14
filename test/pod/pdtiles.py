@@ -4,6 +4,7 @@ The hook runs the real compiled payload under the harness machine with the stock
 and the tiles' clicks are bound by stock code, which the hook never touches); the dialog's geometry is the built asset's own
 (ui/dialog/dropdown_dialog.bin). The page is the Main Menu page's twin and is tested the way menu.py tests that one."""
 import os, random, struct
+from unicorn import UC_HOOK_MEM_WRITE
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 
 FILE, TMP = '/mnt/data/m1plus/pulldown-tiles', '/mnt/data/m1plus/pulldown-tiles.tmp'
@@ -688,4 +689,251 @@ def stockopen_tests(ctx):
     expect(r == 0x10, 'hub Wi-Fi row: a page that will not open returns the navigator_to result, as before')
 
 
-SECTIONS = [hook_tests, page_tests, files_tests, flags_tests, playtile_tests, stockopen_tests]
+# ---------------------------------------------------------------------------------------------------------------------------------
+# The swipe's gates (docs/modules/pulldown.md "Swipe gates and the window stack"): stock's on_wm_tsmove_fun opens the pull-down only while lockscreen_pageflag is not 1 and dropdown_menu_state is 0;
+# a window that goes away without its EVT_WINDOW_CLOSE leaves the word set. The real stock on_wm_tsdown_fun / on_wm_tsmove_fun run under the emulator, once from the stock bytes and once from the built image.
+
+TSDOWN, TSMOVE = pod.TSDOWN, 0x4cd788
+LOCKW, STATEW, PRESSW = pod.DATA['LOCK_PAGEFLAG'][0], pod.DATA['DROPDOWN_STATE'][0], 0xa05a30
+KILL_SD_ = '/mnt/mmc/m1plus-off'
+
+
+class TG(SF):
+    """The window stack (SF) with stock's two touch handlers run for real; stock=True restores stock's bytes over both functions (the build's hook and its two page-opening call sites)."""
+
+    def __init__(self, stack, lock=0, state=0, stock=False):
+        super().__init__(stack)
+        if stock:
+            s = stock_demo_bytes(); self.u.mem_write(TSDOWN, s[pod.fileoff(s, TSDOWN):][:0x4cd8dc - TSDOWN])
+        for a in (0xa059e0, 0xa06d00, 0xa059dc, 0xa059f4, 0xa05abc, 0xa045e5, 0x97cae0, 0xa05a34): self.setword(a, 0)   # tsdown's / tsmove's other gates: open
+        self.handlers[0x5cfc4c] = 'airplayGetFlag'
+        self.setword(LOCKW, lock); self.setword(STATEW, state); self.setword(PRESSW, 0x90)   # (a stale press point: only this touch's own store lets the swipe through)
+        self.writes = []
+        self.write_hooks = [self.u.hook_add(UC_HOOK_MEM_WRITE, lambda u, t, a, s, v, d: self.writes.append((a, v & 0xffffffff)), begin=w, end=w + 3) for w in (LOCKW, STATEW)]
+
+    def _hook(self, u, address, size, _):
+        if self.handlers.get(address) == 'airplayGetFlag':
+            u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        super()._hook(u, address, size, _)
+
+    def pev(self, y):
+        e = self.alloc(0x30); self.u.mem_write(e, bytes(0x30)); self.setword(e + 0x1c, y); return e
+
+    def down(self, y=20):
+        """A touch down on the status bar: on_wm_tsdown_fun. Returns the calls and the writes it made to the two words."""
+        self.writes = []
+        self.call(TSDOWN, a0=0, a1=self.pev(y), count=2000000)
+        return list(self.calls), list(self.writes)
+
+    def move(self, y=60):
+        """The move: on_wm_tsmove_fun. True when it called navigator_to("dialog/dropdown_dialog")."""
+        self.call(TSMOVE, a0=0, a1=self.pev(y), count=2000000)
+        return ('navigator_to', 'dialog/dropdown_dialog') in self.calls
+
+    def swipe(self):
+        c, w = self.down(); self.after_down = (self.word(LOCKW), self.word(STATEW), self.word(PRESSW))   # (the move itself stores state 1 when it opens)
+        return self.move(), c, w
+
+
+def gate_tests(ctx):
+    expect = ctx.expect
+    H, LOCK, USB, VOL, DLG = 'home_page', 'screensaver_page', 'usbmode_page', 'volume_dialog', 'dropdown_dialog'
+
+    def run(stack, lock=0, state=0, stock=False):
+        m = TG(stack, lock, state, stock); opened, calls, writes = m.swipe()
+        return (opened,) + m.after_down + (calls, writes)
+
+    # -- the reproducer: stale words (stock refuses for ever, the build clears them and opens, with this touch's press point)
+    for tag, stack, lock, state in (('a lock flag with no lock page', [H], 1, 0),
+                                    ('a lock flag with only other pages in the stack', [H, USB], 1, 0),
+                                    ('dropdown_menu_state 1 with no dialog', [H], 0, 1), ('dropdown_menu_state 2 with no dialog', [H], 0, 2), ('dropdown_menu_state 3 with no dialog', [H], 0, 3),
+                                    ('dropdown_menu_state 3 with no dialog under a page', [H, USB], 0, 3),
+                                    ('both words stale', [H, USB], 1, 2)):
+        o, lk, st, pr, _, _ = run(stack, lock, state, stock=True)
+        expect(not o and (lk, st) == (lock, state), f'STOCK, {tag}: no pull-down, the words stay ({o}, {lk}, {st})')
+        o, lk, st, pr, _, w = run(stack, lock, state)
+        expect(o and (lk, st) == (0, 0) and pr == 20, f'BUILT, {tag}: the words are cleared and the pull-down opens with this touch\'s press point ({o}, {lk}, {st}, {pr})')
+        expect(all(v == 0 for _, v in w) and {a for a, _ in w} <= {LOCKW, STATEW}, f'BUILT, {tag}: the hook only stores 0 ({w})')
+        m = TG(stack, lock, state); c, _ = m.down()
+        expect([n for n, _ in m.stack] == stack and not [x for x in c if x[0] in ('window_close', 'navigator_to', 'switch_to', 'widget_destroy')], f'BUILT, {tag}: the hook opens, closes and restacks nothing')
+
+    # -- the words that are true stay (the stack says so): stock and build agree
+    for tag, stack, lock, state in (('the lock page on top', [H, LOCK], 1, 0), ('the lock page with only a dialog above it', [H, LOCK, VOL], 1, 0),
+                                    ('the pull-down on top, state 1', [H, DLG], 0, 1), ('the pull-down on top, state 3', [H, DLG], 0, 3), ('the pull-down on top, state 2', [H, USB, DLG], 0, 2),
+                                    ('the pull-down above a dialog', [H, USB, DLG, VOL], 0, 1),
+                                    ('a lock page under another page', [H, LOCK, USB], 1, 0), ('a dropdown_dialog under a page', [H, DLG, USB], 0, 1),
+                                    ('a dropdown_dialog under a page, state 3', [H, DLG, USB], 0, 3), ('both windows under a page', [H, LOCK, DLG, USB], 1, 2),
+                                    ('a lock page under a page, the dialog gone', [H, LOCK, USB], 1, 0)):
+        for stock in (True, False):
+            o, lk, st, _, _, w = run(stack, lock, state, stock)
+            expect(not o and (lk, st) == (lock, state) and not w, f'{"STOCK" if stock else "BUILT"}, {tag}: blocked, the words and the stores unchanged ({o}, {lk}, {st}, {w})')
+
+    # -- a window under another page keeps its word, so its gate still holds when the page above closes (its init does not run again): no pull-down over the lock screen, no second pull-down
+    for tag, stack, lock, state in (('the lock page', [H, LOCK, USB], 1, 0), ('the pull-down, state 3', [H, DLG, USB], 0, 3), ('the pull-down, state 1', [H, DLG, USB], 0, 1)):
+        m = TG(stack, lock, state)
+        covered = m.swipe()[0]
+        m.stack.pop(); m.sync(); m.calls.clear()   # the page above closes: the window is in front again
+        o = m.swipe()[0]
+        expect(not covered and not o and (m.word(LOCKW), m.word(STATEW)) == (lock, state), f'BUILT, {tag} covered by a page and then uncovered: blocked both times, the word kept ({covered}, {o}, {m.word(LOCKW)}, {m.word(STATEW)})')
+    for tag, stack, lock, state, part in (('the lock page gone under a page, the dialog still there', [H, DLG, USB], 1, 3, (0, 3)), ('the dialog gone, the lock page still there', [H, LOCK, USB], 1, 2, (1, 0))):
+        o, lk, st, _, _, w = run(stack, lock, state)
+        expect(not o and (lk, st) == part, f'BUILT, {tag}: only the word with no window is cleared ({o}, {lk}, {st})')
+
+    # -- both words 0: the same swipe as stock, and the hook does nothing else
+    for stack in ([H], [H, USB], [H, LOCK]):
+        os_, *_ = run(stack, stock=True)
+        o, lk, st, pr, calls, w = run(stack)
+        expect(os_ and o and (lk, st, pr) == (0, 0, 20) and not w, f'both words 0 {stack}: opens as stock, the hook stores nothing ({o}, {w})')
+        names = [c[0] for c in calls]
+        expect(set(names) <= {'reset_poweroptions_timer'}, f'both words 0 {stack}: no window manager, kill switch or other call from the hook ({names})')
+    m = TG([H]); m.down()
+    expect(not [c for c in m.calls if c[0] in ('get_top_main_window', 'access')], 'no lookup on a touch with both words 0')
+
+    # -- the kill switch: stock behaviour, read once, only when a word is nonzero
+    for kill in (KILL_SD_, '/mnt/data/m1plus-off'):
+        m = TG([H], lock=1); m.present.add(kill)
+        o = m.swipe()[0]
+        expect(not o and m.word(LOCKW) == 1, f'kill switch {kill}: the stale lock flag is stock\'s ({o})')
+        m = TG([H], state=2); m.present.add(kill)
+        expect(not m.swipe()[0] and m.word(STATEW) == 2, f'kill switch {kill}: the stale state is stock\'s')
+    m = TG([H], lock=1); seen = []
+    c, _ = m.down(); seen += [x for x in c if x[0] == 'access']
+    expect(seen == [('access', KILL_SD_), ('access', '/mnt/data/m1plus-off')] and m.word(LOCKW) == 0, f'the first touch with a stale word reads the kill switch, both files ({seen})')
+    m.setword(LOCKW, 1)
+    c, _ = m.down()
+    expect(not [x for x in c if x[0] == 'access'] and m.word(LOCKW) == 0, 'and never again (the answer is kept)')
+    m = TG([H]); m.down(); m.setword(STATEW, 1)
+    c, _ = m.down()
+    expect(len([x for x in c if x[0] == 'access']) == 2 and m.word(STATEW) == 0, 'a touch with both words 0 does not read it: the first stale word does')
+
+    # -- the build
+    stock, built = stock_demo_bytes(), built_demo_bytes()
+    word = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+    expect(TSDOWN == 0x4cd6e8 and pod.TSDOWN_PROLOGUE == (0x3c1c0053, 0x279c67e8, 0x0399e021) and tuple(word(stock, TSDOWN + 4 * i) for i in range(3)) == pod.TSDOWN_PROLOGUE,
+           'stock has the three PIC prologue words the hook pins (on_wm_tsdown_fun)')
+    expect((0x53 << 16) + 0x67e8 + TSDOWN == pod.GP, 'the prologue computes $gp = 0xa03ed0 from t9 = the entry')
+    expect(tuple(word(built, TSDOWN + 4 * i) for i in range(4)) == (pod.j(PSYMS['m1plus_tsdown']), 0, pod.TSDOWN_PROLOGUE[2], 0x27bdffe0),
+           'the build has `j m1plus_tsdown; nop` over the first two prologue words; the trampoline resumes at the addiu sp')
+    tramp = struct.unpack_from('<4I', open(os.path.join(BUILD, 'patch.bin'), 'rb').read(), PSYMS['stock_tsdown_trampoline'] - pod.BASE)
+    expect(tramp == (0x3c1c0000 | pod.GP >> 16, 0x379c0000 | pod.GP & 0xffff, pod.j(TSDOWN + 12), 0), 'the trampoline restores $gp and resumes at the 4th instruction')
+    expect(MANIFEST['hook_tsdown'] == {'addr': TSDOWN, 'target': PSYMS['m1plus_tsdown']}, 'the manifest records the hook')
+    expect(pod.DATA['LOCK_PAGEFLAG'] == (0xa059fc, 'lockscreen_pageflag') and pod.DATA['DROPDOWN_STATE'] == (0xa05a2c, 'dropdown_menu_state'), 'the two words are stock\'s dynsym names')
+    expect(len(pod.TSDOWN_PINS) >= 20 and all(word(stock, a) == old and word(built, a) == old for a, old, _ in pod.TSDOWN_PINS) and set(pod.TSDOWN_PINS) <= set(pod.PULLDOWN_PINS),
+           'the words the reasoning relies on (tsdown\'s press point, tsmove\'s two gates, the writers of the two words) are pinned and stock in the build')
+    expect(all(not TSDOWN - 12 < h < TSDOWN + 12 for h in (pod.PULLDOWN_INIT, pod.PLAYMORE_INIT, pod.LOCKSCREEN_INIT, pod.BIGCOVER_INIT, pod.HOME_INIT)), 'a hook of its own')
+
+
+CLOSE_STOCK, SLIDE_CB, ADD_TIMER, REFRESH_ID_W, SLIDE_ID, REFRESH_ID, EVT_CLOSE = 0x4750ec, 0x47535c, 0x668c78, 0x97c750, 21, 22, 0x12e
+DIRW = 0xa05a34
+
+
+class CG(TG):
+    """TG with the pull-down dialog's close event and its pending slide timer: stock's real close handler (0x4750ec) and slide callback (0x47535c) run from the stock bytes, the payload's handler as the build binds it.
+    The timers are ids (widget_add_timer / widget_remove_timer); a removed timer does not fire; the dialog's property "timer_idex" is stock's uint32 value_t."""
+
+    def __init__(self, y, slide=SLIDE_ID, stock=False):
+        super().__init__(['home_page'], 0, 1, stock)
+        for h in self.write_hooks: self.u.hook_del(h)   # (a write hook on the state store in stock's branch delay slot, 0x4754c4, breaks the branch under unicorn)
+        self.mem_geometry = True
+        from disasm import Bin   # (tools/ is on the path: the harness imports pod)
+        for slot, nm in Bin(DEMO).got.items():   # stock's GOT slots for the calls the callbacks make (libc and the mocked widget calls)
+            hit = [a for a, n in self.handlers.items() if n == nm]
+            if hit: self.setword(slot, hit[0])
+        for nm, off in (('widget_get_prop', 0x57bc), ('widget_set_prop', 0x57b0), ('value_uint32', 0x57ac), ('widget_remove_timer', 0x57a4), ('cg_add_timer', 0x57b8), ('timer_count', 0x57a8), ('value_set_uint32', 0x57b4)):
+            self.handlers[self.word(pod.GP - off)] = nm   # stock's GOT slots (the callbacks reach these by $gp, 0xa03ed0)
+        self.removed, self.active, self.nexttimer = [], {REFRESH_ID: 'refresh'}, 23
+        self.handlers[ADD_TIMER] = 'cg_add_timer'
+        self.dialog = self.alloc(0x120); self.u.mem_write(self.dialog, bytes(0x120)); self.setword(self.dialog + 4, y & 0xffffffff)
+        self.timer = self.alloc(0x60); self.u.mem_write(self.timer, bytes(0x60)); self.setword(self.timer + 0x24, self.dialog)
+        self.props[(self.dialog, 'timer_idex')] = slide
+        if slide != 0xffffffff: self.active[slide] = 'slide'
+        self.setword(REFRESH_ID_W, REFRESH_ID); self.setword(STATEW, 1); self.setword(DIRW, 1)
+        self.bound_close = [(CLOSE_STOCK, self.dialog)]   # the handlers of EVT_WINDOW_CLOSE in bind order: stock's init binds its own first
+
+    def _hook(self, u, address, size, _):
+        name = self.handlers.get(address, '')
+        if name not in ('widget_get_prop', 'widget_set_prop', 'value_uint32', 'timer_count', 'widget_remove_timer', 'cg_add_timer'):
+            return super()._hook(u, address, size, _)
+        a0, a1, a2 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2))
+        ret = 0
+        if name == 'widget_get_prop': self.setword(a2 + 8, self.props.get((a0, self.read_cstr(a1)), 0xffffffff))
+        elif name == 'widget_set_prop': self.props[(a0, self.read_cstr(a1))] = self.word(a2 + 8)
+        elif name == 'value_uint32': ret = self.word(a0 + 8)
+        elif name == 'timer_count': ret = len(self.active)
+        elif name == 'widget_remove_timer':
+            self.removed.append((a0, a1)); self.active.pop(a1, None)
+        else:
+            ret = self.nexttimer; self.nexttimer += 1; self.active[ret] = 'refresh'
+        u.reg_write(UC_MIPS_REG_V0, ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+
+    def build_init(self, fail=False):
+        """The payload's init hook over this dialog (stock's init mocked): the EVT_WINDOW_CLOSE handlers it binds join the dialog's."""
+        if fail: self.widget_on_fail = frozenset({EVT_CLOSE})
+        ret = self.call(PSYMS['m1plus_pulldown_init'], a0=self.dialog, a1=0, count=3000000)
+        self.bound_close += [(a2, a3) for n, a0, a1, a2, a3 in (c for c in self.calls if c[0] == 'widget_on' and len(c) == 5) if a0 == self.dialog and a1 == EVT_CLOSE and a1 not in self.widget_on_fail]
+        return ret
+
+    def close(self):
+        """EVT_WINDOW_CLOSE: every bound handler, in order (the event struct is not read)."""
+        for fn, ctx in self.bound_close: self.call(fn, a0=ctx, a1=0, count=2000000)
+
+    def tick(self):
+        """The 10 ms slide timer, when it still exists: stock's callback. True when it ran."""
+        if SLIDE_ID not in self.active: return False
+        self.call(SLIDE_CB, a0=self.timer, count=2000000)
+        return True
+
+
+def close_tests(ctx):
+    expect = ctx.expect
+    stock, built = stock_demo_bytes(), built_demo_bytes()
+    word = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+
+    def run(y, ours, stock_tsdown, slide=SLIDE_ID):
+        """close, one late slide tick if the timer is still there, then a touch down at y 20 and a move to y 60 with the dialog gone. (state after the tick, ran, opens, the machine)"""
+        m = CG(y, slide, stock_tsdown)
+        if ours: m.build_init()
+        m.close()
+        ran = m.tick() if slide != 0xffffffff else False
+        state = m.word(STATEW)
+        opened = m.swipe()[0]
+        return state, ran, opened, m
+
+    # -- the reproducer: stock's close handler alone (the slide timer outlives the dialog) against the build's handler too
+    for y in (-60, -40, 0):
+        state, ran, opened, m = run(y, False, True)
+        expect(ran and state == 3 and not opened and m.removed == [(m.dialog, REFRESH_ID)], f'STOCK handlers, y {y}: the close removes only the refresh timer, the late tick stores state 3, the swipe is refused ({ran}, {state}, {opened}, {m.removed})')
+        state, ran, opened, m = run(y, True, False)
+        expect(m.removed == [(m.dialog, REFRESH_ID), (m.dialog, SLIDE_ID)] and m.props[(m.dialog, 'timer_idex')] == 0xffffffff and not ran and state == 0 and opened,
+               f'BUILT, y {y}: the slide timer is removed at the close, timer_idex is -1, no tick runs, the state stays 0, the swipe opens ({m.removed}, {ran}, {state}, {opened})')
+        state, ran, opened, m = run(y, False, False)
+        expect(ran and state == 3 and opened,
+               f'hook 30 without our close handler, y {y}: the late tick still fires and the swipe still opens (the two fixes are independent) ({ran}, {state}, {opened})')
+    for y in (-340, -120):
+        state, ran, opened, m = run(y, False, True)
+        expect(ran and state == 0 and opened, f'STOCK handlers, y {y}: a late tick before the last frame leaves state 0 ({ran}, {state}, {opened})')
+        state, ran, opened, m = run(y, True, False)
+        expect(not ran and state == 0 and opened and m.removed == [(m.dialog, REFRESH_ID), (m.dialog, SLIDE_ID)], f'BUILT, y {y}: the timer is removed, state 0, opens ({ran}, {state}, {opened}, {m.removed})')
+
+    # -- no slide timer pending: ours removes nothing (stock's own refresh removal only); no timer left at all: ours removes nothing either
+    state, ran, opened, m = run(-60, True, False, slide=0xffffffff)
+    expect(m.removed == [(m.dialog, REFRESH_ID)] and m.props[(m.dialog, 'timer_idex')] == 0xffffffff and state == 0 and opened, f'BUILT, timer_idex -1: only stock\'s refresh timer is removed ({m.removed}, {state}, {opened})')
+    m = CG(-60, SLIDE_ID); m.build_init(); m.active.clear(); m.close()
+    expect(m.removed == [(m.dialog, REFRESH_ID)], f'BUILT, no timer alive: ours removes no id ({m.removed})')
+    expect((m.dialog, SLIDE_ID) not in m.removed and m.props[(m.dialog, 'timer_idex')] == SLIDE_ID, 'BUILT, no timer alive: the property is left alone')
+
+    # -- the bind: one more handler on the dialog's EVT_WINDOW_CLOSE after stock's; a refused bind leaves the rest of the init as stock
+    m = CG(-60); m.build_init()
+    expect(len(m.bound_close) == 2 and m.bound_close[1][1] == m.dialog and m.bound_close[1][0] != CLOSE_STOCK, f'the build binds one more handler on the close event, context the dialog ({m.bound_close})')
+    m = CG(-60); r = m.build_init(fail=True)
+    expect(r == 0 and len(m.bound_close) == 1 and ('stock_pulldown_resume', m.dialog, 0) in m.calls, f'a refused bind: stock\'s result and no extra handler ({r}, {m.bound_close})')
+    m = CG(-60); m.close()
+    expect(m.word(STATEW) == 0, 'stock close handler alone: state 0')
+
+    # -- pins: the words the reasoning relies on are stock in both images
+    pins = [p for p in pod.TSDOWN_PINS if 0x475114 <= p[0] <= 0x475fb0 or 0x4754bc <= p[0] <= 0x4754c4]
+    expect(len(pins) >= 18 and all(word(stock, a) == old and word(built, a) == old for a, old, _ in pins), 'the close handler\'s bind, its one timer removal, the slide callback\'s state 3 store and stock\'s cancel sequence are pinned and stock in the build')
+    expect(word(stock, 0x475f94) == 0x2405012e and word(stock, 0x475fb0) == 0x24c60000 | 0x50ec, 'init binds 0x4750ec to 0x12e')
+
+
+SECTIONS = [hook_tests, page_tests, files_tests, flags_tests, playtile_tests, stockopen_tests, gate_tests, close_tests]

@@ -1020,3 +1020,31 @@ PULLDOWN_FLAG_PINS = (   # (address, stock word, what it proves)
     (0x4754e8, 0x8f91a96c, 'System tile handler 0x4754c8: lw s1, GOT syssetinto_flag'), (0x4754f4, 0x14400013, 'System tile handler: bnez v0, return (a nonzero flag does nothing)'),
     (0x475578, 0x8f91a95c, 'Playback tile handler 0x475558: lw s1, GOT playsetinto_flag'), (0x475584, 0x14400013, 'Playback tile handler: bnez v0, return'),
 )
+# The swipe's two gates (docs/modules/pulldown.md "Swipe gates and the window stack"): on_wm_tsmove_fun refuses to open the pull-down while lockscreen_pageflag (0xa059fc) is 1 or dropdown_menu_state (0xa05a2c) is not 0;
+# the first is stored only by the lock page's init (1) and its EVT_WINDOW_CLOSE handler (0), the second only by the pull-down's own handlers and tsmove (its 0 by the dialog's EVT_WINDOW_CLOSE handler 0x4750ec).
+TSDOWN_PINS = (   # (address, stock word, what it proves)
+    (0x4cd728, 0x8f82a9a8, 'on_wm_tsdown_fun 0x4cd6e8: lw v0, GOT dropdown_menu_state (0xa05a2c)'), (0x4cd72c, 0x8c420000, 'on_wm_tsdown_fun: lw v0, (v0): the state'),
+    (0x4cd730, 0x10400003, 'on_wm_tsdown_fun: beqz v0, store (state 0 stores pressdown_y)'), (0x4cd738, 0x14430005, 'on_wm_tsdown_fun: bne v0, 3: any state but 0 and 3 skips the store'),
+    (0x4cd740, 0x8f82a9b4, 'on_wm_tsdown_fun: lw v0, GOT pressdown_y (0xa05a30)'), (0x4cd744, 0x8ca3001c, 'on_wm_tsdown_fun: lw v1, 0x1c(a1): the event\'s y'),
+    (0x4cd748, 0xac430000, 'on_wm_tsdown_fun: sw v1, (v0): pressdown_y = y'),
+    (0x4cd7fc, 0x8f82b344, 'on_wm_tsmove_fun: lw v0, GOT lockscreen_pageflag (0xa059fc)'), (0x4cd800, 0x8c430000, 'on_wm_tsmove_fun: lw v1, (v0)'),
+    (0x4cd804, 0x24020001, 'on_wm_tsmove_fun: v0 = 1'), (0x4cd808, 0x1062002e, 'on_wm_tsmove_fun: beq v1, 1: the lock flag set returns without opening'),
+    (0x4cd818, 0x8f82a9a8, 'on_wm_tsmove_fun: lw v0, GOT dropdown_menu_state'), (0x4cd81c, 0x8c440000, 'on_wm_tsmove_fun: lw a0, (v0)'),
+    (0x4cd820, 0x14800028, 'on_wm_tsmove_fun: bnez a0: a nonzero state returns without opening'),
+    (0x53fdac, 0x24030001, 'screensaver_page_init: v1 = 1'), (0x53fdbc, 0x8f82b344, 'screensaver_page_init: lw v0, GOT lockscreen_pageflag'),
+    (0x53fdc8, 0xac430000, 'screensaver_page_init: sw v1, (v0): the lock flag is set to 1 (its only store of 1)'),
+    (0x53f1ac, 0x8f82b344, 'lock page EVT_WINDOW_CLOSE handler 0x53f1a0: lw v0, GOT lockscreen_pageflag'), (0x53f1b0, 0xac400000, 'lock page EVT_WINDOW_CLOSE handler: sw zero, (v0): the only store of 0'),
+    (0x4750fc, 0x8f82a9a8, 'dropdown dialog EVT_WINDOW_CLOSE handler 0x4750ec: lw v0, GOT dropdown_menu_state'), (0x475118, 0xac400000, 'dropdown dialog EVT_WINDOW_CLOSE handler: sw zero, (v0): the only store of 0'),
+    # the close handler removes only the refresh timer in the global 0x97c750, never the slide timer; the slide callback's last frame stores state 3 with no check that the dialog is closing (m1plus's pd_on_close cancels the slide timer)
+    (0x475fb0, 0x24c650ec, 'init: the close handler\'s address, a2 = 0x470000 + 0x50ec (0x4750ec), bound to 0x12e at 0x475f94'),
+    (0x475114, 0x8f90a9ac, 'close handler 0x4750ec: lw s0, GOT 0x97c750 (the refresh timer\'s id)'), (0x47511c, 0x8e050000, 'close handler: lw a1, (s0): the id'),
+    (0x475124, 0x8f99a85c, 'close handler: lw t9, GOT widget_remove_timer (0x668cb0)'), (0x475128, 0x0320f809, 'close handler: jalr widget_remove_timer: its only timer call'),
+    (0x4754bc, 0x24030003, 'slide callback 0x47535c, last opening frame: v1 = 3'), (0x4754c4, 0xac430000, 'slide callback: sw v1, (dropdown_menu_state): state 3, no check that the dialog is closing'),
+    (0x47515c, 0x8f99a844, 'pointer-down handler 0x47514c: lw t9, GOT widget_get_prop (0x6676bc)'), (0x475188, 0x26453e98, 'pointer-down handler: a1 = "timer_idex" (0x743e98), the slide timer\'s id property'),
+    (0x475184, 0x0320f809, 'pointer-down handler: jalr widget_get_prop(dlg, "timer_idex", &v)'), (0x475194, 0x8f99a854, 'pointer-down handler: lw t9, GOT value_uint32 (0x712380)'),
+    (0x4751a4, 0x10430019, 'pointer-down handler: beq v0, -1: no slide timer, nothing to cancel'), (0x4751ac, 0x8f99a858, 'pointer-down handler: lw t9, GOT timer_count (0x6638cc)'),
+    (0x4751b8, 0x10400014, 'pointer-down handler: beqz timer_count: no timer, nothing to cancel'),
+    (0x4751d4, 0x8f99a85c, 'pointer-down handler: lw t9, GOT widget_remove_timer (0x668cb0)'), (0x4751d8, 0x0320f809, 'pointer-down handler: jalr widget_remove_timer(dlg, id)'),
+    (0x4751ec, 0x0320f809, 'pointer-down handler: jalr value_set_uint32(&v, -1)'), (0x475204, 0x0320f809, 'pointer-down handler: jalr widget_set_prop(dlg, "timer_idex", &v)'),
+)
+TSDOWN_PROLOGUE = (0x3c1c0053, 0x279c67e8, 0x0399e021)   # on_wm_tsdown_fun's PIC prologue (lui gp, 0x53; addiu gp, gp, 0x67e8; addu gp, gp, t9)

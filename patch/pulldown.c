@@ -11,7 +11,7 @@
  * known characters only, no id twice, '-' at most once, a file shorter than PD_FILE_MAX; anything else, or no file, is the default.
  * Every tile the shown part does not list is hidden.
  *
- * One hook, dialog_dropdown_dialog_init (0x475f04, tools/pod.py PULLDOWN_INIT): run when the dialog is built (never at boot or in the
+ * Two hooks: on_wm_tsdown_fun (0x4cd6e8, tools/pod.py TSDOWN, the swipe's gates, below) and dialog_dropdown_dialog_init (0x475f04, tools/pod.py PULLDOWN_INIT): run when the dialog is built (never at boot or in the
  * main loop; the navigator's dialog-init dispatcher is its only caller). m1plus_pulldown_init runs the stock init to completion (it
  * binds the dialog's pointer handlers and, through its widget_foreach visitor, every tile's click: we move tiles, we do not replace
  * behaviour) and returns its result; then, if every tile and caption is found,
@@ -191,13 +191,67 @@ int pd_open_settings(const char *name) {
     return ret;
 }
 
+/* The dialog's EVT_WINDOW_CLOSE, after stock's own handler (0x4750ec: dropdown_menu_state = 0, the 500 ms refresh timer removed, nothing else): the 10 ms slide timer (callback 0x47535c, its id in the property
+ * "timer_idex", 0xffffffff for none) is cancelled as stock's pointer-down handler 0x47514c cancels it. Widget destruction is deferred to an idle, so a tick after the close would store state 3 (0x4754c4) with no
+ * dialog and the swipe would be refused for ever. Writes no global; the state is stock's handler's. */
+static int pd_on_close(void *dlg, void *evt) {
+    unsigned v[4]; /* value_t: type at 0, the uint32 at 8 */
+    (void)evt;
+    if (!dlg || widget_get_prop(dlg, "timer_idex", v) != RET_OK) return RET_OK;
+    if (value_uint32(v) == 0xffffffffu || !timer_count()) return RET_OK;
+    widget_remove_timer(dlg, value_uint32(v));
+    value_set_uint32(v, 0xffffffffu);
+    widget_set_prop(dlg, "timer_idex", v);
+    return RET_OK;
+}
+
 /* The hook (tools/pod.py PULLDOWN_INIT): the flags, then stock, then ours. */
 int m1plus_pulldown_init(void *dlg, void *ctx) {
     int ret;
     pd_reconcile();
     ret = stock_pulldown_init_trampoline(dlg, ctx);
-    if (ret == RET_OK && dlg) pd_start(dlg);
+    if (ret == RET_OK && dlg) {
+        widget_on(dlg, EVT_WINDOW_CLOSE, pd_on_close, dlg); /* a refused bind leaves stock's behaviour */
+        pd_start(dlg);
+    }
     return ret;
+}
+
+/* ---- the swipe's two gates (docs/modules/pulldown.md "Swipe gates and the window stack")
+ *
+ * on_wm_tsmove_fun opens the pull-down only while lockscreen_pageflag is not 1 (set by the lock page's init, cleared by its EVT_WINDOW_CLOSE) and dropdown_menu_state is 0 (its 0 is the dialog's own
+ * EVT_WINDOW_CLOSE). A window that goes away without that event (stock's window manager can drop a close that arrives during an animation) leaves the word set for ever and the swipe dead until a reboot.
+ * The hook runs before stock's on_wm_tsdown_fun and only clears: a flag is zeroed when no window of its name is in the window stack (a window under another page keeps its flag); nothing is closed, destroyed or opened, and
+ * a flag is never set. With both words 0 (always, but for a lock screen or a pull-down on the way) it is two loads and the stock call. */
+static int pd_off_state __attribute__((section(".scratch"))); /* 0 not read yet, 1 on, 2 kill switch */
+
+static int pd_off(void) {
+    if (!pd_off_state) pd_off_state = home_off() ? 2 : 1;
+    return pd_off_state != 1;
+}
+
+/* true: a window of that name is in the stack, wherever. A window under another page keeps its word: its init does not run again when the page above closes, so a word cleared now would be wrong then (the
+ * pull-down over the lock screen, a second pull-down). */
+static int pd_present(void *wm, const char *name) {
+    unsigned n = widget_count_children(wm);
+    while (n--) {
+        const char *nm = pd_name(widget_get_child(wm, n));
+        if (nm && !strcmp(nm, name)) return 1;
+    }
+    return 0;
+}
+
+/* The hook (tools/pod.py TSDOWN): the two words made true, then stock. */
+int m1plus_tsdown(void *ctx, void *e) {
+    volatile int *lock = (volatile int *)LOCK_PAGEFLAG, *state = (volatile int *)DROPDOWN_STATE;
+    if ((*lock || *state) && !pd_off()) {
+        void *wm = window_manager();
+        if (wm) {
+            if (*lock && !pd_present(wm, "screensaver_page")) *lock = 0;
+            if (*state && !pd_present(wm, "dropdown_dialog")) *state = 0;
+        }
+    }
+    return stock_tsdown_trampoline(ctx, e);
 }
 
 /* ---- the Control Center page */
