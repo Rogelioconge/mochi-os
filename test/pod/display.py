@@ -191,8 +191,8 @@ def settings_tests(ctx):
            'the Screen Timeout picker: stock\'s five choices in stock\'s order, the argument is stock\'s index')
     expect([(r.label, r.action, r.arg) for r in E.rows] == [('Off', P.ACT_LEDSET, 0), ('Green', P.ACT_LEDSET, 1), ('Blue', P.ACT_LEDSET, 2), ('Dynamic', P.ACT_LEDSET, 3), ('Follow Screen', P.ACT_LEDFOLLOW, 0), ('Theme', P.ACT_RGBROW, P.RGB_THEME_PAGE_INDEX)] and all(P.row_kind(r) == 'check' for r in E.rows[:4]) and [P.row_kind(r) for r in E.rows[4:]] == ['switch', 'value'],
            'the LED Light picker: stock Off, Green and Blue plus Dynamic, then the Follow Screen switch and the Theme row')
-    el = [x.label if isinstance(x, P.Row) else x for x in E.layout]
-    expect(el == ['Off', 'Green', 'Blue', 'Dynamic', P.GAP, 'Follow Screen', P.GAP, 'Theme'], f'LED Light: the choices; Follow Screen in a card of its own; Theme in one (hidden Theme leaves a gap, so it comes last: nothing moves) ({el})')
+    el = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in E.layout]
+    expect(el == ['Off', 'Green', 'Blue', 'Dynamic', P.GAP, 'Follow Screen', 'The light is off while the screen is off', 'Theme'], f'LED Light: the choices; Follow Screen in a card of its own with its note under it; Theme in the card after the note, last (hidden, it leaves nothing to move) ({el})')
     expect((P.ACT_LIGHT, P.ACT_LIGHTSET, P.ACT_LED, P.ACT_LEDSET, P.ACT_LEDFOLLOW) == (97, 98, 99, 100, 101) and {P.ACT_LIGHT, P.ACT_LED} <= set(P.VALUE_ACTIONS) and {P.ACT_LIGHTSET, P.ACT_LEDSET} <= set(P.CHECK_ACTIONS)
            and P.ACT_LEDFOLLOW in P.SWITCH_ACTIONS, 'the actions')
     expect(len(P.STOCK_PAGES) == 2 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
@@ -204,7 +204,7 @@ def settings_tests(ctx):
     import pod_i18n
     import mod_icons
     for loc in pod_i18n.LOCALES:
-        expect(all(pod_i18n.TEXT[k][loc] for k in ('Display', 'Screen Timeout', 'Lock Screen', 'LED Light', 'Follow Screen', 'Never', 'Off', 'Green', 'Blue')), f'the page texts have a translation in {loc}')
+        expect(all(pod_i18n.TEXT[k][loc] for k in ('Display', 'Screen Timeout', 'Lock Screen', 'LED Light', 'Follow Screen', 'The light is off while the screen is off', 'Never', 'Off', 'Green', 'Blue')), f'the page texts have a translation in {loc}')
     expect(all(pod_i18n.key_for(t) is None for t in TEXTS[1:]) and pod_i18n.key_for('Never') == 'Never', '15s .. 5min are plain texts, Never is a key')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Screen Timeout', 'Lock Screen', 'LED Light')] == ['timer', 'lock', 'lightbulb'] and 'Follow Screen' not in mod_icons.CARD_GLYPHS, 'the glyphs (Follow Screen has none on the LED Light page)')
 

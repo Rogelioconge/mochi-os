@@ -92,7 +92,7 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
             draw_row(s, im, d, c, y, values, switches, shown, ink, img, pal, pal is not None and pressed is not None and s.shown(lab) == pressed)
         if c.name == 'pod_bright': draw_brightness(im, c, y, img, st.get('brightness', 60))
         elif c.name in ('pod_vsval', 'pod_vsctl'): draw_volcard(s, im, c, y, img, ink, st.get('vol_text', ''), st.get('vol', 0), st.get('vol_dim', False))
-        else: draw_text_item(s, im, c, y, ink)
+        else: draw_text_item(s, im, c, y, ink, st.get('texts'))
         y += c.h
     d.rectangle((0, 0, W - 1, NAV - 1), fill=base)   # the list is under the navbar: it clips at its top
     lt = next(w for w in root.walk() if w.name == 'label_title'); tpx = PI.title_px(s.tree)
@@ -142,15 +142,16 @@ def draw_volcard(s, im, c, y, img, ink, text, value, dim=False):
     im.alpha_composite(layer)
 
 
-def draw_text_item(s, im, c, y, ink=lambda c: c):
+def draw_text_item(s, im, c, y, ink=lambda c: c, texts=None):
     """A header or a note (a view holding a grey label) at y."""
+    shown = lambda t: s.strings.get(texts[t.name], texts[t.name]) if texts and t.name in texts else s.shown(t)   # texts: the notes the payload sets at run time, by widget name
     for t in c.children:   # a header or a note: its grey label
         if c.type == 'view' and t.type == 'hscroll_label':
             px = int(style(t, 'font_size'))
-            s.text(im, t.x, y + t.y + t.h / 2, s.clip(s.shown(t), px, t.w), px, ink(rgb(style(t, 'text_color'))))
+            s.text(im, t.x, y + t.y + t.h / 2, s.clip(shown(t), px, t.w), px, ink(rgb(style(t, 'text_color'))))
         elif c.type == 'view' and t.type == 'label':   # a wrapping note: by words, from the top, ST.WRAP_LINE apart
             px, line, k = int(style(t, 'font_size')), '', 0
-            for word in s.shown(t).split():
+            for word in shown(t).split():
                 if line and s.font.width(line + ' ' + word, px) > t.w: s.text(im, t.x, y + t.y + ST.NOTE_LABEL_H / 2 + k * ST.WRAP_LINE, line, px, ink(rgb(style(t, 'text_color')))); line, k = word, k + 1
                 else: line = (line + ' ' + word).strip()
             s.text(im, t.x, y + t.y + ST.NOTE_LABEL_H / 2 + k * ST.WRAP_LINE, line, px, ink(rgb(style(t, 'text_color'))))
@@ -453,6 +454,16 @@ def main():
                ('Default Volume (Volume Memory on)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'vol_dim': True, 'switches': {'pod_switch0': True}})),
                ('Channel Balance', draw_page(t, 'm1plus_psbal', state={'vol_text': 'L3', 'vol': 7})),
                ('Play Mode', draw_page(t, 'm1plus_psmode'))], os.path.join(os.path.dirname(out), 'playset', f'playset-{tag}.png'))
+    # LED Light with Dynamic chosen, and the Theme page with one theme of each palette group (docs/modules/display.md "Sample Rate"; the note under Theme's title is set at run time: the preview sets it the same way) (out/preview/rgb/)
+    for loc, tag in (('en_US', 'en'), ('zh_CN', 'zh_CN'), ('ge_DE', 'de')):
+        t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
+        tr = lambda k: t.strings.get(k, k)
+        led = {'shown': {'pod_check3'}, 'values': {'pod_value5': tr('Reference')}, 'switches': {'pod_switch4': True}}
+        theme = lambda note, at: {'shown': {f'pod_check{at}'}, 'texts': {'pod_note0_t': note}}
+        sheet([('LED Light, Dynamic', draw_page(t, 'm1plus_ledlight', state=led)),
+               ('Theme: Reference', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Red to blue to green as the sample rate rises', 2))),
+               ('Theme: Heartbeat', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Rose to lavender to lime as the sample rate rises', 4))),
+               ('Theme: Candle', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Warm amber, the same for every file', 0)))], os.path.join(os.path.dirname(out), 'rgb', f'rgb-{tag}.png'))
     # Light Mode (docs/modules/accent.md): the same pages with the hooks' colours and images (tools/palette.py); the Settings page with Light Mode On, and the picker
     lit = os.path.join(os.path.dirname(out), 'settings-light.png')
     sheet([('Light Mode: Settings, first screen', draw_page(s, 'm1plus_settings', lit=True)),

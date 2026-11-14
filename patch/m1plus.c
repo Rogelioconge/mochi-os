@@ -879,11 +879,24 @@ static int pick_chosen(const struct pod_row *row) {
     return d && row->arg == d->get();
 }
 
+/* LED Light > Theme: the note above the cards describes the chosen theme's colours (the page starts with the first; tools/pod_pages.py RGB_NOTES). */
+static void rgb_note(void *win) {
+    static const char *const note[] = {"Red to blue to green as the sample rate rises",
+                                       "Red to blue to green as the sample rate rises",
+                                       "Rose to lavender to lime as the sample rate rises",
+                                       "Red to blue to green as the sample rate rises",
+                                       "Warm amber, the same for every file",
+                                       "All colors in turn, the same for every file"};
+    void *w = widget_lookup(win, "pod_note0_t", 1);
+    if (w) widget_set_tr_text(w, note[tl_theme()]);
+}
+
 static void page_refresh(void *win, const struct pod_page *page) {
     char name[24];
     int i;
     stock_front = (void *)0;
     if (page == &POD_PAGES[POD_DISPLAY_PAGE]) disp_refresh(win); /* the slider follows the pull-down's */
+    if (page == &POD_PAGES[POD_RGB_THEME_PAGE]) rgb_note(win);
     if (page == &POD_PAGES[POD_PSMAXVOL_PAGE])
         ps_vol_refresh(win, PS_VOL_MAX); /* stock's refresh: the label and the slider from the word */
     if (page == &POD_PAGES[POD_PSBOOTVOL_PAGE])

@@ -987,15 +987,15 @@ DISPLAY_PAGE = Page('m1plus_display', 'm1plus_display_page', 'Display', layout=[
     Row('LED Light', ACT_LED, LED_PAGE_INDEX),
 ])
 LED_VALUES = ('Off', 'Green', 'Blue', 'Dynamic')
-LED_PAGE = Page('m1plus_ledlight', 'm1plus_ledlight_page', 'LED Light', layout=[Row(v, ACT_LEDSET, i) for i, v in enumerate(LED_VALUES)] + [GAP, Row('Follow Screen', ACT_LEDFOLLOW), GAP, Row('Theme', ACT_RGBROW, RGB_THEME_PAGE_INDEX)])
+LED_PAGE = Page('m1plus_ledlight', 'm1plus_ledlight_page', 'LED Light', layout=[Row(v, ACT_LEDSET, i) for i, v in enumerate(LED_VALUES)] + [GAP, Row('Follow Screen', ACT_LEDFOLLOW), Note('The light is off while the screen is off'), Row('Theme', ACT_RGBROW, RGB_THEME_PAGE_INDEX)])
 # LED Light > Dynamic (patch/tracklamp.c, docs/modules/display.md "Sample Rate"): the theme, a check on the chosen one, in two cards, Ambient above Sample Rate (a row's argument is its theme, not its place). The Sample Rate card's four show the playing track's sample rate as a colour
-# (steady, or moving in brightness; a note under the card says the colour follows the file's sample rate; the page may be a little taller than one screen); the Ambient card's two are colours of their own. The themes are numbered patch/tracklamp.h's TL_REFERENCE .. TL_OCEAN (Reference, the default, is 0).
+# (steady, or moving in brightness; the note above the cards describes the chosen theme's colours); the Ambient card's two are colours of their own. The themes are numbered patch/tracklamp.h's TL_REFERENCE .. TL_OCEAN (Reference, the default, is 0).
 RGB_THEMES = ('Reference', 'Gentle Breathe', 'Heartbeat', 'Lighthouse', 'Candle', 'Wave')
 RGB_RATE_THEMES = 4
+RGB_NOTES = ('Red to blue to green as the sample rate rises', 'Rose to lavender to lime as the sample rate rises', 'Warm amber, the same for every file', 'All colors in turn, the same for every file')   # the note above the cards (pod_note0): the chosen theme's palette, the payload sets it (patch/m1plus.c rgb_note); the page starts with the first
 RGB_THEME_PAGE = Page('m1plus_rgbtheme', 'm1plus_rgbtheme_page', 'Theme', layout=
-    [Hdr('Ambient')] + [Row(name, ACT_RGBTHEME, RGB_RATE_THEMES + i) for i, name in enumerate(RGB_THEMES[RGB_RATE_THEMES:])]
-    + [Hdr('Sample Rate')] + [Row(name, ACT_RGBTHEME, i) for i, name in enumerate(RGB_THEMES[:RGB_RATE_THEMES])]
-    + [Note("The color changes with the file's sample rate")])
+    [Note(RGB_NOTES[0], lines=2)] + [Hdr('Ambient')] + [Row(name, ACT_RGBTHEME, RGB_RATE_THEMES + i) for i, name in enumerate(RGB_THEMES[RGB_RATE_THEMES:])]
+    + [Hdr('Sample Rate')] + [Row(name, ACT_RGBTHEME, i) for i, name in enumerate(RGB_THEMES[:RGB_RATE_THEMES])])
 LIGHTTIME_PAGE = Page('m1plus_lighttime', 'm1plus_lighttime_page', 'Screen Timeout', layout=[Row(v, ACT_LIGHTSET, i) for i, v in enumerate(LIGHTTIME_VALUES)])
 # Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): Button Lock (a value row and its picker, stock's switch and three choices merged: Off, or one of the three modes) with its note,
 # Tap to Wake (stock's switch) in a card, and Auto-Standby (stock's switch) with Auto-Shutdown (a value row and its picker: stock's switch and four durations merged, Off or the duration) in a card. Every state is stock's own.

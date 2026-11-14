@@ -401,6 +401,8 @@ def run(ctx):
             for loc in LOC:
                 if node.type != 'label' or wrapped(tr_text(loc, pod_i18n.key_for(pod_i18n.shown_english(node))), px, node.w - 4) > note.lines: cards_over.append((page.key, node.name, loc, px, 'wrap'))
     expect(wrap_seen >= 4, f'the wrapping notes were found ({wrap_seen})')
+    note_over = [(loc, k) for loc in LOC for k in pod_pages.RGB_NOTES if wrapped(tr_text(loc, k), ST.NOTE_PX, ST.HDR_W - 4 - 4) > 2]   # the Theme page's note (two lines, a wrapping label of the note's width): the payload sets one of these
+    expect(not note_over, f'the four Theme notes wrap to at most two lines in all 13 languages ({note_over})')
     expect(not cards_over, f'the Settings value rows (label and value), headers and notes fit in all 13 languages ({cards_over[:40]})')
     # The Custom Wallpaper page (a Release Notes page): the heading fits its 288 px line at 22 px in every language (the paragraphs wrap)
     head_over = [(loc, tr_text(loc, 'Add Your Own Pictures')) for loc in LOC if width(tr_text(loc, 'Add Your Own Pictures'), 22) > 288]
