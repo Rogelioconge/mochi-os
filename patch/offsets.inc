@@ -1323,13 +1323,13 @@
 #define PP_LINE_X 12 /* = SG_TITLE_X: the grey line under a large title starts under the title */
 #define PP_HEAD_H 28
 #define PP_HEAD_PITCH 34
-#define PP_HEAD_X 14
+#define PP_HEAD_X 12 /* = GRID_MARGIN: the header starts where the Shows header and grid do */
 #define PP_SHOWS_X 12 /* = GRID_MARGIN, SG_TITLE_X: the header starts where the covers under it and the large title do */
 #define PP_SHELF_MAX 3
 #define PP_SHELF_ART 92
 #define PP_SHELF_R 8
-#define PP_SHELF_X 14
-#define PP_SHELF_PITCH 100
+#define PP_SHELF_X 12 /* = GRID_MARGIN: the first cover starts where the grid's do */
+#define PP_SHELF_PITCH 102 /* covers at 12, 114, 216: the third ends at 308, the grid's right edge */
 #define PP_SHELF_W 92
 #define PP_SHELF_TITLE_Y 96
 #define PP_SHELF_TITLE_H 18
@@ -1337,7 +1337,7 @@
 #define PP_SHELF_LEFT_H 16
 #define PP_SHELF_PITCH_Y 142
 #define PP_SHELF_PLAY_INSET 6
-#define PP_DL_TILE_X 16
+#define PP_DL_TILE_X 12 /* = GRID_MARGIN: the tile starts where the grid does */
 #define PP_DL_TILE_Y 10
 #define PP_DL_TEXT_X 72
 #define PP_DL_TEXT_W 206 /* the text ends at x 278 (72 + 206), 10 px before the shared chevron */
