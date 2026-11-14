@@ -34,7 +34,7 @@
   and only a set Charge Limit writes the charger switch, releasing only its own hold ([charging](charging.md)).
   Both disabled it adds only an access and two cached flags. Now Playing's paint work stays on the
   cover widget; More work stays on init, More/back taps and covering-dialog handling. The pull-down hook runs stock's init first,
-  then moves and hides the eight tiles and their captions once; before the stock init it also writes the two "inside settings" flags (`syssetinto_flag`, `playsetinto_flag`) from the window stack.
+  then moves, shows and hides the tiles and their captions (the eight stock ones and the three of ours) once; before the stock init it also writes the two "inside settings" flags (`syssetinto_flag`, `playsetinto_flag`) from the window stack.
 - **Pin every edit.** Check stock SHA-256, words, symbols, `$gp` and offsets before writing.
   A mismatch fails the build; hook errors fall back to stock.
 - **Honor the kill switch.** `/mnt/mmc/m1plus-off` disables the payload on the path rollback needs: the

@@ -92,7 +92,7 @@ Feature settings live in their own folder, `/mnt/data/m1plus/` (`SET_DIR`, patch
 | `podcast-online-search` | Podcast Discover | `0` off; missing/other on (the default); gates Discover and the search level ([podcasts](podcasts.md)) |
 | `podcast-directory` | Podcast Directory | `1` Podcast Index; missing/other Apple Podcasts (the default); where the search and the id lookup go ([podcasts](podcasts.md) "Podcast Directory"); the last setting file (row 41) |
 | `podcast-region` | Podcast Region | the storefront's two capital letters and a line feed (one of the 34 in `tools/pcregion.py`); missing/other Automatic ([podcasts](podcasts.md) "Region") |
-| `pulldown-tiles` | Control Center | tile ids `0`-`7` in order, optional `-` then the hidden ids; invalid = all eight in stock order ([pulldown](pulldown.md)) |
+| `pulldown-tiles` | Control Center | tile ids `0`-`9`, `a` and `b` in order (at most eight), optional `-` then the hidden ids; invalid = the eight stock tiles in stock order ([pulldown](pulldown.md)) |
 | `radio-recent` | Recent radio stations | an `.m3u` of up to 10 stations, newest first ([radio](radio.md)) |
 | `radio-view` | Radio station lists view | `1` grid; missing/other list ([radio](radio.md)) |
 | `recently-added-view` | Recently Added view | `1` albums grid; missing/other songs ([recent-albums](recent-albums.md)) |

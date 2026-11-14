@@ -229,6 +229,9 @@ int m1_open_stock(const char *path, const char *window) {
     return navigator_to(path);
 }
 
+/* The stock Settings > Power page (the Sleep Timer switch and its selectors), the one Now Playing's More sheet row and the pull-down's Sleep Timer tile open (docs/modules/playmore.md). */
+int m1_open_sleep(void) { return m1_open_stock("systemset/powermanager_page", "powermanager_page"); }
+
 /* The navbar's small title of a page with a large heading: shown once the heading has scrolled away, i.e. the scroll offset has reached SG_COLLAPSE, or, on a page whose
  * heading is a header's name (a playlist, a podcast show), `head` (the offset the name has gone at). The page ORs in its own conditions (select mode, no scroll events ...). */
 int m1_title_gone(int off, int head) { return off >= (head ? head : SG_COLLAPSE); }

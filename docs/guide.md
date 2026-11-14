@@ -78,7 +78,7 @@ Grey values show the current setting.
 To show, hide or reorder menu items, open **Settings → Home Screen → Main Menu**.
 Use **Home Screen → Extras** to hide items from Extras. Settings stays accessible.
 
-To show, hide or reorder the tiles of the pull-down, open **Settings → System → Appearance → Control Center**. The pull-down's Playback Settings tile opens the Playback Settings page below (and is dimmed while you are on it).
+To show, hide or reorder the tiles of the pull-down, open **Settings → System → Appearance → Control Center**. Besides the stock tiles it offers six of ours, hidden until you turn them on: **Sleep Timer** (opens the Power page, where the Sleep Timer is set), **Settings** (opens the M1+ Music Settings), **Equalizer** and **Power Off** (asks "Confirm Shutdown?", the same question as holding the power key, and shuts the player down as the key does), and two switches, **AirPlay** and **DLNA**: a tap turns the service on or off (the same setting as Settings → Network Service), the tile lights while it is on, and the pull-down stays open. The services run only while Wi-Fi is connected; turning one on without Wi-Fi keeps the setting and shows "Connect to Wi-Fi first", and the tiles do nothing while an AirPlay session is playing. The pull-down holds eight tiles, and turning on a ninth shows "Up to 8 controls". The pull-down's Playback Settings tile opens the Playback Settings page below (and is dimmed while you are on it).
 
 | Page | Options |
 |---|---|

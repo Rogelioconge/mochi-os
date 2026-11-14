@@ -997,6 +997,7 @@ PLAYMORE_PINS = (   # (address, stock word, what it proves)
     (0x4a9b48, 0x27399924, 'handler 0x4a9b2c: t9 = 0x4a9924, the page refresh'), (0x4a9b50, 0x0411ff74, 'bal 0x4a9924, with a0 = the window (the delay slot move s0, a0)'),
 )
 PULLDOWN_OPEN_SITES = (0x4cd894, 0x4cd8bc)
+PULLDOWN_DIALOG_SITE = 0x4cd864   # on_wm_tsmove_fun: the `bal navigator_to` that opens the pull-down dialog (modal: it returns once the dialog is quit)
 PULLDOWN_PINS = (   # (address, stock word, what it proves)
     (0x475f10, 0x1080003c, 'init: beqz a0 (the trampoline resumes here)'),
     (0x4d1c70, 0x24a59a4c, 'dispatcher: "dialog/dropdown_dialog" string'),
@@ -1017,8 +1018,23 @@ PULLDOWN_FLAG_PINS = (   # (address, stock word, what it proves)
     (PULLDOWN_OPEN_SITES[0] + 4, 0x24849a64, 'its delay slot: a0 = "playset/playset_page"'),
     (0x4cd8a0, 0x8f82a96c, 'on_wm_tsmove_fun: lw v0, GOT syssetinto_flag (the second test)'),
     (PULLDOWN_OPEN_SITES[1] + 4, 0x24849a7c, 'its delay slot: a0 = "systemset/sysset_page"'),
+    (PULLDOWN_DIALOG_SITE + 4, 0x24849a4c, 'its delay slot: a0 = "dialog/dropdown_dialog"'),
+    # the power key's long press (on_wm_keylong_fun 0x4cdd9c), which the Power Off tile repeats: the two guard words, standby_mode = 1, awake_screen, the msg_poweroff text in a kind 1 context, the modal confirm, Yes (0xa) -> poweroff_page, else standby_mode = 0
+    (0x4cddc4, 0x8f91b33c, 'key long press: lw s1, GOT standby_mode (0xa059e0)'), (0x4cddcc, 0x1043002d, 'key long press: standby_mode == 2 returns'), (0x4cddd4, 0x8f84b068, 'key long press: lw a0, GOT 0xa059dc (POWERKEY_BLOCK)'),
+    (0x4cdddc, 0x10830029, 'key long press: that word == 2 returns'), (0x4cde0c, 0xae320000, 'key long press: sw s2 (1), (s1): standby_mode = 1'), (0x4cde10, 0x04116502, 'key long press: bal awake_screen (0x4e721c)'),
+    (0x4cde3c, 0xafb20018, 'key long press: sw s2 (1), 0x18(sp): the confirm context\'s kind = 1'), (0x4cde30, 0x24060200, 'key long press: a2 = 0x200, the text size'),
+    (0x4cde48, 0x0411fb73, 'key long press: bal getFormatString (0x4ccc18)'), (0x4cde4c, 0x24849ae0, 'key long press: a0 = "msg_poweroff"'), (0x4cde60, 0x04110fb9, 'key long press: bal navigator_to_with_context'), (0x4cde64, 0x24844570, 'key long press: a0 = "dialog/confirminfo_dialog"'),
+    (0x4cde6c, 0x1443000c, 'key long press: bne v0, 0xa: only Yes goes on'), (0x4cde7c, 0x04110fc0, 'key long press: bal navigator_to'), (0x4cde80, 0x2484412c, 'key long press: a0 = "poweroff_page"'), (0x4cdea4, 0xae200000, 'key long press: sw zero, (s1): standby_mode = 0 after anything but Yes'),
+    (0x4cd86c, 0x2403000d, 'on_wm_tsmove_fun: v1 = 0xd, what a tile quits the dialog with'), (0x4cd870, 0x14430014, 'on_wm_tsmove_fun: any other result skips the page opening (bne v0, v1, 0x4cd8c4)'),
+    (0x4754fc, 0x8f82a960, 'System tile handler 0x4754c8: lw v0, GOT 0xa05a00 (DROPDOWN_BUSY; the Playback handler 0x475558 reads the same word at 0x47558c)'), (0x47558c, 0x8f82a960, 'Playback tile handler: the same word'),
+    (0x475518, 0x8f99a968, 'System tile handler: lw t9, GOT airplayGetFlag (0x5cfc4c)'), (0x47552c, 0x8f99a838, 'System tile handler: lw t9, GOT dialog_quit (0x64f378)'),
+    (0x475530, 0x2405000d, 'System tile handler: a1 = 0xd'), (0x475534, 0x0320f809, 'System tile handler: jalr dialog_quit(a0 = the handler\'s ctx, the dialog)'),
     (0x4754e8, 0x8f91a96c, 'System tile handler 0x4754c8: lw s1, GOT syssetinto_flag'), (0x4754f4, 0x14400013, 'System tile handler: bnez v0, return (a nonzero flag does nothing)'),
-    (0x475578, 0x8f91a95c, 'Playback tile handler 0x475558: lw s1, GOT playsetinto_flag'), (0x475584, 0x14400013, 'Playback tile handler: bnez v0, return'),
+    (0x475578, 0x8f91a95c, 'Playback tile handler 0x475558: lw s1, GOT playsetinto_flag'), (0x475584, 0x14400013, 'Playback tile handler: bnez v0, return'),    # the AirPlay and DLNA tiles call stock's own switches: each flips one setting byte and persists it ([SYSSET] AIRPLAY / DLNA); the network-status timer (0x4cfd94) then starts or stops the service to match
+    (0x5076b4, 0x8f82afc0, 'airplay_switch 0x5076a8: lw v0, GOT 0xa05abd (the AirPlay setting byte, AIRPLAY_FLAG)'), (0x5076d0, 0x38840001, 'airplay_switch: xori a0, a0, 1 (flip)'), (0x5076d8, 0xa0440000, 'airplay_switch: sb a0, (v0) (store the byte; the delay slot of the tail call that writes the ini)'),
+    (0x507680, 0x8f82afbc, 'dlna_switch 0x507674: lw v0, GOT 0xa05abe (the DLNA setting byte, DLNA_FLAG)'), (0x50769c, 0x38840001, 'dlna_switch: xori a0, a0, 1 (flip)'), (0x5076a4, 0xa0440000, 'dlna_switch: sb a0, (v0) (store the byte; the delay slot of the tail call that writes the ini)'),
+    (0x4cfde4, 0x8f99b470, 'on_wm_timer_networkstatus 0x4cfd94: lw t9, GOT airplay_start (0x5076dc), which starts or stops shairport to match the byte'), (0x4cfde8, 0x0320f809, 'on_wm_timer_networkstatus: jalr airplay_start'),
+    (0x4cfe18, 0x8f99b474, 'on_wm_timer_networkstatus: lw t9, GOT dmr_serverstart (0x508354), which starts or stops the DLNA renderer to match the byte'), (0x4cfe1c, 0x0320f809, 'on_wm_timer_networkstatus: jalr dmr_serverstart'),
 )
 # The swipe's two gates (docs/modules/pulldown.md "Swipe gates and the window stack"): on_wm_tsmove_fun refuses to open the pull-down while lockscreen_pageflag (0xa059fc) is 1 or dropdown_menu_state (0xa05a2c) is not 0;
 # the first is stored only by the lock page's init (1) and its EVT_WINDOW_CLOSE handler (0), the second only by the pull-down's own handlers and tsmove (its 0 by the dialog's EVT_WINDOW_CLOSE handler 0x4750ec).

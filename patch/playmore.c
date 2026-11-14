@@ -252,7 +252,7 @@ static int pm_on_art(void *ctx, void *e) {
 static int pm_on_sleep(void *ctx, void *e) {
     (void)e;
     if (!pm.dlg || ctx != pm.dlg) return RET_OK;
-    if (m1_open_stock("systemset/powermanager_page", "powermanager_page") != RET_OK) return RET_OK;
+    if (m1_open_sleep() != RET_OK) return RET_OK;
     window_close(ctx);
     return RET_OK;
 }
