@@ -556,6 +556,7 @@
 #define IL_TICK_MS 500
 #define IL_FIRST_MS 50
 #define LY_IDLE_MS 3000
+#define NP_IDLE_TICKS 20 /* stock's idle countdown start (NP_IDLE_COUNT): 20 ticks of 500 ms */
 #define LY_TAP_PX 10
 #define LY_COAST_MS 200
 #define LY_HOLD_MS 1000

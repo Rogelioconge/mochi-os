@@ -497,6 +497,9 @@ DATA = {
     'COVER_PARSED':       (0xa04c3c, 'savecover_path'),
     # stock's Cover mode switch (Playback Settings > Cover mode; the timed Now Playing view runs only while it is on): a byte, 0 / 1, toggled by xori and saved as [SYSSET] COVERMODE (IDLE_PINS, patch/bigcover.c)
     'COVER_MODE':         (0xa05aa5, None),
+    # Now Playing's idle countdown, an int: the 500 ms tick 0x53cf48 decrements it while playing_page is on top and opens the timed view at 0 (IDLE_PINS); stock stores 20 (ten seconds) from its button handlers only
+    # (0x53b174, 0x53b4a4, 0x53b624, 0x53b6e0, 0x53b818, 0x53c164, 0x53c1d0, 0x53c858) and after the open (0x53d0fc), never for a touch. patch/lyrics.c stores 20 for a touch on the lyrics
+    'NP_IDLE_COUNT':      (0x97ccd0, None),
     # the play queue: a deque_t * (stSongInfo rows, the queue start_player copied). Every reader pairs it with
     # mclGetPlayPos: get_playtimeandlength `lw s1, 0xa0394c; deque_size(*s1)` then `deque_at(*s1, pos)` (@0x4e01cc..0x4e0268),
     # the lock screen refresh (@0x53f73c, "queued" = 0 <= pos < size), the queue drawer (@0x47a8f0)

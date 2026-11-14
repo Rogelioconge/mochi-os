@@ -151,7 +151,8 @@ Limits: the Songs list shows the first 10,000 songs, a play queue holds the list
 **Cassette Mode** is a landscape Now Playing screen. Tap the cassette to pause/resume and the
 top-left screw to close. The status line shows the format (FLAC 24/96, MP3 320, DSD64). Change its
 theme under Settings → Now Playing, where **Idle Display** can also open it (or Vinyl Mode, or the
-lyrics page) after 10 idle seconds on Now Playing.
+lyrics page) after 10 idle seconds on Now Playing. Scrolling the lyrics on Now Playing counts as
+activity: the 10 seconds start once the lyrics return to the current line.
 
 **Lyrics idle display** (Settings → Now Playing → Idle Display → Lyrics) fills the screen (no status bar) with the cover, title and
 artist over the synchronized lyrics after 10 idle seconds. Tap anywhere to close it, drag to browse

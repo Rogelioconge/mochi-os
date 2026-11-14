@@ -817,6 +817,32 @@ def touch_tests(ctx):
     expect({k: v[0] for k, v in m.shown().items() if k in pos} == pos, 'a touch restarts the 3 s: 4 s after the drag, 2 s after the touch, the lines still stay')
     m.clock += 1100; t = len(m.timers); m.at(5)
     expect(len(m.timers) == t + 1, 'and 3 s after it they start back')
+    # Now Playing's idle countdown (stock restarts it from its buttons only): every touch on the lines and every tick with the finger down or the lines scrolled away stores 20
+    IDLE_N = pod.DATA['NP_IDLE_COUNT'][0]
+    count = lambda m: struct.unpack('<i', bytes(m.u.mem_read(IDLE_N, 4)))[0]
+    def ran_down(m, n=1): m.setword(IDLE_N, n)
+    pins = {a: w for a, w, _ in pod.IDLE_PINS}
+    expect(IDLE_N == 0x97ccd0 and O['NP_IDLE_TICKS'] == 20 and pins.get(0x53d0d4) == 0x8e22ccd0 and pins.get(0x53d0f4) == 0x24020014,
+           'the countdown word and its start, 20 ticks (IDLE_PINS, checked against stock by bigcover/idle_tests: lw v0, 0x97ccd0 @0x53d0d4, addiu v0, zero, 0x14 @0x53d0f4)')
+    m = LyMachine(SONG); m.init(); m.at(5); m.frame(10000)
+    ran_down(m, 7); m.at(5)
+    expect(count(m) == 7, 'no touch: the tick leaves the countdown to stock')
+    got = []
+    for ev in (lambda: m.down(100, 150), lambda: m.move(100, 145), lambda: m.move(100, 120), lambda: m.up(100, 120)):
+        ran_down(m); ev(); got.append(count(m))
+    expect(got == [20] * 4, f'DOWN, a small MOVE, a dragging MOVE and UP each restart it ({got})')
+    ran_down(m); m.clock += 2000; m.at(5)
+    expect(count(m) == 20, 'scrolled away, the finger up: the tick restarts it')
+    ran_down(m); m.clock += 1100; m.at(5); m.frame(10000)
+    expect(count(m) == 20, 'the tick that sends the lines back (3 s) restarts it a last time: the ten seconds run from here')
+    ran_down(m); m.at(5)
+    expect(count(m) == 1, 'the ticks after it leave the countdown alone')
+    ran_down(m); m.down(100, 150); ran_down(m); m.clock += 5000; m.at(5)
+    expect(count(m) == 20, 'a finger held still on the lines (no event for 5 s): the tick restarts it')
+    m.up(100, 150); m.clock += 1000; ran_down(m); m.at(5)
+    expect(count(m) == 1 and m.seeks, 'after a tap (a seek, nothing scrolled) the tick leaves it alone')
+    ran_down(m); m.down(100, 150); m.ptr(AB, 100, 150)
+    expect(count(m) == 20, 'ABORT restarts it as well')
     # the bounds: the first line stops at the anchor, the last too
     m = LyMachine(SONG); m.init()
     m.down(100, 100); m.move(100, 120); m.move(100, 250)
