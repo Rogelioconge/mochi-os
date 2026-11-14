@@ -108,6 +108,7 @@ def main():
     allow(va_to_off(s, IDLE_SITE[0]), IDLE_SITE[1], 'idle view hook (the timed open)')
     allow(va_to_off(s, TIDALKB_SITE[0]), TIDALKB_SITE[1], 'Tidal search keyboard hook')
     allow(va_to_off(s, pod.PLAYREC_SITE), 4, 'play history hook')
+    allow(va_to_off(s, pod.FORMAT_LAMP_SITE), 4, 'sample rate lamp hook')
     for q in LINEOUT_SITES: allow(va_to_off(s, q), 4, 'Line Out pill hook')
     allow(va_to_off(s, UPDATE_SITE[0]), UPDATE_SITE[1], 'updater version compare')
     allow(va_to_off(s, timezones.SELECT), 8, 'select_timezone hook')   # time zones (tools/timezones.py): the hook, the clamp, the row count and limit, the two call sites
@@ -224,6 +225,10 @@ def main():
     o = va_to_off(s, pod.PLAYREC_SITE); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]   # on_wm_idle_status: jalr add_playrecord, now jal sbs_play_record (patch/sbsrc.c, payload hook 28)
     good = sw == 0x0320f809 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
     print(f'play history hook {pod.PLAYREC_SITE:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
+    ok = ok and good
+    o = va_to_off(s, pod.FORMAT_LAMP_SITE); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]   # on_wm_idle_status: jalr mclGetPlayStatus, now jal tl_play_status (patch/tracklamp.c, payload hook 31)
+    good = sw == 0x0320f809 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
+    print(f'sample rate lamp hook {pod.FORMAT_LAMP_SITE:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
     ok = ok and good
     for q in LINEOUT_SITES:
         o = va_to_off(s, q); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]

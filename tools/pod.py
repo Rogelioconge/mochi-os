@@ -46,7 +46,7 @@ LD = os.path.join(LLD, 'ld.lld')
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'recent.c', 'dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
            'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'charging.c', 'nextalbum.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c',
-           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c']
+           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c']
 
 # Navidrome data layer (patch/sbapi.c): kept by the linker until the pages that call it exist; the integration drops names as callers appear
 ND_KEEP = ['sba_free_tracks', 'sba_free_albums', 'sba_free_artists', 'sba_free_playlists', 'sba_user', 'sba_conf_url_set', 'sba_conf_user_set', 'sba_conf_password_set', 'sba_conf_clear', 'sba_cancel', 'sba_sync_due', 'sba_sync', 'sba_fetch_album', 'sba_fetch_artist', 'sba_fetch_playlist', 'sba_fetch_songs', 'sba_search', 'sba_star', 'sba_cover', 'sba_cover_path', 'sba_cover_have', 'sba_cover_get', 'sba_track_cover', 'sba_rec_cover', 'sba_albums', 'sba_artists', 'sba_playlists', 'sba_starred_tracks', 'sba_album_tracks', 'sba_artist_albums', 'sba_playlist_tracks', 'sba_songs', 'sba_songs_more', 'sba_search_tracks', 'sba_search_albums', 'sba_search_artists', 'sba_songs_cached', 'sba_stream_url', 'sba_track_filename', 'sba_is_dsd', 'sba_now_cover', 'sba_rec_track', 'sba_queue_note', 'sba_net_open']
@@ -318,6 +318,29 @@ FUNCTIONS.update({
     # playsong_info 0xa0e930, which show_player_face prints as '%s|%.1fkHz|%dbit|%dkbps'. Returns 1.
     'mclGetInfo':              ('int', 'void *', 0x5d3518),
 })
+
+# Sample Rate (patch/tracklamp.c, payload hook 31): the hook replaces only the player status query in the existing idle callback. It returns stock's status unchanged and, with the
+# setting on, keeps the lamp's timer alive; nothing else runs on that path.
+FORMAT_LAMP_SITE = 0x4ce968
+FORMAT_LAMP_PINS = (
+    (0x4cd7d0, 0x8f82a964, 'USB link state GOT slot'),
+    (0x545a24, 0x8f82a958, 'USB mode GOT slot'),
+    (0x4ce964, 0x8f99a9b8, 'idle status mclGetPlayStatus GOT slot'),
+    (FORMAT_LAMP_SITE, 0x0320f809, 'idle status mclGetPlayStatus call'),
+    (0x4ce96c, 0x00000000, 'idle status call delay slot'),
+    (0x4dfbe4, 0x8c620030, 'format bit-depth field'),
+    (0x4dfbf4, 0x8c640004, 'format sample-rate field'),
+    (0x4dfc60, 0x26040010, 'format codec field'),
+    (0x4cff84, 0x8f90b478, 'lamp RGB state'),
+    (0x4cff88, 0x92030003, 'lamp pending state'),
+    (0x4cff94, 0x92060001, 'lamp blue state'),
+    (0x4cff98, 0x92050002, 'lamp green state'),
+    (0x4cff9c, 0x04115c13, 'lamp apply branch'),
+    # reset_atmosphereled_rgb's first rule, which tl_release copies: external power (the word at 0xa059f8 is 1) and pmucharge_status not 2 light the red at level 0x11
+    (0x4e6bac, 0x8f82a910, 'lamp reset: external power GOT slot'), (0x4e6bc4, 0x24020001, 'lamp reset: li 1'), (0x4e6bc8, 0x14620010, 'lamp reset: bne external power'),
+    (0x4e6bd0, 0x8f82a9e0, 'lamp reset: pmucharge_status GOT slot'), (0x4e6bd8, 0x24020002, 'lamp reset: li 2'), (0x4e6bdc, 0x1062000b, 'lamp reset: beq full'),
+    (0x4e6be0, 0x24020011, 'lamp reset: the red level 0x11'), (0x4e6bec, 0xa2020000, 'lamp reset: the red byte'),
+)
 # The Playlists page (patch/playlists.c, docs/modules/playlists.md): the stock playlist creation, and the click handlers of the stock Playlists
 # page's Import and Export rows (static, unnamed; ret_t (ctx, event), neither reads its arguments: each asks with the stock confirm dialog,
 # runs importPlayList / exportPlayList and tells the result in the stock message box).
@@ -510,6 +533,8 @@ DATA = {
     # mclGetPlayPos: get_playtimeandlength `lw s1, 0xa0394c; deque_size(*s1)` then `deque_at(*s1, pos)` (@0x4e01cc..0x4e0268),
     # the lock screen refresh (@0x53f73c, "queued" = 0 <= pos < size), the queue drawer (@0x47a8f0)
     'PLAY_QUEUE':         (0xa0394c, None),
+    'ATMOSPHERE_RGB_STATE': (0xa038b8, None),   # stock's lamp state: red, blue, green, a pending byte its 100 ms timer 0x4cff40 acts on (patch/tracklamp.c tl_output)
+    'PMUCHARGE_STATUS':   (0xa059e8, 'pmucharge_status'),   # word: 1 charging, 2 full (get_battery_capacity stores toolsGetChargeStatus's answer); reset_atmosphereled_rgb 0x4e6bd0 lights its red unless it is 2 (patch/tracklamp.c tl_release)
     # the player's gapless state word (1 = a preload is open; mclSetGaplessMode(0) @0x5d28ac closes it with "{mcl-closegapless}" and stores -1): patch/shuffle.c cancel_preload closes it after a reorder, an insert or Clear
     'MCL_PRELOAD':        (0xa0abd0, None),
     'DMR_SERVERFLAG':     (0xa06020, 'dmr_serverflag'),   # int: 1 while stock's DLNA renderer (UPnP) service runs (dlna_service_running 0x507bec reads it; Clear and the queue insert stay off then, docs/modules/queue.md)
@@ -1008,7 +1033,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define POD_ENTRY_ID {pod_pages.HOME_ENTRY}')
     h.append('#define POD_ENTRY_PAGE 0')
     h.append('#define POD_MENU_PAGE 0')
-    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
+    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
         h.append(f'#define POD_{macro}_PAGE {getattr(pod_pages, macro + "_PAGE_INDEX")}')
     (out / 'pages.h').write_text('\n'.join(h) + '\n')
     return slots
@@ -1118,6 +1143,7 @@ def compile_payload(out, demo_path, tag=TAG):
             '--undefined=m1plus_style_color', '--undefined=m1plus_style_gradient', '--undefined=m1plus_image_add', '--undefined=stock_style_color_trampoline', '--undefined=stock_image_add_trampoline', '--undefined=pal_map', '--undefined=pal_active', '--undefined=pal_background', '--undefined=pal_accent', '--undefined=pal_accent_saved', '--undefined=pal_accent_set', '--undefined=pal_accent_color', '--undefined=pal_fill',
             '--undefined=bc_timed_open', '--undefined=m1_scan_dir', '--undefined=sh_set_mode', '--undefined=sbs_play_record', '--undefined=sh_load_playlist', '--undefined=sh_display_mode', '--undefined=sh_clear_queue', '--undefined=pod_na_site', '--undefined=na_next_key', '--undefined=na_set_cur', '--undefined=na_cur', '--undefined=na_active', '--undefined=stock_setmode_trampoline', '--undefined=stock_loadplaylist_trampoline', '--undefined=ft_created', '--undefined=stock_file_created_trampoline', '--undefined=ll_load', '--undefined=ll_assign', '--undefined=stock_loadclass_trampoline', '--undefined=tz_select', '--undefined=tz_row', '--undefined=tz_label', '--undefined=stock_timezone_trampoline', '--undefined=bp_capacity', '--undefined=lo_set_text', '--undefined=wifi_hub_open', '--undefined=tidal_kb_focus', '--undefined=pod_eq_site', '--undefined=pod_lock_site', '--undefined=pf_items', '--undefined=pf_seen', '--undefined=so_play_src', '--undefined=lib_navidrome', '--undefined=sba_songs_window', '--undefined=sbs_playing', '--undefined=sbs_track']   # (pf_items, pf_seen: accessors of the parser the tests read; so_play_src, albums_open_src: the library seam, no caller yet)
     keep += ['--undefined=' + n for n in ND_KEEP]   # (the Navidrome data layer has no caller until the pages land: patch/sbapi.h; the tests call these)
+    keep.append('--undefined=tl_play_status')
     run(LD, '-m', 'elf32ltsmip', '--gc-sections', '-T', os.path.join(PATCH, 'link.ld'),
         '-e', 'm1plus_home_click', '--undefined=m1plus_home_click', '--undefined=stock_home_click_trampoline',
         # Navidrome downloads (patch/sbdl.c): kept until the pages that call them land (ND-10); the tests run them
@@ -1304,6 +1330,11 @@ def patch_demo(raw, payload, ps, demo_path):
     for a, _ in LINEOUT_SITES: struct.pack_into('<I', patched, fileoff(patched, a), jal(ps['lo_set_text'], a))   # (the pins checked each site's lw t9 GOT widget_set_text_utf8, a1, the jalr and the delay slot)
     check(BASE <= target8 < BASE + len(payload), 'battery hook symbol outside payload')
     struct.pack_into('<I', patched, fileoff(patched, BATTERY_SITE), jal(target8, BATTERY_SITE))   # (the pins above checked the site's word, its delay slot and its neighbours)
+    for at, old, what in FORMAT_LAMP_PINS:
+        got = struct.unpack_from('<I', patched, fileoff(patched, at))[0]
+        check(got == old, f'{at:#x} ({what}): {got:#010x} != pinned {old:#010x}')
+    check(BASE <= ps['tl_play_status'] < BASE + len(payload), 'format lamp hook symbol outside payload')
+    struct.pack_into('<I', patched, fileoff(patched, FORMAT_LAMP_SITE), jal(ps['tl_play_status'], FORMAT_LAMP_SITE))
     for nm, at, pro in (('sh_set_mode', SETMODE, SETMODE_PROLOGUE), ('sh_load_playlist', LOADPL, LOADPL_PROLOGUE), ('ft_created', FILETIME, FILETIME_PROLOGUE), ('ll_load', LCL, LCL_PROLOGUE)):   # Apple-style Shuffle (patch/shuffle.c); song dates; the library list hand-over (patch/libload.c)
         check(BASE <= ps[nm] < BASE + len(payload), f'{nm} outside payload')
         hook(patched, at, pro, ps[nm], nm)
@@ -1389,6 +1420,7 @@ def main():
         'hook_query': {'addr': QUERY_DB, 'target': ps['pc_library_query']}, 'hook_sorted_query': {'addr': QUERY_SORT, 'target': ps['pc_sorted_query']},
         'hook_scan': {'addr': SCAN_SITE, 'target': ps['m1_scan_dir']},
         'hook_battery': {'addr': BATTERY_SITE, 'target': ps['bp_capacity']},
+        'hook_format_lamp': {'addr': FORMAT_LAMP_SITE, 'target': ps['tl_play_status']},
         'hook_wifihub': {'addr': WIFIHUB_SITE, 'target': ps['wifi_hub_open']},
         'hook_idle': {'addr': IDLE_SITE, 'target': ps['bc_timed_open']},
         'hook_tidalkb': {'addr': TIDALKB_SITE, 'target': ps['tidal_kb_focus']},
