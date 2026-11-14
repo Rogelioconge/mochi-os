@@ -670,7 +670,7 @@ static void pg_dld_text(const struct pg_dl *d, grid_tile_t *t) {
         int s = pc_state(d->hash, &pos, &len);
         whole = len ? len : d->dur;
         played = s == PC_DONE;
-        if (s == PC_PROGRESS && whole > pos) pc_fmt(mid, sizeof mid, TR("%dm left"), (whole - pos + 59) / 60);
+        if (s == PC_PROGRESS && whole > pos) pc_left_text(mid, sizeof mid, whole - pos);
     }
     if (!mid[0] && d->pub) pc_when(d->pub, (unsigned)time((long *)0), mid, sizeof mid);
     pg_kb_text(size, sizeof size, d->kb);
@@ -974,11 +974,11 @@ static void pg_pill_base(const pc_ep_t *e, int *kind, int *ring, char *out, unsi
         whole = len ? len : e->dur;
         if (s == PC_PROGRESS && whole > pos) {
             *kind = PK_RESUME;
-            pc_fmt(out, size, TR("%dm left"), (whole - pos + 59) / 60);
+            pc_left_text(out, size, whole - pos);
         } else {
             *kind = PK_PLAY;
             if (whole)
-                pc_fmt(out, size, TR("%dm"), (whole + 59) / 60);
+                pc_len_text(out, size, whole);
             else
                 pg_cat(out, size, TR("Play"));
         }
@@ -1161,13 +1161,13 @@ static void pg_dretext(int a) {
 
 /* pc_atlas (tools/mod_icons.py pc_atlas: the progress ring, the state glyphs, the badge, the "..." and the pills' ends) decoded WITH its alpha into a bitmap of ours, once: the image manager's copy is
  * dropped at once, as the covers' are. cc_decode would composite over black. NULL when it cannot be made (the Show level then paints no cells). */
-static void *pg_rgba(const char *name, unsigned w, unsigned h) {
+void *pg_rgba_win(void *win, const char *name, unsigned w, unsigned h) {
     static const unsigned char at[4][4] = BITMAP_RGBA_AT;
     unsigned bitmap[32], format, x, y, *px;
     const unsigned char *data;
     void *b = (void *)0;
     memset(bitmap, 0, sizeof bitmap);
-    if (widget_load_image(pg.win, name, bitmap)) return (void *)0;
+    if (widget_load_image(win, name, bitmap)) return (void *)0;
     format = (unsigned)(*(unsigned short *)((char *)bitmap + BITMAP_FORMAT)) - 1u;
     data =
         format < 4 && bitmap[0] == w && bitmap[1] == h ? bitmap_lock_buffer_for_read(bitmap) : (const unsigned char *)0;
@@ -1187,9 +1187,11 @@ static void *pg_rgba(const char *name, unsigned w, unsigned h) {
     }
     if (px) bitmap_unlock_buffer(b);
     if (data) bitmap_unlock_buffer(bitmap);
-    widget_unload_image(pg.win, bitmap);
+    widget_unload_image(win, bitmap);
     return b;
 }
+
+static void *pg_rgba(const char *name, unsigned w, unsigned h) { return pg_rgba_win(pg.win, name, w, h); }
 
 /* Under an accent the progress ring's arc is the accent (the atlas is ours after pg_rgba: tinting here, not by name, leaves the glyphs and the pills' ends white). In a ring cell the track is white at PA_TRACK_A
  * alpha at most and the arc white at more, so the alpha above the track's says how much of a pixel is arc: that share goes to the accent, the rest stays white. Made with the atlas, once a page open. */
@@ -1557,7 +1559,7 @@ static void pg_cont_left(const struct pg_item *it, char *out, unsigned size) {
     unsigned pos, len;
     out[0] = 0;
     if (pc_state(it->hash, &pos, &len) == PC_PROGRESS && len > pos)
-        pc_fmt(out, size, TR("%dm left"), (len - pos + 59) / 60);
+        pc_left_text(out, size, len - pos);
     else
         pg_cat(out, size, TR("Play"));
 }
@@ -1824,25 +1826,7 @@ static void pg_paint_dls(void *canvas) {
  * (tools/pod_show.py hint_layout is the model). A busy line (Loading…, Searching…) has the See All row's spinner before its first line, the two centred as one group. */
 static void pg_paint_hint(void *canvas, int off) {
     const char *key = pg_hint_text();
-    unsigned t[160];
-    unsigned short adv[160];
-    pw_line_t ln[4];
-    int n, k, i, nl, len, w, x, y, sx;
-    if (!key) return;
-    sx = pg_hint_busy() && pg.hg.spin[0] ? PS_SPIN_PX + PS_SPIN_GAP : 0;
-    n = pg_wide(t, 160, key);
-    nl = pg_lines(pg.st[ST_CDIM], t, n, PG_W - 2 * PP_LINE_X - sx, 4, ln); /* (the episode cells' dim 20 px grey) */
-    y = pg_hint_y() + (pg_hint_bottom() - pg_hint_y() - nl * PS_TITLE_PITCH) / 2 - off;
-    for (k = 0; k < nl; ++k, y += PS_TITLE_PITCH) {
-        const unsigned *s = t + ln[k].start;
-        for (len = ln[k].len; len > 0 && s[len - 1] == ' '; --len) {
-        } /* (the space a line was broken after has no part in its width) */
-        pg_adv(pg.st[ST_CDIM], s, len, adv);
-        for (i = w = 0; i < len; ++i) w += adv[i];
-        x = (PG_W - sx - w) / 2 + sx;
-        if (!k && sx) grid_spin_draw(canvas, &pg.hg, x - sx, y + (PS_TITLE_PITCH - PS_SPIN_PX) / 2, GRID_VIEW_H);
-        pg_paint_text_at(canvas, pg.st[ST_CDIM], s, len, x, y, PG_W - PP_LINE_X - x, PS_TITLE_PITCH);
-    }
+    if (key) grid_hint_paint(canvas, &pg.hg, pg.st[ST_CDIM], key, pg_hint_busy(), pg_hint_y(), pg_hint_bottom(), off);
 }
 
 /* The grey line under the large title: the chart's name and the storefront it is of ("Top 25 Shows in United States": the Downloads storage line's place and style). The storefront is the one the answer is of (a fall back
@@ -4554,21 +4538,7 @@ static void pg_sheet_close(void) {
 
 /* The grey value of row i (a value label v: 0 speed, 1 refresh), right aligned to x PS_SHEET_VALUE_R, in the room the row's label leaves (the label keeps its whole text), cut with an ellipsis by
  * the label when wider. The value label is as wide as its text (the asset gives these labels no margins: stock's 2 px each side would cut it) and the row's label ends PS_SHEET_GAP before it. */
-static void pg_sheet_value(int i, int v, const char *text) {
-    const unsigned *w;
-    int lw = 0, vw = 0, room;
-    if (!pg.sh_vl[v]) return;
-    w = widget_get_text(pg.sh_tx[i]);
-    if (w && *w) lw = m1_text_w(pg.sh_tx[i], w);
-    room = PS_SHEET_VALUE_R - PS_SHEET_TEXT_X - lw - PS_SHEET_GAP;
-    widget_set_text_utf8(pg.sh_vl[v], text);
-    w = widget_get_text(pg.sh_vl[v]);
-    if (w && *w) vw = m1_text_w(pg.sh_vl[v], w);
-    if (vw > room) vw = room > 0 ? room : 0;
-    widget_move(pg.sh_vl[v], PS_SHEET_VALUE_R - vw, 0);
-    widget_resize(pg.sh_vl[v], vw, PM_ROW_H);
-    widget_resize(pg.sh_tx[i], PS_SHEET_VALUE_R - PS_SHEET_TEXT_X - vw - (vw ? PS_SHEET_GAP : 0), PM_ROW_H);
-}
+static void pg_sheet_value(int i, int v, const char *text) { m1_sheet_value(pg.sh_tx[i], pg.sh_vl[v], text); }
 
 /* Show the rows (ids, in order) and the card that holds them: PM_ROW_H each from the card's top, the first without its hairline, the glass picture of that height. */
 static void pg_sheet_rows(const int *rows, int n) {

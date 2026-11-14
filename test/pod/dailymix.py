@@ -583,13 +583,13 @@ def library_tests(ctx):
     expect = ctx.expect
     wd = world(); songs, plays, rec_, fav, day, mdl, picks, seed, aseed = wd
     # ---- podcast episodes (docs/modules/podcasts.md) are no candidates: a library with a dozen of them, each the most played song of the card, gives the same mix as the library without
-    eps_p = [dict(path=f'/mnt/mmc/Podcasts/Show {i % 3}/ep{i:02d}.mp3', artist='Narrator', album='A Show', title=f'Episode {i}', name=f'ep{i:02d}.mp3') for i in range(12)]
+    eps_p = [dict(path=(f'/mnt/mmc/Podcasts/Show {i % 3}/ep{i:02d}.mp3' if i % 2 else f'/mnt/mmc/Audiobooks/Book {i % 3}/p{i:02d}.mp3'), artist='Narrator', album='A Show', title=f'Episode {i}', name=f'ep{i:02d}.mp3') for i in range(12)]
     plays_p = dict(plays); plays_p.update({len(songs) + i: 300 for i in range(12)})
     mp = fresh(wd, songs_=songs + eps_p, plays_=plays_p)
     put_tones(mp, songs, picks, mdl)
     run_job(mp)
-    expect(mix_paths(mp) == [mdl[i]['path'] for i in picks] and not any('/Podcasts/' in p for p in mix_paths(mp)),
-           'the Daily Mix skips podcast episodes (a path under /mnt/mmc/Podcasts/): the mix is the one of the library without them')
+    expect(mix_paths(mp) == [mdl[i]['path'] for i in picks] and not any('/Podcasts/' in p or '/Audiobooks/' in p for p in mix_paths(mp)),
+           'the Daily Mix skips podcast episodes and book parts (a path under /mnt/mmc/Podcasts/ or Audiobooks/): the mix is the one of the library without them')
 
     # ---- a previous mix: yesterday's is shown while the new one is made and replaced by the new file; an old "Daily Mix" stock playlist is not our business (no cleanup code)
     ymix0 = X.dump_mix(day - 1, 5, 6, 3, [(1, 2, 3), (4, 5, 6)], ['Old'], PATHS[:10])   # (yesterday was made three times)

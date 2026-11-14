@@ -661,7 +661,7 @@ int shuffle_play(int kind) {
     if (kind == SHUFFLE_SONGS) {
         unsigned tries;
         at = rand_below(n);
-        for (tries = 0; tries < 50 && pc_is_path(str(deque_at(list, at), REC_PATH)); ++tries)
+        for (tries = 0; tries < 50 && pc_spoken_path(str(deque_at(list, at), REC_PATH)); ++tries)
             at = rand_below(n); /* podcasts stay out of the shuffle (patch/pcmodel.c) */
     }
     pick = deque_at(list, at);

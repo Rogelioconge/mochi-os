@@ -100,7 +100,7 @@ class QueryMachine(Machine):
         return n, self.sql
 
 
-MUSIC = "ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%'"
+MUSIC = "ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' and ifnull(fileurl,'') not like '/mnt/mmc/audiobooks/%'"
 HAVING = " having min(printf('%d%08x%d%s',ifnull(track,0)<=0,ifnull(track,0)+2147483648,fileurl is not null,fileurl)) is not null"
 ORDER = ' order by (ifnull(track,0)<=0), ifnull(track,0), fileurl'
 # stock's album lists (getAllAlbum, getAlbumByArtist/AlbumArtist/Composer/Genre, SearchAlbumByName) and an album's own tracks (getMusicByAlbum, getMusicByAlbumAnd*): the format, its arguments
@@ -178,11 +178,11 @@ def first_track_tests(expect, stock_demo):
     expect(q.sql.endswith(HAVING + ';'), 'with a trailing semicolon too')
     # the texts verified by hand against the SQLite 3.19.3 amalgamation
     q.query("select id,album,songer,fileurl from songtable where songer like 'A' group by album COLLATE NOCASE")
-    expect(q.sql == "select id,album,songer,fileurl from songtable where (songer like 'A') and ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' group by album COLLATE NOCASE "
+    expect(q.sql == "select id,album,songer,fileurl from songtable where (songer like 'A') and ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' and ifnull(fileurl,'') not like '/mnt/mmc/audiobooks/%' group by album COLLATE NOCASE "
                     "having min(printf('%d%08x%d%s',ifnull(track,0)<=0,ifnull(track,0)+2147483648,fileurl is not null,fileurl)) is not null", f'the album list text: {q.sql}')
     expect(q.icount < 3500 and q.calls == [], f'the album list rewrite costs {q.icount} instructions and calls nothing but the trampoline ({q.calls})')
     q.query("select * from songtable where album like 'Beta' and songer like 'C'")
-    expect(q.sql == "select * from songtable where (album like 'Beta' and songer like 'C') and ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' "
+    expect(q.sql == "select * from songtable where (album like 'Beta' and songer like 'C') and ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' and ifnull(fileurl,'') not like '/mnt/mmc/audiobooks/%' "
                     "order by (ifnull(track,0)<=0), ifnull(track,0), fileurl", f'the album tracks text: {q.sql}')
     for (fmt, args), want in zip(ALBUM_TRACKS, tracks):
         expect(b'\0' + fmt.encode() + b'\0' in stock_demo, f'{fmt[:60]!r} is a stock format')
@@ -210,7 +210,7 @@ def first_track_tests(expect, stock_demo):
     for kind, make, mark in (('album list', lambda p: f"select id,album,songer,fileurl from songtable where songer like '{p}' group by album COLLATE NOCASE", HAVING),
                              ('album', lambda p: f"select * from songtable where album like '{p}'", ORDER), ('songs', lambda p: f"select * from songtable where songer like '{p}'", MUSIC)):
         seen, qq = set(), QueryMachine([])
-        for pad in range(700, 1000, 3):
+        for pad in range(100, 1000, 4):
             sql = make('x' * pad)
             qq.query(sql)
             seen.add(qq.sql == sql)
@@ -243,18 +243,22 @@ def query_tests(ctx):
             (5, 'Extra', 'Singer', 'Singer', 'Singer', 'Pop', '/mnt/mmc/Podcasts Extra/song.mp3'),
             (6, 'Nested', 'Singer', 'Singer', 'Singer', 'Pop', '/mnt/mmc/Music/Podcasts/song.mp3'),
             (7, 'Nopath', 'Nobody', 'Nobody', 'Nobody', 'Pop', None),
-            (8, '', '', '', '', '', '/mnt/mmc/Music/untagged.mp3')]
+            (8, '', '', '', '', '', '/mnt/mmc/Music/untagged.mp3'),
+            (9, 'Shared', 'Shared', 'Shared', 'Shared', 'Rock', '/mnt/mmc/Audiobooks/Book/01.mp3'),
+            (10, 'Tale', 'Reader', 'Reader', 'Reader', 'Talk', '/mnt/mmc/AUDIOBOOKS/Loose.m4b'),
+            (11, 'Extra', 'Singer', 'Singer', 'Singer', 'Pop', '/mnt/mmc/Audiobooks Extra/song.mp3'),
+            (12, 'Nested', 'Singer', 'Singer', 'Singer', 'Pop', '/mnt/mmc/Music/Audiobooks/song.mp3')]
     q = QueryMachine(rows)
     for fn, via in (('pc_library_query', 'db'), ('pc_sorted_query', 'sorted')):
-        for sql, want in (('select id,album,songer,fileurl from songtable group by album COLLATE NOCASE', {2, 5, 6, 7, 8}),
+        for sql, want in (('select id,album,songer,fileurl from songtable group by album COLLATE NOCASE', {2, 7, 8, 11, 12}),
                           ('select id,songer from songtable group by songer COLLATE NOCASE', {2, 5, 7, 8}),
                           ('select id,albumsonger from songtable group by albumsonger COLLATE NOCASE', {2, 5, 7, 8}),
                           ('select id,composer from songtable group by composer COLLATE NOCASE', {2, 5, 7, 8}),
                           ('select id,style from songtable group by style COLLATE NOCASE', {2, 5, 8}),
                           ("select id,album,songer,fileurl from songtable where songer like 'Shared' group by album COLLATE NOCASE", {2}),
                           ("select * from songtable where album like 'Shared'", {2}),
-                          ('select * from songtable ORDER BY id DESC limit 100;', {2, 5, 6, 7, 8}),
-                          ('select * from songtable', {2, 5, 6, 7, 8})):
+                          ('select * from songtable ORDER BY id DESC limit 100;', {2, 5, 6, 7, 8, 11, 12}),
+                          ('select * from songtable', {2, 5, 6, 7, 8, 11, 12})):
             n, got = q.query(sql, fn)
             expect(got is not None and q.via == via and {r[0] for r in q.results} == want and n == len(q.results),
                    f'{fn}: {sql[:60]!r} -> ids {sorted(r[0] for r in q.results)} (want {sorted(want)}); the shared album keeps the music row, untagged episodes add no Unknown row')
@@ -268,7 +272,7 @@ def query_tests(ctx):
         expect(qq.sql == sql, f'{sql[:50]!r}: stock SQL, untouched')
     first_track_tests(expect, stock_demo)
     # Favourites (getAllFav: exactly "select * from myfav") is music only; with pc_saved_scope set (the Saved page) it is the episodes only, the last saved first
-    fav = [(1, '/mnt/mmc/Music/a.flac'), (2, '/mnt/mmc/Podcasts/Show/ep1.mp3'), (3, '/mnt/mmc/Music/Podcasts/b.flac'), (4, '/mnt/mmc/pOdCaStS/Show/ep2.mp3'), (5, None), (6, '/mnt/mmc/Podcasts Extra/c.mp3'), (7, '/mnt/mmc/Podcasts/Other/ep3.mp3')]
+    fav = [(1, '/mnt/mmc/Music/a.flac'), (2, '/mnt/mmc/Podcasts/Show/ep1.mp3'), (3, '/mnt/mmc/Music/Podcasts/b.flac'), (4, '/mnt/mmc/pOdCaStS/Show/ep2.mp3'), (5, None), (6, '/mnt/mmc/Podcasts Extra/c.mp3'), (7, '/mnt/mmc/Podcasts/Other/ep3.mp3'), (8, '/mnt/mmc/Audiobooks/Book/01.mp3')]
     qf = QueryMachine([])
     qf.db.execute('create table myfav(id,fileurl)'); qf.db.executemany('insert into myfav values(?,?)', fav)
     for fn in ('pc_library_query', 'pc_sorted_query'):
@@ -280,5 +284,5 @@ def query_tests(ctx):
         qf.u.mem_write(PSYMS['pc_saved_scope'], b'\0')
     expect(qf.icount < 1500 and qf.calls == [], f'the myfav rewrite costs {qf.icount} instructions')
     n, got = q.query('select * from songtable where id=2')
-    expect(got == "select * from (select * from songtable where ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%') where id=2", f'the rewritten text: {got}')
+    expect(got == "select * from (select * from songtable where ifnull(fileurl,'') not like '/mnt/mmc/podcasts/%' and ifnull(fileurl,'') not like '/mnt/mmc/audiobooks/%') where id=2", f'the rewritten text: {got}')
     expect(q.icount < 2500 and q.calls == [], f'one rewrite costs {q.icount} instructions and calls nothing but the trampoline')

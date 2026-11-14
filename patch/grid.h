@@ -46,6 +46,7 @@ typedef struct {
     int mid; /* list mode: the title alone in the row, centred vertically (the picker's New playlist row) */
     int xw; /* a source's row: the width its marks / state value take from the text (the text was cut for it; patch/albumpage.c, patch/songs.c cut it again when it changes) */
     int load; /* a source's cover on its way (the page sets it; with art not 1 the grid draws the spinner on the disc) */
+    int subx; /* list mode: the grey line starts this far right of the text (a download ring sits before it); the owner clears GRID_FIT_ARTIST when it changes */
     int nochev; /* list mode with chevrons: this row opens nothing (a dimmed Not available result): no chevron, the text runs to LIST_TEXT_W */
 } grid_tile_t;
 
@@ -87,6 +88,9 @@ void grid_spin_open(grid_t *g, const char *prefix, int px);
 int grid_spin_turn(grid_t *g);
 /* The current frame at x, y (cut at the view's edges as grid_blit_from does); 0 when the frames are not open. A page that paints its own busy row turns grid_t.spin_n itself. */
 int grid_spin_draw(void *canvas, grid_t *g, int x, int y, int view_h);
+/* An empty level's status line (patch/podcasts.c, the Discover and search levels; the Audiobooks levels): `key` (already translated) in grey 20 px `style`, wrapped to the margins in at most four lines, the lines
+ * centred as a block between content y top and bottom (and each across the page); busy puts the spinner (the frames of g, grid_spin_open) before the first line, the two centred as a group. off: the scroll offset. */
+void grid_hint_paint(void *canvas, grid_t *g, void *style, const char *key, int busy, int top, int bottom, int off);
 
 grid_tile_t *grid_find(grid_t *g, int album);
 /* The scroll_view sv is moving: a finger is dragging it (pressed and past the drag threshold) or its scroll animator (the fling) is running.
@@ -118,6 +122,9 @@ int grid_cell_at(int x, int y, int origin_y, int count);
 
 /* A cover of the tile (its bitmap, else the placeholder) at (x, y) in the view; rows beyond view_h (> 0) are cut by hand. */
 void grid_blit(void *canvas, grid_t *g, grid_tile_t *t, int x, int y, int view_h);
+/* The playing marker (ah_wave, AB_WAVE px) as a bitmap in the accent or Neutral fill, the album page's: NULL when it did not decode; the caller destroys it. grid_wave_draw: at (x, top) of the window, only when wholly inside 0..view_h (a NULL wave draws nothing). */
+void *grid_wave_make(void *win);
+void grid_wave_draw(void *canvas, void *wave, int x, int top, int view_h);
 /* A w x h piece of bmp from (sx, sy) at (x, y) of the window, the rows outside 0..view_h cut by hand (view_h 0: no bottom cut); NULL bmp draws nothing. */
 void grid_blit_from(void *canvas, void *bmp, int sx, int sy, int w, int h, int x, int y, int view_h);
 /* The SG_MARK x SG_MARK select mark bmp at (x, top), only when wholly inside 0..view_h. */

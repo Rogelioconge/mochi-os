@@ -481,6 +481,22 @@ void m1_sheet_rows(void *scrim, void *card, int w, void *const *rows, void *cons
     m1_show(card, 1);
 }
 
+void m1_sheet_value(void *label, void *value, const char *text) {
+    const unsigned *w;
+    int lw = 0, vw = 0, room;
+    if (!value) return;
+    w = widget_get_text(label);
+    if (w && *w) lw = m1_text_w(label, w);
+    room = PS_SHEET_VALUE_R - PS_SHEET_TEXT_X - lw - PS_SHEET_GAP;
+    widget_set_text_utf8(value, text);
+    w = widget_get_text(value);
+    if (w && *w) vw = m1_text_w(value, w);
+    if (vw > room) vw = room > 0 ? room : 0;
+    widget_move(value, PS_SHEET_VALUE_R - vw, 0);
+    widget_resize(value, vw, PM_ROW_H);
+    widget_resize(label, PS_SHEET_VALUE_R - PS_SHEET_TEXT_X - vw - (vw ? PS_SHEET_GAP : 0), PM_ROW_H);
+}
+
 void m1_pill_paint(const m1_pill_t *p, void *canvas, int y) {
     const unsigned *text = widget_get_text(p->ptext);
     unsigned n = 0;

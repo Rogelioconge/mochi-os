@@ -16,6 +16,7 @@ typedef struct
     unsigned cap, n;
     int cut;
     int nl; /* 1: \n stays a line feed and \r is dropped (lyrics); 0: both are a space */
+    int alt; /* the text was altered: a control character became a space, or something was dropped (an escape that is no character, a byte sequence that is not UTF-8) */
 } pj_out_t;
 
 static void pj_ws(pj_t *p) {
@@ -59,43 +60,53 @@ static int pj_str(pj_t *p, pj_out_t *o) {
             c = *p->s++;
             if (c == 'u') {
                 int hi = pj_hex4(p->s, p->e);
-                if (hi < 0) continue;
+                if (hi < 0) {
+                    o->alt = 1;
+                    continue;
+                }
                 p->s += 4;
                 if (hi >= 0xd800 && hi < 0xdc00) { /* needs its low half right behind it */
                     int lo = p->e - p->s >= 2 && p->s[0] == '\\' && p->s[1] == 'u' ? pj_hex4(p->s + 2, p->e) : -1;
                     if (lo >= 0xdc00 && lo < 0xe000) {
                         p->s += 6;
                         pj_put(o, 0x10000u + ((unsigned)(hi - 0xd800) << 10) + (unsigned)(lo - 0xdc00));
-                    }
+                    } else
+                        o->alt = 1;
                 } else if ((hi >= 0xdc00 && hi < 0xe000) || hi == 0) {
+                    o->alt = 1;
                     continue;
                 } else
-                    pj_put(o, hi < 0x20 ? ' ' : (unsigned)hi);
+                    pj_put(o, hi < 0x20 ? ' ' : (unsigned)hi), o->alt |= hi < 0x20;
             } else if (o->nl && c == 'n')
                 pj_put(o, '\n');
             else if (o->nl && c == 'r')
                 continue;
             else if (c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f')
-                pj_put(o, ' ');
+                pj_put(o, ' '), o->alt = 1;
             else if (c >= 0x80)
                 --p->s; /* a backslash before a multi-byte character: the character is read as itself */
             else
-                pj_put(o, c < 0x20 ? ' ' : c);
+                pj_put(o, c < 0x20 ? ' ' : c), o->alt |= c < 0x20;
         } else if (c < 0x20)
-            pj_put(o, ' ');
+            pj_put(o, ' '), o->alt = 1;
         else if (c < 0x80)
             pj_put(o, c);
         else {
             int need = c >= 0xf0 ? 3 : c >= 0xe0 ? 2 : c >= 0xc2 ? 1 : 0, i;
             unsigned cp = c & (need == 3 ? 0x07u : need == 2 ? 0x0fu : 0x1fu);
-            if (!need || c > 0xf4 || p->e - p->s < need) continue;
+            if (!need || c > 0xf4 || p->e - p->s < need) {
+                o->alt = 1;
+                continue;
+            }
             for (i = 0; i < need; ++i) {
                 if ((p->s[i] & 0xc0) != 0x80) break;
                 cp = cp << 6 | (p->s[i] & 0x3fu);
             }
             if (i < need || (need == 2 && cp < 0x800) || (need == 3 && (cp < 0x10000 || cp > 0x10ffff)) ||
-                (cp >= 0xd800 && cp < 0xe000))
+                (cp >= 0xd800 && cp < 0xe000)) {
+                o->alt = 1;
                 continue; /* the lead byte is dropped; what follows it is read on its own */
+            }
             p->s += need;
             pj_put(o, cp);
         }
@@ -112,7 +123,7 @@ static int pj_skip(pj_t *p) {
         c = *p->s;
         if (c == '"') {
             pj_out_t none;
-            none.out = (char *)0, none.cap = none.n = 0, none.cut = none.nl = 0;
+            none.out = (char *)0, none.cap = none.n = 0, none.cut = none.nl = none.alt = 0;
             if (!pj_str(p, &none)) return 0;
         } else if (c == '{' || c == '[') {
             if (++depth > PJ_DEPTH) return 0;
@@ -159,14 +170,17 @@ static int pj_is(const char *a, const char *b) {
 }
 
 /* A string value at p->s (the opening quote) into dst of size cap (at most; the NUL after it). 0 when the text ended first. *cut: something was left out. */
-static int pj_val(pj_t *p, char *dst, unsigned cap, int *cut) {
+static int pj_val2(pj_t *p, char *dst, unsigned cap, int *cut, int *alt) {
     pj_out_t vo;
-    vo.out = dst, vo.cap = cap, vo.n = vo.cut = vo.nl = 0;
+    vo.out = dst, vo.cap = cap, vo.n = vo.cut = vo.nl = vo.alt = 0;
     if (!pj_str(p, &vo)) return 0;
     dst[vo.n] = 0;
     if (cut) *cut = vo.cut;
+    if (alt) *alt = vo.alt;
     return 1;
 }
+
+static int pj_val(pj_t *p, char *dst, unsigned cap, int *cut) { return pj_val2(p, dst, cap, cut, (int *)0); }
 
 /* The key string at p->s and the ':' after it; 1 with p on the value, 0 when the object is not well formed or the text ends. */
 static int pj_key(pj_t *p, char *key, unsigned size) {
@@ -748,5 +762,142 @@ int pj_span(const char *json, unsigned n, const char *want, char *dst, unsigned 
                       : PJ_M_OTHER;
         }
         if (got != PJ_M_NONE && val && v) *val = (const char *)v, *len = (unsigned)(p.s - v), val = (const char **)0;
+    }
+}
+
+/* ---- Flat records by field name (the Audiobooks catalog, patch/bknet.c). */
+
+/* The member value at p->s into the field: a string decoded, a bare token (number, true, false) as its text, the first string of an array; null, an object and any other array are skipped. 0 when the text ended. */
+static int pj_fvalue(pj_t *p, pj_field_t *f) {
+    int cut = 0, alt = 0, first = 1;
+    if (*p->s == '[') {
+        ++p->s;
+        for (;;) {
+            unsigned c;
+            pj_ws(p);
+            if (p->s >= p->e) return 0;
+            c = *p->s;
+            if (c == ']') return ++p->s, 1;
+            if (c == ',') {
+                ++p->s;
+                continue;
+            }
+            if (c == '"' && first && !f->found) {
+                if (!pj_val2(p, f->dst, f->cap, &cut, &alt)) return 0;
+                f->found = 1, f->cut = cut, f->alt = alt;
+            } else if (!pj_skip(p))
+                return 0;
+            first = 0;
+        }
+    }
+    if (*p->s == '"') {
+        if (!pj_val2(p, f->dst, f->cap, &cut, &alt)) return 0;
+        f->found = 1, f->cut = cut, f->alt = alt;
+        return 1;
+    }
+    if (*p->s == '{') return pj_skip(p);
+    {
+        const unsigned char *start = p->s;
+        unsigned n = 0;
+        while (p->s < p->e && *p->s != ',' && *p->s != '}' && *p->s != ']' && *p->s != ':' && *p->s != ' ' &&
+               *p->s != '\t' && *p->s != '\n' && *p->s != '\r' && *p->s != '"' && *p->s != '{' && *p->s != '[') {
+            if (n + 1 < f->cap)
+                f->dst[n++] = (char)*p->s;
+            else
+                f->cut = 1;
+            ++p->s;
+        }
+        if (p->s == start) return 0;
+        f->dst[n] = 0;
+        if (pj_is("null", f->dst))
+            f->dst[0] = 0;
+        else
+            f->found = 2;
+    }
+    return 1;
+}
+
+/* The object whose '{' is at p->s: its members that name a field. 1 when its '}' was reached. */
+static int pj_fobj(pj_t *p, pj_field_t *f, int nf) {
+    int i;
+    for (i = 0; i < nf; ++i) f[i].dst[0] = 0, f[i].found = f[i].cut = f[i].alt = 0;
+    ++p->s;
+    for (;;) {
+        char key[24];
+        unsigned c;
+        pj_ws(p);
+        if (p->s >= p->e) return 0;
+        c = *p->s;
+        if (c == '}') {
+            ++p->s;
+            return 1;
+        }
+        if (c == ',') {
+            ++p->s;
+            continue;
+        }
+        if (c != '"' || !pj_key(p, key, sizeof key)) return 0;
+        for (i = 0; i < nf && !pj_is(f[i].key, key); ++i) {
+        }
+        if (i < nf && !f[i].found) {
+            if (!pj_fvalue(p, &f[i])) return 0;
+        } else if (!pj_skip(p))
+            return 0;
+    }
+}
+
+int pj_object(const char *json, unsigned n, pj_field_t *f, int nf) {
+    pj_t p;
+    p.s = (const unsigned char *)json, p.e = p.s + n;
+    pj_ws(&p);
+    if (p.s >= p.e || *p.s != '{') return 0;
+    return pj_fobj(&p, f, nf);
+}
+
+int pj_records(const char *json, unsigned n, const char *outer, const char *array, pj_field_t *f, int nf,
+               int (*fn)(void *), void *ctx) {
+    pj_t p;
+    p.s = (const unsigned char *)json, p.e = p.s + n;
+    pj_ws(&p);
+    if (p.s >= p.e || *p.s != '{') return -1;
+    ++p.s;
+    for (;;) {
+        char key[16];
+        unsigned c;
+        pj_ws(&p);
+        if (p.s >= p.e) return -1;
+        c = *p.s;
+        if (c == '}') return -1;
+        if (c == ',') {
+            ++p.s;
+            continue;
+        }
+        if (c != '"' || !pj_key(&p, key, sizeof key)) return -1;
+        if (*p.s == '{' && outer && pj_is(outer, key)) {
+            ++p.s; /* inside the object: its members are read in this loop (its '}' ends the search) */
+            outer = (const char *)0;
+            continue;
+        }
+        if (*p.s == '[' && !outer && pj_is(array, key)) {
+            int count = 0;
+            ++p.s;
+            for (;;) {
+                pj_ws(&p);
+                if (p.s >= p.e) return count;
+                c = *p.s;
+                if (c == ']') return count;
+                if (c == ',') {
+                    ++p.s;
+                    continue;
+                }
+                if (c == '{') {
+                    if (!pj_fobj(&p, f, nf)) return count; /* cut short: not passed */
+                    ++count;
+                    if (!fn(ctx)) return count;
+                } else if (!pj_skip(&p))
+                    return count;
+            }
+        }
+        if (!pj_skip(&p)) return -1;
     }
 }

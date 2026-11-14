@@ -134,6 +134,9 @@ void m1_pill_paint(const m1_pill_t *p, void *canvas, int y);
 /* A bottom sheet's n rows (1 .. 6; their row widgets rows[] and hairlines hrs[], in order) PM_ROW_H each from the card's top, the first without its hairline, the card w px wide over the window's bottom edge, with the glass picture of its
  * height (pc_sheet<n>); the rows, the card and the scrim shown. */
 void m1_sheet_rows(void *scrim, void *card, int w, void *const *rows, void *const *hrs, int n);
+/* The grey value of a sheet row (the Podcasts sheets' Playback Speed, Refresh Feed, Episode Order, Filter): `value` is the row's value label, set to text and right aligned to x PS_SHEET_VALUE_R in the room the row's `label` leaves (the
+ * label keeps its whole text; cut with an ellipsis by the value label when wider; the label ends PS_SHEET_GAP before it). */
+void m1_sheet_value(void *label, void *value, const char *text);
 /* A select mark: the stock image called name (the multi-select's unselect / selected, SG_MARK px) as an opaque bitmap, NULL when it cannot be made. win: any widget of the page. */
 void *m1_make_mark(void *win, const char *name);
 /* The pair of select marks (mark[0] unselect, mark[1] selected), all or none: 1 with both made, 0 with both NULL (no marks: no select mode). */

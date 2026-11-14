@@ -119,6 +119,10 @@ void pc_fmt(char *out, unsigned size, const char *fmt, unsigned n) {
     out[o] = 0;
 }
 
+/* The minutes of an episode's remaining time ("35m left") and of a length ("48m"), rounded up: the pill, the Downloaded rows, Continue Listening, and a book's lines. */
+void pc_left_text(char *out, unsigned size, unsigned secs) { pc_fmt(out, size, TR("%dm left"), (secs + 59) / 60); }
+void pc_len_text(char *out, unsigned size, unsigned secs) { pc_fmt(out, size, TR("%dm"), (secs + 59) / 60); }
+
 void pc_fmt2(char *out, unsigned size, const char *fmt, unsigned a, unsigned b) {
     char num[2][12];
     unsigned len[2], k, i, o = 0, which = 0, v[2];
@@ -920,6 +924,27 @@ int pc_is_path(const char *path) {
     return *p == '/' && p[1] != 0 && p > path + sizeof prefix - 1;
 }
 
+int bk_is_path(const char *path) {
+    static const char prefix[] = PM_ROOT "/audiobooks/";
+    return pm_ieq_n(path, prefix, sizeof prefix - 1) && path[sizeof prefix - 1] && path[sizeof prefix - 1] != '/';
+}
+
+int pc_spoken_path(const char *path) { return pc_is_path(path) || bk_is_path(path); }
+
+/* The book's key: pc_hash of "audiobooks/" and the book folder's name, or the loose file's name (a book of its own); never a podcast show's key. */
+unsigned bk_book_of(const char *path) {
+    static const char prefix[] = PM_ROOT "/audiobooks/", tag[] = "audiobooks/";
+    const char *p;
+    char name[sizeof tag + PC_FILE];
+    unsigned n = 0;
+    if (!bk_is_path(path)) return 0;
+    p = path + sizeof prefix - 1;
+    while (p[n] && p[n] != '/') ++n;
+    memcpy(name, tag, sizeof tag - 1);
+    pm_cpy_n(name + sizeof tag - 1, PC_FILE, p, (int)n);
+    return pc_hash(name);
+}
+
 unsigned pc_show_of(const char *path) {
     static const char prefix[] = PM_ROOT "/podcasts/";
     const char *p;
@@ -1041,6 +1066,7 @@ static struct {
     unsigned save_ms;
     unsigned
         apply_ms; /* when the page last set the speed for an episode about to start (the music of before is seen playing until it does) */
+    int book; /* the episode in cur is an audiobook part */
     int speed_on, orig; /* we changed playspeed_mode; the mode it was */
 } pcs __attribute__((section(".scratch")));
 
@@ -1106,11 +1132,14 @@ int pc_state(unsigned hash, unsigned *pos, unsigned *len) {
 unsigned pc_rev(void) { return pm.rev; }
 
 /* The place of an episode seen at pos of len seconds: near its end it is played, near its start nothing is kept, else the place. */
-static void pm_set(unsigned hash, unsigned pos, unsigned len) {
+static void pm_set(unsigned hash, unsigned pos, unsigned len, int book) {
     slot_t *s;
     pm_ring_load();
     if (!pm.s) return;
-    if (len && (pos + PC_EDGE_S >= len || pos * 100u >= len * 95u)) { /* played */
+    if (len && (pos + PC_EDGE_S >= len ||
+                (!book &&
+                 pos * 100u >=
+                     len * 95u))) { /* played (a book part only within 30 s of its end: 5 % of a 10 h file is 30 min) */
         s = pm_front(hash, 1);
         if (s->flags == 1 && !s->pos && s->len == len) return;
         s->pos = 0, s->flags = 1, s->len = len;
@@ -1357,22 +1386,22 @@ __attribute__((noinline)) char *pc_id3_path(char *info, const char *path) {
 
 /* The episode that was playing is over (the track changed or stopped): what was last seen is its place; near the end it is played. */
 static void pm_leave(void) {
-    if (pcs.len > 0 && !pcs.pend) pm_set(pcs.cur, (unsigned)pcs.pos, (unsigned)pcs.len);
+    if (pcs.len > 0 && !pcs.pend) pm_set(pcs.cur, (unsigned)pcs.pos, (unsigned)pcs.len, pcs.book);
     pc_flush();
 }
 
 void pc_note(void *t) {
     const char *path = t ? cc_str(t, REC_PATH) : "";
-    unsigned h = pc_is_path(path) ? pc_hash(path) : 0, now;
+    unsigned h = pc_spoken_path(path) ? pc_hash(path) : 0, now;
     int pos = 0, len = 0;
     if (!h && !pcs.cur && !pcs.speed_on) return; /* music, as before: nothing to look at */
     now = time_now_ms();
     if (h != pcs.cur) {
         if (pcs.cur) pm_leave();
-        pcs.cur = h, pcs.pos = pcs.len = 0, pcs.pend = 0;
+        pcs.cur = h, pcs.pos = pcs.len = 0, pcs.pend = 0, pcs.book = bk_is_path(path);
         if (h) {
             unsigned p, l;
-            pc_speed_apply(pc_show_of(path));
+            pc_speed_apply(pcs.book ? bk_book_of(path) : pc_show_of(path));
             if (pc_state(h, &p, &l) == PC_PROGRESS && p >= PC_EDGE_S) pcs.pend = 1, pcs.pend_pos = p, pcs.pend_ms = now;
         }
     }
@@ -1395,7 +1424,7 @@ void pc_note(void *t) {
         return; /* just jumped: the player's second may still be the old one */
     pcs.hold_ms = 0;
     pcs.pos = pos, pcs.len = len;
-    pm_set(h, (unsigned)pos, (unsigned)len);
+    pm_set(h, (unsigned)pos, (unsigned)len, pcs.book);
     if (pm.dirty && (now - pcs.save_ms >= PC_SAVE_MS || mclGetPlayStatus() != MB_PLAYING)) pc_flush();
 }
 
@@ -1406,14 +1435,14 @@ void *pc_strip(void *queue, int *idx) {
     unsigned n = queue ? deque_size(queue) : 0, i, any = 0;
     void *out;
     int at = -1;
-    for (i = 0; i < n; ++i) any += pc_is_path(cc_str(deque_at(queue, i), REC_PATH));
+    for (i = 0; i < n; ++i) any += pc_spoken_path(cc_str(deque_at(queue, i), REC_PATH));
     if (!any) return queue;
     out = _create_deque("stSongInfo");
     if (out) {
         deque_init(out);
         for (i = 0; i < n; ++i) {
             void *r = deque_at(queue, i);
-            if (pc_is_path(cc_str(r, REC_PATH))) continue;
+            if (pc_spoken_path(cc_str(r, REC_PATH))) continue;
             if (at < 0 && (int)i >= *idx) at = (int)deque_size(out);
             _deque_push_back(out, r);
         }
@@ -1435,12 +1464,13 @@ void *pc_strip(void *queue, int *idx) {
  * BEFORE stock's grouping, so an album shared by music and an episode keeps the music row (its artwork) and untagged episodes add no Unknown rows. The filter is
  * on for every such query (q2-pod scopes it with a flag because its Cover Flow and Folders also read songtable; here nothing needs the episodes: our Podcasts pages and Folder play
  * list directories, the other tables (myfav, the recents, the playlists) are not songtable, and the scan's duplicate check is its own sqlite3_exec). The path test is SQLite's LIKE (case
- * insensitive for ASCII), bounded by the slash: '/mnt/mmc/Podcasts Extra/' and '/mnt/mmc/Music/Podcasts/' stay. Anything that is not a plain songtable select, or does not fit, goes to stock
+ * insensitive for ASCII), bounded by the slash: '/mnt/mmc/Podcasts Extra/' and '/mnt/mmc/Music/Podcasts/' stay (and the same for Audiobooks). Anything that is not a plain songtable select, or does not fit, goes to stock
  * untouched; no file I/O, no allocation, a 1 KB buffer on the caller's stack. Album lists and an album's own tracks join the filter to their WHERE so the first track leads (below);
  * other statements read the table through a filtered subquery.
  */
 #define PQ_BUF 1024
-#define PQ_MUSIC "ifnull(fileurl,'') not like '" PM_ROOT "/podcasts/%'"
+#define PQ_MUSIC \
+    "ifnull(fileurl,'') not like '" PM_ROOT "/podcasts/%' and ifnull(fileurl,'') not like '" PM_ROOT "/audiobooks/%'"
 static const char pq_head[] = " from (select * from songtable where " PQ_MUSIC ")";
 /* An album list (getAllAlbum, getAlbumBy*, SearchAlbumByName): stock's text is "select <columns> from songtable[ where <condition>] group by album COLLATE NOCASE". */
 static const char pq_where[] = " where ", pq_group[] = " group by album COLLATE NOCASE";
@@ -1455,7 +1485,7 @@ static const char pq_having[] = " having min(printf('%d%08x%d%s',ifnull(track,0)
 static const char pq_album[] = "select * from songtable where ";
 static const char pq_order[] = " order by (ifnull(track,0)<=0), ifnull(track,0), fileurl";
 
-/* The Favourites list (getAllFav, 0x4ec45c: exactly "select * from myfav") is music only; the Saved page (patch/podcasts.c) asks for the same statement with pc_saved_scope set around its
+/* The Favourites list (getAllFav, 0x4ec45c: exactly "select * from myfav") is music only (no episodes, no book parts); the Saved page (patch/podcasts.c) asks for the same statement with pc_saved_scope set around its
  * loadLocalClassList(0xf00a) and gets the episodes only, the last saved first. Stock's own star adds and removes the episodes (myfav), so Saved is a view of that table. */
 unsigned char pc_saved_scope __attribute__((section(".scratch")));
 static const char pq_fav_sql[] = "select * from myfav";
@@ -1538,4 +1568,10 @@ __attribute__((noinline)) int pc_sorted_query(const char *db, const char *sql, v
     char buf[PQ_BUF];
     const char *s = pq_filter(buf, sql);
     return stock_sorted_query_trampoline(db, s ? s : sql, row, sort);
+}
+
+/* The place of a key in the resume ring: 0 the most recently played, 1 the one before, ...; -1 when the ring has none (Audiobooks: the part a book was last on). */
+int pc_recent_rank(unsigned hash) {
+    pm_ring_load();
+    return pm.s ? pm_find_slot(hash) : -1;
 }

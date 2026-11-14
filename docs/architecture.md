@@ -58,6 +58,7 @@ for commands, [UI](ui.md) for layout/assets, and [history](history.md) for recor
 | [Home cover build](modules/homecover.md) | Background cover cache build and its progress line |
 | [Podcasts](modules/podcasts.md) | Local episodes, feeds, covers, resume and speed |
 | [Network](modules/network.md) | One HTTP request: the shared libcurl layer under Podcasts, the radio and Subsonic |
+| [Audiobooks](modules/audiobooks.md) | The Extras item and page (Library and Book levels), the book model: books and parts on the card, natural order, progress, MP4 memory guard; LibriVox: catalog (`bknet.c`), book folder, manifest and download thread (`bkdl.c`), the LibriVox and Preview levels (`bkfind.c`), the Book level's download row |
 | [Radio](modules/radio.md) | Internet radio: stations page, directory worker, playback through stock's hciplayer, Now Playing |
 | [Virtual iPod](modules/ipod.md) | Touch wheel, navigation and playback |
 | [iPod Cover Flow](modules/ipod-coverflow.md) | Embedded carousel and album navigation |

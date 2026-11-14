@@ -89,6 +89,7 @@ int ft_statx(int dirfd, const char *path, int flags, unsigned mask,
 
 /* patch/ipod.c */
 int ipod_open(void); /* the virtual iPod Classic, a fullscreen page with a touch click wheel */
+int books_open(void); /* patch/bkpage.c: the books in Audiobooks on the card and their parts */
 unsigned ip_fit(void *canvas, unsigned *s, int maxw); /* the wide string cut with an ellipsis to maxw px */
 
 /* patch/ipod_cf.c */

@@ -29,7 +29,7 @@ two requests at once mean two threads.
 
 ## Shared rules for a file download
 
-The three downloads (a podcast episode, a Subsonic track, the update package) keep their own
+The four downloads (a podcast episode, an audiobook part, a Subsonic track, the update package) keep their own
 way of writing and their own checks of the finished file; these parts are one copy. What a
 request's result means (`net_tls`, `net_http_passing`) is in `patch/net.c`; the rest, which never
 touches libcurl, is `patch/netfile.c` / `netfile.h`:
@@ -55,6 +55,7 @@ What each still does alone:
 - **Subsonic** writes through one open descriptor, saves the resume record `<part>.etag` (strong
   ETag and whose file it is) with the first body byte and resumes only with it; checks the first
   bytes and the length of the finished file ([subsonic](subsonic.md) "Safe resume").
+- **Audiobooks** (LibriVox, [audiobooks](audiobooks.md)) download a book's parts on a thread of their own (`patch/bkdl.c`, one book at a time, not in the episode queue) through `pnw_download`: the episode download's policy as it is (`pn_dl_core`: Range resume of the `.part`, chunks, the card's reserve, retries, the file rules above), so they use the same rows of the table as the episode download.
 - **Software Update** never resumes; checks that the package is the version offered before the
   rename ([update](update.md)).
 
@@ -63,7 +64,7 @@ are durable, and it has not been measured on the device.
 
 ## Whose job it is
 
-The job slot of `pcnet.c` (`pn.busy`, `pn.kind`) runs one job at a time for five pages. A page
+The job slot of `pcnet.c` (`pn.busy`, `pn.kind`) runs one job at a time for six pages. A page
 stops only the kinds it starts: `pn_cancel(kinds)` sets the flag when the running job is one of
 `kinds` and does nothing otherwise.
 
@@ -74,11 +75,12 @@ stops only the kinds it starts: `pn_cancel(kinds)` sets the flag when the runnin
 | `PN_K_ART` | lookup, save | Find Cover & Lyrics / Find Artist Photo |
 | `PN_K_UPDATE` | check, download | Software Update |
 | `PN_K_EQ` | AutoEq list and preset | the AutoEq page |
+| `PN_K_BOOKS` | LibriVox catalog (Popular, a search, the pictures) and a book's parts (the preview) | the Audiobooks page (leaving the LibriVox level, a new search, the page closing) |
 
 Before, `pn_cancel()` stopped whatever ran: the close handlers of Find Cover & Lyrics, AutoEq
 and Software Update called it whether or not the job was theirs, and the Podcasts page leaving
 its search level stopped any job (the code allowed it; no case was reproduced on the device). A cancel with no job running left the flag set until the next start; it is not set
-now. Downloads are not jobs: `pn_dl_cancel` (pause) and `pn_dl_drop` (cancel and delete) take an episode's key (events of the queue's state table), Subsonic and the radio have
+now. Downloads are not jobs (a book's download has a thread of its own and `bd_pause` stops it): `pn_dl_cancel` (pause) and `pn_dl_drop` (cancel and delete) take an episode's key (events of the queue's state table), Subsonic and the radio have
 their own.
 
 ## What stays with the callers
@@ -141,8 +143,8 @@ The threads, the job slot, the download queues and each page's Cancel are the ca
 
 - **One way of writing a download**, and a resume record for podcast episodes (see above).
 - AutoEq's list and the radio's logo write their small files themselves.
-- **A limit on bulk transfers.** A podcast episode, a Subsonic track and the update package can
-  download at the same time, each on its own thread, beside one job. Whether the device needs a
+- **A limit on bulk transfers.** A podcast episode, an audiobook, a Subsonic track and the update package can
+  download at the same time, each on its own thread, beside one job (a book can download beside an episode). Whether the device needs a
   limit (memory, card writes, Wi-Fi throughput during playback) is not measured; a limit also
   needs a waiting state on three pages.
 - **One queue for every source**, and keeping the device awake for a download outside the

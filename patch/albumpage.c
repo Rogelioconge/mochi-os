@@ -215,36 +215,9 @@ static void ab_number(void *canvas, int i, int y) {
     canvas_draw_text_in_rect(canvas, w, n, rect); /* the scroll_view's clip cuts it at the window's edges */
 }
 
-/* The playing track's marker: the image ah_wave (white-ish bars on black, as cc_decode flattens it) as a bitmap whose alpha is the bars' coverage and whose colour is AB_WAVE_RGB. */
-static void *ab_make_wave(void *win) {
-    unsigned *px, i, col;
-    void *b = bitmap_create_ex(AB_WAVE, AB_WAVE, AB_WAVE * 4, BITMAP_RGBA8888);
-    int ok;
-    if (!b) return b;
-    px = (unsigned *)bitmap_lock_buffer_for_write(b);
-    if (!px || bitmap_get_line_length(b) != AB_WAVE * 4) {
-        if (px) bitmap_unlock_buffer(b);
-        bitmap_destroy(b);
-        return (void *)0;
-    }
-    ok = cc_decode(win, "ah_wave", 1, AB_WAVE, 1, px);
-    col = pal_fill() &
-          0xffffffu; /* the accent's, or Neutral's AB_WAVE_COLOR (#EEEEEC): the wave is made when the page opens */
-    for (i = 0; ok && i < AB_WAVE * AB_WAVE; ++i) px[i] = (px[i] & 0xff) * 255 / 0xee << 24 | col;
-    bitmap_unlock_buffer(b);
-    if (!ok) {
-        bitmap_destroy(b);
-        return (void *)0;
-    }
-    return b;
-}
-
+/* The playing track's marker is the shared wave (grid_wave_make / grid_wave_draw in grid.c), right-aligned in the number column. */
 static void ab_paint_wave(void *canvas, int i, int y) {
-    int src[4], dst[4];
-    dst[0] = AB_NUM_X + ab_shift() + ab_numw(i) - AB_WAVE, dst[1] = y + AB_WAVE_Y;
-    dst[2] = dst[3] = AB_WAVE;
-    src[0] = src[1] = 0, src[2] = src[3] = AB_WAVE;
-    if (dst[1] >= 0 && dst[1] + AB_WAVE <= AH_WIN_H) canvas_draw_image(canvas, ab.wave, src, dst);
+    grid_wave_draw(canvas, ab.wave, AB_NUM_X + ab_shift() + ab_numw(i) - AB_WAVE, y + AB_WAVE_Y, AH_WIN_H);
 }
 
 static void ab_paint_pill(void *canvas, int off);
@@ -1128,7 +1101,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.barok = widget_on(ab.win, EVT_WINDOW_TO_FG, ab_on_fg, (void *)0) &&
                widget_on(ab.win, EVT_WINDOW_TO_BG, ab_on_bg, (void *)0);
     m1_make_marks(ab.win, ab.mark); /* all or none */
-    ab.wave = ab_make_wave(ab.win);
+    ab.wave = grid_wave_make(ab.win);
     rowmenu_bind(&ab.rm, ab.win); /* the rows' "..." menu (optional: no widgets means no "...") */
     widget_on(ab.view, EVT_POINTER_DOWN, ab_on_down, (void *)0);
     widget_on(ab.view, EVT_POINTER_UP, ab_on_up, (void *)0);

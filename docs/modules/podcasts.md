@@ -187,9 +187,18 @@ The Downloaded level (`L_DLS`, the Shows page's Downloaded row) has the large ti
 
 Episodes use class-1 folder queues with copied song records; playback needs no library scan.
 The tag-reader hook supplies show/episode text only for podcast paths.
-Library query filtering removes podcast paths from music lists and music Favourites;
+Library query filtering removes podcast and audiobook paths from music lists and music Favourites;
 Daily Mix, Recently Played and custom Shuffle queues also exclude them.
 Folders and stock history tables can still contain episodes.
+
+Audiobooks (`/mnt/mmc/Audiobooks/<Book>/<parts>`, one folder deeper allowed, or a loose
+`/mnt/mmc/Audiobooks/<file>.m4b` that is a book of its own; any case, bounded by the slash:
+`bk_is_path`) use the same resume ring and speed records, with two differences: a part counts as
+played only within 30 seconds of its end (no 95% rule), and a position is saved at any length.
+The speed key is the book's (`pc_hash("audiobooks/" + folder name)`, the file name for a loose
+book), so a book and a show of the same name never share a speed. Books keep stock tags
+(`pc_id3_path` stays podcasts only). `pc_spoken_path` (podcast or book) keeps them out of the
+music features above.
 
 `pc_note`, called by Now Playing, the mini player and the Podcasts page timer, records
 positions only while those pages provide ticks. Positions from 30 seconds are saved;
@@ -207,7 +216,7 @@ speed changes can depend on the stock player's next track open.
 
 Two lanes (`patch/pcnet.h`), each a detached thread that never touches widgets; the UI reads generation/status records.
 
-- **Jobs**: a refresh, a search or preview, a chart, the archive fetch, and the other pages' jobs (Find Cover & Lyrics, Software Update, AutoEq) share one slot (`pn.busy`, `pn.kind`): one at a time, `PN_BUSY` to the next, which its page asks again from its tick. A page cancels only its own kinds of job (`pn_cancel(PN_K_*)`, [network](network.md)). The Radio directory fetch (`rd_fetch`, [radio](radio.md)) is refused while a job runs; the reverse is not checked.
+- **Jobs**: a refresh, a search or preview, a chart, the archive fetch, and the other pages' jobs (Find Cover & Lyrics, Software Update, AutoEq) share one slot (`pn.busy`, `pn.kind`): one at a time, `PN_BUSY` to the next, which its page asks again from its tick. A page cancels only its own kinds of job (`pn_cancel(PN_K_*)`, [network](network.md)). The LibriVox catalog and preview jobs (`PN_K_BOOKS`, [audiobooks](audiobooks.md)) share this slot; a book's download has a thread of its own beside it and the episode queue, with the episode download's policy (`pnw_download`), and gives way to neither. The Radio directory fetch (`rd_fetch`, [radio](radio.md)) is refused while a job runs; the reverse is not checked.
 - **Downloads**: the episode queue has a thread of its own (`pn.dbusy`, `pn_dl_running`), one episode at a time. It runs beside a job and never gives way to one: no page pauses the downloads, and a download stops only when its row cancels it (`pn_dl_cancel`: the `.part` stays, a later tap resumes it) or takes it away (`pn_dl_drop`: Remove Download, the select mode's Delete, Unsubscribe). **The life of a download is its slot's state** (`PN_Q_*`), and every move is one row of one table (`pn_q_after`), made under one mutex (`pn_dmutex`; `pn_q_move` / `pn_q_fire`); there is no other flag:
 
   | Event | Who | From → to |

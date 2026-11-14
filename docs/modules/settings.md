@@ -133,6 +133,8 @@ Everything the payload keeps on the SD card (found with `grep -rnE 'CARD_DIR|"/m
 | `.m1plus/coverflow-position` | the Cover Flow position (patch/coverflow.c) | [coverflow](coverflow.md) |
 | `.m1plus/daily-mix/` | Daily Mix tracks and art | [dailymix](dailymix.md) |
 | `.m1plus/podcasts/` | `resume`, `speed`, `order`, `search/` (thumbnails) | [podcasts](podcasts.md) |
+| `.m1plus/audiobooks/search/` | LibriVox scratch: thumbnails `p<i>` / `s<i>`, `preview.jpg\|png`, `files.json` while it is scanned | [audiobooks](audiobooks.md) |
+| `Audiobooks/<book>/.librivox` | a downloaded LibriVox book's manifest (the parts still to fetch); the parts and `cover.jpg` sit beside it | [audiobooks](audiobooks.md) |
 | `.m1plus/art/` | Find Cover & Lyrics scratch (thumbnails `a<n>`, the larger picture, lyrics `l<n>.txt`) | [onlineart](onlineart.md) |
 | `.m1plus/autoeq/` | AutoEq download list and presets | [peq](peq.md) |
 | `.m1plus/subsonic/`, `subsonic.conf` | Subsonic / Navidrome cache and the one-line server file | [subsonic](subsonic.md) |

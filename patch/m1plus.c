@@ -67,6 +67,7 @@ enum {
     ACT_ACCENT = 48,
     ACT_ACCENTSET = 49,
     ACT_RADIO = 50,
+    ACT_BOOKS = 144,
     ACT_SFDEL = 51,
     ACT_SFOLD = 52, /* Settings Files: Unsupported Files, a count (a chevron and the list only when it is not zero) */
     ACT_SFDELALL = 53, /* Settings Files: Delete Unsupported Files, an action row */
@@ -529,6 +530,8 @@ static int on_row(void *ctx, void *e) {
         podcasts_open();
     else if (row->action == ACT_RADIO)
         radio_open();
+    else if (row->action == ACT_BOOKS)
+        books_open();
     else if (row->action == ACT_SUBSONIC)
         nd_root_open();
     else if (row->action == ACT_SEARCH) {

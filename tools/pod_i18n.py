@@ -961,7 +961,78 @@ TEXT = dict([
     # the episode page (patch/pcdetail.c, docs/modules/podcasts.md "The episodepage"): the hint of an episode with no description
     _t('No description', '没有简介', '沒有簡介', '説明はありません', '설명 없음', 'Aucune description', 'Keine Beschreibung', 'Sin descripción', 'Nessuna descrizione', 'ไม่มีคำอธิบาย', 'Brak opisu', 'Нет описания', 'Немає опису'),
     _t('%dm', '%d分钟', '%d分鐘', '%d分', '%d분', '%d min', '%d Min.', '%d min', '%d min', '%d นาที', '%d min', '%d мин', '%d хв'),   # the pill's length: short, no "left"
+    _t('%dh', '%d小时', '%d小時', '%d時間', '%d시간', '%d h', '%d Std.', '%d h', '%d h', '%d ชม.', '%d godz.', '%d ч', '%d год'),   # a whole book's length from an hour (the books' totals only)
+    _t('%dh %dm', '%d小时%d分钟', '%d小時%d分鐘', '%d時間%d分', '%d시간 %d분', '%d h %d min', '%d Std. %d Min.', '%d h %d min', '%d h %d min', '%d ชม. %d นาที', '%d godz. %d min', '%d ч %d мин', '%d год %d хв'),
     _t('%dm left', '剩余%d分钟', '剩餘%d分鐘', '残り%d分', '%d분 남음', 'Reste %d min', 'Noch %d Min.', 'Quedan %d min', '%d min rimasti', 'เหลือ %d นาที', 'Zostało %d min', 'Ещё %d мин', 'Ще %d хв'),
+    # Audiobooks (patch/bkpage.c, docs/modules/audiobooks.md): the Extras item and the page's title, the empty hint, the capsule's words (Play is the Songs page's key), the grey lines, the toast of a book too long for one file
+    _t('Audiobooks', '有声书', '有聲書', 'オーディオブック', '오디오북', 'Livres audio', 'Hörbücher',
+       'Audiolibros', 'Audiolibri', 'หนังสือเสียง', 'Audiobooki', 'Аудиокниги', 'Аудіокниги'),
+    _t('No audiobooks. Copy a folder for each book into Audiobooks on the card.',
+       '没有有声书。请在存储卡的 Audiobooks 文件夹中为每本书放一个文件夹。',
+       '沒有有聲書。請在記憶卡的 Audiobooks 資料夾中為每本書放一個資料夾。',
+       'オーディオブックがありません。カードの Audiobooks フォルダに本ごとのフォルダをコピーしてください。',
+       '오디오북이 없습니다. 카드의 Audiobooks 폴더에 책마다 폴더를 복사하세요.',
+       'Aucun livre audio. Copiez un dossier par livre dans Audiobooks sur la carte.',
+       'Keine Hörbücher. Kopiere für jedes Buch einen Ordner in Audiobooks auf der Karte.',
+       'Sin audiolibros. Copia una carpeta por libro en Audiobooks de la tarjeta.',
+       'Nessun audiolibro. Copia una cartella per ogni libro in Audiobooks sulla scheda.',
+       'ไม่มีหนังสือเสียง คัดลอกโฟลเดอร์ของแต่ละเล่มไปที่ Audiobooks บนการ์ด',
+       'Brak audiobooków. Skopiuj folder dla każdej książki do Audiobooks na karcie.',
+       'Нет аудиокниг. Скопируйте по папке на каждую книгу в Audiobooks на карте.',
+       'Немає аудіокниг. Скопіюйте по теці для кожної книги в Audiobooks на картці.'),
+    _t('Resume', '继续', '繼續', '再開', '이어서 재생', 'Reprendre', 'Fortsetzen',
+       'Reanudar', 'Riprendi', 'เล่นต่อ', 'Wznów', 'Продолжить', 'Продовжити'),
+    _t('Play Again', '重新播放', '重新播放', 'もう一度再生', '다시 재생', 'Relire', 'Nochmal',
+       'Repetir', 'Riascolta', 'เล่นอีกครั้ง', 'Jeszcze raz', 'Снова', 'Знову'),
+    _t('Not started', '未开始', '未開始', '未再生', '시작 전', 'Pas commencé', 'Nicht begonnen',
+       'Sin empezar', 'Non iniziato', 'ยังไม่เริ่ม', 'Nie rozpoczęto', 'Не начато', 'Не розпочато'),
+    _t('Finished', '已听完', '已聽完', '聴き終わり', '완료', 'Terminé', 'Abgeschlossen',
+       'Terminado', 'Terminato', 'จบแล้ว', 'Ukończono', 'Завершено', 'Завершено'),
+    _t('Played', '已播放', '已播放', '再生済み', '재생함', 'Lu', 'Gehört',
+       'Reproducido', 'Riprodotto', 'เล่นแล้ว', 'Odtworzono', 'Прослушано', 'Прослухано'),
+    _t('%d parts', '%d 个部分', '%d 個部分', '%d パート', '파트 %d개', '%d parties', '%d Teile',
+       '%d partes', '%d parti', '%d ตอน', 'Części: %d', 'Частей: %d', 'Частин: %d'),
+    _t('Part %d of %d', '第 %d / %d 部分', '第 %d / %d 部分', 'パート %d / %d', '파트 %d / %d', 'Partie %d sur %d', 'Teil %d von %d',
+       'Parte %d de %d', 'Parte %d di %d', 'ตอนที่ %d จาก %d', 'Część %d z %d', 'Часть %d из %d', 'Частина %d з %d'),
+    _t('Too long. Split it into parts.',
+       '文件过长，请拆分成多个部分。',
+       '檔案過長，請拆分成多個部分。',
+       'ファイルが長すぎます。分割してください。',
+       '파일이 너무 깁니다. 나누어 주세요.',
+       'Trop long. Divisez-le en parties.',
+       'Zu lang. In Teile aufteilen.',
+       'Demasiado largo. Divídelo.',
+       'Troppo lungo. Dividilo.',
+       'ไฟล์ยาวเกินไป โปรดแบ่งเป็นส่วน',
+       'Za długi. Podziel na części.',
+       'Слишком длинный. Разделите.',
+       'Задовгий. Розділіть.'),
+    # Audiobooks, the LibriVox levels (patch/bkfind.c): the grey line of the LibriVox row and of the level's title, the section lines (Books, Popular), the search field's hint, the toast and status of a search or preview made while a book downloads or
+    # another job runs, a running time ("13 h 6 min", "13 h", "18 min": the compact form of the preview's grey line), the preview's capsule that opens a book already on the card (the word Open is
+    # the Wi-Fi page's network word); LibriVox itself is a product name (below)
+    _t('Public domain audiobooks', '公版有声书', '公有領域有聲書', 'パブリックドメインの朗読', '퍼블릭 도메인 오디오북', 'Livres du domaine public',
+       'Gemeinfreie Hörbücher', 'Audiolibros públicos', 'Audiolibri liberi', 'หนังสือเสียงสาธารณสมบัติ', 'Domena publiczna',
+       'Общественное достояние', 'Суспільне надбання'),
+    _t('Books', '书籍', '書籍', '書籍', '도서', 'Livres', 'Bücher', 'Libros', 'Libri', 'หนังสือ', 'Książki', 'Книги', 'Книги'),
+    _t('Popular', '热门', '熱門', '人気', '인기', 'Populaires', 'Beliebt', 'Populares', 'Popolari', 'ยอดนิยม', 'Popularne', 'Популярные', 'Популярні'),
+    _t('Search LibriVox', '搜索 LibriVox', '搜尋 LibriVox', 'LibriVox を検索', 'LibriVox 검색', 'Chercher sur LibriVox', 'LibriVox durchsuchen', 'Buscar en LibriVox', 'Cerca su LibriVox',
+       'ค้นหาใน LibriVox', 'Szukaj w LibriVox', 'Поиск в LibriVox', 'Пошук у LibriVox'),
+    _t('Open Book', '打开此书', '開啟此書', '本を開く', '책 열기', 'Ouvrir le livre', 'Buch öffnen', 'Abrir libro', 'Apri libro', 'เปิดหนังสือ', 'Otwórz książkę', 'Открыть книгу', 'Відкрити книгу'),
+    # Audiobooks, the download of a LibriVox book (patch/bkpage.c): the Book level's "..." sheet (Pause Download, Resume Download, Delete Book and its confirmation, the refusal while the book plays) and the
+    # Library line of a book with parts still to come ("12 of 37 parts downloaded"; a running one is "Downloading · 12/37"). The download row's words are Podcasts' (Downloading, Waiting, Paused, Retry, Failed)
+    _t('Pause Download', '暂停下载', '暫停下載', 'ダウンロードを一時停止', '다운로드 일시 중지', 'Suspendre le téléchargement', 'Download pausieren', 'Pausar descarga', 'Sospendi download',
+       'หยุดดาวน์โหลดชั่วคราว', 'Wstrzymaj pobieranie', 'Приостановить загрузку', 'Призупинити завантаження'),
+    _t('Resume Download', '继续下载', '繼續下載', 'ダウンロードを再開', '다운로드 재개', 'Reprendre le téléchargement', 'Download fortsetzen', 'Reanudar descarga', 'Riprendi download',
+       'ดาวน์โหลดต่อ', 'Wznów pobieranie', 'Возобновить загрузку', 'Відновити завантаження'),
+    _t('Delete Book', '删除此书', '刪除此書', '本を削除', '책 삭제', 'Supprimer le livre', 'Buch löschen', 'Eliminar libro', 'Elimina libro', 'ลบหนังสือ', 'Usuń książkę', 'Удалить книгу', 'Видалити книгу'),
+    _t('Delete this book and its files?', '删除此书及其文件？', '刪除此書及其檔案？', 'この本とそのファイルを削除しますか？', '이 책과 파일을 삭제할까요?', 'Supprimer ce livre et ses fichiers ?',
+       'Dieses Buch und seine Dateien löschen?', '¿Eliminar este libro y sus archivos?', 'Eliminare questo libro e i suoi file?', 'ลบหนังสือและไฟล์ไหม?', 'Usunąć tę książkę i jej pliki?',
+       'Удалить эту книгу и её файлы?', 'Видалити цю книгу та її файли?'),
+    _t('This book is playing', '这本书正在播放', '這本書正在播放', 'この本は再生中です', '이 책을 재생 중입니다', 'Ce livre est en cours de lecture', 'Dieses Buch läuft gerade', 'Este libro se está reproduciendo',
+       'Questo libro è in riproduzione', 'กำลังเล่นหนังสือเล่มนี้อยู่', 'Ta książka jest odtwarzana', 'Эта книга воспроизводится', 'Ця книга відтворюється'),
+    _t('%d of %d parts downloaded', '已下载 %d / %d 个部分', '已下載 %d / %d 個部分', '%d / %d パート取得済み', '파트 %d / %d개 다운로드됨', '%d sur %d parties chargées',
+       '%d von %d Teilen geladen', '%d de %d partes guardadas', '%d di %d parti scaricate', 'โหลดแล้ว %d จาก %d ส่วน', 'Pobrano %d z %d części', 'Скачано %d из %d частей',
+       'Отримано %d з %d частин'),
     # Now Playing's info page labels (patch/nowplaying.c np_info): stock's "Genres" (the plural tab name) and "Era"
     # (a decade in several tables, "age" in Korean) become "Genre: ..." and "Year: ..."
     _t('Genre', '风格', '風格', 'ジャンル', '장르', 'Genre', 'Genre',
@@ -1660,6 +1731,7 @@ def lock_date(loc):
 
 
 TEXT['Subsonic'] = {loc: 'Subsonic' for loc in LOCALES}   # the product name, the same in every language (the menu row and the pages' title)
+TEXT['LibriVox'] = {loc: 'LibriVox' for loc in LOCALES}   # the service's name, the same in every language (the Audiobooks Library's row, the level's title, the keyboard's title)
 TEXT.update([
     _t(', %d', '，%d年', '，%d年', ', %d年', ', %d년', ', %d', ', %d', ', %d', ', %d', ', %d', ', %d', ', %d', ', %d'),
     _t('Just now', '刚刚', '剛剛', 'たった今', '방금', 'À l’instant', 'Gerade eben', 'Ahora mismo', 'Adesso', 'เมื่อสักครู่', 'Przed chwilą', 'Только что', 'Щойно'),
@@ -1667,7 +1739,7 @@ TEXT.update([
     _t('%dh ago', '%d小时前', '%d小時前', '%d時間前', '%d시간 전', 'il y a %d h', 'vor %d Std.', 'hace %d h', '%d h fa', '%d ชั่วโมงที่แล้ว', '%d godz. temu', '%d ч назад', '%d год тому'),
     _t('%dd ago', '%d天前', '%d天前', '%d日前', '%d일 전', 'il y a %d j', 'vor %d T.', 'hace %d d', '%d g fa', '%d วันที่แล้ว', '%d dn. temu', '%d дн. назад', '%d дн. тому'),
 ])
-DATE_KEYS = _MONTH_KEYS + (', %d', '%dm ago', '%dh ago', '%dd ago', 'Refreshing %d/%d…', 'Exported %d show', 'Exported %d shows', 'Band %d', 'Updating library… %d/%d', 'Loading covers… %d/%d', 'Loading artist images… %d/%d', 'Scrobbles sent: %d', 'Card error, %d sent', 'Upload failed, %d sent')   # keys with a %d that do not start with it (the tables test, test/pod/i18n.py)
+DATE_KEYS = _MONTH_KEYS + (', %d', '%dm ago', '%dh ago', '%dd ago', 'Refreshing %d/%d…', 'Part %d of %d', 'Exported %d show', 'Exported %d shows', 'Band %d', 'Updating library… %d/%d', 'Loading covers… %d/%d', 'Loading artist images… %d/%d', 'Scrobbles sent: %d', 'Card error, %d sent', 'Upload failed, %d sent')   # keys with a %d that do not start with it (the tables test, test/pod/i18n.py)
 # The Navidrome Server page (patch/ndserver.c, tools/pod_ndserver.py): the row labels (the keyboard's titles and placeholders too), the two confirmations and the toasts. "Navidrome" stays as it is.
 TEXT.update([
     _t('Server', '服务器', '伺服器', 'サーバー', '서버', 'Serveur', 'Server', 'Servidor', 'Server', 'เซิร์ฟเวอร์', 'Serwer', 'Сервер', 'Сервер'),

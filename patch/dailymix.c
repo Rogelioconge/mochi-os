@@ -766,8 +766,8 @@ static int dm_ph_lib(job_t *j) {
         const char *path = cc_str(r, REC_PATH);
         cand_t *c;
         unsigned short *s;
-        if (I(r, REC_TYPE) != 8 || !*path || pc_is_path(path))
-            continue; /* (a podcast episode is no candidate for the mix) */
+        if (I(r, REC_TYPE) != 8 || !*path || pc_spoken_path(path))
+            continue; /* (a podcast episode or a book part is no candidate for the mix) */
         c = &j->c[j->nc++];
         c->path = dm_path_hash(path);
         c->artist = dm_tag(cc_str(r, REC_ARTIST), path);

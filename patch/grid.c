@@ -9,6 +9,8 @@
 #include "common.h"
 #include "grid.h"
 #include "azlist.h"
+#include "pcwrap.h"
+#include "palette.h"
 
 void grid_shape(grid_t *g, int side, int round, int blend) {
     if (round > GRID_MAX_ROUND) round = GRID_MAX_ROUND;
@@ -311,6 +313,39 @@ int grid_spin_draw(void *canvas, grid_t *g, int x, int y, int view_h) {
     return 1;
 }
 
+/* The empty level's status line (the Discover and search levels of Podcasts, the Audiobooks levels): grey, wrapped to the margins, its lines centred as a block in the room under the header and each line across the page. */
+void grid_hint_paint(void *canvas, grid_t *g, void *style, const char *key, int busy, int top, int bottom, int off) {
+    unsigned t[160], e[2], tmp[2];
+    unsigned short adv[160];
+    pw_line_t ln[4];
+    int n, k, i, nl, len, w, x, y, sx = busy && g->spin[0] ? PS_SPIN_PX + PS_SPIN_GAP : 0;
+    unsigned cap = 0;
+    if (!key) return;
+    while (key[cap] && cap < 640) ++cap;
+    tk_utf8_to_utf16_ex(key, cap, t, 160);
+    for (n = 0; t[n] && n < 159; ++n) {
+    }
+    tmp[1] = 0;
+    for (i = 0; i < n; ++i) tmp[0] = t[i], adv[i] = (unsigned short)m1_text_w(style, tmp);
+    e[0] = ELLIPSIS, e[1] = 0;
+    nl = pw_wrap(t, n, adv, 320 - 2 * PP_LINE_X - sx, 4, m1_text_w(style, e), ln);
+    widget_prepare_text_style(style, canvas);
+    y = top + (bottom - top - nl * PS_TITLE_PITCH) / 2 - off;
+    for (k = 0; k < nl; ++k, y += PS_TITLE_PITCH) {
+        const unsigned *s = t + ln[k].start;
+        int rect[4];
+        for (len = ln[k].len; len > 0 && s[len - 1] == ' '; --len) {
+        } /* (the space a line was broken after has no part in its width) */
+        for (i = w = 0; i < len; ++i)
+            tmp[0] = s[i], w += m1_text_w(style, tmp); /* (measured again: the last character may be the ellipsis) */
+        x = (320 - sx - w) / 2 + sx;
+        if (!k && sx) grid_spin_draw(canvas, g, x - sx, y + (PS_TITLE_PITCH - PS_SPIN_PX) / 2, GRID_VIEW_H);
+        rect[0] = x, rect[1] = y, rect[2] = 320 - PP_LINE_X - x, rect[3] = PS_TITLE_PITCH;
+        if (len > 0 && y >= 0 && y + PS_TITLE_PITCH <= GRID_VIEW_H)
+            canvas_draw_text_in_rect(canvas, s, (unsigned)len, rect);
+    }
+}
+
 void grid_blit_from(void *canvas, void *bmp, int sx, int sy, int w, int h, int x, int y, int view_h) {
     int top = y < 0 ? -y : 0, bottom = view_h > 0 && y + h > view_h ? view_h - y : h;
     int src[4], dst[4];
@@ -326,6 +361,38 @@ void grid_mark_draw(void *canvas, void *bmp, int x, int top, int view_h) {
     src[0] = src[1] = 0, src[2] = src[3] = SG_MARK;
     dst[0] = x, dst[1] = top, dst[2] = dst[3] = SG_MARK;
     canvas_draw_image(canvas, bmp, src, dst);
+}
+
+/* The playing marker: the image ah_wave (white-ish bars on black, as cc_decode flattens it) as a bitmap whose alpha is the bars' coverage and whose colour is the accent's fill, or Neutral's AB_WAVE_COLOR
+ * (#EEEEEC); made when the page opens. NULL when it did not decode. */
+void *grid_wave_make(void *win) {
+    unsigned *px, i, col;
+    void *b = bitmap_create_ex(AB_WAVE, AB_WAVE, AB_WAVE * 4, BITMAP_RGBA8888);
+    int ok;
+    if (!b) return b;
+    px = (unsigned *)bitmap_lock_buffer_for_write(b);
+    if (!px || bitmap_get_line_length(b) != AB_WAVE * 4) {
+        if (px) bitmap_unlock_buffer(b);
+        bitmap_destroy(b);
+        return (void *)0;
+    }
+    ok = cc_decode(win, "ah_wave", 1, AB_WAVE, 1, px);
+    col = pal_fill() & 0xffffffu;
+    for (i = 0; ok && i < AB_WAVE * AB_WAVE; ++i) px[i] = (px[i] & 0xff) * 255 / 0xee << 24 | col;
+    bitmap_unlock_buffer(b);
+    if (!ok) {
+        bitmap_destroy(b);
+        return (void *)0;
+    }
+    return b;
+}
+
+void grid_wave_draw(void *canvas, void *wave, int x, int top, int view_h) {
+    int src[4], dst[4];
+    if (!wave || top < 0 || top + AB_WAVE > view_h) return;
+    src[0] = src[1] = 0, src[2] = src[3] = AB_WAVE;
+    dst[0] = x, dst[1] = top, dst[2] = dst[3] = AB_WAVE;
+    canvas_draw_image(canvas, wave, src, dst);
 }
 
 void grid_blit(void *canvas, grid_t *g, grid_tile_t *t, int x, int y, int view_h) {
@@ -406,12 +473,13 @@ void grid_list_paint(void *canvas, grid_t *g, void *st_title, void *st_sub, int 
         ++pass) { /* titles, then subtitles: one text style at a time, cut at the view's edges by the scroll_view's clip */
         widget_prepare_text_style(pass ? st_sub : st_title, canvas);
         for (r = r0; r <= r1; ++r)
-            grid_text(canvas, tile_of(ctx, r), pass, LIST_TEXT_X + shift,
+            grid_text(canvas, tile_of(ctx, r), pass, LIST_TEXT_X + shift + (pass ? tile_of(ctx, r)->subx : 0),
                       grid_row_y(g, r) - off +
                           (pass                   ? LIST_SUB_Y
                            : tile_of(ctx, r)->mid ? (LIST_ROW_H - LIST_TITLE_H) / 2
                                                   : LIST_TITLE_Y),
-                      (chev && !tile_of(ctx, r)->nochev ? LIST_TEXT_W_CHEV : LIST_TEXT_W) - shift - inset,
+                      (chev && !tile_of(ctx, r)->nochev ? LIST_TEXT_W_CHEV : LIST_TEXT_W) - shift - inset -
+                          (pass ? tile_of(ctx, r)->subx : 0),
                       pass ? LIST_SUB_H : LIST_TITLE_H, 0);
     }
 }

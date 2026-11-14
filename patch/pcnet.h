@@ -46,7 +46,8 @@ enum {
     PN_NOLYRICS, /* lyrics: no LRCLIB record has any */
     PN_OVERLOAD, /* find cover & lyrics: the service answered 503 or 429 (busy) on every try */
     PN_UPCHECK, /* software update: GitHub's answer is not the redirect to a release of the repository (any other status, address or tag) */
-    PN_UPBAD /* software update: the downloaded file is not the package of the version offered (short, too large or another version) */
+    PN_UPBAD, /* software update: the downloaded file is not the package of the version offered (short, too large or another version) */
+    PN_NOBOOK /* LibriVox (patch/bknet.c): the item has no 64Kbps MP3 part (or its identifier is no identifier) */
 };
 
 /* Episode downloads (docs/modules/podcasts.md "Downloads"). The policy follows q2-podcasts (MIT): one at a time, chunks written with open / write / fsync / close, Range resume, a stall limit,
@@ -82,7 +83,9 @@ enum {
     PN_KIND_UPDATE = 7, /* Software Update: the check and the download */
     PN_KIND_CHART = 8,
     PN_KIND_EQ = 9, /* AutoEq */
-    PN_KIND_ARCH = 10 /* a show's whole episode list */
+    PN_KIND_ARCH = 10, /* a show's whole episode list */
+    PN_KIND_BOOKS = 11, /* LibriVox (patch/bknet.c): the catalog (Popular, a search) and its pictures */
+    PN_KIND_BOOKPREV = 12 /* ... and a book's parts */
 };
 #define PN_K(kind) (1u << (kind))
 #define PN_K_REFRESH PN_K(PN_KIND_REFRESH)
@@ -92,6 +95,7 @@ enum {
 #define PN_K_ART (PN_K(PN_KIND_ART) | PN_K(PN_KIND_PICK))
 #define PN_K_UPDATE PN_K(PN_KIND_UPDATE)
 #define PN_K_EQ PN_K(PN_KIND_EQ)
+#define PN_K_BOOKS (PN_K(PN_KIND_BOOKS) | PN_K(PN_KIND_BOOKPREV)) /* the Audiobooks page's jobs */
 /* UI thread: ask the running job to stop if it is one of kinds (PN_K_*): the transfer in progress is aborted (libcurl's transfer-info callback), no further show is started. A job of another
  * kind, another page's, goes on; with no job running nothing happens. */
 void pn_cancel(unsigned kinds);

@@ -1145,10 +1145,10 @@ def asset_tests(ctx):
     expect(tree.find('label_status').h >= 60, 'the hint has room for three lines')
     # the item
     item = next(i for i, r in enumerate(P.ITEMS) if r.label == 'Podcasts')
-    expect(item == 20 == len(P.ITEMS) - 4 and P.ITEMS[item].action == P.ACT_PODCASTS == 23 and P.ID_CHARS[item] == 'l' and item not in P.DEFAULT_MENU
-           and P.PODCASTS.kind == 'podcasts', 'Podcasts is item 20 (saved as "l"), before Search, hidden from the menu by default; its page follows the Pod (the Tape pages come after it)')
-    expect(P.EXTRAS_GROUPS[1][1][-3] == 'Podcasts' and P.EXTRAS_GROUP_OF[item] == 1 and P.EXTRAS_GROUPS[0][1] == ('Now Playing', 'Shuffle', 'Pod')
-           and P.parse_menu_full(b'123456l\n') == ([1, 2, 3, 4, 5, 6, 20], []) and P.format_menu([1, 2, 20]) == '12l\n', 'Extras lists it in the Library group, before Radio and Search; the saved list carries it as l')
+    expect(item == 20 == len(P.ITEMS) - 5 and P.ITEMS[item].action == P.ACT_PODCASTS == 23 and P.ID_CHARS[item] == 'l' and item not in P.DEFAULT_MENU
+           and P.PODCASTS.kind == 'podcasts', 'Podcasts is item 20 (saved as "l"), before Audiobooks, Radio and Search, hidden from the menu by default; its page follows the Pod (the Tape pages come after it)')
+    expect(P.EXTRAS_GROUPS[1][1][-4] == 'Podcasts' and P.EXTRAS_GROUP_OF[item] == 1 and P.EXTRAS_GROUPS[0][1] == ('Now Playing', 'Shuffle', 'Pod')
+           and P.parse_menu_full(b'123456l\n') == ([1, 2, 3, 4, 5, 6, 20], []) and P.format_menu([1, 2, 20]) == '12l\n', 'Extras lists it in the Library group, before Audiobooks, Radio and Search; the saved list carries it as l')
     expect(pod_i18n.key_for('Podcasts') == 'Podcasts' and 'Podcasts' in pod_i18n.TEXT and 'Podcasts' not in pod_i18n.BRANDS, 'the label is a translated key (13 languages)')
     # the menu row opens the page; a window that will not open does nothing
     on_row = PSYMS['on_row']
@@ -1387,4 +1387,60 @@ def tag_tests(ctx):
     expect(mm.read_cstr(mm.word(q[0] + O['REC_ARTIST'])) == 'Alpha Show' and mm.read_cstr(mm.word(q[0] + O['REC_TITLE'])) == 'ep2', 'a record queued by the page carries the episode title and the show as artist')
 
 
-SECTIONS = [when_tests, width_tests, tag_tests, text_tests, scan_tests, ring_tests, resume_tests, speed_tests, order_tests, strip_tests, cover_tests, open_tests, level_tests, touch_tests, lifecycle_tests, asset_tests, integration_tests]
+def book_tests(ctx):
+    """Audiobooks (/mnt/mmc/Audiobooks/) are spoken audio too: the predicate, the book's speed key, the 30 s-only played rule, kept out of Shuffle and the shelf."""
+    expect = ctx.expect
+    BR = '/mnt/mmc/Audiobooks'
+    m = PM()
+    for path, want in ((f'{BR}/Book/01.mp3', 1), (f'{BR}/book/CD1/01.mp3', 1), ('/MNT/MMC/AUDIOBOOKS/B/x', 1), (f'{BR}/Loose.m4b', 1), (f'{BR}/', 0), (BR, 0), (f'{BR}//x.mp3', 0),
+                       ('/mnt/mmc/Audiobooks Extra/B/x.mp3', 0), ('/mnt/mmc/Music/Audiobooks/B/x.mp3', 0), ('/mnt/mmc/Audiobook/B/x.mp3', 0), (f'{ROOT}/Show/ep.mp3', 0), ('', 0)):
+        expect(m.call(PSYMS['bk_is_path'], a0=m.cstr(path), count=200000) == want, f'bk_is_path({path!r}) is {want}')
+        expect(m.call(PSYMS['pc_spoken_path'], a0=m.cstr(path), count=200000) == (1 if path.startswith(ROOT) else want), f'pc_spoken_path({path!r}) is {want}')
+        expect(m.call(PSYMS['pc_is_path'], a0=m.cstr(path), count=200000) == (1 if path.startswith(ROOT) else 0), f'pc_is_path({path!r}) stays podcasts only')
+    expect(m.call(PSYMS['pc_spoken_path'], a0=m.cstr(f'{ROOT}/Show/ep.mp3'), count=200000) == 1 and m.call(PSYMS['pc_spoken_path'], a0=m.cstr('/mnt/mmc/Music/a.mp3'), count=200000) == 0,
+           'pc_spoken_path: a podcast episode too, music not')
+    key = lambda p: m.call(PSYMS['bk_book_of'], a0=m.cstr(p), count=200000)
+    expect(key(f'{BR}/Dune/01.mp3') == pc_hash('audiobooks/Dune') == key(f'{BR}/dune/CD2/05.mp3') and key('/mnt/mmc/Music/a.mp3') == 0 and key(f'{ROOT}/Dune/e.mp3') == 0,
+           'the book key is the hash of "audiobooks/" + the folder name (any case, any depth); another path has none')
+    expect(key(f'{BR}/Loose.m4b') == pc_hash('audiobooks/Loose.m4b'), 'a loose file is a book of its own: keyed by its file name')
+    expect(key(f'{BR}/Dune/01.mp3') != m.call(PSYMS['pc_show_of'], a0=m.cstr(f'{ROOT}/Dune/e.mp3'), count=200000), 'a book and a podcast show of the same name have different speed keys')
+    # played: within 30 s of the end only, for a book; a podcast at 95 %
+    mm = PM(); p1 = f'{BR}/B/p.mp3'; rec = mm.track(p1); mm.pt = (34200, 36000, 1); mm.note(rec)   # 95 % of 10 h
+    expect(mm.state(pc_hash(p1)) == (1, 34200, 36000), 'a book part at 95 %: still a place, not played')
+    mm.pt = (35969, 36000, 1); mm.note(rec)
+    expect(mm.state(pc_hash(p1)) == (1, 35969, 36000), 'a book part 31 s from its end: a place')
+    mm.pt = (35970, 36000, 1); mm.note(rec)
+    expect(mm.state(pc_hash(p1))[0] == 2, 'within 30 s of the end: played')
+    mm = PM(); p2 = f'{ROOT}/S/e.mp3'; rec = mm.track(p2); mm.pt = (2850, 3000, 1); mm.note(rec)
+    expect(mm.state(pc_hash(p2))[0] == 2, 'a podcast episode at 95 %: played')
+    mm = PM(); rec = mm.track(p1); mm.pt = (50, 400, 1); mm.note(rec)
+    expect(mm.state(pc_hash(p1)) == (1, 50, 400), 'a place is saved at any length (400 s)')
+    # the jump to the place, and the speed of the book
+    mm = PM(); H = pc_hash(p1); mm.fs[RING] = b'PCR1' + struct.pack('<I', 1) + struct.pack('<4I', H, 5000, 36000, 0); mm.clock = 100000
+    rec = mm.track(p1); mm.pt = (2, 36000, 1); mm.note(rec)
+    expect(mm.seeks == [5000], 'a book part jumps to its place as an episode does')
+    BK = pc_hash('audiobooks/B')
+    mm = PM(); mm.call(PSYMS['pc_speed_set'], a0=BK, a1=2, count=30000000); mm.setword(PLAYSPEED_MODE, 1); mm.clock = 100000
+    rec = mm.track(p1); mm.pt = (5, 36000, 1); mm.note(rec)
+    expect(mm.speeds == [2] and mm.word(PLAYSPEED_MODE) == 2, 'a book part takes the book\'s speed')
+    music = mm.record(path='/mnt/mmc/Music/a.flac'); mm.play([music], 0); mm.clock += 20000; mm.note(music)
+    expect(mm.speeds == [2, 1] and mm.word(PLAYSPEED_MODE) == 1, 'music again: the speed of before is back')
+    mm = PM(); mm.call(PSYMS['pc_speed_set'], a0=pc_hash('B'), a1=3, count=30000000); mm.setword(PLAYSPEED_MODE, 0); mm.clock = 100000
+    rec = mm.track(p1); mm.pt = (5, 36000, 1); mm.note(rec)
+    expect(mm.speeds == [], 'a podcast show named like the book does not set the book\'s speed')
+    # Shuffle's queue and the shelf
+    m = PM(); mk = lambda p: m.record(path=p)
+    songs = [mk('/mnt/mmc/Music/a.flac'), mk(f'{BR}/B/p1.mp3'), mk(f'{ROOT}/S/e1.mp3'), mk('/mnt/mmc/Music/c.flac'), mk(f'{BR}/Loose.m4b')]
+    q = m.new_deque(songs); idx = m.alloc(4); m.setword(idx, 1)
+    r = m.call(PSYMS['pc_strip'], a0=q, a1=idx, count=30000000)
+    expect(r != q and [m.read_cstr(m.word(rec + O['REC_PATH'])) for rec in m.deques[r]] == ['/mnt/mmc/Music/a.flac', '/mnt/mmc/Music/c.flac'] and m.s32(idx) == 1,
+           'pc_strip takes books out with the podcasts; the index follows')
+    q = m.new_deque([songs[1], songs[4]]); m.setword(idx, 0)
+    expect(m.call(PSYMS['pc_strip'], a0=q, a1=idx, count=30000000) == 0, 'nothing but books: no queue')
+    m2 = PM(); m2.dirs.add('/mnt/data')
+    rec = m2.track(p1); m2.pt = (400, 36000, 1)
+    r = m2.call(PSYMS['recent_note'], a0=rec, count=40000000)
+    expect(r == 0 and m2.state(pc_hash(p1)) == (1, 400, 36000) and '/mnt/data/m1plus-recent' not in m2.fs, 'recent_note: the place is noted; the shelf does not take a book part')
+
+
+SECTIONS = [when_tests, width_tests, tag_tests, text_tests, scan_tests, ring_tests, resume_tests, speed_tests, order_tests, strip_tests, book_tests, cover_tests, open_tests, level_tests, touch_tests, lifecycle_tests, asset_tests, integration_tests]

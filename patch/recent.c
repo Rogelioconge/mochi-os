@@ -239,7 +239,7 @@ int recent_note(void *t) {
         t); /* Podcasts: the place, the played mark, the speed (patch/pcmodel.c); every page that sees the playing track on a timer calls this */
     scrobble_note(t); /* the seconds heard, a listen to the scrobble log (patch/scrobble.c) */
     if (!t) return 0;
-    if (pc_is_path(cc_str(t, REC_PATH))) return 0; /* an episode is not an album of the shelf */
+    if (pc_spoken_path(cc_str(t, REC_PATH))) return 0; /* an episode or a book part is not an album of the shelf */
     if (rc_is_stream(cc_str(t, REC_PATH)))
         return 0; /* a server track's path is its stream address (a credential, dead on the shelf): never written to the card */
     album = cc_str(t, REC_ALBUM);

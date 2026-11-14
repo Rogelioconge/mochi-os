@@ -450,6 +450,15 @@ def search_field():
     return hidden(f)
 
 
+def discover_find():
+    """The Discover level's magnifier, hidden (patch/podcasts.c pg_nav and patch/bkpage.c bk_nav show it there only, as the left cap on the 214 slot beside Now Playing): the Radio page's Search button."""
+    find = hidden(Widget('button', NAV_VIEW_X, 0, NAV_VIEW_W, NAVBAR_H, [
+        ('name', 'btn_search'), ('enable', 'true'), ('style', 'img_btn_style'),
+        ('style:pressed:icon', 'pod_nav_search_down'), ('style:normal:icon', 'pod_nav_search'), ('style:over:icon', 'pod_nav_search')]))
+    find.set('dirty_rect_tolerance', str(NAV_ICON_OVERFLOW))
+    return find
+
+
 def build_podcasts_page(page):
     """The Podcasts page (patch/podcasts.c, docs/modules/podcasts.md): the Albums list mode's structure (a stock list holding the one content view the payload paints) under the
     plain navbar (Back, title, Now Playing). The payload paints the levels in view_grid; label_status is its empty-state hint (two lines); the hidden labels are the text styles.
@@ -460,11 +469,7 @@ def build_podcasts_page(page):
     root.children.append(hidden(Widget('image', 0, 0, SCREEN_W, CLIENT_H, [('name', PS_TINT_NAME), ('image', 'ah_tint'), ('draw_type', 'default'), ('clickable', 'false')])))   # first: under everything
     nb = navbar(page.title, show_more=True, show_globe=True)   # btn_globe: the Shows level's Apple Podcasts search (the left cap; patch/podcasts.c pg_nav places it)
     srch = [c for c in nb.children if c.name == 'btn_globe'][0]
-    find = hidden(Widget('button', NAV_VIEW_X, 0, NAV_VIEW_W, NAVBAR_H, [   # the Discover level's magnifier (pg_nav shows it there only, as the left cap on the 214 slot beside Now Playing): the Radio page's Search button
-        ('name', 'btn_search'), ('enable', 'true'), ('style', 'img_btn_style'),
-        ('style:pressed:icon', 'pod_nav_search_down'), ('style:normal:icon', 'pod_nav_search'), ('style:over:icon', 'pod_nav_search')]))
-    find.set('dirty_rect_tolerance', str(NAV_ICON_OVERFLOW))
-    nb.children.insert(nb.children.index(srch) + 1, find)
+    nb.children.insert(nb.children.index(srch) + 1, discover_find())
     root.children.append(nb)
     root.children[1].children.append(selall_button())   # the select mode's navbar text (the Playlists page's)
     lv = stock_list([], True)
@@ -496,6 +501,62 @@ def build_podcasts_page(page):
     root.children.extend(podcasts_dialog())   # last: above everything
     return root
 
+
+# The Audiobooks page's text styles (patch/bkpage.c; hidden labels the payload reads with widget_prepare_text_style and measures with widget_measure_text): name, px, colour, alignment.
+# The header's title (22 px white, centred, as the Show page's name), its grey line (15 px, centred), the capsule's word (18 px black on the white capsule),
+# and the title of a played part (the row title's size in the played grey of the Show page).
+BK_STYLES = (('label_bk_title', 22, '#FFFFFF', 'center'), ('label_bk_sub', 15, '#AAAAAA', 'center'), ('label_bk_btn', 18, '#000000', 'center'),
+             ('label_bk_dim', LIST_TITLE_PX, '#A6A6A6', 'left'),
+             # the LibriVox level (patch/bkfind.c): the grey section line (the Podcasts levels' meta line, 15 px) and the status line (their 20 px grey hint)
+             ('label_bk_meta', 15, SUB_RGB, 'left'), ('label_bk_hint', 20, SUB_RGB, 'left'),
+             # the Library's Continue Listening shelf (the Podcasts Shows level's text styles, the same labels) and the See All row's title
+             *(r if len(r) == 4 else (*r, 'left') for r in PS_STYLES if r[0] in ('label_ps_sech', 'label_ps_stitle', 'label_ps_sleft', 'label_ps_ctitle')))
+# The Book level's "..." sheet (patch/bkpage.c): the Podcasts sheets' widget set (sheet_widgets), four fixed rows: Playback Speed (every book; a grey value, a tap cycles), then for a LibriVox book Pause Download or Resume Download by the download's state and Delete Book (red as Unsubscribe is)
+BK_SHEET = 'bk_sh'
+BK_SHEET_ROWS = (('speed', 'pc_ic_speed', 'Playback Speed', True, False), ('pause', 'pod_ic_pause', 'Pause Download', False, False), ('resume', 'pod_ic_play', 'Resume Download', False, False), ('delete', 'pc_ic_trash', 'Delete Book', False, True))
+
+
+def build_books_page(page):
+    """The Audiobooks page (patch/bkpage.c, docs/modules/audiobooks.md): the Podcasts page's structure (a stock list holding the one content view the payload paints) under the plain navbar
+    (Back, title, Now Playing). The payload paints the four levels in view_grid; bk_big is the large heading of the Library and LibriVox levels, ps_field the LibriVox level's search field; label_status is the empty-state hint; the hidden labels are the text styles."""
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
+    nb = navbar(page.title, show_more=True)   # btn_more: the Book level's "..." while the book has a LibriVox manifest (the payload shows it and makes Now Playing the capsule's right cap)
+    nb.children.append(discover_find())   # btn_search: the LibriVox level's magnifier, the Podcasts Discover level's (bk_nav shows it there only)
+    root.children.append(nb)
+    lv = stock_list([], True)
+    lv.set('name', 'books_listview')
+    sv = lv.children[0]
+    sv.set('name', 'books_scrollview')
+    grid = Widget('view', 0, 0, SCREEN_W, GRID_VIEW_H, [('name', 'view_grid')])   # the content: the payload sizes it to the level's rows
+    big = Widget('label', OFFSETS['SG_TITLE_X'], 0, OFFSETS['SG_TITLE_W'], OFFSETS['PP_TITLE_H'], [('name', 'bk_big'), pod_i18n.text_prop(page.title), ('sensitive', 'false')])   # the Library's large heading (the Podcasts pages'): a child of the content, so it scrolls and is clipped with it
+    styled(big, ('normal',), 'text_color', '#FFFFFF')
+    styled(big, ('normal',), 'font_size', str(OFFSETS['PP_TITLE_PX']))
+    styled(big, ('normal',), 'text_align_h', 'left')
+    styled(big, ('normal',), 'text_align_v', 'middle')
+    grid.children = [big, search_field()]   # the LibriVox level's search field (the Podcasts search level's widgets; the payload moves and shows it there only)
+    styled(grid, ('normal',), 'bg_color', '#000000')
+    styled(grid, ('normal',), 'text_color', '#FFFFFF')
+    styled(grid, ('normal',), 'font_size', str(GRID_TITLE_PX))
+    styled(grid, ('normal',), 'text_align_h', 'left')
+    styled(grid, ('normal',), 'text_align_v', 'middle')
+    sv.children.append(grid)
+    root.children.append(lv)
+    root.children.append(nav_fade(shown=False))   # patch/bkpage.c shows it while yoffset > 0
+    status = hidden(label('label_status', 20, 180, SCREEN_W - 40, 90, '', 18, '#FFFFFF'))
+    styled(status, ('normal',), 'text_align_v', 'middle')
+    root.children.append(status)
+    for name, px, colour in (('label_row_title', LIST_TITLE_PX, '#FFFFFF'), ('label_row_sub', LIST_SUB_PX, '#AAAAAA')):
+        lab = hidden(label(name, 0, 0, 10, 10, '', px, colour, 'left'))
+        styled(lab, ('normal',), 'text_align_v', 'middle')
+        root.children.append(lab)
+    for name, px, colour, align in BK_STYLES:
+        lab = hidden(label(name, 0, 0, 10, 10, '', px, colour, align))
+        styled(lab, ('normal',), 'text_align_v', 'middle')
+        if name == 'label_bk_btn': styled(lab, ('normal', 'pressed', 'disable', 'focused'), 'bg_color', '#FFFFFF')   # the dark word of the white capsule: the contrast scan reads the label's own background
+        root.children.append(lab)
+    root.children.extend(sheet_widgets(BK_SHEET, BK_SHEET_ROWS, 3))   # the sheet, last: above the list and the navbar
+    return root
 
 # The Show page's bottom sheets (the show's "..." and an episode's), in the style of Now Playing's More sheet (docs/modules/playmore.md): the page dimmed (the Playlists menu's scrim), the
 # 320 px glass from the bottom of the window (pc_sheet6 .. pc_sheet1, a picture for each number of rows: tools/mod_icons.py PC_SHEETS; the payload sets the image
@@ -2999,6 +3060,8 @@ def build_page(page):
         return build_peqlib_page(page)
     if page.kind in ('tenband', 'tencurve', 'tenpreamp'):
         return build_cards_page(page)   # (the payload binds the rows by name: patch/tenband.c; the Preamp page's rows have no text in the asset)
+    if page.kind == 'books':
+        return build_books_page(page)
     if page.kind == 'playlists':
         return build_playlists_page(page)
     if page.kind == 'songs':

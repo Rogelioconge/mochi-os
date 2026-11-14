@@ -95,8 +95,15 @@ unsigned pc_guid_hash(
     const char *s,
     unsigned n); /* the hash an .episodes line's g= gets (pc_ep_t.guid): FNV-1a over the n bytes as they are, never 0 */
 int pc_is_path(const char *path); /* the path is a file in a show folder under the Podcasts folder (case-insensitive) */
+int bk_is_path(
+    const char *
+        path); /* the path is a file under the Audiobooks folder (case-insensitive, bounded by the slash); pc_is_path stays podcasts only */
+int pc_spoken_path(const char *path); /* pc_is_path or bk_is_path: spoken audio, kept out of the music features */
 void pc_fmt(char *out, unsigned size, const char *fmt, unsigned n);
 void pc_fmt2(char *out, unsigned size, const char *fmt, unsigned a, unsigned b);
+void pc_left_text(char *out, unsigned size,
+                  unsigned secs); /* "35m left" (minutes rounded up): an episode's or a book part's remaining time */
+void pc_len_text(char *out, unsigned size, unsigned secs); /* "48m": a length */
 /* the same for a text with two %d: the first becomes a, the second b */ /* fmt with its one %d replaced by n */
 /* Whether a cover picture's header says it is small enough to decode (PC_COVER_MAX_PX); a missing or unknown file is refused. path is a plain path. */
 int pc_cover_ok(const char *path);
@@ -133,6 +140,9 @@ void pc_speed_apply(unsigned show); /* before an episode starts: the show's mode
 unsigned pc_show_of(const char *path); /* pc_hash of the show folder name inside a podcast path, 0 for another path */
 /* An episode's show-folder picture as "file://<path>" in url (size), NULL for another path or a show with none usable (the Queue page's episode covers). */
 const char *pc_show_cover(const char *path, char *url, unsigned size);
+unsigned bk_book_of(
+    const char *
+        path); /* the book's speed key: pc_hash of "audiobooks/" + the book folder's name (a loose file: its own name) inside an Audiobooks path, 0 for another path */
 
 /* The timer hook: the track the player is on (cc_playing(), NULL when none). Called by the places that already see it on a timer (recent_note, so the
  * Now Playing tick, the mini bar's and the Podcasts page's). Saves the place, marks played, jumps to a saved place after a start, and puts the speed back. */
@@ -141,14 +151,14 @@ void pc_note(void *track);
  * in the struct's title / artist / album. Returns info, as strcpy does. */
 char *pc_id3_path(char *info, const char *path);
 /* The Library query filter (the two hooks on toolsQueryDbTable 0x5ee77c and toolsQueryDbTableAndSort 0x5ee9ac; docs/modules/payload.md hook 6): stock's query with songtable replaced by a subquery without
- * the /mnt/mmc/Podcasts/ paths. Same arguments and result as the stock functions. */
+ * the /mnt/mmc/Podcasts/ and /mnt/mmc/Audiobooks/ paths. Same arguments and result as the stock functions. */
 int pc_library_query(const char *db, const char *sql, void *row, int sort);
 int pc_sorted_query(const char *db, const char *sql, void *row, int sort);
 /* Set around a loadLocalClassList(0xf00a) (the Favourites query) to read the Saved episodes (myfav rows under the Podcasts folder) instead of the music Favourites; 0 otherwise. */
 extern unsigned char pc_saved_scope;
 /* An episode is about to start: forget a played mark so it plays from the beginning (a place is kept: pc_note jumps to it). */
 void pc_restart(unsigned hash);
-/* A queue (stSongInfo deque) with the podcast files taken out, for Shuffle: the queue itself when it has none; else a new queue (copies), *idx now the song that followed or was
+/* A queue (stSongInfo deque) with the podcast and audiobook files taken out, for Shuffle: the queue itself when it has none; else a new queue (copies), *idx now the song that followed or was
  * at *idx, the old queue destroyed. NULL when nothing but podcasts was in it (the old queue destroyed too). */
 void *pc_strip(void *queue, int *idx);
 
@@ -169,3 +179,10 @@ int pg_find_pick(int i);
 int pg_find_more(char *out, unsigned size);
 void pg_find_more_tap(void);
 int pg_find_sync(void);
+
+/* The slot of a key in the resume ring: 0 the most recently played, -1 absent (patch/pcmodel.c; the Audiobooks model, patch/bkmodel.c, finds a book's current part with it). */
+int pc_recent_rank(unsigned hash);
+
+/* A named image of the theme (a w x h RGBA tile such as pod_ic_discovertile) decoded WITH its alpha into a bitmap of ours (the image manager's copy is dropped at once); NULL when it cannot be made. The caller
+ * bitmap_destroy's it. The Podcasts Library rows' tiles, and the Audiobooks Library's LibriVox row (patch/bkpage.c). */
+void *pg_rgba_win(void *win, const char *name, unsigned w, unsigned h);

@@ -13,11 +13,11 @@ layout/hit-testing. User instructions are in the [guide](../guide.md#find-your-w
 
 Both use stock `list_view > scroll_view` with `scroll_bar_m`, 52 px `list_item` rows and the
 stock row theme. The asset contains one row per `ITEMS` entry, then Extras. Never hard-code the
-row count: Pod, Podcasts and Search are items too. Item ids are frozen (`ITEM_IDS`, asserted at build): `home-menu` stores them, so a new item is appended, never inserted, removed or reordered.
+row count: Pod, Podcasts, Search, Radio and Audiobooks are items too. Item ids are frozen (`ITEM_IDS`, asserted at build): `home-menu` stores them, so a new item is appended, never inserted, removed or reordered.
 
 Default shown IDs are `12345`: Cover Flow, Albums, Artists, Songs and Playlists. Extras is
 always visible and last. Settings (ID 18, `j`) is hidden by default and stays reachable from
-the Extras navbar. Pod is ID 19 (`k`), Podcasts ID 20 (`l`), Search ID 21 (`m`: opens the library search page, `search_open()`, else the stock `search_page`; hidden from the menu by default, in the Library group of Extras) and Radio ID 22 (`n`: the Radio page, `radio_open()`; hidden by default, in the Library group after Podcasts; [radio](radio.md)). Their actions/pages are defined
+the Extras navbar. Pod is ID 19 (`k`), Podcasts ID 20 (`l`), Search ID 21 (`m`: opens the library search page, `search_open()`, else the stock `search_page`; hidden from the menu by default, in the Library group of Extras) and Radio ID 22 (`n`: the Radio page, `radio_open()`; hidden by default, in the Library group after Podcasts; [radio](radio.md)), Audiobooks ID 24 (`p`: `books_open()`, ACT_BOOKS 110, the page [audiobooks.md](audiobooks.md); hidden by default, in the Library group after Podcasts; the saved list file is read up to `MENU_FILE_MAX` 28 bytes). Their actions/pages are defined
 once in `pod_pages.py`.
 
 Hidden rows are invisible, insensitive, parked at y 0 and restacked after shown children.

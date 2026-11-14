@@ -18,6 +18,7 @@
 #include "pcjson.h"
 #include "pcopml.h"
 #include "pcnet.h"
+#include "pcnetw.h"
 #include "pccover.h"
 #include "pcnotes.h"
 #include "upver.h"
@@ -181,9 +182,10 @@ static void pn_set(unsigned feed, int code, unsigned fresh) {
 
 int pn_busy(void) { return pn.busy && (pn.kind == PN_KIND_REFRESH || !pn.kind); }
 int pn_job_busy(void) {
-    return pn.busy && (pn.kind == PN_KIND_SEARCH || pn.kind == PN_KIND_PREVIEW || pn.kind == PN_KIND_ART ||
-                       pn.kind == PN_KIND_PICK || pn.kind == PN_KIND_UPDATE || pn.kind == PN_KIND_CHART ||
-                       pn.kind == PN_KIND_EQ || pn.kind == PN_KIND_ARCH);
+    return pn.busy &&
+           (pn.kind == PN_KIND_SEARCH || pn.kind == PN_KIND_PREVIEW || pn.kind == PN_KIND_ART ||
+            pn.kind == PN_KIND_PICK || pn.kind == PN_KIND_UPDATE || pn.kind == PN_KIND_CHART || pn.kind == PN_KIND_EQ ||
+            pn.kind == PN_KIND_ARCH || pn.kind == PN_KIND_BOOKS || pn.kind == PN_KIND_BOOKPREV);
 }
 /* (A job that ends between the look and the flag leaves the flag set with no job: the next start, on this thread, clears it.) */
 void pn_cancel(unsigned kinds) {
@@ -258,6 +260,11 @@ struct dx { /* one download attempt (the write callback's and the transfer-info 
     net_req_t *req; /* the request while it runs */
     char *buf; /* PN_DL_BUF bytes waiting for their chunk write */
     int slot; /* the queue slot this download runs in (its state says pause and drop) */
+    pnw_dl_t *
+        w; /* a caller's download (pnw_download, patch/pcnetw.h): its stop flag and its counters; 0: the queue's (the slot's state, pn.dgot, ...) */
+    volatile unsigned *got, *total, *step,
+        *gen; /* the counters of the download in progress (the page reads them); gen moves with a progress step */
+    volatile int *wait;
     int halted; /* a callback of this attempt stopped the transfer on the page's say (a pause may be taken back after it: the transfer stays stopped) */
     unsigned used, have, base, seen,
         bad; /* have: bytes of the episode got (on the card and in buf); base: where this request's data starts; bad: the PN_* the callbacks refused with */
@@ -316,14 +323,25 @@ static int pn_q_fire(int i, int ev) {
 /* The running download of slot i is to stop (the page paused or dropped it); it is to leave nothing (dropped). */
 static int pn_dl_stopped(int i) { return pn.q[i].state == PN_Q_STOPPING || pn.q[i].state == PN_Q_DROPPING; }
 static int pn_dl_dropped(int i) { return pn.q[i].state == PN_Q_DROPPING; }
+/* The same of the download d: the queue's by its slot, a caller's by its stop flag (it is never dropped: its .part is its caller's). */
+static int pn_dx_stopped(const struct dx *d) { return d->w ? d->w->stop != 0 : pn_dl_stopped(d->slot); }
+static int pn_dx_dropped(const struct dx *d) { return !d->w && pn_dl_dropped(d->slot); }
+/* Where a download's progress goes: the queue's counters, or the caller's. */
+static void pn_dx_init(struct dx *d, pnw_dl_t *w, int slot) {
+    d->w = w, d->slot = slot;
+    if (w)
+        d->got = &w->got, d->total = &w->total, d->step = &w->step, d->gen = &w->gen, d->wait = &w->wait;
+    else
+        d->got = &pn.dgot, d->total = &pn.dtotal, d->step = &pn.dstep, d->gen = &pn.dgen, d->wait = &pn.dwait;
+}
 
 static int pn_xfer(void *user, long long dt, long long dn, long long ut, long long un) {
     unsigned t, n, p;
     (void)ut, (void)un;
     if (user) { /* a download: stop on the page's say; the length the server announced (what follows base) is the total */
         struct dx *d = user;
-        if (pn_dl_stopped(d->slot)) return d->halted = 1;
-        if (dt > 0 && dt <= (long long)PN_DL_MAX_BYTES) pn.dtotal = d->base + (unsigned)dt;
+        if (pn_dx_stopped(d)) return d->halted = 1;
+        if (dt > 0 && dt <= (long long)PN_DL_MAX_BYTES) *d->total = d->base + (unsigned)dt;
         return 0;
     }
     if (pn.cancel) return 1;
@@ -393,21 +411,33 @@ static unsigned pn_fwrite(char *d, unsigned size, unsigned nmemb, void *user) {
     return net_file_write(user, d, size * nmemb);
 }
 
-/* The picture at url into the file path (a plain file, not yet a cover), at most cap bytes. 1 when the whole answer was written; else 0 and no file. */
-static int pn_fetch_file(const char *url, const char *path, unsigned cap) {
+/* The answer at url into the file path (a plain file), at most cap bytes: PN_OK when the whole answer was written; else the PN_* why (PN_NOTFEED: longer than cap, PN_STORAGE: the file cannot be written) and no
+ * file. */
+static int pn_fetch_file_code(const char *url, const char *path, unsigned cap) {
     net_file_t c;
     char err[160];
     net_req_t r;
-    int rc, ok;
+    int rc, code;
     memset(&c, 0, sizeof c);
     c.fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     c.cap = cap;
-    if (c.fd < 0) return 0;
+    if (c.fd < 0) return PN_STORAGE;
     pn_req(&r, url, pn_fwrite, &c, err, (void *)0);
     rc = net_perform(&r);
-    ok = close(c.fd) == 0 && rc == 0 && c.written > 0;
-    if (!ok) unlink(path);
-    return ok;
+    code = rc == NET_NOHANDLE   ? PN_MEM
+           : rc == 0            ? PN_OK
+           : c.why == NET_W_CAP ? PN_NOTFEED
+           : c.why              ? PN_STORAGE
+                                : pn_rc(rc, r.http);
+    if (close(c.fd) && code == PN_OK) code = PN_STORAGE;
+    if (code == PN_OK && !c.written) code = PN_NET;
+    if (code != PN_OK) unlink(path);
+    return code;
+}
+
+/* The picture at url into the file path (a plain file, not yet a cover), at most cap bytes. 1 when the whole answer was written; else 0 and no file. */
+static int pn_fetch_file(const char *url, const char *path, unsigned cap) {
+    return pn_fetch_file_code(url, path, cap) == PN_OK;
 }
 
 /* Whether the show folder has a picture the page would use (the names pc_cover_rank knows; the card is case-insensitive). */
@@ -752,13 +782,13 @@ static int pn_claim(unsigned *key) {
 }
 
 /* Another step of progress for the page (a percent, or a MB when the length is not known): the generation moves. */
-static void pn_dl_step(void) {
-    unsigned t = pn.dtotal, g = pn.dgot, s;
+static void pn_dl_step(struct dx *d) {
+    unsigned t = *d->total, g = *d->got, s;
     s = t > g ? (g >> 10) * 100 / ((t >> 10) ? (t >> 10) : 1) : 1000 + (g >> 20);
-    if (s == pn.dstep) return;
-    pn.dstep = s;
+    if (s == *d->step) return;
+    *d->step = s;
     __sync_synchronize();
-    ++pn.dgen;
+    ++*d->gen;
 }
 
 /* The gathered bytes into the .part file as a chunk of their own (open for append, write, fsync, close), the card keeping its margin. 1 on success, else 0 and d->bad. */
@@ -779,7 +809,7 @@ static int pn_dflush(struct dx *d) {
 static unsigned pn_dwrite(char *data, unsigned size, unsigned nmemb, void *user) {
     struct dx *d = user;
     unsigned len = size * nmemb, at = 0;
-    if (pn_dl_stopped(d->slot))
+    if (pn_dx_stopped(d))
         return d->halted = 1,
                0; /* (before anything is written or made; a write error ends the transfer, the caller knows why) */
     if (!d->seen) { /* the first bytes: the headers are in */
@@ -804,8 +834,8 @@ static unsigned pn_dwrite(char *data, unsigned size, unsigned nmemb, void *user)
         if (d->used == PN_DL_BUF && !pn_dflush(d)) return 0;
     }
     d->have += len;
-    pn.dgot = d->have;
-    pn_dl_step();
+    *d->got = d->have;
+    pn_dl_step(d);
     return len;
 }
 
@@ -842,14 +872,13 @@ static int pn_dl_attempt(struct dx *d, const char *url, int *retry, int *again) 
     d->req = (net_req_t *)0;
     if (rc == NET_NOHANDLE) return PN_MEM;
     http = r.http;
-    if (pn_dl_dropped(d->slot))
-        return PN_CANCELLED; /* the page took the .part away: the bytes held are not a file's start */
+    if (pn_dx_dropped(d)) return PN_CANCELLED; /* the page took the .part away: the bytes held are not a file's start */
     if (!d->bad)
         pn_dflush(d); /* what arrived goes to the card whatever ended the transfer: the next attempt resumes after it */
     if (d->bad) return d->bad;
     if (d->misfit) return *again = 1, PN_HTTP; /* (as a refused range: from the start, once) */
     if (rc == 0) return d->have ? PN_OK : PN_HTTP; /* an empty answer is no episode */
-    if (d->halted || pn_dl_stopped(d->slot))
+    if (d->halted || pn_dx_stopped(d))
         return PN_CANCELLED; /* (halted: stopped for a pause, even one taken back since; not a failure of the network to wait after) */
     if (rc == CURLE_HTTP_RETURNED_ERROR) {
         if (http == 404 || http == 410) return PN_GONE;
@@ -890,25 +919,12 @@ static int pn_find_url(const char *dir, const char *name, char *url, unsigned us
     return found;
 }
 
-/* The slot's episode, to the end: PN_OK when the file is in place, PN_CANCELLED for the page's say, else the failure. */
-static int pn_dl_run(struct dx *d, const char *show, const char *name, int slot) {
-    char file[PN_PATH], url[PF_URL];
-    unsigned n, length = 0, tries = 0, start, i;
+/* The file `file` from url, to the end (length: the size the entry gave, 0 = unknown): PN_OK when it is in place, PN_CANCELLED for the page's say, else the failure. The one download policy, the queue's and
+ * pnw_download's: the .part resumed by a Range, the card's reserve, the retries, the rename. d: pn_dx_init ran, d->dir and d->part are set and `file` is not on the card. */
+static int pn_dl_core(struct dx *d, const char *file, const char *url, unsigned length) {
+    unsigned n, tries = 0, start, i;
     int code, retry, again, restarted = 0;
     d->etag[0] = 0;
-    if (!pn_join(d->dir, sizeof d->dir, pn.droot, show, (const char *)0) ||
-        !pn_join(file, sizeof file, d->dir, name, (const char *)0) || strlen(file) + sizeof(".part") > PN_DL_PATH_MAX)
-        return PN_STORAGE;
-    memcpy(d->part, file, strlen(file) + 1);
-    pn_cat(d->part, sizeof d->part, ".part");
-    d->slot = slot;
-    if (!access(file, F_OK)) { /* it is on the card already: nothing to fetch, a leftover .part goes */
-        unlink(d->part);
-        return PN_OK;
-    }
-    i = pn_find_url(d->dir, name, url, sizeof url, &length);
-    if (!i || !(pn_starts(url, "http://") || pn_starts(url, "https://")))
-        return PN_GONE; /* the entry is gone, or has no address */
     d->buf = calloc(PN_DL_BUF, 1);
     if (!d->buf) return PN_MEM;
     for (;;) {
@@ -917,8 +933,8 @@ static int pn_dl_run(struct dx *d, const char *show, const char *name, int slot)
             break;
         }
         d->have = start;
-        pn.dgot = start, pn.dtotal = length, pn.dwait = 0, pn.dstep = ~0u;
-        pn_dl_step();
+        *d->got = start, *d->total = length, *d->wait = 0, *d->step = ~0u;
+        pn_dl_step(d);
         code = net_room(d->dir, length > start ? (length - start) >> 10 : 0);
         if (code == NET_W_CARD) {
             code = PN_STORAGE;
@@ -931,15 +947,21 @@ static int pn_dl_run(struct dx *d, const char *show, const char *name, int slot)
         retry = again = 0;
         code = pn_dl_attempt(d, url, &retry, &again);
         if (code == PN_OK) {
-            pthread_mutex_lock(
-                pn_dmutex); /* the rename and PN_EV_PUBLISH in one hold: a drop comes before both or after both */
-            if (pn_q_after(pn.q[slot].state, PN_EV_PUBLISH) < 0)
-                code = PN_CANCELLED; /* dropped before the file was in place: it never is */
-            else if (rename(d->part, file))
-                code = PN_STORAGE;
-            else
-                pn_q_move(slot, PN_EV_PUBLISH); /* from here it is a downloaded episode: a drop no longer touches it */
-            pthread_mutex_unlock(pn_dmutex);
+            if (d->w) { /* a caller's: nothing drops it */
+                if (rename(d->part, file)) code = PN_STORAGE;
+            } else {
+                int slot = d->slot;
+                pthread_mutex_lock(
+                    pn_dmutex); /* the rename and PN_EV_PUBLISH in one hold: a drop comes before both or after both */
+                if (pn_q_after(pn.q[slot].state, PN_EV_PUBLISH) < 0)
+                    code = PN_CANCELLED; /* dropped before the file was in place: it never is */
+                else if (rename(d->part, file))
+                    code = PN_STORAGE;
+                else
+                    pn_q_move(slot,
+                              PN_EV_PUBLISH); /* from here it is a downloaded episode: a drop no longer touches it */
+                pthread_mutex_unlock(pn_dmutex);
+            }
             if (code == PN_OK) net_sync_dir(d->dir); /* (a folder that could not be synced does not fail the file) */
             break;
         }
@@ -953,23 +975,46 @@ static int pn_dl_run(struct dx *d, const char *show, const char *name, int slot)
         if (d->have > start) tries = 0; /* it went on a while before it broke: the count starts again */
         if (tries >= PN_DL_RETRIES) break;
         n = 10u << tries++;
-        pn.dwait = 1;
-        pn_bump();
-        for (i = 0; i < n && !pn_dl_stopped(slot); ++i) sleep(1);
-        pn.dwait = 0;
-        if (pn_dl_stopped(slot)) {
+        *d->wait = 1;
+        if (d->w)
+            __sync_fetch_and_add(&d->w->gen, 1);
+        else
+            pn_bump();
+        for (i = 0; i < n && !pn_dx_stopped(d); ++i) sleep(1);
+        *d->wait = 0;
+        if (pn_dx_stopped(d)) {
             code = PN_CANCELLED;
             break;
         }
     }
-    if (pn_dl_dropped(
-            slot)) { /* dropped (so the file was not put in place): nothing of this run stays, and no failure is kept */
+    if (pn_dx_dropped(
+            d)) { /* dropped (so the file was not put in place): nothing of this run stays, and no failure is kept */
         unlink(d->part);
         code = PN_CANCELLED;
     } else if (code != PN_OK && (!pn_part_size(d->part, &start) || !start))
         unlink(d->part); /* nothing on the card: no file to say "Paused" */
     free(d->buf);
     return code;
+}
+
+/* The slot's episode, to the end: PN_OK when the file is in place, PN_CANCELLED for the page's say, else the failure. */
+static int pn_dl_run(struct dx *d, const char *show, const char *name, int slot) {
+    char file[PN_PATH], url[PF_URL];
+    unsigned length = 0;
+    pn_dx_init(d, (pnw_dl_t *)0, slot);
+    if (!pn_join(d->dir, sizeof d->dir, pn.droot, show, (const char *)0) ||
+        !pn_join(file, sizeof file, d->dir, name, (const char *)0) || strlen(file) + sizeof(".part") > PN_DL_PATH_MAX)
+        return PN_STORAGE;
+    memcpy(d->part, file, strlen(file) + 1);
+    pn_cat(d->part, sizeof d->part, ".part");
+    if (!access(file, F_OK)) { /* it is on the card already: nothing to fetch, a leftover .part goes */
+        unlink(d->part);
+        return PN_OK;
+    }
+    if (!pn_find_url(d->dir, name, url, sizeof url, &length) ||
+        !(pn_starts(url, "http://") || pn_starts(url, "https://")))
+        return PN_GONE; /* the entry is gone, or has no address */
+    return pn_dl_core(d, file, url, length);
 }
 
 /* The worker: the queued downloads in the order they were asked, one at a time, until none is left. It runs beside a job's thread (a refresh, a search, ...): the two share no field but the
@@ -3231,4 +3276,44 @@ unsigned pn_arch_count(void) { return pn.arn; }
 unsigned pn_arch_hash(void) { return pn.arhash; }
 void pn_arch_reset(void) {
     if (!pn.busy) pn.arstate = PN_AR_IDLE, pn.arcode = 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * For the other sources of the job slot and of the download policy (patch/pcnetw.h: the LibriVox catalog, patch/bknet.c, and book download, patch/bkdl.c)
+ */
+int pnw_busy(void) { return pn.busy; }
+int pnw_spawn(void *(*fn)(void *), int kind) { return pn_spawn(fn, kind); }
+int pnw_cancelled(void) { return pn.cancel; }
+void pnw_end(void) {
+    __sync_synchronize();
+    pn.stopped = pn.cancel;
+    pn.kind = 0;
+    pn.busy = 0;
+    pn_bump();
+}
+int pnw_json(const char *url, char *buf, unsigned *got) { return pn_fetch_json(url, buf, got); }
+int pnw_file(const char *url, const char *path, unsigned cap) { return pn_fetch_file_code(url, path, cap); }
+
+int pnw_download(pnw_dl_t *w, const char *url, const char *path, unsigned expect) {
+    const char *slash = (const char *)0, *c;
+    struct dx *d;
+    unsigned n = strlen(path);
+    int code;
+    if (!(pn_starts(url, "http://") || pn_starts(url, "https://"))) return PN_GONE;
+    for (c = path; *c; ++c)
+        if (*c == '/') slash = c;
+    if (!slash || n + sizeof(".part") > PN_DL_PATH_MAX) return PN_STORAGE;
+    d = calloc(1, sizeof *d);
+    if (!d) return PN_MEM;
+    pn_dx_init(d, w, -1);
+    memcpy(d->dir, path, (unsigned)(slash - path)); /* (PN_DL_PATH_MAX is under PN_PATH; d is zeroed) */
+    memcpy(d->part, path, n + 1);
+    pn_cat(d->part, sizeof d->part, ".part");
+    if (!access(path, F_OK)) {
+        unlink(d->part);
+        code = PN_OK;
+    } else
+        code = pn_dl_core(d, path, url, expect);
+    free(d);
+    return code;
 }

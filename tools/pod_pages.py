@@ -67,6 +67,7 @@ ACT_INFO = 33     # an information row of the About page: a label and a grey val
 ACT_PCDIR = 137    # value row (Settings > Library > Podcasts): Podcast Directory, Apple Podcasts (the default) or Podcast Index, where the search and the lookup of a show's id go; opens its picker page (arg = the page index; patch/podcasts.c pcdir_setting). Dimmed and inert while Podcast Discover is off. File /mnt/data/m1plus/podcast-directory
 ACT_PCDIRSET = 138 # picker row (Podcast Directory): choose Apple Podcasts (arg 0) or Podcast Index (arg 1); a check shows on the chosen row (patch/podcasts.c pcdir_set)
 ACT_PCSEARCH = 34  # switch row (Settings > Library > Podcasts): Podcast Discover, on by default; off hides Discover and the search level (patch/podcasts.c pcsearch_toggle, /mnt/data/m1plus/podcast-online-search)
+ACT_BOOKS = 144   # open the Audiobooks page: the books in /mnt/mmc/Audiobooks and their parts (patch/bkpage.c books_open)
 ACT_FOLDERS = 37  # open the Folders page: the card's folders and audio files in our list (patch/folders.c; arg = HOME_FOLDER, where a window that will not open falls back to the stock folder_page)
 ACT_CLEARCACHE = 42  # action row (Settings > Developer > Tools): a confirm dialog, then every cached cover but Cover Flow's position is deleted in steps (patch/homecover.c homecover_clear)
 ACT_CLEARDUR = 44  # action row (Settings > Developer > Cache): a confirm dialog, then the track durations table is deleted (patch/durations.c dur_clear); Home measures the songs again
@@ -362,6 +363,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_podcastsettings',
     'm1plus_podcastdirectory',
     'm1plus_rgbtheme',
+    'm1plus_books',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -501,6 +503,8 @@ ITEMS = [   # item id = index; the default order, essentials first (iPod classic
     # Radio (docs/modules/radio.md): internet radio stations; an item like the rest, hidden from the menu by default (on Extras, in Library, after Podcasts).
     Row('Radio', ACT_RADIO),
     Row('Subsonic', ACT_SUBSONIC),
+    # Audiobooks (docs/modules/audiobooks.md): the books in /mnt/mmc/Audiobooks and their parts; an item like the rest, hidden from the menu by default (on Extras, in Library, after Podcasts).
+    Row('Audiobooks', ACT_BOOKS),
 ]
 SETTINGS_ID = 18
 assert ITEMS[SETTINGS_ID].label == 'Settings'
@@ -509,17 +513,17 @@ assert ITEMS[SETTINGS_ID].label == 'Settings'
 # comes from DEFAULT_MENU and EXTRAS_GROUPS, not from the id.
 ITEM_IDS = ('Now Playing', 'Cover Flow', 'Albums', 'Artists', 'Songs', 'Playlists', 'Shuffle', 'Genres', 'Folders',
             'Favorites', 'Recently Added', 'Recently Played', 'Most Played', 'Composers', 'Hi-Res', 'Update Library',
-            'Tidal', 'CD Ripper', 'Settings', 'Pod', 'Podcasts', 'Search', 'Radio', 'Subsonic')
+            'Tidal', 'CD Ripper', 'Settings', 'Pod', 'Podcasts', 'Search', 'Radio', 'Subsonic', 'Audiobooks')
 assert tuple(r.label for r in ITEMS[:len(ITEM_IDS)]) == ITEM_IDS, 'menu item ids are frozen: append new items, never insert or reorder'
 DEFAULT_MENU = [1, 2, 3, 4, 5]   # the items shown by default, in order (saved string "12345"): Cover Flow, Albums, Artists, Songs, Playlists, then Extras. A minimal menu: Now Playing is not
                                     # among them (the mini player bar of the Home instance opens it, docs/modules/minibar.md), nor are Shuffle and Settings; every other item is on the Extras page,
                                     # grouped (EXTRAS_GROUPS), and Settings > Main Menu can show any of them
 assert all(0 <= i < len(ITEMS) for i in DEFAULT_MENU) and len(set(DEFAULT_MENU)) == len(DEFAULT_MENU)
-ID_CHARS = '012345678abcdefghijklmno'   # one saved-list character per menu item
+ID_CHARS = '012345678abcdefghijklmnop'   # one saved-list character per menu item
 assert len(ID_CHARS) == len(ITEMS)
 OFF_CHAR = '-'           # the saved list's separator: the item characters after it are turned off (not listed on the Extras page); at most once
 DEFAULT_OFF = []         # no item is turned off by default
-MENU_FILE_MAX = 27       # 24 item characters, optional off separator, newline and NUL
+MENU_FILE_MAX = 28       # 25 item characters, optional off separator, newline and NUL
 MENU = Page('m1plus_menu', 'm1plus_menu_page', 'M1+ Music', rows=ITEMS + [
     Row('Extras', ACT_PAGE, EXTRAS_PAGE_INDEX),   # always shown, always last
 ])
@@ -749,7 +753,7 @@ def format_pulldown(shown):
 # views, the song collections, the streaming services, the tools. Settings is in none: it is the Extras page's navbar button.
 EXTRAS_GROUPS = (
     ('Play', ('Now Playing', 'Shuffle', 'Pod')),
-    ('Library', ('Albums', 'Artists', 'Songs', 'Playlists', 'Cover Flow', 'Genres', 'Composers', 'Folders', 'Podcasts', 'Radio', 'Search')),
+    ('Library', ('Albums', 'Artists', 'Songs', 'Playlists', 'Cover Flow', 'Genres', 'Composers', 'Folders', 'Podcasts', 'Audiobooks', 'Radio', 'Search')),
     ('Collections', ('Favorites', 'Recently Played', 'Recently Added', 'Most Played', 'Hi-Res')),
     ('Streaming', ('Subsonic', 'Tidal')),
     ('Tools', ('Update Library', 'CD Ripper')),
@@ -830,6 +834,8 @@ IPOD = Page('m1plus_ipod', 'm1plus_ipod_page', 'Pod', kind='ipod')
 PODCASTS = Page('m1plus_podcasts', 'm1plus_podcasts_page', 'Podcasts', kind='podcasts')
 
 # The Radio pages (patch/radiopage.c, patch/radionp.c, docs/modules/radio.md): the stations page (a navbar over a stock list holding one view the payload paints; levels, a bottom sheet) and Radio's Now Playing.
+# The Audiobooks page (patch/bkpage.c): the Podcasts page's structure (a navbar over a stock list holding one view the payload paints); two levels, the books and a book's parts.
+BOOKS = Page('m1plus_books', 'm1plus_books_page', 'Audiobooks', kind='books')
 RADIO = Page('m1plus_radio', 'm1plus_radio_page', 'Radio', kind='radio')
 RADIONP = Page('m1plus_radionp', 'm1plus_radionp_page', 'Radio', kind='radionp')
 RADIOINFO = Page('m1plus_radioinfo', 'm1plus_radioinfo_page', 'Station Info', kind='radioinfo')   # patch/radioinfo.c: Radio Now Playing's Station Info

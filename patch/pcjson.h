@@ -101,3 +101,19 @@ int pj_span(const char *json, unsigned n, const char *want, char *dst, unsigned 
 /* The elements of the array that is the n bytes at json, one a call: *at is 0 before the first and is moved on; 1 with *val / *len the element's text, 0 at the array's end, when the
  * text is no array, or when it ends inside an element. */
 int pj_next(const char *json, unsigned n, unsigned *at, const char **val, unsigned *len);
+
+/* Flat records by field name (patch/bknet.c: the Internet Archive's search and files answers). A field names a member key and takes its value: a string decoded to UTF-8, a bare token (number, true,
+ * false) as its text (found 2), or the first string of an array, cut on a character boundary at cap - 1 bytes (cut set; alt set when the text was altered: a control character became a space, or something was dropped); found 0: absent (or null, an object, another array). The first member of a key wins. */
+typedef struct {
+    const char *key;
+    char *dst;
+    unsigned cap;
+    int found, cut, alt; /* alt: the text was altered (see above) */
+} pj_field_t;
+
+/* The flat object at json (n bytes, its '{' first): its fields filled (found and dst reset first). 1 when its '}' was reached, 0 when the text ended first or it is no object. Never reads outside json[0, n). */
+int pj_object(const char *json, unsigned n, pj_field_t *f, int nf);
+/* Every object of the array called array, found at the top level or, with outer not NULL, inside the top-level object called outer ({"response":{"docs":[...]}}): its fields filled as pj_object does, then
+ * fn(ctx) (0 stops). An object cut short by the end of the text is not passed. Returns how many were passed, or -1 when there is no such array. */
+int pj_records(const char *json, unsigned n, const char *outer, const char *array, pj_field_t *f, int nf,
+               int (*fn)(void *), void *ctx);
