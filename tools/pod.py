@@ -426,7 +426,8 @@ EQ_ROW_RESUME = 0x4a0070
 # Continue with Next Album, hook 26 (patch/nextalbum.c na_end, docs/modules/nextalbum.md "The hook"): mclNextSong's List play branch (raw mode word 0) tests `pos < size - 1` at 0x5d5950..0x5d5974;
 # when it fails, 0x5d5988 / 0x5d598c (`lw v0, GOT; lw v1, class word`) start the end-of-queue handling (the folder callback check, mclStop at 0x5d59d8, then {mcl-orderstop} for the automatic call or a restart of the last
 # song for a manual Next). The two words become `j pod_na_site; nop`; the stub calls na_end and, when it appended the next album, jumps back to the end test 0x5d5950 (which now finds the queue longer and plays
-# pos + 1 through mclStartPlayer), else re-executes the two words and resumes at 0x5d5990. $s1 (the call's argument), $s2 (the queue's global), the frame and $gp survive the C call. Reachable on the main loop's idle path
+# pos + 1 through mclStartPlayer), else re-executes the two words and resumes at 0x5d5990. $s1 (the call's argument), $s2 (the queue's global), the frame and $gp survive the C call; $a1 (the position, read at 0x5d596c and
+# passed to deque_at at 0x5d59b4 by the Folder Skip branch) is kept by the stub in $s0. Reachable on the main loop's idle path
 # (the automatic call) and from a key press; not at boot. na_end's stock queries (the album page's own getters, left without their last step into *pdeq_showlist) are pinned below with the dispatcher words that choose them.
 NEXTALBUM_SITE, NEXTALBUM_AGAIN, NEXTALBUM_RESUME = 0x5d5988, 0x5d5950, 0x5d5990
 NEXTALBUM_DISPLACED = (0x8f8280b4, 0x8c43abd8)   # lw v0, -0x7f4c(gp); lw v1, -0x5428(v0): re-executed by the stub when na_end answers 0
@@ -1033,7 +1034,9 @@ def gen_asm(out, slots):
             'lw $a0, -0x58f8($gp)', f'j 0x{LOCKROW_NAV:x}', 'addiu $a0, $a0, 0x7d24', f'1: j 0x{LOCKROW_DONE:x}', 'nop']   # (the fallback is stock's own two words: a0 = "systemset/screensaver_page", then its navigator_to call)
     asm += ['.globl pod_eq_site', 'pod_eq_site:', 'jal peq_open', 'nop', f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', f'j 0x{EQ_ROW_RESUME:x}', 'nop']
     # Continue with Next Album (patch/nextalbum.c na_end): mclNextSong's List play end branch. Appended: back to the end test (the queue is longer now); not: the two displaced words, then stock's own end.
-    asm += ['.globl pod_na_site', 'pod_na_site:', 'jal na_end', 'nop', f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', 'bnez $v0, 1f', 'nop',
+    # $a1 is live at the site: stock reads the position into it at 0x5d596c and passes it to deque_at(queue, pos) at 0x5d59b4 (the Folder Skip branch) without a reload, so it is kept across the C call in $s0,
+    # which is dead here (every path from the site writes $s0 before it reads it: 0x5d59a8, 0x5d59ec, 0x5d5928).
+    asm += ['.globl pod_na_site', 'pod_na_site:', 'jal na_end', 'move $s0, $a1', f'lui $gp, {GP >> 16}', f'ori $gp, $gp, {GP & 0xffff}', 'bnez $v0, 1f', 'move $a1, $s0',
             'lw $v0, -0x7f4c($gp)', 'lw $v1, -0x5428($v0)', f'j 0x{NEXTALBUM_RESUME:x}', 'nop', '1:', f'j 0x{NEXTALBUM_AGAIN:x}', 'nop']
     # libc GOT-slot stubs (load the resolved pointer from demo's own GOT, tail-call it).
     for name, addr in slots.items():
