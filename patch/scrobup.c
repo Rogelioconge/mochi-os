@@ -387,10 +387,16 @@ static void su_lf_form(su_formout_t *f, const su_entry_t *e, int n) {
     for (i = 0; i < n; ++i) su_field(f, "track", ord[i], e[ord[i]].title);
 }
 
-/* The number that is the len bytes at v (a JSON number, or a string of digits: Last.fm writes both): 0xffffffff when it is none. */
+/* The number that is the len bytes at v (a JSON number, or a string of digits: Last.fm writes both): 0xffffffff when it is none. The whole value has to be one to
+ * nine digits (in its quotes for a string; white space may follow a bare number): "0garbage", 0.5, -1 or 1e3 are no number, so nothing is read out of a prefix. */
 static unsigned su_jnum(const char *v, unsigned len) {
-    unsigned i = len && v[0] == '"', x = 0, k = 0;
+    unsigned q = len && v[0] == '"', i = q, x = 0, k = 0;
     for (; i < len && k < 9 && (unsigned)(v[i] - '0') <= 9; ++i, ++k) x = x * 10 + (unsigned)(v[i] - '0');
+    if (q) {
+        if (i + 1 != len || v[i] != '"') return 0xffffffffu;
+    } else
+        for (; i < len; ++i)
+            if (v[i] != ' ' && v[i] != '\t' && v[i] != '\n' && v[i] != '\r') return 0xffffffffu;
     return k ? x : 0xffffffffu;
 }
 
@@ -447,9 +453,10 @@ static int su_lf_session(su_buf_t *b, su_buf_t *a) {
     return SCROBUP_OK;
 }
 
-/* track.scrobble for the n listens at e. SCROBUP_OK: the service answered for each of them, ign[i] 0 for one it took, else its ignoredMessage code (the artist, the
+/* track.scrobble for the n listens at e. SCROBUP_OK: the service answered for each of them, ign[i] 0 for one it took (code 0), else its ignoredMessage code (the artist, the
  * track, a time too old or too new: for good). The answer is {"scrobbles":{"scrobble":[{..,"ignoredMessage":{"code":"0","#text":""},..}, ..],"@attr":{..}}}, the
- * scrobbles in the request's order, and one object instead of the array for one listen; a listen whose entry is not found there counts as taken (the request was).
+ * scrobbles in the request's order, and one object instead of the array for one listen. An answer that does not say so for every listen (no scrobble member, fewer entries than listens, an entry without a readable
+ * ignoredMessage code) confirms nothing: SCROBUP_FAIL, the batch stays in the log and goes again (the service drops a duplicate).
  * A listen ignored for the daily limit is not for good: the batch failed (SCROBUP_FAIL). The call's other results are su_lf_call's. */
 static int su_lf_send(const su_entry_t *e, int n, su_buf_t *b, su_buf_t *a, unsigned char *ign) {
     const char *v, *s, *el = (const char *)0, *m;
@@ -459,19 +466,19 @@ static int su_lf_send(const su_entry_t *e, int n, su_buf_t *b, su_buf_t *a, unsi
     if (res != SCROBUP_OK) return res;
     if (pj_span(a->p, a->n, "scrobbles", (char *)0, 0, &v, &len) == PJ_M_NONE) return SCROBUP_FAIL;
     su.okm |= SCROBUP_LF;
-    if (pj_span(v, len, "scrobble", (char *)0, 0, &s, &slen) == PJ_M_NONE) return SCROBUP_OK;
+    if (pj_span(v, len, "scrobble", (char *)0, 0, &s, &slen) == PJ_M_NONE) return SCROBUP_FAIL;
     for (i = 0; i < n; ++i) {
         if (*s == '[') {
-            if (!pj_next(s, slen, &at, &el, &ellen)) break;
+            if (!pj_next(s, slen, &at, &el, &ellen)) return SCROBUP_FAIL;
         } else if (i)
-            break;
+            return SCROBUP_FAIL;
         else
             el = s, ellen = slen;
         if (pj_span(el, ellen, "ignoredMessage", (char *)0, 0, &m, &mlen) == PJ_M_NONE ||
             pj_span(m, mlen, "code", (char *)0, 0, &m, &mlen) == PJ_M_NONE)
-            continue;
+            return SCROBUP_FAIL;
         c = su_jnum(m, mlen);
-        if (c == SU_LF_LIMIT) return SCROBUP_FAIL;
+        if (c == 0xffffffffu || c == SU_LF_LIMIT) return SCROBUP_FAIL;
         ign[i] = (unsigned char)(c > 255 ? 255 : c);
     }
     return SCROBUP_OK;

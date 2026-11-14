@@ -1293,11 +1293,21 @@ def lastfm_ignored_tests(ctx):
     m = lf_machine(text, svc=Lastfm(ignored={2: 5}))
     res = upload(m)
     expect(res == (FAIL, 0) and log_of(m) == text and SENT not in m.fs and REJ not in m.fs and usable(m) == 1, f'a listen ignored for the daily limit (code 5) is not refused for good: a failure, the batch stays ({res})')
-    for what, body in (('no scrobble member', {'scrobbles': {'@attr': {'accepted': 10, 'ignored': 0}}}), ('a shorter array', {'scrobbles': {'scrobble': [{'ignoredMessage': {'code': '0'}}] * 4}}),
-                       ('entries without an ignoredMessage', {'scrobbles': {'scrobble': [{'timestamp': '1'}] * 10}}), ('codes as numbers', {'scrobbles': {'scrobble': [{'ignoredMessage': {'code': 0}}] * 10}})):
+    took = {'ignoredMessage': {'code': '0'}}
+    for what, body in (('no scrobble member', {'scrobbles': {'@attr': {'accepted': 10, 'ignored': 0}}}), ('an empty scrobbles object', {'scrobbles': {}}),
+                       ('an empty array', {'scrobbles': {'scrobble': []}}), ('a shorter array', {'scrobbles': {'scrobble': [took] * 4}}),
+                       ('one object for ten listens', {'scrobbles': {'scrobble': took}}), ('entries without an ignoredMessage', {'scrobbles': {'scrobble': [{'timestamp': '1'}] * 10}}),
+                       ('an ignoredMessage without a code', {'scrobbles': {'scrobble': [took] * 9 + [{'ignoredMessage': {'#text': ''}}]}}),
+                       ('a code that is no number', {'scrobbles': {'scrobble': [took] * 9 + [{'ignoredMessage': {'code': 'ok'}}]}}),
+                       *((f'the code {c!r} (digits, then something else)', {'scrobbles': {'scrobble': [took] * 9 + [{'ignoredMessage': {'code': c}}]}})
+                         for c in ('0garbage', '1garbage', 0.5, 1.5, '0.5', -1, '-0', 1e3, '', ' 0', '0 ', '1234567890', True, None, [0], {'n': 0}))):
         m = lf_machine(text, svc=Lastfm(script=[None, {'body': json.dumps(body).encode()}]))
         res = upload(m)
-        expect(res == (OK, 10) and rejected(m) == 0 and log_of(m) == HEADER, f'an accepted request with {what}: the listens it does not name as ignored are taken ({res})')
+        expect(res == (FAIL, 0) and rejected(m) == 0 and log_of(m) == text and SENT not in m.fs and REJ not in m.fs and usable(m) == 1,
+               f'a 200 with {what} does not answer for every listen: a failure, the batch stays to go again ({res})')
+    m = lf_machine(text, svc=Lastfm(script=[None, {'body': json.dumps({'scrobbles': {'scrobble': [{'ignoredMessage': {'code': 0}}] * 10}}).encode()}]))
+    res = upload(m)
+    expect(res == (OK, 10) and rejected(m) == 0 and log_of(m) == HEADER, f'ten entries, the codes written as numbers: all taken ({res})')
     m = lf_machine(text, svc=Lastfm(script=[None, {'body': json.dumps({'scrobbles': {'scrobble': [{'ignoredMessage': {'code': 1}}] + [{'ignoredMessage': {'code': '0'}}] * 9}}).encode()}]))
     expect(upload(m) == (OK, 9) and rej_of(m) == lines[0], 'a code written as a number is read too')
     m = lf_machine(text, svc=Lastfm(script=[None, {'body': b'{"status":"ok"}'}]))

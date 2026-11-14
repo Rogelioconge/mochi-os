@@ -12,7 +12,7 @@
  *                     call the same function.
  *   scrobble_started  the tag reader's hook (pc_id3_path, every fresh parse: a track start, Memory Playback at boot included) for a path that is not
  *                     a podcast: the file's tags stock has just parsed are kept, and the track starts at second 0 now. The track it replaces gets
- *                     the time since its last look, at most up to its length, before it is judged. Only time_now_ms is called (the player is not asked); a log write only for that
+ *                     the time since its last look, at most up to its length, when that look saw the player playing (sc.run: a track left paused or stopped gets nothing), before it is judged. Only time_now_ms is called (the player is not asked); a log write only for that
  *                     track, so never at boot.
  * A track longer than SC_MIN_S is a listen once SC_MAX_S or half its length has been heard; it is logged then (so the last track is not lost when
  * the player is switched off), once per play; a line that could not be written (no clock yet, no card, the kill switch, the log not opened) is tried again at the next look.
@@ -51,6 +51,7 @@ static struct {
         start; /* this play's start on the wall clock, pinned at the first look with a set clock; 0 not yet (the log line then takes start_ms) */
     unsigned heard; /* seconds heard in this play */
     int done; /* this play is logged (or judged not to be) */
+    int run; /* the last look saw the player playing this track (mclGetPlayStatus); 0 paused, stopped, or a look that found no track or no position */
     int track; /* the record's track number, 0 none, -1 not looked at yet (the first timer look reads it: the tag reader's hook asks stock nothing) */
     int set; /* the setting: 0 not read yet, 1 off, 2 on */
     char artist[SC_STR], album[SC_STR], title[SC_TITLE];
@@ -226,9 +227,10 @@ static void sc_judge(unsigned now) {
     sc.done = 1;
 }
 
-/* The track is over: the time since its last look, as far as its end, then judged. */
+/* The track is over: the time since its last look, as far as its end, when that look saw it playing (a track paused or stopped then was not heard since, however long
+ * ago that was), then judged. */
 static void sc_leave(unsigned now) {
-    if (sc.key && !sc.done && sc.len > 0 && sc.pos >= 0) {
+    if (sc.key && !sc.done && sc.run && sc.len > 0 && sc.pos >= 0) {
         unsigned gap = (now - sc.seen_ms) / 1000, left = sc.pos < sc.len ? (unsigned)(sc.len - sc.pos) : 0;
         sc.heard += gap < left ? gap : left;
         sc_judge(now);
@@ -242,7 +244,7 @@ static void sc_play(int pos, unsigned now) {
 }
 
 static void sc_begin(unsigned key, int pos, unsigned now) {
-    sc.key = key, sc.len = 0, sc.pos = pos, sc.seen_ms = now, sc.track = -1;
+    sc.key = key, sc.len = 0, sc.pos = pos, sc.seen_ms = now, sc.track = -1, sc.run = 0;
     sc_play(pos, now);
 }
 
@@ -274,7 +276,10 @@ void scrobble_note(void *t) {
     int pos = 0, len = 0, cue;
     if (sau.job || sau.pending)
         sa_tick(); /* the automatic upload: nothing but these two compares while no listen waits */
-    if (!t || !sc_on()) return; /* (for a moment between two tracks the player has none) */
+    if (!t || !sc_on()) { /* (for a moment between two tracks the player has none) */
+        sc.run = 0; /* nothing is playing as far as this look can tell */
+        return;
+    }
     path = cc_str(t, REC_PATH);
     now = time_now_ms();
     if (!*path || pc_is_path(path)) { /* a podcast (or a stream): not scrobbled, and the track before it is over */
@@ -291,7 +296,10 @@ void scrobble_note(void *t) {
     } else if (sc.pos >= 0 && now - sc.seen_ms < SC_POLL_MS)
         return; /* looked a moment ago */
     if (sc.track < 0) sc.track = I(t, REC_TRACK);
-    if (get_playtimeandlength(&pos, &len) != 1 || len <= 0 || pos < 0) return;
+    if (get_playtimeandlength(&pos, &len) != 1 || len <= 0 || pos < 0) {
+        sc.run = 0; /* the player has no time (stopped) */
+        return;
+    }
     sc.len = len;
     if (sc.pos < 0)
         sc_play(pos, now); /* the first look: the play began pos seconds ago */
@@ -306,6 +314,6 @@ void scrobble_note(void *t) {
         unsigned wall = (unsigned)time((long *)0);
         if (wall >= SC_CLOCK_MIN) sc.start = wall - (now - sc.start_ms) / 1000;
     }
-    sc.pos = pos, sc.seen_ms = now;
+    sc.pos = pos, sc.seen_ms = now, sc.run = mclGetPlayStatus() == MB_PLAYING;
     sc_judge(now);
 }

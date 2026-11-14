@@ -75,14 +75,17 @@ into the path's key).
   not a podcast (every fresh parse: `start_player`, `change_music`, the idle handler's auto change,
   Memory Playback at boot). It copies the struct's tags and starts the track at second 0 now; only
   `time_now_ms` is called, so the boot path asks the player nothing (bounded in the test). The track
-  it replaces gets the time since its last look, at most up to its end, and is judged: that can
-  append its line, never at boot.
+  it replaces gets the time since its last look, at most up to its end, when that look saw the
+  player playing (`mclGetPlayStatus` 2, read with the position; a look that found it paused or
+  stopped, or found no track or no position, clears it), and is judged: that can append its line,
+  never at boot.
 
 ## Limits
 
 - A track no timer saw at all (played entirely while a stock page is in front) has no length and is
-  not logged. A track seen once and then left gets the time to its end extrapolated at the next
-  start, so a long pause in that unseen stretch counts as heard. A main-loop poll would remove both.
+  not logged. A track last seen playing and then left gets the time to its end extrapolated at the
+  next start, so a pause no look saw (made in that unseen stretch) counts as heard; a track last
+  seen paused or stopped gets nothing. A main-loop poll would remove both.
 - A line still not written when the track changes is lost (one pending listen is kept, the
   current track's).
 - Repeat one of a track no timer sees is one play (the tag reader caches the same file).
@@ -482,7 +485,10 @@ reads the body as UTF-8, and any other byte would make the signature wrong, whic
   `{"scrobbles":{"scrobble":[{..,"ignoredMessage":{"code":"0","#text":""},..}, ..],"@attr":{..}}}`
   (one object instead of the array for one listen) is read by position: a listen whose entry has
   an `ignoredMessage` code other than 0 is **refused for good** (1 the artist, 2 the track, 3 a
-  time too old, 4 too new), the others are taken, also when the answer has no entry for them.
+  time too old, 4 too new), one with code 0 is taken. An answer that does not say so for every
+  listen (no `scrobble` member, fewer entries than listens, an entry without a readable
+  `ignoredMessage` code) confirms nothing: `SCROBUP_FAIL`, the batch stays in the log and goes
+  again (the service drops a duplicate).
   Code 5 (the daily limit) is not for good: the batch failed (`SCROBUP_FAIL`) and goes again.
   The answer is collected into a second `SU_BODY` buffer (it repeats every tag; one that does not
   fit is no answer), allocated only when Last.fm takes part.

@@ -184,6 +184,21 @@ def hook_tests(ctx):
     ra = song(m, path=pa); m.parse(pa, record=ra, title='A', artist='Art', album='Alb'); note(m, ra, 10, 200, 10000)
     rb = song(m, path=pb); tick(m, 50000); m.parse(pb, record=rb, title='B', artist='Art', album='Alb')
     expect(not lines(m), 'skipped after 60 s of 200: not a listen')
+    # the track it replaces was not playing at its last look: the time since is not heard
+    for what, stop in (('paused', lambda m: setattr(m, 'status', 3)), ('stopped', lambda m: setattr(m, 'status', 1)),
+                       ('stopped (the player has no time)', lambda m: setattr(m, 'pt', (0, 0, 0))), ('gone (no track)', None)):
+        m = machine(podcasts.ID3)
+        ra = song(m, path=pa); m.parse(pa, record=ra, title='A', artist='Art', album='Alb'); note(m, ra, 1, 300, 1000)
+        if stop: stop(m); note(m, ra, dt=1000)
+        else: note(m, 0, dt=1000)
+        m.status = 2
+        rb = song(m, path=pb); tick(m, 180000); m.parse(pb, record=rb, title='B', artist='Art', album='Alb')
+        expect(not lines(m), f'one second of 300 heard, then {what} at the last look, the next start three minutes later: not a listen ({lines(m)})')
+    m = machine(podcasts.ID3)
+    ra = song(m, path=pa, track=1); m.parse(pa, record=ra, title='A', artist='Art', album='Alb'); note(m, ra, 1, 300, 1000)
+    m.status = 3; note(m, ra, dt=60000); m.status = 2; note(m, ra, dt=1000)
+    rb = song(m, path=pb); tick(m, 180000); m.parse(pb, record=rb, title='B', artist='Art', album='Alb')
+    expect(lines(m) == [line('Art', 'Alb', 'A', '1', 300, WALL)], f'paused for a minute, playing again at the last look: the time to the next start is heard ({lines(m)})')
     m = machine(podcasts.ID3)
     ra = song(m, path=pa); m.parse(pa, record=ra, title='A', artist='Art', album='Alb')
     rb = song(m, path=pb); tick(m, 300000); m.parse(pb, record=rb, title='B', artist='Art', album='Alb')
