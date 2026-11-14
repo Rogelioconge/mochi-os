@@ -17,17 +17,19 @@
 
 ## Features
 
-- **Browse:** Cover Flow, album grids/lists, Artists with photos, A–Z indexes on Songs, Artists and Albums, Playlists and Folders with covers.
+- **Browse:** Cover Flow, album grids/lists, Artists with photos (from the card or found online), A–Z indexes on Songs, Artists and Albums, Playlists and Folders with covers, and playlist clean-up.
 - **Search:** find music and podcasts with an on-screen QWERTY keyboard, also in Tidal's search.
 - **Home:** Daily Mix, Recently Played and a floating mini player.
-- **Now Playing:** cover-colour backgrounds, rounded artwork, remaining time, an idle display (cover, Cassette or Vinyl) and Continue Playing into the next album.
-- **Podcasts:** local episodes, top shows and episodes for your region, directory search, feed subscriptions with every episode, search, filters and episode order within a show, and episode downloads.
-- **Extras:** album/folder shuffle, internet radio, a virtual iPod, Cassette Mode, Vinyl Mode and an online cover and lyrics lookup.
+- **Now Playing:** cover-colour backgrounds, rounded artwork, remaining time, three lyrics sizes, an idle display (cover, Cassette, Vinyl or full-screen lyrics) and Continue Playing into the next album.
+- **Podcasts:** local episodes, top shows and episodes for your region, directory search (Apple Podcasts or Podcast Index), feed subscriptions with every episode, search, filters and episode order within a show, and episode downloads.
+- **Audiobooks:** books on the card by folder, and public-domain audiobooks from LibriVox to search and download.
+- **Extras:** album/folder shuffle, internet radio, a virtual iPod, Cassette Mode, Vinyl Mode, Lyrics Mode and an online cover and lyrics lookup.
+- **Scrobbling:** listens are logged on the card and uploaded to ListenBrainz and Last.fm.
 - **Subsonic:** browse a Subsonic server (Navidrome, Gonic, Airsonic) in the player's own Albums, Artists, Playlists and Songs pages, search it, stream over Wi-Fi, and download songs to the card for offline play. Based on a pull request by Gaurav Mishra and the work of shivaluma.
 - **Appearance:** an accent colour, a lock screen with a mini player, minimal theme, Lucide icons and Inter + Source Han Sans fonts.
 - **Equalizer:** a 10-band EQ editor, AutoEq headphone corrections downloaded over Wi-Fi, parametric presets from the card and a separate EQ for headphones, line out and USB DACs.
 - **Wi-Fi:** a new Wi-Fi page with WPA3 and Enhanced Open, and a redesigned Wi-Fi Transfer page to browse, upload, download and organise the card from a browser.
-- **Settings:** choose menu items, pull-down tiles, startup behaviour, Cover Flow orientation, display, buttons and power, and a charge limit.
+- **Settings:** choose menu items, pull-down tiles (with Sleep Timer, Settings, Equalizer, Power Off, AirPlay and DLNA tiles), startup behaviour, Cover Flow orientation, playback settings, display, buttons and power, a charge limit and an LED that follows the music. The Dynamic LED is based on a pull request by Gaurav Mishra.
 - **Languages:** the added UI follows the player's language setting, with 13 translations.
 
 Stock settings and Tidal remain accessible. See the [user guide](docs/guide.md) for controls and options.
@@ -77,4 +79,4 @@ If M1+ Music is useful to you, you can support its development on [Ko-fi](https:
 
 Inspired by Diamond Bond's [q2-pod](https://github.com/DiamondBond/q2-pod) for the Shanling Q2.
 The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
-The Last.fm mark is from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); both are trademarks of their owners.
+The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.

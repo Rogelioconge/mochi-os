@@ -316,9 +316,10 @@ def apply(out):
     root = os.path.join(out, 'rootfs')
     d = os.path.join(root, REL_DIR)
     assert not os.path.exists(d), d
-    os.mkdir(d); os.chmod(d, 0o755); os.utime(d, (MTIME, MTIME))
+    os.mkdir(d); os.chmod(d, 0o755)
     dst = os.path.join(root, REL_BIN)
     shutil.copyfile(binary, dst); os.chmod(dst, MODE); os.utime(dst, (MTIME, MTIME))
+    os.utime(d, (MTIME, MTIME))   # after the copy: adding the file sets the directory's mtime to the build time
     script = os.path.join(root, SCRIPT)
     old = open(script, 'rb').read()
     write_keep_mode(script, rewrite_script(old))
