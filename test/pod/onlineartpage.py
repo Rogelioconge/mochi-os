@@ -887,7 +887,7 @@ def artist_tests(ctx):
     r = m.open()
     names = [c[0] for c in m.open_calls]
     expect(r == 0 and ('window_open', 'm1plus_onlineart') in m.open_calls and names.count('pthread_create') == 1 and m.thread[0] == PSYMS['pn_amain'], 'the page opens on the same asset and starts the lookup')
-    expect(not m.shown('oa_chips') and m.shown('oa_dh_title') and m.text('oa_dh_title') == '陈奕迅' and m.shown('oa_dh_sub') and m.text('oa_dh_sub') == 'Deezer, NetEase', 'no chips: the artist\'s name and the service stand in their place')
+    expect(not m.shown('oa_chips') and m.shown('oa_dh_title') and m.text('oa_dh_title') == '陈奕迅' and not m.shown('oa_dh_sub'), 'no chips: the artist\'s name stands in their place, with no line under it')
     expect(m.text('label_title') == 'Artist Photo' and m.shown('oa_listview') and m.shown('oa_sep') and not m.shown('oa_dc') and not m.shown('oa_save') and not m.shown('oa_lsave'), 'the navbar says Artist Photo; the list and its line, no pill')
     expect(m.shown('oa_status') and m.text('oa_status') == 'Searching…', 'Searching… while the lookup runs')
     th = m.thread
@@ -962,19 +962,19 @@ def artist_tests(ctx):
     m.click('oa_save'); m.work(); m.tick()
     expect(m.shown('oa_dc') and m.shown('oa_hint') and m.text('oa_hint') == 'Storage unavailable' and m.shown('oa_save') and m.text('oa_save') == 'Use This Photo' and fpick not in m.fs,
            f'a photo that cannot be written: Storage unavailable under the source, the pill back, no marker ({m.text("oa_hint")})')
-    # NetEase has the artist too: the line under the name names them, a NetEase photo says NetEase and its larger picture is the 500 px one
+    # NetEase has the artist too: a NetEase photo says NetEase and its larger picture is the 500 px one
     ne = __import__('json').dumps({'result': {'artists': [{'name': '陈奕迅', 'fansSize': 9, 'img1v1Url': 'https://p1.music.126.net/k==/1.jpg', 'picUrl': None}]}, 'code': 200}).encode()
     two = lambda: OA.Site(**{OA.DEEZER_ARTIST: {'body': OA.data('deezer_artist.json')}, OA.NETEASE_ARTIST: {'body': ne}})
     m = ARM(two()); m.open()
-    expect(m.text('oa_dh_sub') == 'Deezer, NetEase', f'both services: the line names both ({m.text("oa_dh_sub")})')
+    expect(not m.shown('oa_dh_sub'), 'both services: still no line under the name')
     m.ready()
     expect(len(m.paint()[0]) == 4, 'Deezer\'s three photos and NetEase\'s one')
     m.tap_tile(1)
     expect(m.text('oa_dc_name') == '陈奕迅' and m.text('oa_dc_source') == 'NetEase', f'NetEase\'s photo of the very name is second, after Deezer\'s; the source says NetEase ({m.text("oa_dc_source")})')
     m.work(); m.tick()
     expect(m.curl_site.urls()[-1] == 'https://p1.music.126.net/k==/1.jpg?param=500y500' and m.shown('oa_save'), f'its 500 px picture ({m.curl_site.urls()[-1]})')
-    m = ARM(two()); m.set_language('zh_CN'); m.open()
-    expect(m.text('oa_dh_sub') == 'Deezer, ' + trl('zh_CN', 'NetEase') and trl('zh_CN', 'NetEase') != 'NetEase', f'NetEase\'s name in the page\'s language ({m.text("oa_dh_sub")})')
+    m = ARM(two()); m.set_language('zh_CN'); m.open(); m.ready(); m.paint(); m.tap_tile(1)
+    expect(m.text('oa_dc_source') == trl('zh_CN', 'NetEase') and trl('zh_CN', 'NetEase') != 'NetEase', f'NetEase\'s name in the page\'s language ({m.text("oa_dc_source")})')
     # destroy while the lookup runs cancels it, as the track's page
     m = ARM(); m.open(); th = m.thread; m.destroy()
     expect(('timer_remove', 0x777) in m.calls and fn(m, 'pn_job_busy') == 1, 'destroy with the lookup running: the timer goes, the worker is left to end by itself')

@@ -379,7 +379,7 @@ static void oa_modes(void) {
     m1_show(oa.list, m != 1);
     m1_show(oa.dc, m == 1);
     m1_show(oa.l_head, m == 2 || (oa.ar && m == 0)); /* (an artist's page: the name where the chips are) */
-    m1_show(oa.l_sub, m == 2 || (oa.ar && m == 0));
+    m1_show(oa.l_sub, m == 2); /* (an artist has no grey line: each photo names its service on the confirmation) */
     if (m != 2) m1_show(oa.lpill, 0);
     if (m != 0) oa_es_apply((const oa_es_t *)0);
 }
@@ -1103,13 +1103,6 @@ static void oa_badge_width(void) {
     oa.bw = w + 2 * OA_BADGE_PAD;
 }
 
-/* The line under the artist's name: the services asked. */
-static void oa_ar_sub(void) {
-    char text[96];
-    snprintf(text, sizeof text, "Deezer, %s", TR("NetEase"));
-    widget_set_text_utf8(oa.l_sub, text);
-}
-
 /* The page for what oa holds (the playing track's fields, or oa.ar and the artist). 0 once it is up; -1 when it could not open (nothing is left of it). */
 static int oa_open(void) {
     oa.win = window_open("m1plus_onlineart");
@@ -1160,11 +1153,10 @@ static int oa_open(void) {
     widget_set_prop_bool(oa.es_text, "word_wrap", 1); /* (as the lyrics page's lines: break at spaces) */
     oa.down = -1, oa.pend = -1, oa.picked = -1;
     oa.want = oa.ar ? PN_PART_COVERS : PN_PART_COVERS | PN_PART_LYRICS;
-    if (oa.ar) { /* the artist's name and the service where the chips are; the navbar says what the page finds */
+    if (oa.ar) { /* the artist's name where the chips are; the navbar says what the page finds */
         void *title = widget_lookup(oa.win, "label_title", 1);
         if (title) widget_set_text_utf8(title, TR("Artist Photo"));
         widget_set_text_utf8(oa.l_head, oa.artist);
-        oa_ar_sub();
         oa.g.person = oa.gd.person = 1;
     }
     widget_on(oa.view, EVT_POINTER_DOWN, oa_on_down, (void *)0);
