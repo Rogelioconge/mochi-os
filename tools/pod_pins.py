@@ -664,6 +664,13 @@ LYRICS_PINS = (   # (address, stock word, what it proves): the stock lyric rows 
     (0x53bb74, 0x92820000, 'show_player_face: lbu force_refreshflag (0xa05a63)'), (0x53bb78, 0x104000e0, 'show_player_face: neither flag set: the light path, no row rebuild'),
     (0x53bed0, 0x0411f8db, 'show_player_face: bal 0x53a240, the lyric row builder, in the full refresh'), (0x53bee0, 0xa2800000, 'show_player_face: sb zero force_refreshflag after the refresh'), (0x53bee4, 0xa2a00000, 'show_player_face: sb zero autochange_refresh after the refresh'),
     (0x53a260, 0x24a51c3c, 'the row builder 0x53a240: a1 = "scroll_lrc", looked up recursively in the window it is given (the second lookup is "label_lyricmsg")'),
+    # the Find Cover & Lyrics page reloads the playing track's lyrics after a save (patch/onlineart.c oa_on_save, docs/modules/onlineart.md), as stock does after its own lyric download (a click handler on the UI thread, registered by widget_on(0x10c) @0x536d8c)
+    (0x5d41e4, 0x3c1c0043, 'mclLoadExLyric prologue (1/3): no arguments; it clears the lyric deque under its mutex, then reads the play position\'s .lrc'), (0x5d41e8, 0x279cfcec, 'mclLoadExLyric prologue (2/3)'), (0x5d41ec, 0x0399e021, 'mclLoadExLyric prologue (3/3)'),
+    (0x5d4240, 0x0440000e, 'mclLoadExLyric: bltz the play position: nothing is read for no position (then it tail-calls the loader 0x5d3670)'),
+    (0x5d3670, 0x3c1c0043, 'the .lrc loader 0x5d3670 prologue (1/3): fopen / fread of the file and the deque pushed under the lyric mutex'), (0x5d3674, 0x279c0860, 'the loader prologue (2/3)'), (0x5d3678, 0x0399e021, 'the loader prologue (3/3)'),
+    (0x536d8c, 0x0320f809, 'the click handler\'s registration: jalr widget_on(widget, 0x10c, 0x5377ec): the handler that ...'),
+    (0x537cbc, 0x8f99c220, '... calls mclLoadExLyric after it copies a downloaded lyric file: lw t9, GOT mclLoadExLyric'), (0x537cc0, 0x0320f809, '... jalr mclLoadExLyric()'),
+    (0x537cd0, 0x8f82aa50, '... then lw v0, GOT force_refreshflag (0xa05a63)'), (0x537cd8, 0xa0430000, '... sb 1, force_refreshflag (in the delay slot): the rebuild show_player_face does'),
 )
 QUERY_PINS = (   # (address, stock word, what it proves): the first word after the prologue the trampolines resume at (the frame), and the sqlite3_exec calls that run the SQL
     (0x5ee788, 0x27bdff28, 'toolsQueryDbTable: addiu sp, sp, -0xd8 (the trampoline resumes here)'), (0x5ee7fc, 0x0320f809, 'toolsQueryDbTable: jalr sqlite3_exec(db, sql=a1, cb=a2)'),

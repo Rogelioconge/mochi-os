@@ -107,8 +107,13 @@ off. The user agent is `M1PlusMusic/1.0 (https://github.com/imfing/m1plus-mod)`.
   card's root. Every track in the folder shares it. A PNG answer goes to the cache only.
 - **The lyrics**: `<track path with its extension replaced>.lrc`, UTF-8, written by the UI
   thread (`pn_lyr_save`: `.tmp`, fsync, rename). Synced and plain lyrics are saved as LRCLIB
-  gave them (carriage returns dropped). Stock reads the `.lrc` when a track loads, so the
-  playing track shows it the next time it starts.
+  gave them (carriage returns dropped). Stock reads the `.lrc` when a track loads, so after a
+  save of the playing track's file (the name less its extension still matches the playing path)
+  the page does what stock does after its own lyric download: `mclLoadExLyric()` (clears the
+  lyric deque, reads the file; safe on the UI thread, `start_playqueue` runs it there) and
+  `force_refreshflag` = 1, so Now Playing's next 500 ms tick rebuilds the `scroll_lrc` rows
+  (also from none to some). It then calls `ly_reload`, because the [lyrics page](lyrics.md)'s
+  row signature has no text and cannot see same-shaped replacement lyrics. A track change while the page is open skips the reload; a failed save does neither.
 - Scratch in `/mnt/mmc/.m1plus/art/` (thumbnails, `pick.src`, `full.*`, `l<n>.txt`) is removed by
   the next lookup and by the page's destroy when no worker runs.
 

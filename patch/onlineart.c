@@ -24,6 +24,7 @@
 #include "common.h"
 #include "grid.h"
 #include "home.h"
+#include "lyrics.h"
 #include "i18n.h"
 #include "podcasts.h"
 #include "pcjson.h"
@@ -1017,11 +1018,35 @@ static int oa_on_use(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* The saved .lrc is the playing track's (the page's path less ".lrc" is the playing path less its extension): the track may have changed since the page opened. */
+static int oa_lrc_playing(void) {
+    void *rec = cc_playing();
+    const char *path;
+    unsigned k = 0, n = 0;
+    if (!rec) return 0;
+    path = cc_str(rec, REC_PATH);
+    while (oa.lrc[n + 4]) ++n; /* the stem: oa.lrc less ".lrc" */
+    while (k < n && path[k] == oa.lrc[k]) ++k;
+    if (k < n) return 0;
+    if (path[k] == '.')
+        ++k;
+    else if (path[k])
+        return 0;
+    for (; path[k]; ++k)
+        if (path[k] == '.') return 0; /* a longer name: another track */
+    return 1;
+}
+
 static int oa_on_save(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (oa.mode != 2 || !oa.lw || oa.nln <= 0) return RET_OK;
     if (pn_lyr_save(oa.di, oa.lrc)) {
+        if (oa_lrc_playing()) { /* as stock does after it copies a downloaded lyric file: reload the playing track's lyrics and rebuild Now Playing's rows (UI thread) */
+            mclLoadExLyric();
+            *(unsigned char *)FORCE_REFRESH = 1;
+            ly_reload(); /* the lyrics page reads the rebuilt rows as new lyrics (its signature has no text) */
+        }
         oa.saved |= 1u << oa.di;
         oa.save_failed = 0;
         oa_leave();

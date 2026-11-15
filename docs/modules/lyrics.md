@@ -16,7 +16,11 @@ calls `ly_start`, the 500 ms `np_work` tick calls `ly_tick`, `np_stop` calls `ly
   `mclLoadExLyric`; online: `online_lyricthd`, `online_loadexlyric`). The payload reads those rows
   and compares their times with `get_playtime()`. It never reads the lyric deque, takes its mutex
   or changes the stock loaders and timers. At most 400 rows are read; a row signature (count, first
-  and last handles and times) detects replacement lyrics.
+  and last handles and times; no text) detects replacement lyrics. Replacement that can keep the
+  signature (Save / Replace Lyrics rebuilds the rows with the same handles, count and times) is
+  announced by `ly_reload`: the mark waits until stock clears `force_refreshflag` (its rebuild
+  ran), then the next tick reads the rows as new lyrics. The mark survives `ly_release` and
+  `ly_retarget`; `ly_stop` and `ly_start` drop it.
 - `np_lyrics` is a sensitive, non-slidable, clipping `scroll_view` at (28, 44, 264, 244) in
   `view_lyrics`. `ly_start` creates 20 reusable labels and a measurement label, hides `view_lrc`
   (`visible=false`, `sensitive=false`) and installs the coverage gamma on the `lyrics` font

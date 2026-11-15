@@ -471,6 +471,7 @@ FUNCTIONS.update({
     '_ZN10ime_pinyin12MatrixSearch12get_predictsEPKtPA8_tj': ('unsigned', 'void *, const unsigned short *, unsigned short (*)[8], unsigned', 0x5c6834),
 })
 FUNCTIONS['get_playtime'] = ('int', 'void', 0x4e02e4)   # the position the stock lyric timers compare "lrc_time" with (docs/modules/lyrics.md)
+FUNCTIONS['mclLoadExLyric'] = ('void', 'void', 0x5d41e4)   # clears the lyric deque and reads the playing track's .lrc (UI thread: stock's start_playqueue and a click handler call it; patch/onlineart.c oa_on_save)
 FUNCTIONS['widget_update_style'] = ('int', 'void *', 0x666780)   # the lyrics probe resolves its style before it measures (patch/lyrics.c ly_probe_face; a no-op once resolved)
 # The library scan's folder walk (patch/common.c m1_scan_dir, docs/modules/payload.md hook 5): toolsLoadAllFile (0x5efd98) lists each folder with the function at 0x5ea364 (readdir
 # loop, 0x5ea600); for a directory entry (d_type 4, name in s0) it skips "." with `strcmp(name, ".")` (0x5ea6a8), ".." and a list of system folders (lost+found, System Volume

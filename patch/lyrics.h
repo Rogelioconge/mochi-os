@@ -11,6 +11,9 @@ void ly_start(void *win);
 void ly_tick(void);
 /* The page is over (or replaced): the animation timer goes, the state is cleared. */
 void ly_stop(void);
+/* The playing track's lyrics were reloaded and stock's rows will be rebuilt (it clears force_refreshflag when it has): the next tick after that reads them as new lyrics even when
+ * their handles, count and times are the same (the row signature has no text). No-op with the engine stopped; a pending mark survives ly_release and ly_retarget. */
+void ly_reload(void);
 /* Another view drives the engine (the idle page, patch/idlelyrics.c; docs/modules/idlelyrics.md): box, a scroll_view of its own h px high in window win, gets the pool and the touch
  * listeners; the lines are still Now Playing's stock rows. 0, or -1 with nothing changed (Now Playing has no engine, it is already taken, a label is refused). ly_release gives the engine back
  * to Now Playing (idempotent; ly_refresh does it as well when Now Playing is in front); ly_target is the box the engine drives now (0 stopped); ly_lines the rows it reads. */

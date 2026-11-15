@@ -25,6 +25,7 @@ NAMES = ('oa_chips', 'oa_chip_hl', 'oa_sep', 'oa_listview', 'oa_view', 'oa_statu
 TRACK = '/mnt/mmc/Music/Radiohead/OK Computer/02 Karma Police.flac'
 LRC = '/mnt/mmc/Music/Radiohead/OK Computer/02 Karma Police.lrc'
 FOLDER = '/mnt/mmc/Music/Radiohead/OK Computer'
+FORCE = pod.DATA['FORCE_REFRESH'][0]
 TILE, X0, Y0, PITCH, GAP = 88, 16, 8, 98, 12
 LIST_Y, LIST_H, ROW_H = PS.SE_LIST_Y, PS.SE_LIST_H, PS.SE_ROW_H
 BADGE_W = 8 * 6 + 14            # the mocked canvas: 8 px a character; "Synced" is the wider of Synced and Saved
@@ -65,12 +66,18 @@ class AM(PCN.NM):
         self.pt = (30, 261, 1)   # get_playtimeandlength: position, length (s), ok
         self.sbtrack = {}        # server track REC_ID -> track id (sba_rec_track, patch/sbapi.c: tested in sbapi.py); a record in it is a server track
         self.handlers[PSYMS['sba_rec_track']] = 'sba_rec_track'
+        self.handlers[pod.FUNCTIONS['mclLoadExLyric'][2]] = 'mclLoadExLyric'   # stock's lyric reload (no arguments)
+        self.handlers[PSYMS['ly_reload']] = 'ly_reload'   # the lyrics engine's invalidation (patch/lyrics.c: tested in lyrics.py)
         self.playing()
 
     def _hook(self, u, address, size, _):
         if self.handlers.get(address) == 'sba_rec_track':
             rid = u.reg_read(UC_MIPS_REG_A0); rid = rid - (1 << 32) if rid >= 1 << 31 else rid   # noqa: F821
             u.reg_write(UC_MIPS_REG_V0, self.cstr(self.sbtrack.get(rid, ''))); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return   # noqa: F821
+        if self.handlers.get(address) == 'ly_reload':
+            self.calls.append(('ly_reload',)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return   # noqa: F821
+        if self.handlers.get(address) == 'mclLoadExLyric':
+            self.calls.append(('mclLoadExLyric',)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return   # noqa: F821
         return super()._hook(u, address, size, _)
 
     def playing(self, artist='Radiohead', album='OK Computer', title='Karma Police', path=TRACK, albums=('OK Computer', 'Kid A')):
@@ -588,6 +595,8 @@ def lyrics_tests(ctx):
     m.click('oa_lsave')
     expect(m.fs[LRC].startswith(b'[ar:Queen]') and LRC + '.tmp' not in m.fs and m.fs[LRC].endswith(b'\xe2\x99\xaa\n'), 'the pill replaces <track>.lrc, the file name\'s extension replaced by .lrc, atomically, with the timestamps (the display strips them, the file does not)')
     expect(m.shown('oa_chips') and not m.shown('oa_dh_title') and not m.shown('oa_lsave'), 'then the rows again')
+    expect(m.calls.count(('mclLoadExLyric',)) == 1 and m.u.mem_read(FORCE, 1)[0] == 1, 'the playing track\'s lyrics are reloaded (stock\'s mclLoadExLyric, once) and force_refreshflag is set: Now Playing rebuilds its rows at once')
+    expect(m.calls.count(('ly_reload',)) == 1, 'and the lyrics engine is told to read the rebuilt rows as new lyrics (ly_reload, once)')
     _, fills, texts = m.paint()
     expect(('Saved' in [t for t, _ in texts]) and [t for t, _ in texts].count('Synced') == 1 and any(f[0] == SAVED_RGB for f in fills) and not any(f[0] == SYNCED_RGB and f[2] < 14 for f in fills),
            'the saved row wears a light Saved badge in place of Synced; the other synced row still has its Synced badge')
@@ -613,10 +622,22 @@ def lyrics_tests(ctx):
     m = AM(OA.Site()); m.open(); m.ready(); m.open_lyrics(0)
     m.fail = {('write', LRC + '.tmp')}
     m.click('oa_lsave')
+    expect(('mclLoadExLyric',) not in m.calls and ('ly_reload',) not in m.calls and m.u.mem_read(FORCE, 1)[0] == 0, 'a failed save reloads nothing and sets no flag')
     expect(m.shown('oa_dh_title') and m.text('oa_dh_sub') == 'Storage unavailable' and m.shown('oa_lsave') and LRC not in m.fs, 'a write that fails: "Storage unavailable" in the header\'s grey line, the pill stays for another try')
     m.fail = set()
     m.click('oa_lsave')
     expect(m.fs[LRC].startswith(b'[ar:Queen]') and m.shown('oa_chips'), 'and the next try writes it')
+    # the track changed while the page was open: the saved .lrc is not the playing one's, nothing is reloaded (another extension, a longer name, nothing playing)
+    for why, path in (('another track', '/mnt/mmc/Music/Radiohead/OK Computer/03 Exit Music.flac'), ('a longer name', TRACK[:-5] + '.2.flac'), ('a name that continues', TRACK[:-5] + ' (live).flac')):
+        m = AM(OA.Site()); m.open(); m.ready(); m.open_lyrics(0); m.playing(path=path)
+        m.click('oa_lsave')
+        expect(LRC in m.fs and ('mclLoadExLyric',) not in m.calls and ('ly_reload',) not in m.calls and m.u.mem_read(FORCE, 1)[0] == 0, f'{why}: the file is saved, no reload')
+    m = AM(OA.Site()); m.open(); m.ready(); m.open_lyrics(0); m.playing(path=TRACK[:-5] + '.mp3')
+    m.click('oa_lsave')
+    expect(('mclLoadExLyric',) in m.calls and ('ly_reload',) in m.calls and m.u.mem_read(FORCE, 1)[0] == 1, 'the same name with another extension is the same track: reloaded')
+    m = AM(OA.Site()); m.open(); m.ready(); m.open_lyrics(0); m.setword(pod.DATA['PLAY_QUEUE'][0], 0)
+    m.click('oa_lsave')
+    expect(LRC in m.fs and ('mclLoadExLyric',) not in m.calls and ('ly_reload',) not in m.calls, 'nothing playing: saved, no reload')
     # plain lyrics: blank lines are gaps; a long line wraps; the text scrolls
     plain = '\n'.join(['Verse one line A', 'Verse one line B', '', '', 'Verse two ' + 'long ' * 20, '', 'Last'])
     site = OA.Site(**{OA.LRCLIB + 'get?': {'body': OA.json.dumps(OA.rec('P', 261, plain=plain, artist='Radiohead', album='OK Computer')).encode()}, OA.LRCLIB + 'search?': {'body': b'[]'}})

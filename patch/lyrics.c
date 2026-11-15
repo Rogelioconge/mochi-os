@@ -112,6 +112,9 @@ static struct {
         skip; /* page ticks whose layout could not measure a line (since the lyrics loaded); whether the layout must run again for that; a measure failed in this layout */
 } ly __attribute__((section(".scratch")));
 
+/* Replacement lyrics are on the way (ly_reload) and stock has not rebuilt its rows yet. Kept outside ly: ly_release and ly_retarget clear ly, the mark stays. */
+static unsigned char ly_reloading __attribute__((section(".scratch")));
+
 /* The damped spring, 1024 x g(t) every 10 ms, g = e^(-zeta wn t) (cos wd t + zeta / sqrt(1 - zeta^2) sin wd t), zeta 0.72, wn 12 /s, wd = wn sqrt(1 - zeta^2):
  * 1 at 0, -0.038 at 380 ms (the overshoot), -0.001 at 640 ms. test/pod/lyrics.py computes the same numbers. */
 static const short ly_tab[LY_SPRING_MS / 10 + 1] = {
@@ -718,6 +721,8 @@ void ly_tick(void) {
     }
     n = (int)widget_count_children(ly.src);
     if (n > LY_MAX) n = LY_MAX;
+    /* stock cleared the flag: it has rebuilt the rows, whatever their handles, count and times. (ly.n = -1 is never a real count: the new-lyrics branch runs, or the gone branch for no rows.) */
+    if (ly_reloading && !*(volatile unsigned char *)FORCE_REFRESH) ly_reloading = 0, ly.sig = 0, ly.n = -1;
     if (n <= 0) {
         if (ly.n) { /* the lyrics are gone: the stock message shows */
             memset(ly.ht, 0, sizeof ly.ht), ly.miss = ly.redo = ly.skip = 0;
@@ -895,7 +900,14 @@ static struct {
     int vh, anc, sz;
 } lyp __attribute__((section(".scratch")));
 
+/* Stock's lyrics were reloaded (Save / Replace Lyrics, patch/onlineart.c; it also sets force_refreshflag): the rows are rebuilt by its next tick, possibly with the same handles, count and
+ * times, which the signature cannot tell from the old ones (it has no text). The mark waits until stock clears the flag, then ly_tick reads the rows as new lyrics. */
+void ly_reload(void) {
+    if (ly.box) ly_reloading = 1;
+}
+
 void ly_stop(void) {
+    ly_reloading = 0;
     m1_timer_stop(&ly.timer);
     m1_timer_stop(&ly.dtimer);
     memset(&ly, 0, sizeof ly);
@@ -905,6 +917,7 @@ void ly_stop(void) {
 void ly_start(void *win) {
     void *fm;
     if (ly.win) ly_stop();
+    ly_reloading = 0;
     memset(&ly, 0, sizeof ly);
     memset(&lyp, 0, sizeof lyp);
     ly.sz = 2 - ly_size();

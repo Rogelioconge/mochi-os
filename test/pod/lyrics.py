@@ -1542,6 +1542,55 @@ def edge_vh(y, rows, lh, vh):
     return 0 if e <= 0 else 255 if e >= FADE else e * 255 // FADE
 
 
+def reload_tests(ctx):
+    expect = ctx.expect
+    FORCE = pod.DATA['FORCE_REFRESH'][0]
+    old = [(0, 'Alpha one'), (5, 'Beta two'), (10, 'Gamma three')]
+    new = [(0, 'Delta four'), (5, 'Epsilon five'), (10, 'Zeta six')]
+
+    def replace(m, flag):
+        """Stock's rebuild as the signature sees it: the same handles, count and times, other text; force_refreshflag as given."""
+        for h, (_, t) in zip(m.children[m.src_w], new): m.texts[h] = as_read(t)
+        m.u.mem_write(FORCE, bytes([flag]))
+
+    # no ly_reload: the same signature keeps the old labels (the blind spot the call closes)
+    m = LyMachine(old); m.init(); m.at(5); m.frame(10000)
+    replace(m, 0); m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in old} | set(), f'without ly_reload an unchanged signature keeps the old text ({sorted(m.shown())})')
+    # ly_reload, flag still set: the old rows are read as before; the flag cleared: replaced
+    m = LyMachine(old); m.init(); m.at(5); m.frame(10000)
+    m.u.mem_write(FORCE, b'\x01'); m.call(PSYMS['ly_reload'], count=100000)
+    m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in old} and m.u.mem_read(FORCE, 1)[0] == 1, 'ly_reload with the flag set: the tick goes on with the old rows')
+    replace(m, 1); m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in old}, 'the new text with the flag still set (stock has not rebuilt yet in its terms): still pending, old labels')
+    m.u.mem_write(FORCE, b'\x00'); m.at(5); m.frame(10000)
+    sh = m.shown()
+    expect(set(sh) == {t for _, t in new} and sh['Epsilon five'][0] == ANCHOR and sh['Epsilon five'][1] == 255, f'the flag cleared: the same handles, count and times read as new lyrics, current line anchored ({sh})')
+    replace(m, 0)
+    for h, (_, t) in zip(m.children[m.src_w], old): m.texts[h] = as_read(t)
+    m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in new}, 'the mark was spent: a later change that keeps the signature is not read again')
+    # the mark survives ly_release (Now Playing back in front) and the idle page taking the engine
+    m = LyMachine(old); m.init(); m.at(5); m.frame(10000)
+    m.u.mem_write(FORCE, b'\x01'); m.call(PSYMS['ly_reload'], count=100000)
+    retarget(m); m.call(PSYMS['ly_release'], count=2000000); m.box = m.np_box
+    replace(m, 0); m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in new}, 'a pending reload survives the idle page taking the engine and giving it back')
+    # a stopped engine: the call is a no-op, and a stale mark is dropped by the page's stop and start
+    m = LyMachine(old); m.init(); m.at(5)
+    m.u.mem_write(FORCE, b'\x01'); m.call(PSYMS['ly_reload'], count=100000); m.call(PSYMS['ly_stop'], count=2000000)
+    m.u.mem_write(FORCE, b'\x00'); m.call(PSYMS['ly_start'], a0=WIN, count=6000000)
+    expect(m.call(PSYMS['ly_target']) == m.box, 'a mark pending at ly_stop is harmless: the page starts again')
+    # the reload brings no rows: the lines are gone (the stock message shows)
+    m = LyMachine(old); m.init(); m.at(5); m.frame(10000)
+    m.u.mem_write(FORCE, b'\x01'); m.call(PSYMS['ly_reload'], count=100000)
+    m.set_lines([]); m.u.mem_write(FORCE, b'\x00'); m.at(5)
+    expect(m.call(PSYMS['ly_lines']) == 0 and not m.shown(), 'the reload finds no lyrics: no lines')
+    m.set_lines(new); m.at(5); m.frame(10000)
+    expect(set(m.shown()) == {t for _, t in new}, 'and lyrics that come after are read')
+
+
 def retarget_tests(ctx):
     expect = ctx.expect
     D, MV, UP = O['EVT_POINTER_DOWN'], O['EVT_POINTER_MOVE'], O['EVT_POINTER_UP']
@@ -1629,4 +1678,4 @@ def retarget_tests(ctx):
     expect(m.call(PSYMS['ly_retarget'], a0=w2, a1=b2, a2=VH2, count=2000000) == 0xffffffff and m.call(PSYMS['ly_target']) == 0, 'no engine to take: refused, nothing made')
 
 
-SECTIONS = [asset_tests, size_tests, retarget_tests, size_setting_tests, start_tests, follow_tests, dots_tests, face_tests, touch_tests, wrap_tests, tall_tests, overflow_tests, cost_tests, font_tests]
+SECTIONS = [reload_tests, asset_tests, size_tests, retarget_tests, size_setting_tests, start_tests, follow_tests, dots_tests, face_tests, touch_tests, wrap_tests, tall_tests, overflow_tests, cost_tests, font_tests]

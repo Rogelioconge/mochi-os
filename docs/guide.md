@@ -367,7 +367,7 @@ chevron to close.
 
 **Cover & Lyrics** (Now Playing > ... > More > Cover & Lyrics, needs Wi-Fi) looks up the playing album's covers
 (iTunes, then Deezer) and its lyrics (LRCLIB). Tap a cover to use it for the album everywhere; Save Lyrics writes
-`<song>.lrc` next to the song (Replace Lyrics when one is there).
+`<song>.lrc` next to the song (Replace Lyrics when one is there) and the playing song shows them at once.
 
 **Pod** opens a virtual iPod. Slide around the wheel to browse and tap its centre to select.
 Tap MENU to go back; hold it to return to the Pod's main menu, then tap it to close.

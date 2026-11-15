@@ -77,6 +77,7 @@ hciplayer (`$gp` `0xb16750`, payload `0xe10000`): equalizer `af_info` `0x893808`
 | `playpause_quick_click` / `next_quick_click` / `prev_quick_click` | `0x4cd150` / `0x4ccf00` / `0x4cccb0` | the quick-click handlers; next and prev ignore a click within 1 s of the last |
 | `mclGetPlayStatus` | `0x5d3640` | 2 = playing, 3 = paused |
 | `get_playtime` | `0x4e02e4` | seconds; compared with each lyric row's `lrc_time` |
+| `mclLoadExLyric` | `0x5d41e4` | no arguments: clears the lyric deque, reads the play position's `.lrc` (tail call `0x5d3670`); stock follows it with `force_refreshflag` = 1 (`0x537cbc`) |
 | `loadAlbumdetailList(class, album record)` | `0x4eea98` | `0xf003` -> `0xff10`, `0xff01` -> `0xff11`, `0xff02` -> `0xff14` |
 | `system_bar` (data) | `0xa06f90` | the status bar window |
 | `backlight_status` (data) | `0x97cae4` | 1 once the framebuffer is on; page timers use it to defer visual work |
