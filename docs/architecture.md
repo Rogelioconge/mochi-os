@@ -1,79 +1,118 @@
 # Architecture
 
 The build copies the official V2.1 rootfs, compiles a fixed-address MIPS payload into
-`/release/bin/demo`, applies pinned code/asset edits and repacks the kernel and rootfs as
+`/release/bin/demo`, applies pinned code and asset edits and repacks the kernel and rootfs as
 `update.bin`. Input mismatches and an oversized rootfs fail the build.
 
-Start with the relevant module below. Read [payload](modules/payload.md) and
-[addresses](modules/addresses.md) before searching the binary. See [workflow](workflow.md)
-for commands, [UI](ui.md) for layout/assets, and [history](history.md) for recorded device findings.
+Read [payload](modules/payload.md) and [addresses](modules/addresses.md) before searching the
+binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and assets, and
+[history](history.md) for device findings.
 
-## Core
+Source comments cite sections of an older architecture document: 4 Cover Flow, 6 rows,
+8a Now Playing, "Screenshot", "List gestures". These map to [coverflow](modules/coverflow.md),
+[rows](modules/rows.md), [nowplaying](modules/nowplaying.md), [screenshot](modules/screenshot.md)
+and [gestures](modules/gestures.md).
 
-| Reference | Contents |
+## Modules
+
+### Build and runtime
+
+| Module | Contents |
 |---|---|
-| [Pipeline](modules/pipeline.md) | Build stages, ordering and package validation |
-| [Payload](modules/payload.md) | Segment layout, trampolines, stock calls and hooks |
-| [Addresses](modules/addresses.md) | Stock symbols, offsets and record layouts |
-| [Library list loading](modules/libload.md) | List ownership transfer and memory peaks |
-| [Home and boot guard](modules/home-guard.md) | Startup marker, grid entry, window stack and fallback |
-| [Settings](modules/settings.md) | Settings pages and persisted choices |
-| [Display](modules/display.md) | Settings > Display: brightness, Screen Timeout, LED Light, Follow Screen (stock's state) |
-| [Accent and palette](modules/accent.md) | The colour-mapping layer: three paint-time hooks, background (Black, Light), accent, image rules, exempt pages |
-| [Updater version compare](modules/version.md) | Why the official V2.1 package installs over the mod |
-| [Automatic time](modules/autotime.md) | RTC kept as UTC for stock's NTP sync (`hwclock -su` / `-wu`) |
-| [Wi-Fi supplicant and page](modules/wifi.md) | hostap 2.12 beside stock 2.9 for WPA-Enterprise, WPA3 and Enhanced Open: cross-build, `wifi_connect.sh` choice with stock fallback; the own Settings > Wi-Fi page over the control socket, with the networks stock cannot read in `wifi-networks` |
-| [Time zones](modules/timezones.md) | 43-zone picker west to east, TZ mapping for the saved index (select_timezone hook) |
-| [Safety](modules/safety.md) | Allowed entry points and required invariants |
+| [Build pipeline](modules/pipeline.md) | Build stages, ordering, package validation |
+| [Payload](modules/payload.md) | Segment, trampolines, stock calls, hook inventory |
+| [Addresses](modules/addresses.md) | Stock symbols, offsets, record layouts |
+| [Safety](modules/safety.md) | Allowed entry points, required invariants |
 | [Validation](modules/validation.md) | Test boundaries and what they prove |
-| [q2-pod comparison](modules/q2pod.md) | Corresponding mechanisms and platform differences |
+| [Home and boot guard](modules/home-guard.md) | Startup marker, grid entry, window stack, fallback |
+| [Boot assets](modules/boot.md) | Boot logo, quotes, settings slides |
+| [Library loading](modules/libload.md) | List hand-over and memory peaks |
+| [Updater version compare](modules/version.md) | Why official V2.1 installs over the mod |
+| [Software Update](modules/update.md) | Wi-Fi update from GitHub releases |
+| [UI rules](modules/ui-rules.md) | Rules every UI step follows |
+| [Navbars](modules/navbar.md) | One reference for every page navbar |
+| [Overlays](modules/overlays.md) | Dialogs, popups and sheets |
+| [Theme](modules/theme.md) | Config clamp and theme assets |
+| [Accent and palette](modules/accent.md) | Three paint hooks, background, accent |
+| [Fonts](modules/fonts.md) | Inter, Source Han Sans, CJK forms |
+| [Icons](modules/icons.md) | Lucide icon set and generated assets |
+| [Languages](modules/i18n.md) | Translation tables, keys, width checks |
+| [List gestures](modules/gestures.md) | Drag cancellation, stopping coasting lists |
+| [Keyboard](modules/keyboard.md) | Own QWERTY page, Pinyin layer |
+| [Tidal keyboard](modules/tidalkb.md) | Keyboard in stock Tidal search |
 
-## Features
+### Library and browsing
 
-| Reference | Contents |
+| Module | Contents |
 |---|---|
-| [Cover Flow](modules/coverflow.md) | Renderer, cache, gestures and landscape mode |
-| [Albums](modules/albums.md) | Shared grid/list page and cover loading |
-| [Artists](modules/artists.md) | Artists, Album Artists, Genres and Composers |
-| [Songs](modules/songs.md) | A–Z sections, rail, sort and selection |
-| [Search](modules/search.md) | Library search: the Apple Music screen, chips, live results, embedded keyboard, folded multi-word matching |
-| [Playlists](modules/playlists.md) | Cover mosaics, list mode and stock playlist operations |
-| [Add to Playlist](modules/picker.md) | Our own picker (the Playlists page in pick mode) in place of stock's; the stock batch add |
-| [Folders](modules/folders.md) | Our own Folders page over the stock folder state (one window, every level) |
-| [Album page](modules/album-page.md) | Our own album page (tint, status bar, tone cache, playback actions); the stock page stays plain stock as its fallback |
-| [Queue page](modules/queue.md) | Our own queue page (Now Playing's queue button; the stock drawer is the fallback): playing track, icon-only Shuffle / Repeat buttons, Up Next rows |
-| [Rows](modules/rows.md) | Stock row edits, layout and text sizing |
-| [Shuffle](modules/shuffle.md) | Song, album and folder queues |
-| [Now Playing](modules/nowplaying.md) | Cover tint, remaining time and rounded artwork |
-| [Timed cover page](modules/bigcover.md) | The ten-second enlarged cover gets its own 320 px picture |
-| [Charge Limit](modules/charging.md) | Settings > Battery: charging pauses at 80-95 % while the player runs, on the status bar's battery hook |
-| [Lyrics page](modules/lyrics.md) | Our own lyrics lines over the stock rows: anchor, opacity falloff, eased scroll |
-| [More sheet](modules/playmore.md) | Playback options, Display Mode (Cassette, Vinyl and Lyrics Mode) and Find Cover & Lyrics entries |
-| [Find Cover & Lyrics](modules/onlineart.md) | Online album covers (iTunes, Deezer) and lyrics (LRCLIB) for the playing track: page, worker, storage |
-| [Software Update](modules/update.md) | Settings > General > Software Update: the newest GitHub release downloaded to the card, then stock's TF card update (a pinned call); version rules, checks, page, popup |
-| [Mini player](modules/minibar.md) | Home overlay, controls, blur and timer |
-| [Recently Played](modules/recent.md) | History file, covers and shelf layout |
-| [Scrobbling](modules/scrobble.md) | Offline .scrobbler.log of listens; the upload to ListenBrainz and Last.fm (manual, and automatic from the poll while music plays), the accounts (the card's scrobble.ini only, written on a computer: no entry and no sign-out on the device, nothing on flash) and settings (Library > ListenBrainz, Last.fm, Upload Scrobbles, Auto Upload) |
-| [Daily Mix](modules/dailymix.md) | Selection job, stored mix, card and page |
-| [Home cover build](modules/homecover.md) | Background cover cache build and its progress line |
-| [Podcasts](modules/podcasts.md) | Local episodes, feeds, covers, resume and speed |
-| [Network](modules/network.md) | One HTTP request: the shared libcurl layer under Podcasts, the radio and Subsonic |
-| [Audiobooks](modules/audiobooks.md) | The Extras item and page (Library and Book levels), the book model: books and parts on the card, natural order, progress, MP4 memory guard; LibriVox: catalog (`bknet.c`), book folder, manifest and download thread (`bkdl.c`), the LibriVox and Preview levels (`bkfind.c`), the Book level's download row |
-| [Radio](modules/radio.md) | Internet radio: stations page, directory worker, playback through stock's hciplayer, Now Playing |
-| [Virtual iPod](modules/ipod.md) | Touch wheel, navigation and playback |
-| [iPod Cover Flow](modules/ipod-coverflow.md) | Embedded carousel and album navigation |
-| [Cassette Mode](modules/tape.md) | Landscape rendering, themes and timer |
-| [Idle lyrics page](modules/idlelyrics.md) | Header and lyrics page over Now Playing; the lyrics engine's second view |
-| [Vinyl Mode](modules/vinyl.md) | Portrait turntable page: turning cover label, tonearm, keys |
-| [Parametric EQ](modules/peq.md) | hciplayer's equalizer replaced, APO / AutoEQ presets, the Equalizer page |
-| [Menu](modules/menu.md) | Home/normal instances, Extras and customization |
-| [Languages](modules/i18n.md) | Translation tables, keys and width checks |
-| [Wi-Fi Transfer](modules/wifi-transfer.md) | Stock web app replaced: `api.cgi` (static MIPS CGI behind thttpd: list, download, tar, folders, move, delete, upload), API contract, thttpd limits |
-| [Screenshot](modules/screenshot.md) | Countdown, framebuffer capture and import |
-| [Keyboard](modules/keyboard.md) | Own QWERTY keyboard page, API, tap log; gap rule; Chinese (Pinyin) layer and candidate strip |
-| [List gestures](modules/gestures.md) | Drag cancellation and stopping coasting lists |
+| [Cover Flow](modules/coverflow.md) | Renderer, gestures, landscape mode |
+| [Cover cache](modules/covercache.md) | Shared cover builder, resampling, .bad retry |
+| [Home cover build](modules/homecover.md) | Background cover build and progress pill |
+| [Albums](modules/albums.md) | Grid/list page, sorts, view card |
+| [Album page](modules/album-page.md) | Own album page and playback actions |
+| [Artists](modules/artists.md) | Artists, Album Artists, Genres, Composers, split |
+| [Songs](modules/songs.md) | A-Z sections, rail, sort, selection |
+| [Recently Added](modules/recent-albums.md) | Newest songs and albums |
+| [Recently Played](modules/recent.md) | History file, covers, shelf |
+| [Daily Mix](modules/dailymix.md) | Selection job, stored mix, page |
+| [Playlists](modules/playlists.md) | Mosaics, list mode, cleanup |
+| [Add to Playlist](modules/picker.md) | Own picker replacing stock |
+| [Folders](modules/folders.md) | Own Folders page over stock state |
+| [Library rows](modules/rows.md) | Stock row edits, layout, text sizing |
+| [Row menu](modules/rowmenu.md) | Track "..." sheet: Play Next, Favorite |
+| [Get Info](modules/songinfo.md) | Track details sheet |
+| [Search](modules/search.md) | Library search, chips, live results |
+| [Menu](modules/menu.md) | Home and Extras layout, customization |
+| [Line Out pill](modules/lineout.md) | LO pill, EQ mark, sync icon |
 
-Older source comments cite numbered sections from the former architecture document:
-1 pipeline, 2 payload, 3 addresses, 4 Cover Flow, 5 Artists, 5a Albums, 6 rows, 7 shuffle,
-8 album page, 8a Now Playing, 8b languages, 8c screenshot, 8d gestures, 9 Home/settings,
-10 safety, 11 validation, 12 q2-pod comparison.
+### Playback
+
+| Module | Contents |
+|---|---|
+| [Now Playing](modules/nowplaying.md) | Cover tint, remaining time, rounded art |
+| [Timed cover page](modules/bigcover.md) | Enlarged cover with own 320 px art, Idle Display |
+| [Lyrics page](modules/lyrics.md) | Own lyrics lines, text sizes |
+| [Idle lyrics](modules/idlelyrics.md) | Lyrics idle display page |
+| [More sheet](modules/playmore.md) | Playback options, Display Mode, Find entries |
+| [Find Cover & Lyrics](modules/onlineart.md) | Online covers and lyrics lookup |
+| [Queue page](modules/queue.md) | Playing track, Up Next, edit |
+| [Shuffle](modules/shuffle.md) | Song, album and folder queues |
+| [Continue Playing](modules/nextalbum.md) | Next Albums after the queue ends |
+| [Mini player](modules/minibar.md) | Home overlay, controls, blur |
+| [Lock screen](modules/lockscreen.md) | Own lock page, wallpaper, date |
+| [Cassette Mode](modules/tape.md) | Landscape rendering, themes, timer |
+| [Vinyl Mode](modules/vinyl.md) | Portrait turntable page |
+| [Parametric EQ](modules/peq.md) | Engine, presets, Equalizer page |
+| [Mono and Crossfeed](modules/stereo.md) | Stereo stage and hciplayer flag |
+| [Playback settings](modules/playset.md) | Grouped Playback Settings page |
+| [Scrobbling](modules/scrobble.md) | Card log, ListenBrainz and Last.fm upload |
+| [Virtual iPod](modules/ipod.md) | Touch wheel, navigation, playback |
+| [iPod Cover Flow](modules/ipod-coverflow.md) | Embedded carousel |
+
+### Sources and network
+
+| Module | Contents |
+|---|---|
+| [Network](modules/network.md) | Shared HTTP, download and CA layer |
+| [Podcasts](modules/podcasts.md) | Episodes, feeds, directory, downloads |
+| [Audiobooks](modules/audiobooks.md) | Book model, LibriVox find and download |
+| [Radio](modules/radio.md) | Stations, directory, hciplayer playback |
+| [Subsonic](modules/subsonic.md) | Remote library, streaming, downloads |
+| [Wi-Fi](modules/wifi.md) | hostap 2.12, own Wi-Fi page |
+| [Wi-Fi Transfer](modules/wifi-transfer.md) | Web server, api.cgi, thttpd limits |
+| [Bluetooth](modules/bluetooth.md) | Own page, codec picker, devices |
+
+### Settings and system
+
+| Module | Contents |
+|---|---|
+| [Settings](modules/settings.md) | Pages and persisted choices |
+| [Display](modules/display.md) | Brightness, timeout, LED Light |
+| [Buttons and Power](modules/keyspower.md) | Own Buttons & Power page |
+| [Language](modules/language.md) | Own language page |
+| [Date and Time](modules/datetime.md) | Auto time, UTC RTC, 43 time zones |
+| [Sleep Timer](modules/sleeptimer.md) | Own Sleep Timer page |
+| [Pull-down](modules/pulldown.md) | Control Center tiles and order |
+| [Charge Limit](modules/charging.md) | Charging pauses at 80-95 % |
+| [Battery art](modules/battery.md) | Battery outline and fill |
+| [Screenshot](modules/screenshot.md) | Countdown, capture, import |

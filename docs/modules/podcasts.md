@@ -1,297 +1,412 @@
 # Podcasts
 
-Local episodes, subscriptions, downloads, Apple Podcasts directory search, episode notes
-and Saved episodes share `ui/m1plus_podcasts.bin`. Discover and the search level are there while **Podcast Discover** is on in Settings (the default; `pcsearch_setting`); the Apple storefront they ask is the Podcast Region (a Settings picker, Automatic by default).
-The iPod interface also exposes Podcasts.
+**Sources:** `patch/pcmodel.c` / `podcasts.h` (model, resume, speed, order), `patch/podcasts.c`
+(page, sheets), `patch/pcnet.c` / `curlopts.h` (network worker), `patch/pcregion.c`, `patch/pcfeed.c`
+/ `pcjson.c` (feed and JSON parsing), `patch/pccover.c` / `pcpng.c` (covers), `patch/pcdetail.c` /
+`pcnotes.c` / `pcwrap.c` (episode page, notes), `patch/pcfind.c` (search inside a show),
+`m1_segmented` / `m1_capsule` in `patch/common.c`; `tools/pod_ui.py`, `tools/pod_show.py` (layout
+model), `tools/pcregion.py`. **Tests:** `test/pod/podcasts.py` and `test/pod/pc*.py`.
 
-## Sources
-
-| Area | Files |
-|---|---|
-| Model, resume, speed, episode order, library filter | `patch/pcmodel.c`, `patch/podcasts.h` |
-| Page, sheets, refresh dialog | `patch/podcasts.c`, `tools/pod_ui.py` |
-| Network worker | `patch/pcnet.c`, `patch/curlopts.h` |
-| Region | `patch/pcregion.c`, `tools/pcregion.py` |
-| Segmented control | `m1_segmented`, `m1_capsule` in `patch/common.c`; model `m1_show.segmented`, `m1_show.capsule` |
-| Feed / JSON parsing | `patch/pcfeed.c`, `patch/pcjson.c` |
-| Covers | `patch/pccover.c`, `patch/pcpng.c` |
-| Episode details / notes | `patch/pcdetail.c`, `patch/pcnotes.c`, `patch/pcwrap.c` |
-| Shared layout model | `tools/pod_show.py` |
-| Search inside a show | `patch/pcfind.c`, `patch/pcfind.h`, the matcher `search_titles_*` in `patch/search.c`, asset `ui/m1plus_pcfind.bin` (`tools/pod_ui.py` `build_pcfind_page`) |
-| Tests | `test/pod/podcasts.py` and feature-specific `test/pod/pc*.py` (`pcdiscover.py`, `pcregion.py`, `pcsearchui.py`, `pcfind.py`, `pcfilter.py`, `pcarchive.py`, `pcall.py`) |
-
-The download policy follows q2-podcasts (MIT,
-github.com/m-d-e-v/q2-podcasts, `internal/library/download.go` and
-`contrib/shanlingq2/README`); the implementation uses demo's libcurl.
+Local episodes, subscriptions, downloads, directory search, Discover charts, episode notes and
+Saved episodes share the page `ui/m1plus_podcasts.bin`. The Pod interface exposes Podcasts too.
+The download policy follows q2-podcasts (MIT, `internal/library/download.go`); the implementation
+uses demo's libcurl. Shared request and download layer facts are in [network](network.md).
 
 ## Pages and controls
 
-Shows contains the refresh line, Continue Listening, a show grid and Discover/Downloaded/Subscriptions/Saved rows, in that order (Discover, tile `pod_ic_discovertile` (Lucide `compass`) with Apple Podcasts in grey, there while Podcast Discover is on (otherwise the Library rows close up: Downloaded first); it opens the Discover level; text ends at x 278, the shared list chevron `m1_make_chevron` at x 288, hairline to 310; the episode page's show row likewise).
-The Shows, Discover, Downloaded, Subscriptions and Saved levels open on the large title (`pg_big`, x `SG_TITLE_X` 12, `SG_TITLE_W` wide, 32 px, cut with an ellipsis); the navbar's small title (the same words, `label_title`) shows once the offset reaches `SG_COLLAPSE` (`m1_title_gone`, `pg_collapse`), as on every large-title page ([navbar](navbar.md) "Small titles"). Its width runs from x 58 to the leftmost visible button (`pg_nav`): the globe (Shows level, while Podcast Discover is on), the Discover level's magnifier or the "...", else Now Playing. The refresh line, section headers and rows keep their own x (14-16).
+- **Shows level:** the refresh line, Continue Listening, a show grid, and rows for Discover (while
+  Podcast Discover is on), Downloaded, Subscriptions and Saved. The Shows, Discover, Downloaded,
+  Subscriptions and Saved levels open on a large title that collapses into the navbar's small
+  title ([navbar](navbar.md)).
+- **Refresh line:** a status, not a control: "Updated 1h ago", "Never refreshed" or "Refreshing
+  2/5…". **Refresh All** is the first row of the Shows "..." sheet (then Import from Card while the
+  card has something to import). Cancel is the refresh dialog's Cancel pill.
+- **Captions** under a show's cover: "N new" after a refresh that found episodes; else "Updated
+  today / 2d ago"; a never-refreshed subscription shows the failure of this session (No Wi-Fi,
+  Feed not found ...); "12 episodes" for a show with no feed.
+- Shows sort by newest episode. The grid shows the first 10; with more, **See All (N)** opens the
+  All Shows page (the Subscriptions rows, every show).
+- **Show page:** artwork, metadata, Latest Episode pill (always the newest episode) and the first
+  20 episodes in the show's Episode Order, then a **See All** row. A body tap opens episode
+  details; the pill plays, downloads, pauses, resumes or retries by state. A cell's date line is
+  "date · length" for an episode not on the card (its pill says the size), else the date alone;
+  the episode page's is "date · length · size". Length is the feed's `d=`, minutes rounded up, left
+  out when the feed gave none. Downloaded rows keep "show · date · size".
+- **Episode details:** long description and the same actions. The show row goes back to the show
+  page the episode is on top of: from Downloaded or Subscriptions the show's page opens and Back
+  goes on to that list; a search or Discover preview's episode returns to the preview.
+- **Show sheet rows:** Playback Speed (a tap cycles), **Episode Order** (Newest / Oldest First;
+  saved at once, loaded rows reversed in place; a failed save toasts `Storage unavailable`),
+  **Filter** (below; the row is there while the show has an episode or a Filter is on), Refresh Feed, Select Episodes, Mark All as Played, Unsubscribe.
+- **Select mode** supports bulk deletion; the playing file is kept. Deleting an episode clears
+  its resume and played state. Unsubscribing keeps local files.
+- **Saved episodes** are stock `myfav` records; there is no separate database. The Now Playing
+  favourite becomes a bookmark for podcast paths, and its More sheet can return to the show.
+- **Subscriptions** support card import and export, including OPML, and `Podcasts/subscriptions.txt`
+  (one http(s) feed URL per line, `#` comments).
 
-**Refresh line and Refresh All.** The grey line under the Shows title (`pg_line_make`, 15 px `label_ps_meta`, only while a show has a feed) is a status and has no control: "Updated 1h ago" (the newest refresh of any show) or "Never refreshed", "Refreshing 2/5…" while the worker runs; the white "Refresh" word, its hit test (`PH_LINE`, `PP_LINE_HIT`) and the style `label_ps_line` are gone. Refresh All is the first row of the Shows level's "..." sheet (`SH_HOME`: Refresh All, then Import from Card while the card has something to import; the "..." shows while a show has a feed or there is something to import; one or two rows, glass `pc_sheet1` / `pc_sheet2`). It shares the asset's `refresh` row with the Show sheet's Refresh Feed (the label is set at each open), its grey value is the age the line shows ("1h ago" / "Never refreshed", `pg_when_text`), and a tap closes the sheet and runs what the word's tap ran: nothing while a refresh runs (`pn_busy`), else `pg_refresh(0)` (the guards' words as toasts, the progress dialog; the downloads go on). Cancel is the refresh dialog's Cancel pill (`pg_dlg_*`); a touch on the line does nothing. **Captions** (`pg_caption`: the grey line under a show's cover and on a Subscriptions row), in order: "N new" when the last refresh found episodes; "Updated today" / "Updated 2d ago" from the show file's `checked=`, which a failed refresh does not hide (the failure was toasted when the job ended); for a subscription never refreshed the words of the failure this session (No Wi-Fi, Feed not found, ...) in place of "Never refreshed"; "12 episodes" for a show with no feed. Tests: `pcsubs/entry_tests`, `pcshows/line_tests`. Other tests of the line: `pcshows/line_tests`, `sheet_tests`, `width_tests` ("Updated <age>" whole in every language, the row's label), `pcsubs`.
-Shows sort by newest remote or local episode date. The grid has the first `PP_SHOWS_MAX` (10) of them (`pg_gn`); with more shows a **See All (N)** row (`pg.y_all`, `PH_ALLROW`, `PS_MORE_H` high, N every show) is under the grid in place of `PP_LIB_GAP` and opens the All Shows page: the Subscriptions page's level and rows (`pg.subs` with `pg.allsh`: cover, name, the grid's caption) with the title Shows, every show in the grid's order, no "..."; a tap opens the show and Back returns to the list at its offset (test `pcshows/more_tests`, model `tools/pod_show.py shows_layout`). The show page has artwork, metadata,
-Latest Episode and the first 20 rows of its recent episodes (`.episodes` and the files) in the show's Episode Order (newest first unless set to Oldest First), then a **See All** row that opens the All Episodes page (every episode, see "All episodes"). The Latest Episode pill is always the newest episode: the first row, the last under Oldest First. A body tap opens episode details;
-the pill plays, downloads, pauses, resumes or retries according to state. **Length** (the entry's `d=`, minutes rounded up as the play pill's "48m", `pc_len_text`; left out when the feed gave none): the episode page's date line is "date · length · size" (`pd_date`), and a cell's date line is "date · length" for an episode not on the card (its pill says the size; on the card the play pill says the length, so the line is the date alone). Downloaded rows keep "show · date · size": a fourth part leaves no room for the show's name. Tests: `pcdetail/page_tests`, `width_tests` (the longest line after both badges in the 13 languages), `pcshow/cell_tests`.
+### Search level
 
-Episode details include the long description and the same playback/download actions. Their show row (cover, name, the list chevron) goes back to the show page the episode is on top of: a subscribed show's episode returns to that show's page (it is Back when the page was opened from that show; from Downloaded or Subscriptions the show's page opens and Back goes on to that list), a search or Discover preview's episode returns to the preview.
-Show and episode sheets provide refresh, unsubscribe, played marks and download removal. The show's sheet rows, in order: Playback Speed (grey value, a tap cycles), **Episode Order** (grey value Newest First / Oldest First, a tap switches to the other, saved at once, then the loaded rows are turned round in place (Oldest First is the exact reverse over the same newest 300, so nothing can fail after the save and the value, the list, the queue and Latest Episode always agree), the sheet stays; a failed save is the toast `Storage unavailable` and no change), **Filter** (grey value All / Unplayed / Downloaded, a tap goes to the next; see "Filter"), Refresh Feed, Select Episodes, Mark All as Played, Unsubscribe (up to seven rows, 350 px, glass `pc_sheet7` for seven on the 450 px window; the rows `order` and `filter` are the last in the asset's fixed rows, glyphs `pod_ic_order` (Lucide arrow-down-wide-narrow) and `pod_ic_filter` (Lucide list-filter), the Filter's value label `pg_sh_filter_vl`; the Filter row is there while the show has an episode or a Filter is on). The Shows level's "..." has Refresh All and Import from Card (see "Refresh line and Refresh All"). The Show sheet's Refresh row is labelled Refresh Feed.
-Selection supports bulk deletion; the currently playing file is retained.
-Deleting an episode clears its saved resume/played state. Unsubscribing preserves local files.
+Reached from the Shows level's globe or the Discover level's magnifier; only while Podcast
+Discover is on. The Shows level's navbar is `[Globe | ... | Now Playing]`: the "..." shows while a
+show has a feed or there is something to import. The search level accepts directory terms, feed
+URLs and Apple Podcasts links. Results open a preview (a result with no feed is dimmed "Not
+available", no chevron, no tap). Subscribe creates the show folder and metadata. Previews do not
+play remote episodes. Back (and the keyboard's Back with nothing typed) returns to where it was
+entered, Shows or Discover; Back from an address's or link's preview shows the level as it was.
 
-The search level is reached from the Shows level's globe (`btn_globe`, `pg_on_globe`) or from the Discover level's magnifier (`btn_search`, the navbar's left cap beside Now Playing): its navbar title is Apple Podcasts in the empty and the results states, as the keyboard page's; Back (and the keyboard's Back with nothing typed) returns to where it was entered, Shows or Discover (`from_disc`). The Shows level's navbar is `[Globe | ... | Now Playing]`, `[Globe | Now Playing]` or `[... | Now Playing]` (pieces 46 px apart right-aligned to Now Playing; the globe is shown only while Podcast Discover is on, the "..." while a show has a feed or there is something to import, and then is the middle piece `pod_nav_moremid`).
-Search accepts directory terms, feed URLs and Apple Podcasts links. Results open a preview (rows of the shared list painter: the hairline from the text to x 310 and the list chevron at x 288, on a result that has a feed only: a dimmed Not available row opens nothing, so it has no chevron and its text runs to x 308 (`grid_tile_t.nochev`));
-Subscribe creates a show folder and its metadata. Search previews do not play remote episodes.
-Subscriptions supports card import/export, including OPML. The import also accepts
-`Podcasts/subscriptions.txt`: one HTTP(S) feed URL per line, with `#` comments.
-
-Saved episodes use stock `myfav` records. The Now Playing favorite control becomes a
-bookmark for podcast paths. Its More sheet can return to the playing show's Podcasts page.
-There is no separate Saved database.
+The preview's picture is the feed's channel image shrunk to a thumbnail. If that cannot be
+fetched or decoded (some feeds serve progressive JPEGs over `PC_COVER_MAX_PX`), the store's
+`artworkUrl600` is used. A typed feed address, OPML import or Deezer result has no such fallback.
+Subscribe moves the preview's picture to `cover.jpg`; a later refresh never replaces a cover.
 
 ## Discover
 
-The Discover level (`L_DISC`, `pg_load_disc` and the `pg_disc_*` functions of `patch/podcasts.c`) is Apple's top 25 charts for the Podcast Region (`rss.marketingtools.apple.com/api/v2/<cc>/podcasts/top/25/podcasts.json` and `podcast-episodes.json`). Content from the list top, geometry `patch/offsets.inc` `DC_*`, model `m1_show.discover_layout`:
-the large title Discover, the grey line under it (15 px `label_ps_meta`, the Downloaded storage line's place: "Top 25 Shows in United States" / "Top 25 Episodes in ...", following the control), the **Shows | Episodes** segmented control (below), then the ranked rows from y 128: the list painter (`grid_list_paint`) shifted 26 px right for the rank (18 px grey `label_row_sub`, right aligned to x 28), so the cover is at x 36, the text from x 100 to 278 (the title, and the grey line: a show's author, an episode's show), the list chevron at x 288, the hairline from the text to 310; thumbnails arrive as for search results (placeholder first). The navbar is Back, the magnifier (`btn_search`, the Radio page's piece, hidden except here) and Now Playing as the capsule's right cap; the small title Discover shows from `SG_COLLAPSE` as on the other levels.
+Apple's top 25 charts for the Podcast Region (`rss.marketingtools.apple.com`), as the **Shows |
+Episodes** segmented control selects. The level has the large title, a grey line ("Top 25 Shows in
+United States"), the control, then ranked rows (rank, cover, title, author or show). The navbar is
+Back, the magnifier and Now Playing.
 
-The **segmented control** is one shared painter, `m1_segmented` (`patch/common.c`, with `m1_capsule`; any number of segments): a fully rounded track `SEG_TRACK` (#1C1C1E) 296 x 36 at x 12 (under the large title, as the grey line above it), the selected segment a fully rounded thumb `SEG_THUMB` (#D1D1D6) floating `SEG_PAD` 3 px inside the track on every side with a dark label (`label_ps_latest`), the other labels white (`label_ps_latestw`), a `SEG_SEP` hairline half the track high between two segments that are both unselected (none beside the thumb; with two segments there is none), labels centred in their segments. Neutral: no accent colour. The capsule is painted a row at a time (the chord of the circle, one pixel of partial cover at each end), cut to the view's rows. The font has one weight, so the selected label differs by ink only (no bolder face). No soft shadow around the thumb. A tap on a half (touch 6 px taller than the control) selects that chart.
-
-The refresh dialog's progress fill (`pod_pd_fill`, `#EBEBEC`, role `ROLE_FILL`) takes the accent like Now Playing's; its track stays neutral. The sheets' pressed rows (`#FFFFFD10`, role `ROLE_SHEET_PRESS`) become the accent at 22 % alpha under an accent.
-
-Each chart is fetched on its first view (the tick asks: `pg_disc_sync`; a running job is cancelled, a refresh is waited for, the downloads go on) and its answer kept in memory for the session (`pn.cres`; no card cache): entering Discover again, the other chart and Back from a show page find it held and fetch nothing; the rows' artwork that was not tried (a job was cancelled) is fetched when the chart is in view again. A chart held for another region (changed in Settings meanwhile) is asked again. The worker (`patch/pcnet.c` "Charts", `PN_KIND_CHART`, one worker like search and preview, never touching widgets) makes up to three requests (20 s time-out each, one second apart) for a network or server error or an answer that is not a chart; a **404 or an answer with no rows for a region other than the United States asks the United States chart silently** and the line under the title names the storefront actually shown (`pn_chart_country`). Statuses are the page's words: Loading..., No Wi-Fi, Set the date first, Certificates missing, Storage unavailable, Can't connect, Certificate problem, Server error, Feed not found, No results (the status text is painted in the content by `pg_paint_hint` from `pg.htext`, the already translated words, in the dim 20 px grey wrapped to the margins and centred in the room under the control, as every hint of the page is: **The hint** below; `label_status` is not used; the Apple Podcasts search level does the same under its field at `PQ_TOP`); a failed chart is not asked again by the ticks, a tap on its half or entering the level again asks.
-
-A tap on a row opens the show's preview as a search result does: the iTunes lookup of its Apple id in the store the chart is of (`pn_preview_chart`, `&country=`; a show row's `id`, an episode row's show id parsed from `/id<digits>` of its url: ids pass 32 bits, so they are digit strings), then the feed it names (`pg_open_preview`); the row's grey line reads Loading... meanwhile. A show whose lookup has no feed (PN_NOFEED) is remembered for the session (`pg.dna`, by the id's hash): its row says Not available, is dimmed and has no chevron, as a search result with no feed, and takes no tap, with no toast; any other failure is the toast "Can't subscribe: why" and the row as it was. Back from the preview, from Subscribe's page or from a show that is subscribed already returns to the same chart at its offset (`pg.pv_disc`); Back from the search level returns to Discover too (`pg.from_disc`), from Discover to the Shows level. Each chart keeps its own scroll offset.
-
-An episode row also opens that episode's page on top of the show's preview, once the feed is held. After the feed, the worker makes the store's episode lookup of the show (`pn_pmatch`: `https://itunes.apple.com/lookup?id=<show>&entity=podcastEpisode&limit=20&country=<cc>`, in the chart's store; the row's own id is `pj_chart_t.eid`, the record's `trackId`, parsed by `pj_episodes`), and matches the record to a kept feed item (`pf_match`, `pn_preview_match`): the first item whose enclosure is the record's `episodeUrl`; else the first whose pubDate is in the minute of its `releaseDate` (`pf_iso`); else the first whose title is the same once a leading "586. " is dropped and case and runs of spaces are ignored. The record's `episodeGuid` is not the feed's guid and is not used. `pg_open_preview` opens the match with `pg_det_open`, so Back returns to the show's preview and then to Discover. No match, a failed lookup or an answer without the episode leave the show's preview alone; a Cancel during the lookup cancels the preview (the worker checks it after). Only the 20 kept items can match. Show rows make no lookup. Checked on 2026-11-06 with the 25 rows of the GB Top Episodes: all 25 match by enclosure (the store's `episodeUrl` and the feed's enclosure are the same pdst.fm address), and the date and title rules pick the same item. Fixtures: `test/data/discover/episodes-gb-top3.json`, `lookup-episodes-1611374685.json`, `feed-rest-is-politics-5items.xml`.
-
-The preview's picture is the feed's channel image shrunk to `PN_PREVIEW_COVER`; when that cannot be fetched, decoded or shrunk (some feeds, e.g. The Rest Is Politics, serve progressive JPEGs of 2.25 to 9 MP, which `PC_COVER_MAX_PX` refuses), the store's `artworkUrl600` (a baseline 600 x 600 JPEG of about 100 KB; `pj_result_t.art6`, parsed by `pj_results`, "" when absent or longer than `PJ_ART`) is used through the same shrink path (`pn_preview_picture`). The URL comes with a search result (`pg.sp_art`, passed to `pn_preview`) or from the lookup an Apple id (link or chart row) makes in `pn_pmain`; a typed feed address, an OPML import and Deezer results have none and keep the old behaviour (no picture). Subscribe moves the preview's picture to `cover.jpg`, so the fallback is the show's first cover; `pn_cover` does nothing when the folder has a cover, so a later refresh whose image fails (or succeeds) neither deletes nor replaces it. Tests: `pcjson` (the field), `pcsearch/fallback_tests`.
+- **Segmented control** (`m1_segmented`): a rounded track with a light thumb for the selected
+  segment (dark label), white labels on the rest. Neutral, no accent colour; the font has one
+  weight.
+- **Fetch:** a chart is fetched on its first view and kept in memory for the session (no card
+  cache). A chart held for another region is asked again. The worker makes up to three requests
+  (20 s time-out, one second apart). A **404 or an empty answer for a region other than the United
+  States asks the United States chart silently**, and the grey line names the storefront actually
+  shown. A failed chart is not asked again by the ticks; a tap or re-entering asks. Each chart
+  keeps its own scroll offset.
+- **Statuses** are the page's words (Loading..., No Wi-Fi, Set the date first, Certificates
+  missing, Can't connect, Server error, No results ...), centred in the room under the control.
+- **A tap on a row** opens the show's preview (an iTunes lookup of its Apple id in the chart's
+  store, then the feed). A show whose lookup has no feed is remembered for the session as Not
+  available (no toast); any other failure is the toast "Can't subscribe: why". Back returns to the
+  same chart at its offset.
+- **An episode row** also opens that episode's page over the preview. After the feed is held, the
+  worker looks the show's episodes up in the store and matches the record to a kept feed item: by
+  enclosure URL, else by publish minute, else by title (a leading "586. " dropped, case and runs of
+  spaces ignored). `episodeGuid` is not the feed's guid and is not used. Only the 20 kept items can
+  match. No match leaves the preview alone.
 
 ## Region
 
-`patch/pcregion.c`, model `tools/pcregion.py` (the table is generated into `stock.h` as `PCREGION_*`): 34 storefronts by English name (names are English in every language: no localised country-name table exists here or in the stock tables), saved as two capital letters and a line feed in `/mnt/data/m1plus/podcast-region` (anything else, a missing file included, is Automatic) by the Settings picker ([settings](settings.md)). `pcregion_code()` is the storefront in use: the saved one, else Automatic's: the UI language's country (`ja` JP, `ko` KR, zh_CN CN, zh_HK HK, zh_TW TW, `ge` DE, `fr` FR, `it` IT, `po` PL, `th` TH, `ru` RU, `uk` UA; the tokens are the locale's language and country, `locale_info`), for English and Spanish the Settings time zone's place by its index (London GB, Adelaide / Sydney / Brisbane / Eucla / Lord Howe AU, Auckland / Chatham NZ, Kolkata IN, the US zones US, Mexico City MX, Halifax / St. John's CA, Buenos Aires AR, Amsterdam NL, Bangkok TH, Tokyo JP) unless it is the stock default (22, Shanghai, which names nothing), else the United States. It drives the directory search (`country=<CODE>`) and the chart address (`<cc>` in lower case); the lookup of a typed Apple link is unchanged (no country), that of a chart row is made in the store the chart is of. Nothing runs at paint: the search and a chart ask when they start. Tests: `test/pod/pcregion.py` (every language against every zone against the model), `test/pod/menu.py` `region_row_tests`.
+`patch/pcregion.c`, model `tools/pcregion.py`: 34 storefronts by English name, saved as two capital
+letters in `/mnt/data/m1plus/podcast-region` (anything else is Automatic). Automatic is the UI
+language's country (ja JP, ko KR, zh_CN CN, zh_HK HK, zh_TW TW, ge DE, fr FR, it IT, po PL, th TH, ru
+RU, uk UA), and for English and Spanish the Settings time zone's place (London GB; Adelaide,
+Sydney, Brisbane, Eucla, Lord Howe AU; Auckland, Chatham NZ; Kolkata IN; the US zones US; Mexico
+City MX; Halifax, St. John's CA; Buenos Aires AR; Amsterdam NL; Bangkok TH; Tokyo JP) unless it is
+stock's default (Shanghai), else the United States. The region drives the directory search (`country=`) and the
+chart address; the lookup of a typed Apple link has no country, a chart row's is made in the
+chart's store. Nothing runs at paint.
 
 ## Podcast Directory
 
-Where the search and the lookup of a show's id go, chosen in **Settings > Library > Podcasts > Podcast Directory**: **Apple Podcasts** (the default, the store as ever) or **Podcast Index**. A value row with no glyph (`ACT_PCDIR` 137, the value is the name, the same in every language) opening the picker `m1plus_podcastdirectory` (`PCDIR_PAGE`, `PCDIR_PAGE_INDEX`, named in `PAGE_ORDER`; two check rows, `ACT_PCDIRSET` 138, arg `PCDIR_APPLE` 0 / `PCDIR_INDEX` 1; the generic picker table `pick_tab` of `patch/m1plus.c`). `pcdir_setting` / `pcdir_set` / `pcdir_index` in `patch/podcasts.c`, file `/mnt/data/m1plus/podcast-directory`: `1` is Podcast Index, a missing file or anything else is Apple Podcasts; a tap saves atomically first and only then moves the check. The row is dimmed (opacity 60 %) and takes no tap while Podcast Discover is off (`pcdir_show` in `patch/m1plus.c`, run when the Podcasts page opens, when the Discover switch is tapped and each time the page is back in front): with no search there is nothing to choose. Podcast Region is dimmed the same way and by nothing else: the chosen directory never dims it, since the region also decides Discover's charts, which are Apple's whatever is chosen.
+Where the search and the lookup of a show's id go: **Apple Podcasts** (default) or **Podcast
+Index**, chosen in **Settings > Library > Podcasts > Podcast Directory** (`ACT_PCDIR` 137, picker
+`m1plus_podcastdirectory`, file `/mnt/data/m1plus/podcast-directory`, `1` is Podcast Index). Both
+use **keyless endpoints**. A tap saves first and only then moves the check.
 
-Exactly one directory is asked, never both, and there is no fallback from one to the other. Apple chosen is the store's search and lookup only, as before: no request to Podcast Index is ever made. Podcast Index chosen:
+Exactly one directory is asked, never both, and there is no fallback from one to the other.
 
-- **Search** (`pn_search`): `https://api.podcastindex.org/search?limit=25&term=<term>` (`PN_INDEX_SEARCH_URL`) and no request to the store. Its JSON has the store's shape without a key, so `pj_results` parses it; failures (no connection, time-out, HTTP errors, a page that is not JSON) and empty answers are the normal ones of the page. The **Podcast Region** has no effect on it (the endpoint has no country): the Region serves Discover's charts and the store's search.
-- **Result pictures** (`pn_thumb`): Podcast Index names the feed's own picture in `artworkUrl100` and `artworkUrl600` alike (the same address; often 230 to 250 bytes, 3000 x 3000, 100 KB to 2 MB), not a 100 px thumbnail as the store does. So `PJ_ART` is 320 bytes, and for a job that asked Podcast Index (its request starts with `PN_INDEX_SEARCH_URL`; the setting is not read again) a picture is fetched up to `PN_INDEX_THUMB_CAP` (2 MiB; the store's stays `PN_THUMB_CAP`, 256 KB) and one with a side over `PV_SIZE` is shrunk as a show's cover is (`pv_shrink`, `pv_shrink_png`) into `t<n>.jpg`; a small one is kept as it is. The placeholder stays for a progressive JPEG over `PC_COVER_MAX_PX`, a picture over the cap, an address of 320 bytes or more, and a dead address. A search therefore downloads a few MB and its pictures arrive more slowly than the store's. Tests: `pcindex/thumbs_tests`.
-- **Lookup by id** (`pn_pmain`): a search result with no feed address, or a pasted Apple Podcasts link, is looked up at `.../lookup?entity=podcast&id=<id>` (`PN_INDEX_LOOKUP_URL`) instead of the store's.
-- **Charts** stay the store's (Podcast Index has no keyless chart): Discover, a chart row's lookup (made in the chart's country) and the episode match `pn_pmatch` are Apple's whatever the picker says; the Discover row's grey "Apple Podcasts" stays.
-- **A change of choice** keeps one invariant: the rows the search level shows (the held answer of `pn_search_*` and its state: Searching, No results, an error) are the chosen directory's, or there are none. `pg.rown` is 0 or 1 + the directory of the last **term** search (set only where a term search is queued in `pg_srch_submit`, never by a feed address or a link); `pg_srch_dir_sync`, called by `pg_load_search` and `pg_on_fg`, is the single point of enforcement: when `pg.rown` is another directory's it drops a queued term search, tells a running one to stop (a feed fetch or an id lookup is never touched), resets the state so the level shows the empty state, and removes the pictures (`pn_search_clean` only when no search worker runs; else the next `pn_search` does and nothing reads the rows meanwhile, `pg.srn` is 0). Then, independently, a field holding a directory term (`pn_classify` 0, the test `pg_srch_submit` uses) is asked of the chosen directory once; an address, a link or an empty field submits nothing, and Back from an address's or a link's preview is the level as it was (no request, the preview not reopened; a link's id lookup is the chosen directory's at the next submit). `pg_srch_labels` sets the title, the field's hint and the keyboard page's words from the choice for both callers. Tests: `pcsearchui/dirchange_tests`, `dirchange_url_tests`, `dirchange_table_tests` (held rows x field text x how the level returns x direction).
-- **The search level** follows the choice: the navbar title, the field's hint ("Search Podcast Index") and the keyboard page's title and hint say Podcast Index instead of Apple Podcasts.
-- Both services refuse a request whose User-Agent does not name the application; every request of ours has one (`NET_AGENT` in `patch/net.c`: `M1PlusMusic/1.0 (https://github.com/imfing/m1plus-mod)`), through the same `net_perform` path (`pn_fetch_json`; no separate libcurl use).
-- Tests: `test/pod/pcindex.py` (`apple_tests` no request to Podcast Index with Apple chosen or no file, every failure; `index_tests` one request to Podcast Index only, its results, options and User-Agent, its failures and empty answers; `lookup_tests` the id lookup per choice, chart rows always the store's; `charts_tests`), `test/pod/pcsearchui.py` `directory_tests` (the title, the hint, one request), `test/pod/menu.py` `pcdir_row_tests` (the row, the picker, the file, the dimming). Not tested: the live service.
+- **Search:** `https://api.podcastindex.org/search?limit=25&term=<term>`, parsed as the store's
+  shape. The Podcast Region has no effect on it.
+- **Result pictures:** Podcast Index names the feed's own picture (up to 3000 x 3000, 2 MB), not a
+  thumbnail, so it is fetched up to 2 MiB and shrunk. The placeholder stays for a progressive JPEG,
+  an oversized picture or a dead address. A search therefore downloads a few MB.
+- **Lookup by id:** a result with no feed, or a pasted Apple link, is looked up at
+  `.../lookup?entity=podcast&id=<id>` of the chosen directory.
+- **Charts stay Apple's** (Podcast Index has no keyless chart): Discover, a chart row's lookup and
+  the episode match are Apple's whatever the picker says.
+- **A change of choice** keeps one invariant: the rows the search level shows are the chosen
+  directory's, or there are none. `pg_srch_dir_sync` enforces it: a queued term search of the other
+  directory is dropped, a running one stopped, the state reset. A field holding a directory term
+  is then asked of the chosen directory once; an address, a link or an empty field submits nothing.
+- The search level follows the choice: the navbar title, the field hint ("Search Podcast Index") and
+  the keyboard page's words.
+- Both services refuse a request whose User-Agent does not name the application, so every request
+  carries `NET_AGENT` (`M1PlusMusic/1.0 (https://github.com/imfing/m1plus-mod)`).
 
 ## Settings rows
 
-Library > Podcasts (a page of its own, `PCSET_PAGE` `m1plus_podcastsettings`, opened by the plain row Podcasts in the Library page's last card; card 1 holds **Podcast Discover**, card 2 Directory, Region and the note): **Podcast Discover** (a switch row, Lucide `compass`, `ACT_PCSEARCH` 34, `pcsearch_setting` / `pcsearch_toggle` in `patch/podcasts.c`, file `/mnt/data/m1plus/podcast-online-search`: `0` is off, a missing file or anything else is on, so it is **on by default**; a tap saves first with `home_write_atomic` and only then changes the switch, writing `0` or `1`: a failed save changes neither; off hides the Podcasts page's Discover row and Discover and the search level cannot be opened; the page reads it when it opens and each time it is back in front) and **Podcast Directory** (a value row, [Podcast Directory](#podcast-directory)) directly above **Podcast Region** (a value row with no glyph, `ACT_REGION` 55, the value Automatic or the storefront's name, opening the picker `m1plus_podcastregion`; dimmed and inert while Discover is off, as Directory) and the note "Search words go to the chosen directory." (two lines, the page's one wrap note) The picker (`REGION_PAGE`, the last page of the table: no index moved) has **Automatic** first (its label is set by the payload to "Automatic (United States)", the storefront it gives) and then the 34 storefronts by name (English in every language, `ACT_REGIONSET` 56, a check on the chosen row). A tap saves first (`pcregion_set`, `patch/pcregion.c`: `home_write_atomic` writes `/mnt/data/m1plus/podcast-region`, Automatic removes the file) and only then moves the check: a failed save changes neither. The row has no glyph because its label and value share the room (`test/pod/i18n.py` checks every storefront name against the label in the 13 languages; the label is the short word in languages where the full words did not fit: `Región`, `地域`); the storefront is "UK", not United Kingdom, for the same reason. Tests: `test/pod/menu.py` `pcsearch_row_tests`, `region_row_tests`, `test/pod/pcregion.py`.
+**Library > Podcasts** (`PCSET_PAGE`, opened by the Podcasts row in the Library page's last card)
+has two cards: card 1 holds **Podcast Discover**, card 2 holds
+the Directory and Region rows and the note "Search words go to the chosen directory."
+
+- **Podcast Discover** (`ACT_PCSEARCH` 34, file `/mnt/data/m1plus/podcast-online-search`, `0` is off,
+  a missing file or anything else is **on**): off hides the Shows level's Discover row and globe,
+  and Discover and the search level cannot be opened (a page in front with the switch off is sent
+  back to the Shows level). The Shows "..." has no Search row. A tap saves first and only then
+  changes the switch.
+- **Podcast Directory** (above) and **Podcast Region** (`ACT_REGION` 55, picker `m1plus_podcastregion`:
+  **Automatic**, shown as "Automatic (United States)", then the 34 storefronts) are dimmed and inert
+  while Discover is off. The directory never dims the Region, since Region also decides Discover's
+  charts. A region tap saves first (`pcregion_set`; Automatic removes the file).
+- The rows have no glyph because label and value share the room; the storefront is "UK", not
+  United Kingdom, for the same reason.
 
 ## Files and model
 
-Shows live under `/mnt/mmc/Podcasts/<Show>/`. Root matching is case-insensitive.
-Supported file extensions are mp3, m4a, m4b, aac, ogg, opus, flac, wav and wma.
-A show can supply `cover.jpg/png/jpeg` or `folder.*`.
+Shows live under `/mnt/mmc/Podcasts/<Show>/` (root matching is case-insensitive). Supported
+extensions: mp3, m4a, m4b, aac, ogg, opus, flac, wav, wma. A show can supply `cover.*` or `folder.*`.
 
 | File | Contract |
 |---|---|
 | `.show` | UTF-8 `M1PLUS-SHOW 1`; key=value lines for title, feed, image, checked, modified, author, category and desc |
 | `.episodes` | UTF-8 `M1PLUS-EPISODES 1`; tab-separated key=value fields: g guid, p epoch date, d duration seconds, l bytes, f filename, t title, u enclosure URL, x short description |
-| `.archive` | The complete list, written by the See All fetch and kept complete by every refresh: the `.episodes` format (`M1PLUS-EPISODES 1`, the same fields), newest first, at most 2000 lines and 1.5 MiB (`PC_ARCH_MAX`, `PC_ARCH_BYTES`). Read only by the All Episodes page, the search inside a show, Unsubscribe, the Show page's count and the lookup for a downloaded file `.episodes` does not name; see "All episodes" |
-| `.notes` | Long descriptions keyed by episode identity; format/read/write implementation in `patch/pcnotes.c` |
-| `<filename>.part` | Incomplete download; retained for resume |
+| `.archive` | The complete list, written by the See All fetch and kept complete by every refresh: the `.episodes` format, newest first, at most 2000 lines and 1.5 MiB |
+| `.notes` | Long descriptions keyed by episode identity (`patch/pcnotes.c`) |
+| `<filename>.part` | Incomplete download, kept for resume |
 | `.m1plus/podcasts/resume` | PCR1 ring: count plus 16-byte hash/position/length/flags slots, most recent first |
 | `.m1plus/podcasts/speed` | PCS1: count plus show-hash/mode pairs |
-| `.m1plus/podcasts/order` | PCO1: count plus show-hash/value pairs (0 newest first, 1 oldest first); a missing file, entry or bad value is newest first. The key is the show folder's hash, so renaming a folder resets its order. Same 64 slots and eviction as speed (`pm_tab_*`, shared with it) |
+| `.m1plus/podcasts/order` | PCO1: count plus show-hash/value pairs (0 newest first, 1 oldest first). The key is the show folder's hash, so renaming a folder resets its order. Same 64 slots and eviction as speed |
 
-Metadata permits LF or CRLF, ignores unknown fields and strips tabs/newlines from values.
-The model reads at most 64 KB of `.episodes`, keeping the newest 300 entries (the recent list, `pc_load_show`; the complete list is `pc_load_show_all`, see "All episodes"). `pc_load_show` returns the episodes already in the show's order (`pc_order_get`; pcmodel.c `pm_ep_cmp`), so the Show page, the iPod episode level, the Downloads scan, Continue Listening and the queue (`pg_episode_queue`: from the tapped episode down the rows) agree; the cap of 300 keeps the newest 300 under either order (Oldest First lists those, oldest first), so the order never changes which episodes are listed. The sort's index lives in the same allocation as the merged entries, so a list is either in the show's order or not returned at all (no memory: no episodes, as before); there is no unsorted fallback.
-Titles fit 95 bytes; local filenames must fit 127. Show feed/image URLs use `PC_URL` 320.
-Short descriptions contain at most 200 UTF-8 bytes; episode notes at most 4096.
-
-`pm_merge` combines feed entries and files into local, partial or remote episodes.
-Without metadata, title comes from the filename and date from mtime.
-Sort (newest first) is date descending, filename descending (digit runs by value, case ignored: `cc_key_cmp`, so Ep 10 is later than Ep 2), then entry order; Oldest First is the exact reverse. A show with no metadata entry (only copied files; the dates are copy order) sorts by that natural file name alone: descending for Newest First, ascending for Oldest First. A feed show keeps its publication-date sort.
-Refresh preserves old entries whose completed or partial file remains on the card.
-
-Limits: 100 shows (`PC_MAX_SHOWS`; Subscribe and Import from Card say "Too many shows" at the limit, and of more folders than that on the card the first 100 the card lists are read), 300 feed entries per show (`.episodes`; an archive holds 2000) and every examined file, a list of 2700 episodes at most, 400 examined files (2400 with an archive, `PM_ARCH_FILES`), 4096 resume slots (`PC_RING_SLOTS`, 64 KB: two lists of the longest show; a file of the 512 slots of before is read as it is) and
-64 speed records and 64 order records. State writes require `m1_card_mounted` and use temporary files,
-fsync and rename. An unmounted card directory must never receive persistent writes.
+- Metadata permits LF or CRLF, ignores unknown fields and strips tabs and newlines from values.
+- The model reads at most 64 KB of `.episodes` and keeps the newest 300 entries (the recent list,
+  `pc_load_show`). It returns episodes already in the show's order, so the Show page, the iPod level,
+  Downloads, Continue Listening and the queue agree. The cap keeps the newest 300 under either
+  order, so the order never changes which episodes are listed. A missing file, entry or bad value
+  in `order` is newest first. With no memory a list is not returned at all (no unsorted fallback).
+- `pm_merge` combines feed entries and files into local, partial or remote episodes. Without
+  metadata the title comes from the file name and the date from mtime. Newest first is date
+  descending, then file name descending (digit runs by value, case ignored), then entry order;
+  Oldest First is the exact reverse. A show with no metadata entry (copied files) sorts by natural
+  file name alone, descending for Newest First; a feed show keeps its publication-date sort.
+- Refresh preserves old entries whose completed or partial file remains on the card.
+- Titles fit 95 bytes, local file names 127, feed and image URLs 320. Short descriptions are at most
+  200 UTF-8 bytes, episode notes 4096.
+- **Limits:** 100 shows ("Too many shows" at the limit; of more folders the first 100 are read), 300 feed entries per show (an archive
+  holds 2000), a list of at most 2700 episodes, 400 examined files (2400 with an archive), 4096
+  resume slots, 64 speed and 64 order records.
+- State writes require `m1_card_mounted` and use temporary files, fsync and rename. An unmounted
+  card directory never receives persistent writes.
 
 ## Search inside a show
 
-A magnifier (`btn_search`, the Discover level's piece, moved by `pg_nav`) in the Show page's navbar opens a search over that show's episodes: `[Search | ... | Now Playing]`, the three 46 px apart right-aligned to Now Playing (the Shows level's `[Globe | ... | Now Playing]`; the "..." is then the middle piece, the small title ends at the magnifier). It shows on a subscribed show and a show of copied files (with at least one episode), not in a search / Discover preview, on the episode page or in select mode. It is independent of Podcast Discover. Purely local: no network.
+A magnifier in the Show page's navbar (`[Search | ... | Now Playing]`) opens a search over that
+show's episodes. It shows on a subscribed show and on a show of copied files (with at least one
+episode), not on a preview, the episode page or in select mode. It is independent of Podcast
+Discover. Purely local.
 
-- **Page**: `m1plus_pcfind` (`patch/pcfind.c`, a window of its own over the Show page, as the library search is over the Songs page): the Search page's field (placeholder "Search Episodes") with the round X (`pf_close`), our keyboard embedded (`keyboard_attach`) and one content view that paints the rows. Rows are as the Search page's lists (60 px, hairline from x 16 to 310, the pressed fill): the title (21 px, one line cut with an ellipsis, the dim grey of the Show cell's played title when the episode is played) and a grey line (the date as the Show cell writes it, then "· Downloaded" for a file on the card). It is the compact row, not the Show cell: the cell is 140 px tall with a description and a pill row and would leave two rows above the keyboard. Empty field: no rows and no recent searches; no match: the dim 20 px "No results" (`pf_status`). Dragging the list or the action key hides the keyboard, a tap on the field shows it; the X and the hardware Back close the page and the Show page is under it as it was.
-- **Matching** (`search_titles_*`, `patch/search.c`, the library search's own folding, terms and engine; `docs/modules/search.md`): titles only, never the descriptions; the field's text is folded (case, Latin diacritics, kana, width) and split at spaces; every term must be in the title. A term of only digits is a **whole number**: it matches a run of digits bounded by characters that are not digits, with leading zeros ignored on both sides, so `37` finds "Ep 37", "#37", "EP037" and "第37集" and not "137", "2037" or "370". A Chinese title also matches by the initials of its characters' readings (`zjl` finds 周杰伦, every reading of a polyphone counts), through the same dictionary engine. The rows are every match in the order of `pg.eps`, i.e. the show's order (`pc_order_get`), 2000 at most. The title is matched anew on every change of the field's text with no debounce (2000 titles are a few million instructions; no incremental filter, no timer).
-- **Memory**: one 2000 entry array of 16 bit indices (4 KB), 16 text tiles, the matcher's `se` state of `patch/search.c` (shared with the library search, so the page does not open while a Search page exists). The 1 MB pinyin engine and the 21 KB reading table are held **only when some title has a character of U+4E00 .. U+9FFF** (checked once at open, `search_titles_hanzi`), until the page closes; a show with Latin titles never opens them.
-- **Tap, Back**: a tap on a result keeps the text and the scroll (`pf_keep`, outlives the window), opens that episode's page on the Show page below (`pg_find_pick` -> `pg_det_open` with `pg.from_find`) and closes the search page. Back from the episode page (`pg_on_back`) opens the search again (`pcfind_reopen`) with the text and the scroll, the keyboard down (a tap on the field raises it). The episode page's show row, leaving the show and any other way out of the page forget it. Playing from the episode page queues as the Show page does: `pg_episode_queue` over `pg.eps` from that episode down in the show's order (not the following results). The list the page reads is the one `pg.eps` holds, the complete list for a show with an archive (`pg_on_find` swaps it in; see "All episodes") (`pg_find_count`, `pg_find_ep`, `pg_find_played`; the Show page's tick is stopped while the search is in front, so it reloads at its to-foreground event).
-- **Tests**: `test/pod/pcfind.py` (`more_tests` the Search All Episodes row: presence, tap, count, end, failure, a download beside the job, leaving, episode page, Chinese archive, Filter; `nav_tests` the button, `match_tests` the matcher incl. the digit negatives and pinyin, `flow_tests` rows, tap, Back, scroll kept, `queue_tests`, `asset_tests`), `pcsearchui` (the Show page's navbar). Strings: `Search Episodes` (13 languages, machine translated, unreviewed).
-- **Search All Episodes** (`pg_find_more`, `pg_find_more_tap`, `pg_find_sync` in `patch/podcasts.c`, `pf_*` in `patch/pcfind.c`): for a subscribed show with no `.archive` (exactly the Show page's fetching row, `pg_fetch_on`) and a field that is not empty, one extra row ends the results, a compact 60 px row in the title style with no chevron and no grey line, painted white and tappable, dim while the job runs. With no match it stands alone at the top of the list and the dim "No results" stays under it (its own place, y 150). The text comes from the Show page's `pg_more_line` (idle "Search All Episodes"; "Loading…" and "Loading… 340"; after a failure the reason and "Tap to Retry"), so the Show page's spinner (`pf_spin_*`: the same frames from `pf.g`, a 250 ms timer of the page, armed from `pf_more_get` while the row is Loading…, ended by itself, removed in `pf_on_destroy`; test `pcfind/spin_tests`), the job, its guards' toasts and the keep-awake are the Show page's own (`pg_arch_tap`). A tap while it loads does nothing; typing and tapping results go on. **Timer**: the page has a 1 s timer (`pf_tick`, alive with the window). The Show page's tick is stopped under this page, so the job's start (a tap that waited for the downloads, `pg_arch_pend`) and end (`pg_arch_poll`) run from the downloads' timer `pg_awake_tick`, which the job arms and which runs in the background; `pf_tick` then calls `pg_find_sync`, which does the Show page's own reload (`pg_reload_eps`: `pg.eps`, the Filter's index array, `has_arch`) when `pn_gen` moved. Archive appeared: the pinyin hold rule is checked again over the new titles (`pf_hold`), the query runs anew, the list starts at the top and the row is gone. Another reload (a download finished): the same query, the scroll kept. Otherwise `pf_tick` only repaints the row when its text changed. A failure is on the row (the toast is the Show page's, only when it is in front); a cancel shows nothing. Leaving the search leaves the job running (the Show page shows its count and result as before); an episode opened from a result and Back: the row shows the state then. The Filter is not read by any of this; the reload keeps it. Not done: highlighting the match; a title of two lines; not device-tested.
-- **Filter**: the search page ignores the Show page's Filter (see "Filter"): `pg_find_*` read `pg.eps` whole, `pg_find_pick` takes an episode index, and its queue is the show's full order (`pg_episode_queue` over `pg.eps`).
+- **Page:** `m1plus_pcfind`, a window over the Show page: the search field ("Search Episodes"), our
+  keyboard, and compact 60 px rows (title, then date and "· Downloaded"). Empty field: no rows. No
+  match: "No results". The X and hardware Back close the page.
+- **Matching** (the library search's engine, [search](search.md)): titles only. The field is
+  folded (case, Latin diacritics, kana, width) and split at spaces; every term must be in the
+  title. A term of only digits is a **whole number**: `37` finds "Ep 37", "EP037" and "第37集" but not
+  "137" or "370". A Chinese title also matches by pinyin initials (`zjl` finds 周杰伦). Results
+  are in the show's order, at most 2000, matched anew on every change.
+- **Memory:** the 1 MB pinyin engine is held only when some title has a CJK character, and
+  only while the page is open. The page does not open while a library Search page exists (they
+  share the matcher's state).
+- **Tap and Back:** a tap keeps the text and scroll, opens that episode's page over the Show page
+  and closes the search. Back from the episode page reopens the search with the text and scroll,
+  the keyboard down. Playing queues from that episode down in the show's order.
+- **Search All Episodes:** for a subscribed show with no `.archive` and a non-empty field, one extra
+  row ends the results. Its text and spinner are the Show page's (`pg_more_line`), and a tap starts
+  the same archive job; leaving the search leaves the job running. When the archive appears, the
+  query runs again over the complete list and the row goes.
+- For a show with an archive the complete list is swapped in before the page opens and the Show
+  page reads the recent list again once the search and any result's episode page are closed. With
+  no match, the Search All Episodes row stands alone at the top, above "No results".
+- The search ignores the Show page's Filter and the queue is the show's full order.
 
 ## All episodes
 
-A subscription keeps the 20 newest feed items in `.episodes` (the refresh's `PF_KEEP`; entries whose file is on the card stay besides). Two files, two roles:
+A subscription keeps the 20 newest feed items in `.episodes` (`PF_KEEP`; entries whose file is on
+the card stay besides). Two files, two roles:
 
-- `.episodes` is the **recent** window. The Show page and every cross-show reader (the Shows level, Continue Listening, the Downloaded page's scan, the iPod level, Latest Episode, the queue of the Show page, Mark All as Played there) read only it and the files on the card: `pc_load_recent` (`pc_load_show` into a block of its own size), the newest `PC_MAX_EPS` (300) entries of `.episodes` and **every** file of the show.
-- `.archive` is the **complete** list (every item of the feed, up to `PC_ARCH_MAX` 2000 and `PC_ARCH_BYTES` 1.5 MiB). Only the **All Episodes page**, the search inside a show and Unsubscribe (which must find every `.part`) read it whole: `pc_load_show_all` (the union with `.episodes`, `PC_ALL_MAX` newest); the Show page's count reads it once (`pc_count_all`).
+- `.episodes` is the **recent** window. The Show page and every cross-show reader (Shows level,
+  Continue Listening, the Downloaded scan, the iPod level, Latest Episode, the queue) read only it
+  and the files on the card.
+- `.archive` is the **complete** list. Only the All Episodes page, the search inside a show and
+  Unsubscribe (which must find every `.part`) read it whole, and the Show page's count reads it
+  once.
 
-**The design as built.** The Show page shows at most `PS_SHOW_MAX` (20) rows of its list (after the Filter, in the show's Episode Order) and ends with one row (`PS_MORE_H`, `pg_more_on`, part `PH_MORE`, `pg_see_line`):
+The Show page ends with one row:
 
 | Show | Row | A tap |
 |---|---|---|
-| subscription with no `.archive` (`pg_fetch_on`) | "See All" (also for 5 episodes; the count is unknown) | starts the archive fetch exactly as the former Show All Episodes row did (`pg_arch_tap`: guards, Loading… with the count and the spinner, "Can't connect · Tap to Retry", cancel paths, keep-awake, survives leaving the page); when the job ends well while this Show page is in front and this tap started it (`pg.aopen`, checked in `pg_arch_poll`) the All Episodes page opens; if the user left (the Shows level, an episode page, the search), nothing opens |
-| show with `.archive` | "See All (N)", N the episodes of the complete list (`pg.nall`); hidden when N is not more than the rows shown and no Filter is on | opens the All Episodes page, no request |
-| show with no feed (copied files) with more than 20 rows | "See All (N)", N the rows | opens the All Episodes page over the local list |
-| preview | none (a preview paints every row, as before) | |
+| subscription with no `.archive` | "See All" | fetches the archive (guards, Loading… with the count and a spinner, "Can't connect · Tap to Retry", keep-awake; survives leaving the page); when it ends well while this page is in front and this tap started it, the All Episodes page opens |
+| show with `.archive` | "See All (N)", hidden when N is not more than the rows shown and no Filter is on | opens the All Episodes page, no request |
+| show with no feed, over 20 rows | "See All (N)" | opens the All Episodes page over the local list |
+| preview | none | |
 
-`pg.nall` is computed once: when the show is opened (`pg_open_show_with`: `pc_count_all` with an archive, else the list's count) and when a reload finds the archive that was not there (`pg_reload_eps`); a Show page paint, a tick or a download's reload never reads `.archive`. A refresh ends in `pg_open_show` and so counts again.
-
-- **Memory**: one list at a time in `pg.eps`. The recent list is the 300 entries of `.episodes` (`PC_MAX_EPS`, 456 bytes each) and the files none of them names, at most `pc_all_cap` (700 without an archive, 319 KB; `PC_LIST_MAX` 2700 with one, 1.2 MB), read into a block of that room and kept in one of its own size (`pc_load_fit`; the complete list too); the complete list (its own size once read; up to 2700 entries, 1.2 MB, and as much again while it is merged) exists only while the All Episodes page or the search inside a show with an archive is open. `pg.all` says `pg.eps` is the complete list; `pg_list_swap(all)` replaces it (the Filter's index array and the cells are made again, the scroll untouched).
-- **Model** (`pm_load`, `patch/pcmodel.c`): `pc_load_show` is `.episodes` (newest 300) and the files, sorted in the show's order (`pm_ep_cmp`, `pc_order_get`). **Nothing is cut from a recent list**: `pc_all_cap` is room for the 300 entries of `.episodes` and every file the folder is scanned for (400; 2400 with an archive, which makes `PC_LIST_MAX` 2700), so the Downloaded and Saved pages, Continue Listening and the iPod level see every file (they apply their own limits to their own selection; Downloaded: the 300 newest downloads by file date, `PG_DLD_MAX`) and the Show page every new episode of the feed. A complete list is cut only past 2700 episodes (the archive's 2000, `.episodes` and the files no entry names), and then in this order (`pm_load`, either order of the show): the newest episodes that are only in the feed, up to `PC_MAX_EPS` (half the room when it is smaller), so a show with more files than the room still lists what a refresh found and Latest Episode is not an old download; then the episodes with a file on the card (downloaded, copied, a `.part`), newest first; then the rest of the feed by date. The pages' rows, the select mode's bitsets (`PG_PICK_MAX`) and the search's results are sized `PC_LIST_MAX`. The ring holds 4096 places: Mark All as Played on a list of more than 2048 episodes lets its own last rows' marks go. For a show with an archive it also reads `.archive` **only when some file or `.part` on the card has no `.episodes` entry naming it** (`pm_add_archived_files`): the archive entries of exactly those files are added before the merge, so a downloaded old episode keeps its title, date, description and its place on the list (it is PC_LOCAL; a started download PC_PART) on the Show page's recent list, in the Downloaded page and in Continue Listening. A file with no entry anywhere is a copied file as before (title from its name, date from mtime). The folder scan is `PM_ARCH_FILES` (2400) long for a show with an archive in both loads. `pc_load_show_all` is the union: `.episodes` (up to 300), then the archive's entries (up to 2000 lines) minus the archive entries an earlier `.episodes` entry has (same guid hash; without a guid, same file name), merged with the files (`pm_merge`), sorted, cut only past `PC_LIST_MAX`. `pc_all_cap` is the room either list needs (2700 with an archive, else 700). Downloads of an archive-only episode find the url in `.archive` (`pn_find_url`: `.episodes` first). Callers: Show page (`pg_eps_of`), Downloaded scan, Continue Listening (`pc_continue`), the iPod level, the dscan / dls open paths: recent. The All Episodes page, the search with an archive (`pg_list_swap(1)`), Unsubscribe (`pg_unsub`, `pn_unsubscribe_show`): complete. Not done / lost: a recent list is cut at 300 entries, so a show with an archive and more than 300 downloaded old episodes shows the newest 300 of them (the Downloaded page's own cap is 300 rows).
-- **Refresh keeps the archive complete** (`pn_arch_merge` after the `.episodes` write of `pn_refresh_one`, `pc_archive_merge` in `patch/pcmodel.c`): a show with an `.archive` gets the lines of the refreshed `.episodes` text that the archive lacks (guid, else file name; the lines are the refresh's own, so the file name is the one `.episodes` has), placed newest first by date among the archive's lines, written with the archive's own lines to `.archive.tmp` (16 KB at a time, the temp file is made at the first line) and `m1_commit`ted; at most 2000 lines and 1.5 MiB, the oldest lines drop. A refresh that finds nothing new writes nothing. No full fetch. Any failure (no memory, a write error, the card gone) leaves `.archive` as it was and the refresh succeeds: the archive step runs after `.episodes` was written and nothing waits for it. A show with no archive gets none. Limit: a new item whose file name equals an old archive item's of another guid (two items of one day with one title) is not numbered "(2)" as the full fetch would.
-- **The All Episodes page** (`pg.allv`, `pg_all_open`, `pg_all_close`): the Show level with the complete list in `pg.eps` and no header, the show's name in the navbar (always shown; `pg_collapse`), black like the episode page (`pg_tint_view`). Rows, cells, hit testing (`pg_top` 0, `pg_shown`), the state pill and download, the episode page (Back returns to the page at its scroll offset), select mode with Select All and Delete, the "..." sheet (Playback Speed, Episode Order, Filter, Select Episodes, Mark All as Played; no Refresh Feed, Unsubscribe) and the navbar's magnifier are the Show page's own code over the other array. The Filter and Episode Order are the show's (one state: changing them on the page changes the Show page). Mark All as Played marks the complete list (`pg_mark_all` over the rows), the Show page's marks the recent list; a play queues the local files of the page's rows. Back reads the recent list again (`pg_list_swap(0)`) and returns to the Show page's offset (`pg.all_off`). Leaving the show forgets all of it (`pg_eps_free`).
-- **Search inside a show** (`pg_on_find`): a show with an archive swaps the complete list in before the search page opens (`pg.all` without `pg.allv`: a transient state) and the search reads it (`pg_find_*`); the Show page's tick and its to-foreground event (`pg_all_leave_search`) read the recent list again once the search is closed and no episode page is open (a result's episode page keeps the complete list, so Back opens the search again). From the All Episodes page the list is already complete and stays. A show with no archive searches the recent list and has its Search All Episodes row, whose job's end switches to the complete list (`pg_find_sync`).
-- **Row text and spinner**: Loading… with the items written so far ("Loading… 340": `pn_arch_count`), the Wi-Fi page's 14 px spinner (`pg_spin_*`, `PS_SPIN_PX`, a 250 ms timer only while the job runs or waits and the page is in front; test `pcarchive/spin_tests`), the failure kept for the session (`pn_arch_failed`) as "Can't connect · Tap to Retry". The Search All Episodes row of the search page is the same job (`pg_find_more`). The same spinner and timer turn before the Discover and search levels' status line while it says Loading… or Searching… (`pg_hint_busy`; test `pcdiscover/spin_tests`). The All Episodes page paints no header when it is pulled down past its top (`pcall/page_tests`).
-- **The hint** (`pg_hint`, `pg_hint_bottom`, `pg_paint_hint`; the model is `tools/pod_show.py` `hint_layout`, the preview `tools/preview/preview_center_hints.py`): an empty page's words (No downloads, No subscriptions, No saved episodes, No episodes yet…, a Filter's No unplayed / No downloaded episodes) and the Discover and search status line are one painter. The text is wrapped to the margins (at most four lines of `PS_TITLE_PITCH`); the lines are centred as a block between the header's bottom (`pg_hint_y`) and the view's bottom (`GRID_VIEW_H`), and each line is centred across the page. A busy line has the spinner and its gap before the first line, the two centred as one group, so the words that replace Loading… (No results, a failure) stay in the same place. The content is then exactly the view's height: nothing scrolls. Where the header leaves less than the four lines' room (`PG_HINT_H`: a tall Show header), or the See All row follows the hint (a Filter with no row), the room is `PG_HINT_H` under the header and the page scrolls as far as that needs. Tests: `pcdiscover/spin_tests`, `pcdiscover/state_tests`, `pcshow/latest_tests`.
-- **Job** (`pn_arch_*`, `PN_KIND_ARCH`, `patch/pcnet.c` "All episodes"): unchanged: one worker job of the same slot as the others (`pn_job_busy`), up to three requests one second apart for a network error, time-out, stall, 5xx, 408 and 429 (404, 410, other 4xx, not a feed, certificate, storage, memory and cancel are final), a fresh `.archive.tmp` and parser each attempt (300 s and 60 s without a byte per attempt, a 32 MiB decoded cap), the streaming parser in sink mode (`pf_set_sink`), one line per item (`pf_item_line`), 16 KB writes, `m1_commit`; an item whose guid `.episodes` has takes that entry's file name and description; the others are named as a refresh names them (a clash is numbered "(2)"); 2000 items and 1.5 MiB, the feed's newest; cancel by the worker's `pn.cancel` (no file, no toast, nothing remembered); refresh and Unsubscribe are refused while it runs; `pg_awake_arm` keeps the device awake; `pg_on_destroy` cancels it and `pg_resume_tick` forgets the ended job. Long descriptions (`.notes`) are not written for archive items: their episode page shows the short description (`x=`).
-- **Tests**: `test/pod/pcall.py` (`show_tests` the 20 rows under both orders and the Filters, the row's text and the cases where it is hidden; `page_tests` the page's rows, title, Back and offset, order; `flow_tests` the downloaded archive-only episode, the sheets, Filter, episode page, queue, Mark All as Played and select mode on both pages; `fetch_tests` the tap that fetches and opens the page, a failure, leaving meanwhile; `search_tests` the search from both pages, Back, the Show page's list after it; `readers_tests` no archive read by the Shows, Downloaded pages or a reload, the downloaded old episode on the Downloaded page and in Continue Listening, copied files), `test/pod/pcarchive.py` (`job_tests`, `model_tests` the union, `recent_tests` the recent list and its lookups, `refresh_tests` the merge into `.archive`, its caps and failures, `download_tests`, `row_tests`, `retry_tests`, `page_tests`, `spin_tests`, `select_tests`, `markall_tests`), `pcshow` / `pcsel` / `pcdetail` / `pcsearchui` content heights with the row.
-- **Open**: nothing runs automatically for a show set to Oldest First with no archive (the row is at the end of the list); no cancel control for the user (leaving the page, or Discover and search, cancel it); a feed of more than 2000 items keeps the newest 2000; the first row of an All Episodes page under Oldest First is the oldest of at most 2000.
+- **The All Episodes page** is the Show level over the complete list, with no header and the show's
+  name in the navbar. Rows, the state pill, select mode, the "..." sheet (no Refresh Feed or
+  Unsubscribe), the magnifier and the episode page are the Show page's own code. Filter and Episode
+  Order are the show's (one state). Mark All as Played marks the complete list and a play queues
+  the local files of the page's rows. Back reads the recent list again and returns to the Show page's
+  offset.
+- **Memory:** one list at a time. A recent list is at most 300 entries plus every file (room for
+  700 episodes, 2700 with an archive); the complete list exists only while the All Episodes page or
+  a search with an archive is open.
+- **Nothing is cut from a recent list** under the room above. A complete list past 2700 episodes
+  keeps, in order: the newest feed-only episodes, then episodes with a file on the card, then the rest
+  by date. The Downloaded page takes the newest 300 downloads by file date. For a show with an archive, `.archive` is also read when a file or `.part` on the card has
+  no `.episodes` entry, so a downloaded old episode keeps its title, date and place; its download
+  finds the URL in `.archive` (`.episodes` first). The complete list is `.episodes`, then the
+  archive entries an earlier entry does not have (guid, else file name), merged with the files.
+- **Refresh keeps the archive complete:** a show with an `.archive` gets the refreshed lines it
+  lacks, placed by date, written to a temp file and committed. The oldest lines drop past 2000 lines
+  or 1.5 MiB. A failure leaves `.archive` as it was and the refresh still succeeds. A show with no
+  archive gets none.
+- **Job** (`pn_arch_*`): one worker job in the shared slot, up to three requests one second apart
+  for a network error, time-out, stall, 5xx, 408 and 429; other errors are final. A 300 s and 60 s
+  per-attempt limit, a 32 MiB decoded cap, newest 2000 items. Refresh and Unsubscribe are refused
+  while it runs. Long descriptions are not written for archive items (the episode page shows the
+  short description).
+- **The hint** (`pg_paint_hint`): an empty page's words (No downloads, No subscriptions, No saved
+  episodes, a Filter's No unplayed / No downloaded episodes) and the Discover and search status
+  line are one painter, wrapped to the margins and centred in the room under the header. A busy
+  line has the spinner before the first line.
 
 ## Filter
 
-A long show hides what it need not show. **Filter** is the show's "..." sheet row after Episode Order (`SR_FILTER`, `pg_sh_filter`, grey value `pg_sh_filter_vl`, shown by `pg_sheet_value` as Episode Order's value is: neutral grey, the label keeps its whole text) with the values **All**, **Unplayed**, **Downloaded**; a tap goes to the next (`pg_filter_cycle`) and the sheet stays, as for Episode Order. The sheet is seven rows at most (350 px of the 450 px window, `pc_sheet7`).
+**Filter** is the show sheet's row after Episode Order, with values **All**, **Unplayed**,
+**Downloaded**; a tap cycles and the sheet stays.
 
-- **Rows**: an index array over `pg.eps` (`pg.vis`, `pg.nvis`, `pg.filt`; `pg_vis_make`). `pg.vis` is NULL for All, so every row is its episode; otherwise `pg_ix(row)` is the episode's place in `pg.eps` and `pg_nrows()` the count (`pg_shown()`, the rows painted: the first `PS_SHOW_MAX` of them on the Show page, all of them on the All Episodes page; the queue and Mark All as Played on the Show page go over `pg_nrows()`, the whole recent list). Everything that takes a row maps through them: `pg_count`, the cell layouts (`pg_cell`), paint (`pg_paint_eps`), hit testing (`pg_hit`), the select marks and their bitsets (rows, `pg_pickable`), Select All, Delete, Mark All as Played and its sheet row (`pg_any_unplayed`), the queue (`pg_play`). What takes an episode (the episode page `pg.det`, `pg_cell_tap`'s map of a row to `ep`, the sheet of a cell, the Latest Episode pill, Unsubscribe, the search inside the show) uses `pg.eps` and episode indices directly. The array is 2 bytes an episode, allocated only while a Filter is on (no memory: the Filter is All and the toast says so).
-- **Predicates**: Unplayed = `pg_ep_state != PC_DONE` (the cells' played check: a partly played one is unplayed, an episode with no file name too); Downloaded = `state == PC_LOCAL` (the cells' disc). The show's order is kept (both orders); Episode Order's flip and every reload make the array again.
-- **State**: page state, not saved (no file on the card or `/mnt/data`). It is reset by leaving the Show level (`pg_eps_free`) and by opening another show or a preview (`pg_open_show_with`); the same show opened again from itself (after a refresh) and the episode page, the search page and Now Playing keep it. A reload (`pg_reload_eps`: a download finished, a file was removed) keeps it and makes the rows again, so a row leaves or joins then. **A mark made while Unplayed shows does not move the row**: it stays, grey, until the list is made again (a filter change, a reload).
-- **Queue**: playing from the filtered list queues the rows shown (the local ones among them, in the show's order, the tapped one the current: Previous goes back up the shown rows), `pg_queue_of` over `pg.vis`. An episode opened from the search inside the show (`pg.from_find`) is played with the whole list, whether the Filter shows it or not (`pg_play`). **Mark All as Played** marks the rows shown from the last to the first with `pc_mark_hold` and writes the ring once (`pc_flush`); the ring's 4096 slots hold a 2000 episode list twice, so no mark of the list is let go. The Latest Episode pill's episode, if the Filter hides it, plays with the whole list. The search inside the show and `pg_episode_queue` (also the iPod level's) keep the show's full order.
-- **Empty**: a Filter that leaves no row shows the dim hint centred in its room under the header ("No unplayed episodes" / "No downloaded episodes", `pg_hint`), the header and the navbar unchanged (the "..." is there to switch back). The **See All** row stays under any Filter for a subscription without an archive (and for a show with an archive, see "All episodes"); with no row it sits under the hint (`pg_more_y`).
-- **Ignore it**: the Latest Episode pill, Continue Listening, the iPod episode level, the Downloaded page, the Shows level's counts and the search inside the show.
-- **Tests**: `test/pod/pcfilter.py` (`sheet_tests`, `rows_tests`, `state_tests`, `index_tests` hit testing, episode page, sheet, queue and Latest pill by row, `select_tests` marks, Select All, Delete, Mark All, `empty_tests`, `find_tests`), `pcshow` sheet tests (seven rows). Strings: `Filter`, `Unplayed`, `No unplayed episodes` (13 languages, machine translated, unreviewed).
+- **Rows:** an index array over the episode list, allocated only while a Filter is on (no memory:
+  the Filter is All and a toast says so). Everything that takes a row maps through it; what takes
+  an episode (episode page, sheet, Latest Episode pill, Unsubscribe, the search) uses the whole list.
+- **Predicates:** Unplayed is not done (a partly played one is unplayed); Downloaded is a file on the
+  card. The show's order is kept.
+- **State** is page state, not saved. Leaving the Show level or opening another show resets it; a
+  reload keeps it. A mark made while Unplayed shows does not move the row until the list is made again.
+- **Queue:** playing from a filtered list queues the rows shown. Mark All as Played marks the rows
+  shown. An episode opened from the search plays with the whole list.
+- An empty Filter shows the hint under the header; the "..." and **See All** stay.
+- **Ignored by:** the Latest Episode pill, Continue Listening, the iPod level, the Downloaded page,
+  the Shows counts and the search.
 
 ## The Downloaded page
 
-The Downloaded level (`L_DLS`, the Shows page's Downloaded row) has the large title Downloaded, the storage line (`PDL_LINE_Y`, "7 episodes · 217 MB · 18 GB free") and the rows of two sections, In Progress (what the worker holds, then the failed and the paused) and Downloaded (the files on the card, the newest download first). Geometry `patch/offsets.inc` `PDL_*`, `PP_HEAD_PITCH`, `PP_SEC_GAP`; model `tools/pod_show.py downloads_layout`, the C side `pg_dy`, `pg_dh`, `pg_dhit`.
+Large title, a storage line ("7 episodes · 217 MB · 18 GB free") and two sections: **In Progress**
+(what the worker holds, then failed and paused) and **Downloaded** (files on the card, newest
+first).
 
-- **Section header**: only In Progress has one (20 px white, `pg_paint_head`), drawn and given `PP_HEAD_PITCH` of height **only when both sections have rows** (`pg_dheads`). The downloaded rows never have a header: the large title Downloaded is theirs, and a header "Downloaded" under it would repeat it. With both sections the layout is the In Progress header, its rows, `PP_SEC_GAP` (12 px), then the downloaded rows. With one section alone there is no header and the rows start at `PDL_LINE_PITCH` (80), where the header would have started, with the storage line above them. The header comes and goes as the sections fill and empty (a download that finishes into an empty downloaded section brings it). The empty page has no header, only the hint.
-- **Rows, hit testing, select mode**: all go through `pg_dy` (the top of display row a), so a row's place, the touch, the select marks, the bar's room and the content height follow the same rule in all three cases (rows only Downloaded, rows only In Progress, both). The Subscriptions and Saved levels are plain rows under the large title (`PP_TITLE_H`) and have no headers.
-- **In Progress rows** are marked as the Subscriptions pages' download rows are (`docs/modules/subsonic.md` "Row marks"). A running or waiting download has the 14 px download ring (`libsrc.c` `ls_marks_draw`, the helper shared with those pages; `pg_ip_ring` fills its `ls_row_t` from `pn_dl_state` at every paint, so the step follows the progress without a layout) before the grey line, centred on it as the played check is: the arc from 12 o'clock in 12 steps (accent-tinted), the stop square over a running one, the arrow on the empty ring of a waiting one. The grey text moves a ring and `LS_MK_GAP` right and says "42%" ("12 MB" when the length is unknown) or "Waiting"; there is no "Downloading" word on this page (the Show page's pill keeps its text). A failed or paused row has no ring and keeps "Failed: <why>" / "Paused". The ring is not a button.
-- **"..." and its sheet**: each In Progress row (all four states) has the Show cell's "..." (`PA_DOTS_PX` glyph at `PS_DOTS_CX`, `PS_DOTS_HIT` square, `PH_DOTS` in `pg_hit`); the title and grey line stop at `LIST_TEXT_W_CHEV`; select mode hides it. It opens the sheet `SH_IP` (two rows of the shared sheet asset: `dlpause` Pause for a running or waiting download, `dlresume` Resume for a paused one, `dlretry` Retry for a failed one, then `dlcancel` Cancel Download). The sheet keeps the row's download key (`pg.sh_key`), not its index, since rows move under it; Pause, Resume and Retry do nothing when the download is no longer in the state the row was for. Pause/Resume/Retry do what a tap on the row does (`pg_dl_toggle`: the `.part` stays). Cancel Download is `pg_dl_discard`, as select mode's Delete does to the row (`pn_dl_cancel`, the `.part` unlinked, `pn_dl_clear`), without a confirm. A running download is only flagged for the worker to drop, so its row can show for a moment as Paused until the worker lets go. A tap on the row's body still toggles it; Downloaded rows have no "...".
-- **Tests**: `test/pod/pcdlpage.py` `ring_tests` (ring cells, steps and place by state, the text, the "..." and its sheet by state, Pause, Retry, Resume, Cancel Download on each state, select mode), `heads_tests` (the three cases, the tap, select mode, Delete, the headers coming when a download finishes, the empty page) and the model in `page_tests`, `inprogress_tests`, `select_tests`.
+- **Section header:** only In Progress has one, drawn only when both sections have rows. With one
+  section alone there is no header. Rows, hit testing and select mode all go through one place
+  computation, so the three cases agree.
+- **In Progress rows** are marked as the Subscriptions pages' download rows are
+  ([subsonic](subsonic.md)): a 14 px ring (arc in 12 steps, the stop square while running, the
+  arrow while waiting), and "42%" or "Waiting". A failed or paused row has no ring and says
+  "Failed: <why>" or "Paused".
+- **"..." sheet** on every In Progress row: **Pause** (running or waiting), **Resume** (paused) or
+  **Retry** (failed), then **Cancel Download** (unlinks the `.part`, no confirm). The sheet keeps
+  the download's key, so a row moving under it is safe. A tap on the row toggles it. Downloaded rows
+  have no "...".
 
 ## Playback, resume and speed
 
-Episodes use class-1 folder queues with copied song records; playback needs no library scan.
-The tag-reader hook supplies show/episode text only for podcast paths.
-Library query filtering removes podcast and audiobook paths from music lists and music Favourites;
-Daily Mix, Recently Played and custom Shuffle queues also exclude them.
-Folders and stock history tables can still contain episodes.
-
-Audiobooks (`/mnt/mmc/Audiobooks/<Book>/<parts>`, one folder deeper allowed, or a loose
-`/mnt/mmc/Audiobooks/<file>.m4b` that is a book of its own; any case, bounded by the slash:
-`bk_is_path`) use the same resume ring and speed records, with two differences: a part counts as
-played only within 30 seconds of its end (no 95% rule), and a position is saved at any length.
-The speed key is the book's (`pc_hash("audiobooks/" + folder name)`, the file name for a loose
-book), so a book and a show of the same name never share a speed. Books keep stock tags
-(`pc_id3_path` stays podcasts only). `pc_spoken_path` (podcast or book) keeps them out of the
-music features above.
-
-`pc_note`, called by Now Playing, the mini player and the Podcasts page timer, records
-positions only while those pages provide ticks. Positions from 30 seconds are saved;
-within 30 seconds of the end or past 95% the episode is marked played.
-Writes are limited to every 30 seconds, with immediate flushes on pause, track change,
-page actions and backgrounding.
-
-A saved position resumes once playback reaches 1..4 seconds; it is abandoned after 15 seconds
-if it cannot be applied. Played episodes restart at zero.
-Per-show speeds are 1×, 1.25×, 1.5× and 2×. They change RAM/player state without writing
-stock PLAYSPEED configuration; music restores the previous mode. Actual application of
-speed changes can depend on the stock player's next track open.
+- Episodes use class-1 folder queues with copied song records; playback needs no library scan. The
+  tag-reader hook supplies show and episode text only for podcast paths. Library query filtering
+  removes podcast and audiobook paths from music lists and Favourites; Daily Mix, Recently Played
+  and custom Shuffle queues exclude them too. Folders and stock history tables can still contain
+  episodes.
+- **Audiobooks** ([audiobooks](audiobooks.md)) use the same resume ring and speed records, with a
+  played threshold of 30 s from the end (no 95 % rule) and positions saved at any length. A book's
+  speed key is its own, so a book and a show of the same name never share a speed.
+- `pc_note`, called by Now Playing, the mini player and the Podcasts page timer, records positions
+  only while those pages tick. Positions from 30 s are saved; within 30 s of the end or past 95 %
+  the episode is marked played. Writes are limited to every 30 s, with immediate flushes on pause,
+  track change, page actions and backgrounding.
+- A saved position resumes once playback reaches 1..4 s; it is abandoned after 15 s if it cannot be
+  applied. Played episodes restart at zero.
+- **Speeds** are 1x, 1.25x, 1.5x and 2x per show. They change RAM and player state without writing
+  stock's PLAYSPEED configuration, and music restores the previous mode. A speed change is applied
+  at the next track open.
 
 ## Network and feeds
 
-Two lanes (`patch/pcnet.h`), each a detached thread that never touches widgets; the UI reads generation/status records.
+Two lanes (`patch/pcnet.h`), each a detached thread that never touches widgets; the UI reads
+generation and status records.
 
-- **Jobs**: a refresh, a search or preview, a chart, the archive fetch, and the other pages' jobs (Find Cover & Lyrics, Software Update, AutoEq) share one slot (`pn.busy`, `pn.kind`): one at a time, `PN_BUSY` to the next, which its page asks again from its tick. A page cancels only its own kinds of job (`pn_cancel(PN_K_*)`, [network](network.md)). The LibriVox catalog and preview jobs (`PN_K_BOOKS`, [audiobooks](audiobooks.md)) share this slot; a book's download has a thread of its own beside it and the episode queue, with the episode download's policy (`pnw_download`), and gives way to neither. The Radio directory fetch (`rd_fetch`, [radio](radio.md)) is refused while a job runs; the reverse is not checked.
-- **Downloads**: the episode queue has a thread of its own (`pn.dbusy`, `pn_dl_running`), one episode at a time. It runs beside a job and never gives way to one: no page pauses the downloads, and a download stops only when its row cancels it (`pn_dl_cancel`: the `.part` stays, a later tap resumes it) or takes it away (`pn_dl_drop`: Remove Download, the select mode's Delete, Unsubscribe). **The life of a download is its slot's state** (`PN_Q_*`), and every move is one row of one table (`pn_q_after`), made under one mutex (`pn_dmutex`; `pn_q_move` / `pn_q_fire`); there is no other flag:
+- **Jobs:** a refresh, a search or preview, a chart, the archive fetch and other pages' jobs share
+  one slot; one at a time, `PN_BUSY` to the next ([network](network.md)). The LibriVox catalog jobs
+  ([audiobooks](audiobooks.md)) share it. A book's download has a thread of its own beside the
+  slot and the episode queue. The Radio directory fetch ([radio](radio.md)) is refused while a job
+  runs; the reverse is not checked.
+- **Downloads:** the episode queue has a thread of its own, one episode at a time, beside a job. No
+  page pauses the downloads. A download stops only when its row cancels it (the `.part` stays, a
+  later tap resumes it) or takes it away (Remove Download, select-mode Delete, Unsubscribe).
+  The queue holds 32 entries in RAM; a reboot leaves partial files paused.
 
-  | Event | Who | From → to |
-  |---|---|---|
-  | ADD (`pn_dl_add`) | page | FREE → WAIT (the look for the episode in the queue, the RESUME below and the new entry are one hold of the mutex: a download that ends while the page waits is queued as a new one) |
-  | CLAIM (`pn_claim`) | thread | WAIT → ACTIVE (the slot chosen and its key read in the same hold) |
-  | CANCEL (`pn_dl_cancel`) | page | WAIT → FREE; ACTIVE → STOPPING |
-  | DROP (`pn_dl_drop`) | page | WAIT → FREE; ACTIVE, STOPPING → DROPPING |
-  | RESUME (an add of one being paused) | page | STOPPING → ACTIVE (in time: the transfer goes on; after the thread stopped it: see HALT) |
-  | PUBLISH (the rename, in the same hold) | thread | ACTIVE, STOPPING → PUBLISHED |
-  | END (the run is over: done or failed) | thread | ACTIVE, STOPPING, DROPPING, PUBLISHED → FREE |
-  | HALT (the run is over because the thread stopped its transfer for a pause or a drop) | thread | STOPPING, DROPPING → FREE; ACTIVE → WAIT |
+**A download's life is its slot's state**, and every move is one row of one table, made under one
+mutex:
 
-  STOPPING is a pause: the transfer ends, the bytes held are flushed and the `.part` stays. A pause taken back (RESUME) after the thread stopped the transfer cannot restart that transfer, so the thread keeps the fact (`halted`, set by the callback that stopped it), ends the run with HALT instead of END, and HALT finds the slot ACTIVE: the episode waits again and the same thread takes it up from the `.part` at once (no failure, no wait for the network). So a tap again is kept in both orders: before the run's end (HALT requeues) and after it (the add finds the slot free and queues a new one). DROPPING is a cancel that leaves nothing: the page unlinks the `.part` at once, and the thread, which may still hold up to 512 KB of the file in memory, writes none of it from then on, never renames its file into place, removes its `.part` when it ends and keeps no failure (a flush after the page's unlink would make the `.part` again out of a piece from the middle of the file, for the next download to resume after). There is no way out of DROPPING but END: an add of the same episode is queued afresh behind it. PUBLISHED is a downloaded episode (the thread may still sync the folder): no cancel or drop moves it, so the file is the page's (Delete and Remove Download unlink it; Unsubscribe keeps it and counts it as a file left on the card even when its list was read before the download ended). Because the page and the thread move a slot only under the mutex, the page sees a download waiting or running, never between, and a slot emptied and filled with another episode while the thread waited is taken up as that episode. Tests: `pcdl/control_tests` (the whole table, and each interleaving: a drop with bytes in memory, before the rename, during the folder's sync, at the moment a waiting download is taken up, over a reused slot, a tap again before and after the end of a paused run) and `pcdl/sweep_tests`, which looks for the interleavings nobody thought of: one download whose first transfer breaks is run once to count the thread's steps (36: each lock and unlock, each look at the card's room, each sync, each second of the wait, each chunk), then again with cancel, drop, add and their sequences at every step and at every pair of steps (about 860 runs), and only the end is checked (the queue empty, the file whole or absent, a `.part` a start of the file, nothing left by a drop but a file in place before it, the episode asked for last downloaded, no failure kept). The two threads share no field of the record but the generation counter (an atomic add). An episode queued while the thread ends is taken up by that thread (`pn_dmain` looks at the queue once more after it clears `dbusy`); the downloads' timer (`pg_awake_tick`) starts a queue whose thread could not be made.
+| Event | Who | From → to |
+|---|---|---|
+| ADD | page | FREE → WAIT (the look in the queue, the RESUME below and the new entry are one hold of the mutex) |
+| CLAIM | thread | WAIT → ACTIVE |
+| CANCEL | page | WAIT → FREE; ACTIVE → STOPPING |
+| DROP | page | WAIT → FREE; ACTIVE, STOPPING → DROPPING |
+| RESUME (an add of one being paused) | page | STOPPING → ACTIVE |
+| PUBLISH (the rename) | thread | ACTIVE, STOPPING → PUBLISHED |
+| END (done or failed) | thread | ACTIVE, STOPPING, DROPPING, PUBLISHED → FREE |
+| HALT (the thread stopped its transfer for a pause or a drop) | thread | STOPPING, DROPPING → FREE; ACTIVE → WAIT |
 
-The queue holds 32 entries in RAM; reboot leaves partial files paused. Not measured on the device: two transfers at once during playback (memory, card writes, Wi-Fi throughput); Subsonic and the radio already run their own transfers beside these.
+- **STOPPING is a pause:** the transfer ends, held bytes are flushed and the `.part` stays. A tap
+  again is kept in both orders: before the run's end (HALT requeues the episode and the same thread
+  takes it up from the `.part`) and after it (the add finds the slot free).
+- **DROPPING is a cancel that leaves nothing:** the page unlinks the `.part` at once and the thread
+  writes none of its memory, never renames, removes its `.part` and keeps no failure. The only way
+  out is END; a new add of the same episode is queued behind it.
+- **PUBLISHED** is a downloaded episode: no cancel or drop moves it. Delete and Remove Download
+  unlink the file; Unsubscribe keeps it.
+- An episode queued while the thread ends is taken up by that thread; the downloads' timer starts a
+  queue whose thread could not be made.
 
-Requests use the firmware CA bundle with certificate verification enabled, bounded HTTP(S)
-redirects and connection/transfer guards. Missing Wi-Fi, an invalid clock or missing
-certificates produce explicit errors. Feed requests have an 8 MiB cap and 120 second timeout.
-Conditional requests use the server's Last-Modified time, never the device clock.
-A 304 preserves episodes; a missing episodes file forces an unconditional retry.
+**Requests** use the firmware CA bundle with verification on, bounded HTTP(S) redirects and
+connection and transfer guards. Missing Wi-Fi, an invalid clock or missing certificates give
+explicit errors. Feed requests have an 8 MiB cap and a 120 s timeout. **Conditional requests use the
+server's Last-Modified, never the device clock.** A 304 preserves episodes; a missing episodes
+file forces an unconditional retry.
 
-The streaming RSS parser keeps the 20 newest enclosed items, handles arbitrary chunk splits,
-entities and CDATA, and strips HTML from descriptions. Unicode spaces (U+00A0, U+2000..200A,
-U+202F, U+205F, U+3000) count as white space, U+2028 and U+2029 as paragraph breaks, and the zero
-width U+200B, U+2060 and U+FEFF are dropped, so a description that starts with one has no blank
-first line. Atom is unsupported.
-Refresh writes episodes before show metadata and preserves local filenames.
-Cover failures do not fail the feed or replace user-supplied artwork.
-Large JPEG/PNG art is reduced to 192 px with bounded-memory decoders; malformed images
-fail without exiting the app. Display decoding refuses images over 2.1 million pixels.
+**Feed parser:** a streaming RSS parser keeps the 20 newest enclosed items, handles arbitrary chunk
+splits, entities and CDATA, and strips HTML from descriptions. Unicode spaces count as white
+space, U+2028 and U+2029 as paragraph breaks, and zero-width characters are dropped. **No Atom.**
+Refresh writes episodes before show metadata and preserves local file names. Cover failures do not
+fail the feed or replace user-supplied artwork. Large JPEG and PNG art is reduced to 192 px with
+bounded-memory decoders; display decoding refuses images over 2.1 million pixels.
 
 ## Download safety
 
-Downloads request the stored enclosure URL, not an expiring redirect URL.
-Data is flushed in 512 KB chunks and renamed only on completion; the show's folder is synced
-after the rename (`net_publish`, [network](network.md)).
-A partial file requests Range N-: HTTP 206 appends, 200 restarts, and 416/range errors
-restart once. A 206 whose Content-Range starts elsewhere than N is not appended and counts as
-a refused range (`net_head_line`; a 206 with no Content-Range line is taken as before).
-Within one run of a download, the bytes of an attempt that came with a strong ETag make the
-next attempt's Range carry If-Range, so a file that changed on the server comes whole (a 200)
-instead of being joined to the old bytes. No record is kept on the card: a `.part` of an
-earlier run (Paused) resumes on its size alone, unlike Subsonic's.
-A `text/*`, JSON or XML Content-Type is no episode (`net_text_type`; it was `text/*` alone).
-The card keeps `NET_RESERVE_KB` (32 MiB), the rule Subsonic uses (`net_room`).
+- Downloads request the stored enclosure URL, not an expiring redirect URL. Data is flushed in 512
+  KB chunks and renamed only on completion, then the show's folder is synced (`net_publish`).
+- A partial file requests `Range: N-`: 206 appends, 200 restarts, and 416 or a range error restarts
+  once. A 206 whose Content-Range starts elsewhere than N counts as a refused range.
+- **If-Range safety:** within one run, an attempt that came with a strong ETag makes the next
+  attempt's Range carry `If-Range`, so a file that changed on the server comes whole instead of
+  being joined to the old bytes. No record is kept on the card: a `.part` of an earlier run resumes
+  on its size alone.
+- A `text/*`, JSON or XML Content-Type is no episode. The card keeps `NET_RESERVE_KB` (32 MiB) free
+  (`net_room`, as Subsonic does). Bodies over 2 GiB and paths over 240 bytes are refused.
+- Transient failures retry after 10, 20 and 40 s. Certificate, storage and terminal HTTP errors
+  fail at once. A non-empty partial survives errors and cancellation; an empty one is removed.
+- **Pause keeps the `.part`.** There is no automatic new-episode download or persistent retry queue.
+- Active transfers use the stock power timer to prevent standby while allowing screen-off. Visual
+  work stops while dark; status and covers update on the first lit page tick. Stock standby
+  otherwise stops Wi-Fi and CPU.
 
-Transient failures retry after 10, 20 and 40 seconds. Certificate, storage and terminal
-HTTP errors fail immediately; text responses are rejected as non-audio.
-Downloads keep 32 MB free, reject bodies over 2 GiB and enforce a 240-byte path limit.
-Nonempty partial files survive errors and cancellation; empty ones are removed.
-There is no automatic new-episode download or persistent retry queue.
+## Pins
 
-Active transfers use the stock power timer to prevent standby while allowing screen-off.
-Visual work stops while dark; status and covers update on the first lit page tick.
-Stock standby otherwise stops Wi-Fi and CPU execution.
+`PODCAST_PINS` in `tools/pod.py` pins the stock seek and play-speed calls, the speed variable and the
+tag-reader hook. Library query hooks are in [payload](payload.md). Every hook preserves stock
+behaviour outside its matching podcast path or query.
 
-## Pins and validation
+## Limits
 
-`PODCAST_PINS` in `tools/pod.py` checks `seek_time` (`0x4e0544`),
-`mclSetPlaySpeed` (`0x5d281c`), `playspeed_mode` (`0xa05acc`) and the
-tag-reader hook. Library query hooks are documented in [payload](payload.md).
-Every hook preserves stock behavior outside its matching podcast path/query.
-
-Tests cover parsing, metadata merge, file writes, malformed input, network/queue failures,
-resume, speed, layout, search, Discover and its region, notes, selection, translations and stock tag-reader execution.
-Models do not establish actual playback, Wi-Fi persistence, filesystem or frame-time results.
-
-## Open items (Discover)
-
-Episode rows: a Top Episodes row opens its show's preview with the episode's page on top (matching in the Discover section); the episode page's show row returns to the preview. Open: a subscribed show's chart row opens the show's page only (no episode jump); an episode beyond the 20 kept feed items falls back to the preview; the show row of an episode from a preview has the chevron now (it was not drawn there before).
-
-Open items:
-- Preview: `tools/preview/preview_podcasts_revamp.py` has no Discover frames yet (only the Settings Library frame was updated); the design mockups were not kept.
-- Not done: a chart's country is not shown anywhere else; no pull-to-refresh or Try Again on a failed chart (switch the control or re-enter the level); names stay English; the font has no medium weight for the control's labels; no shadow on the thumb.
-- Not done: a DC-only decoder for progressive feed images (the store's `artworkUrl600` stands in for shows that have an Apple id); shows without one (typed URL, OPML) still get no cover from such a feed. Device check: the Rest Is Politics / News Agents / Rest Is History previews and subscribing to one show a cover.
-- Podcast Discover switch (`ACT_PCSEARCH` 34, `podcast-online-search`, `pg.searchon`): Settings > Library > Podcasts, on by default ("0" is off, a missing file is on); off hides the Discover row and makes `pg_load_disc` / `pg_load_search` land on the Shows level, and `pg_on_fg` sends a Discover or search level back to the Shows level when the page is in front again with the switch off. The switch also gates the Shows level's globe; the Shows "..." has no Search row. Tested in `pcsearchui` `entry_tests` and `menu` `pcsearch_row_tests`.
+- A recent list is cut at 300 entries, so a show with an archive and more than 300 downloaded old
+  episodes shows the newest 300 of them (the Downloaded page's cap is 300 rows).
+- A feed of more than 2000 items keeps the newest 2000.
+- A refresh that adds an item whose file name equals an older archive item's (two items of one day
+  with one title) does not number it "(2)" as the full fetch does.
+- A subscribed show's chart row opens the show's page only; an episode beyond the 20 kept items
+  falls back to the preview.
+- A show set to Oldest First with no archive has its See All row at the end of the list, and
+  nothing fetches the archive automatically; leaving the page, Discover or search cancels the fetch.
+- A chart's country is shown only on its grey line; a failed chart has no Try Again (switch the
+  control or re-enter). Country and storefront names stay English.
+- Shows without an Apple id (typed URL, OPML) get no cover from a feed whose image is a
+  progressive JPEG.

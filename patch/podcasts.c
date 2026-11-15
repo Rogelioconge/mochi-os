@@ -830,7 +830,7 @@ static int pg_wide(unsigned *dst, int cap, const char *utf8) {
     return pg_wlen(dst);
 }
 
-/* The advance AWTK charges for each of the n chars of s in the style label st (the glyph's width and 1 px: docs/modules/text-width.md): one measure per char, the widths being additive. */
+/* The advance AWTK charges for each of the n chars of s in the style label st (the glyph's width and 1 px: docs/modules/ui-rules.md "Text width"): one measure per char, the widths being additive. */
 static void pg_adv(void *st, const unsigned *s, int n, unsigned short *adv) {
     unsigned t[2];
     int i;

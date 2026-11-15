@@ -1,55 +1,63 @@
 # Payload safety
 
-- **Keep the approved entry points.** Home icon tap, guarded Home initialization,
-  Now Playing initialization, the timed cover page's initialization (`bigcover_page_init`, [bigcover](bigcover.md)), the timed open's `navigator_to` call site in Now Playing's timer callback (`0x53d0ec`, the idle view: Cassette / Vinyl, stock's call on the kill switch or any failure), the lock screen's initialization (`screensaver_page_init`, [lock screen](lockscreen.md); its mini bar adds a page-scoped timer and paint handlers that every failure leaves unregistered, no-ops or removed, and the destroy handler frees), More-dialog initialization, pull-down initialization (opened by the user's swipe only), the podcast tag-copy call site, the
-  dot-folder scan, library query functions, status bar's battery-capacity call site
-  (Battery Percentage and the Charge Limit, both off by default), `toolsGetFileCreateTime`'s prologue (song dates: one `statx`, stock's date on any failure), `mclStartPlayer`'s prologue (Radio's hand-over: it stops a running radio, one
-  comparison otherwise), `on_backtoplayer_onclick`'s prologue (every stock Now Playing button: Radio Now Playing while a station plays, else stock), the previously empty `scroll_view` event slot, the All System Settings hub's Wi-Fi row (`navigator_to` call site `0x4b1460`: our Wi-Fi page, stock's on the kill switch or a page that will not open) and Bluetooth row (`0x4b1428`, the same: our Bluetooth page), `on_wm_tsdown_fun`'s prologue (`0x4cd6e8`, every touch down: payload hook 30, two loads and stock's call unless the lock-screen or pull-down word is set; it only clears a word its window no longer backs, [pull-down](pulldown.md) "Swipe gates and the window stack"), the two `navigator_to` call sites that open a Playback / System Settings page after a pull-down tile tap (`0x4cd894`, `0x4cd8bc`: restack the page that is still in the window stack, else stock's call), the Display page's Lock Screen row (`0x4a5ca8`: our Lock Screen page, stock's page on the kill switch or a page that will not open), the All Playback Settings Equalizer row (`0x4a0210`: our Equalizer page), and the
-  palette's three paint-time hooks: `style_get_color` `0x659fcc`, `style_get_gradient` `0x659f9c` and
-  `image_manager_add` `0x655638` ([accent](accent.md), payload hooks 10 - 12); in `hciplayer`, the
-  equalizer's `af_info` open slot `0x89381c` and its two 48 kHz gates and the `mcl-seteq` flag parse `0x42cd1c` (`peq_seteq_flag`: EQ off keeps the filter, which passes stock's bits through unless Mono Audio or Crossfeed is on; the kill switch gives stock its own flag back; [parametric EQ](peq.md), [stereo](stereo.md); approved 2026-11-15). `mclNextSong`'s List play end branch `0x5d5988` (payload hook 26: Continue with Next Album appends the next album's tracks to a queue that has just ended, [nextalbum](nextalbum.md); approved 2026-11-09, main-loop idle path, bounded work, stock's end on any refusal). `on_wm_idle_status`'s `add_playrecord` call site `0x4ce930` (payload hook 28: a Subsonic stream's address, which holds the login token, is kept out of stock's Recently Played and Most Played tables, [subsonic](subsonic.md) "Stock's play history"; approved 2026-11-11, main-loop idle path but reached once per track start, one `access` and one queue read, stock's call for every other track and on the kill switch; not boot-reachable per `tools/reach.py`). `loadLocalClassList`'s prologue `0x4ee504` and its tail's `deque_assign` call `0x4ee650` (payload hook 29: a list is read without a second copy, [libload](libload.md); boot-reachable, paved path: stock's code on the kill switch or a refused exchange, no allocation, thread, timer or file).
-  Each is pinned, falls back to
-  stock and is a pass-through while the palette is inactive (Black + Neutral) or `/mnt/mmc/m1plus-off` exists.
-  [Payload](payload.md) defines the hook sites and fallbacks. Do not add global paint or
-  main-loop work outside that scope.
+## Entry points
+
+The entry points are the hooks in [payload](payload.md), which owns the inventory, each hook's
+fallback and its boot reachability. Each is pinned, falls back to stock, and is a pass-through
+while the palette is inactive (Black + Neutral) or `/mnt/mmc/m1plus-off` exists. Do not add global
+paint or main-loop work outside that set.
+
+Rules for adding a hook:
+
+- **Pin every edit.** Check stock SHA-256, words, symbols, `$gp` and offsets before writing. A
+  mismatch fails the build; a hook error falls back to stock.
 - **Boot-reachable hooks are a paved path.** A new pinned prologue or call-site hook on a stock
-  function that also runs at boot (such as `select_timezone` from `config_init`) needs no
-  separate approval when it falls back to stock on the kill switch, invalid input or any error,
-  and does only bounded work: no thread, timer, loop over files or network. Document it in
-  [payload](payload.md) with its `tools/reach.py` boot reachability and add it to the list above.
-- **Treat startup as critical.** Home initialization needs the crash marker. The tag-reader
-  hook is also reachable through Memory Playback at boot: run stock's copy first and restrict
-  podcast processing to its card path. The `mclStartPlayer` hook is reached there too: with no radio running it
-  is one comparison before stock's function. The player's EQ filter is reachable at boot too (Memory
-  Playback with stock's Equalizer on): it reads one flash file per track and passes DSD and the
-  kill switch through. The recovery button combination remains unverified.
-- **Preserve hook restrictions.** Tidal-icon recovery applies only while the bad note exists.
-  Home's ready path changes the language's CJK cmap field and glyph-cache size, repeated
-  by a timer after language/theme changes. Podcast tags apply only under
-  `/mnt/mmc/Podcasts/` after stock's path copy. Library query hooks are reachable through
-  Memory Playback at boot: rewrite only the documented songtable/myfav cases and pass
-  other SQL untouched. Album queries use track order so the first track supplies the row/cover.
-  The scan hook skips dot-folders outside the boot path. The battery hook runs stock first
-  from the first status refresh; only an enabled percentage setting changes capacity/label,
-  and only a set Charge Limit writes the charger switch, releasing only its own hold ([charging](charging.md)).
-  Both disabled it adds only an access and two cached flags. Now Playing's paint work stays on the
-  cover widget; More work stays on init, More/back taps and covering-dialog handling. The pull-down hook runs stock's init first,
-  then moves, shows and hides the tiles and their captions (the eight stock ones and the three of ours) once; before the stock init it also writes the two "inside settings" flags (`syssetinto_flag`, `playsetinto_flag`) from the window stack.
-- **Pin every edit.** Check stock SHA-256, words, symbols, `$gp` and offsets before writing.
-  A mismatch fails the build; hook errors fall back to stock.
-- **Honor the kill switch.** `/mnt/mmc/m1plus-off` disables the payload on the path rollback needs: the
-  menu entry and boot guard (`m1plus.c`, `home.c`), boot-reachable hooks and hooks that run on every
-  screen (paint, status bar, list gesture) check it. The list-gesture hook reads it once per session.
-  Hooks on tap-only stock screens (Now Playing, More dialog, pull-down, library rows, Radio Now Playing)
-  and everything reached from the menu do not, and rely on their stock fallback.
-- **Preserve widget names.** Restyle, move or hide widgets the application looks up; never
-  rename or delete them. Hide with both `visible=false` and `sensitive=false`; decorative
-  overlays must be insensitive. See [UI rules](ui-rules.md) for hit-test evidence.
-- **Preserve update boundaries.** Only kernel and rootfs are packaged. Never write bootloader
-  or recovery kernel. The rebuilt rootfs must not exceed stock size.
+  function that also runs at boot (such as `select_timezone` from `config_init`) needs no separate
+  approval when it falls back to stock on the kill switch, invalid input or any error, and does
+  only bounded work: no thread, timer, loop over files or network. Check boot reachability with
+  `tools/reach.py` and list the hook in [payload](payload.md).
+- **Treat startup as critical.** Home initialization needs the crash marker. Hooks that Memory
+  Playback reaches at boot (the tag reader, `mclStartPlayer`, the library queries, the player's EQ
+  filter) run stock's work first or pass through, and touch nothing else. The EQ filter reads one
+  flash file per track and passes DSD and the kill switch through; `mclStartPlayer` with no radio
+  running is one comparison.
+- **Keep each hook inside its scope.**
+  - Tidal-icon recovery applies only while `/mnt/data/m1plus-bad` exists.
+  - Home's ready path changes the language's CJK cmap field and the glyph-cache size, repeated by
+    a timer after language or theme changes ([home-guard](home-guard.md), [fonts](fonts.md)).
+  - Podcast tags apply only under `/mnt/mmc/Podcasts/`, after stock's path copy.
+  - Library query hooks rewrite only the documented songtable / myfav cases and pass other SQL
+    untouched; album queries use track order so the first track supplies the row and cover.
+  - The scan hook skips dot-folders (not on the boot path).
+  - The battery hook runs stock first from the first status refresh. Only an enabled percentage
+    setting changes capacity and label, and only a set Charge Limit writes the charger switch,
+    releasing only its own hold ([charging](charging.md)). With both off it adds one `access` and
+    two cached flags.
+  - Now Playing's paint work stays on the cover widget; More work stays on init, More and back
+    taps and covering-dialog handling.
+  - The pull-down hook runs stock's init first, then moves, shows and hides the tiles and captions
+    once. Before stock's init it writes the two "inside settings" flags (`syssetinto_flag`,
+    `playsetinto_flag`) from the window stack.
 
-The radio engine's 500 ms timer is the one timer that is not a page's: it lives from a station's start (a tap) to its stop, error
-or hand-over, holds standby and the DAC timer, and ends itself ([radio](radio.md)).
+## Kill switch
 
-Normal windows are 450 px below the status bar; fullscreen windows are 480 px. Feature timers,
-workers and paint events must remain owned by their page and follow its lifetime.
+`/mnt/mmc/m1plus-off` disables the payload on the path rollback needs only: the menu entry and
+boot guard (`m1plus.c`, `home.c`), boot-reachable hooks, and hooks that run on every screen
+(paint, status bar, list gesture). The list-gesture hook reads it once per session. Hooks on
+tap-only stock screens (Now Playing, More dialog, pull-down, library rows, Radio Now Playing) and
+everything reached from the menu do not check it and rely on their stock fallback.
+
+## Widgets and windows
+
+- **Preserve widget names.** Restyle, move or hide widgets the application looks up; never rename
+  or delete them. Hide with both `visible=false` and `sensitive=false`; decorative overlays must be
+  insensitive ([ui-rules](ui-rules.md) has the hit-test evidence).
+- Normal windows are 450 px below the status bar; fullscreen windows are 480 px.
+- Feature timers, workers and paint events stay owned by their page and follow its lifetime. The
+  one exception is the radio engine's 500 ms timer: it lives from a station's start to its stop,
+  error or hand-over, holds standby and the DAC timer, and ends itself ([radio](radio.md)).
+
+## Updates
+
+Only kernel and rootfs are packaged. Never write the bootloader or recovery kernel. The rebuilt
+rootfs must not exceed stock size.

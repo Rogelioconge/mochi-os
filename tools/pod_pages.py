@@ -1412,7 +1412,7 @@ SLEEP_NOTE = 'The player turns off when the time is up'
 SLEEP_PAGE = Page('m1plus_sleeptimer', 'm1plus_sleeptimer_page', 'Sleep Timer', layout=[Row(v, ACT_SLEEPSET, i) for i, v in enumerate(SLEEP_VALUES)] + [Note(SLEEP_NOTE, lines=2), Row('Time Left', ACT_SLEEPLEFT)])
 SLEEPTIMER_PAGE_INDEX = page_index('m1plus_sleeptimer')
 
-# Settings > Network Services (patch/netservice.c, docs/modules/netservice.md): stock's Network Service page as our own cards. AirPlay and DLNA are stock's two switches (the Control Center tiles' bytes), Wi-Fi Transfer opens
+# Settings > Network Services (patch/netservice.c, docs/modules/wifi-transfer.md): stock's Network Service page as our own cards. AirPlay and DLNA are stock's two switches (the Control Center tiles' bytes), Wi-Fi Transfer opens
 # our page of the same name: it stops the player and starts the file server as stock's Wi-Fi file transfer page does, shows the address and stops the server when the window goes.
 NETSERVICE_PAGE = Page('m1plus_netservice', 'm1plus_netservice_page', 'Network Services', layout=[Row('AirPlay', ACT_NETAIR), Row('DLNA', ACT_NETDLNA), GAP, Row('SyncLink', ACT_STOCK, STOCK_SYNCLINK), Row('Wi-Fi Transfer', ACT_NETTRANS, WIFITRANSFER_PAGE_INDEX)])   # SyncLink: stock's synclink page (ACT_STOCK; Back returns here)
 WT_INFO = 'On the same Wi-Fi, open this address in a browser to manage your music.'

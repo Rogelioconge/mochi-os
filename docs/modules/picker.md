@@ -1,8 +1,11 @@
 # Add to Playlist picker
 
-Our own picker replaces the stock one. Add on the Songs page and the album page (`so_add`, `patch/songops.c`) opens it; the stock `playlist_page` in picker mode
-is only the fallback. Files: `patch/picker.c` / `picker.h` (the add and the copies), `patch/playlists.c` (the page: pick mode), `test/pod/picker.py`,
-`tools/preview/preview_picker.py` (the mock: `out/preview/picker.png`, rows as `preview_icons.playlists_grid(pick=True)`).
+**Sources:** `patch/picker.c`, `patch/picker.h` (the add and the copies), `patch/playlists.c` (pick mode),
+`patch/songops.c` (`so_add`), `PICKER_PINS` in `tools/pod.py`. **Tests:** `test/pod/picker.py`.
+**Preview:** `tools/preview/preview_picker.py` (`out/preview/picker.png`).
+
+Our own picker replaces the stock one. Add on the Songs page and the album page (`so_add`) opens it;
+the stock `playlist_page` in picker mode is only the fallback.
 
 ## Choice: a page, not a sheet
 
@@ -23,13 +26,13 @@ pressed row `#333334`.
 
 ## What it does with a tap
 
-The stock row handler (`0x53d300`, in picker mode) is: `batch_add_file(class, 0xf00b, *pdeq_showlist, *SEL_VEC, playlist id)` (`0x4da7dc`; the id is the row's
-`REC_DISC`; it skips songs already in the playlist with `checkPlayListExist`, then `addPlayList`), the message `msg_addplaylistsuccess` in `dialog/msginfo_dialog`,
-`window_close` of the picker's window. `picker_add` does the same, in the same order. Pinned (`tools/pod.py` `PICKER_PINS`): the prologue of `batch_add_file`,
-and the handler's `ori a1, 0xf00b`, `jalr batch_add_file` and the store of the 5th argument. `batch_add_file` is declared there (`FUNCTIONS`, `int (int, int, void *, void *, int)`).
-Stock returns nothing the handler tests, so neither do we: the message is always the success one, as stock.
+Stock's row handler in picker mode calls `batch_add_file(class, 0xf00b, *pdeq_showlist, *SEL_VEC, playlist id)`
+(the id is the row's `REC_DISC`; it skips songs already in the playlist), shows `msg_addplaylistsuccess`
+in `dialog/msginfo_dialog` and closes the picker's window. `picker_add` does the same, in the same
+order. The prologue of `batch_add_file` and the handler's class, call and 5th-argument words are pinned
+(`PICKER_PINS`). Stock returns nothing the handler tests, so the message is always the success one.
 
-**Favourites** is the stock Add button's other choice (`dialog/batchadd_dialog` returns 1; handler `0x5280c0`, the path at `0x5281c8`): `batch_add_file(g_class_type, 0xf00a, *pdeq_showlist, *SEL_VEC, 0)` (`ori a1, 0xf00a` `0x5281c8`, 5th argument `sw zero, 0x10(sp)` `0x5281cc`, `jalr` `0x5281e8` with `a0 = *g_class_type` loaded in its delay slot `0x5281ec`), then the message `msg_addfavsuccess` (`0x52822c`; stock en_US text "Added To Fav", in `pod_i18n.STOCK`) in `dialog/msginfo_dialog`. Stock stays on its page afterwards; ours closes the picker, as for a playlist. With nothing selected stock shows `msg_addfailed` first (`0x5280ec`): ours never opens with an empty selection (`so_add`). `picker_add(PICKER_FAVOURITES)` does it on the same copies, so the arguments are the playlist add's with class `0xf00a` and 0 for the id. Pinned in `PICKER_PINS`: `0x5281c8`, `0x5281cc`, `0x5281d4` (the GOT load of `batch_add_file`), `0x5281e8`, `0x5281ec`, `0x52822c`.
+**Favourites** is the stock Add button's other choice (`dialog/batchadd_dialog` returns 1): `batch_add_file(g_class_type, 0xf00a, *pdeq_showlist, *SEL_VEC, 0)`, then the message `msg_addfavsuccess` in `dialog/msginfo_dialog`. Stock stays on its page afterwards; ours closes the picker, as for a playlist. With nothing selected stock shows `msg_addfailed` first: ours never opens with an empty selection (`so_add`). `picker_add(PICKER_FAVOURITES)` does it on the same copies, with class `0xf00a` and 0 for the id. The words are pinned in `PICKER_PINS`.
 
 **The copies.** The Playlists page reads every playlist to show its count and mosaic (`loadLocalClassList(0xff13)`), and each read replaces `*pdeq_showlist`, the list
 the add needs. So `picker_open` copies the list (`cc_copy_list`: the page's `count` rows must be the stock list's, else -1) and the marks (the page's bitset)
@@ -49,14 +52,8 @@ was in the background all along: its loader stopped, to-foreground reads it agai
 class`) when: the stock list is not the one the marks are of, the copies cannot be made, the window `m1plus_playlists` does not open, the asset lacks a widget,
 or a picker is already open. The SD file `/mnt/mmc/m1plus-off` disables the whole payload (then stock's page is the only one).
 
-## Not seen on a device
+## Tests
 
-Whether `window_close` of the picker after the toast dialog behaves as stock's (it is stock's order); the keyboard closing while the add runs (`pl_named` is
-called after the keyboard was told to close; its other results already work that way for the Playlists New); the look of the star on the Favorites row (the New row's plus and the star are drawn by the page's after-paint over a dark square), and that `batch_add_file` with class `0xf00a` adds the way the stock Favourites button does on a list that is not the library's, are not seen on a device).
-
-## Tests (`test/pod/picker.py`)
-
-Opening (page, title, hidden buttons, the list with New playlist and Favorites first and the counts, the caller's record kept through the scans), the Favorites row (`batch_add_file` with class `0xf00a` and 0, `msg_addfavsuccess`, the star bitmap's pixels), a tap (`batch_add_file`
-arguments and rows, the copy of the list, the stock vector, the message, the close, a second tap does nothing, the record back at destroy), New playlist
-(keyboard, -1 / -2 stay, a made playlist gets the songs), Back (nothing added), the fallbacks (-1 with no window, a changed list, a second picker) and the stash
-over an open Playlists page. `test/pod/songs.py` and `albumpage.py` refuse the window `m1plus_playlists` where they assert the stock picker fallback.
+`test/pod/picker.py` covers opening, the Favorites row, a tap, New playlist, Back, the fallbacks and the
+stash over an open Playlists page. `test/pod/songs.py` and `albumpage.py` refuse the window
+`m1plus_playlists` where they assert the stock picker fallback.

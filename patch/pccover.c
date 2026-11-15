@@ -1,4 +1,4 @@
-/* Cover art shrunk once, in a worker thread: the podcast covers (docs/modules/podcasts.md "Cover art") and the album covers of the cache (docs/modules/coverflow.md "Cover resampling").
+/* Cover art shrunk once, in a worker thread: the podcast covers (docs/modules/podcasts.md "Cover art") and the album covers of the cache (docs/modules/covercache.md "Cover resampling").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *

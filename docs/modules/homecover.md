@@ -1,184 +1,244 @@
 # Home cover build
 
-Sources: `patch/homecover.c`, `patch/durations.c`, `tools/pod_ui.py` (`cache_pill`), `HC_*` in `patch/offsets.inc`, `Preparing covers` in
-`tools/pod_i18n.py`; test `test/pod/homecover.py`. The shared builder is described in [Cover Flow](coverflow.md) (`cc_build_*`),
-its Albums-page use in [Albums](albums.md) "Cache building".
+**Sources:** `patch/homecover.c`, `patch/durations.c`, `patch/covlist.c`, `cache_pill` in
+`tools/pod_ui.py`, `HC_*` in `patch/offsets.inc`. **Tests:** `test/pod/homecover.py`,
+`test/pod/durations.py`.
 
-The Home page ([menu](menu.md)) builds the album covers that have no cache file in the background, with the same shared worker as
-the Albums page, and shows a progress pill at the top of the page while it runs: `Preparing covers 120/840` with a bar and a stop button.
+The Home page ([menu](menu.md)) builds the album covers that have no cache file in the background,
+with the shared worker ([covercache](covercache.md)), and shows a progress pill at the top while it
+runs: `Preparing covers 120/840` with a bar and a stop button. The same pass measures track durations
+and fetches artist photos. **No hook and nothing at boot:** `home_menu_opened` calls
+`homecover_start` (Home instance only, beside `recent_start` / `dailymix_start`), which looks up two
+widgets, registers `EVT_DESTROY` / `EVT_WINDOW_TO_BG` / `EVT_WINDOW_TO_FG` and arms a one-shot
+`HC_START_MS` (5 s, never in the boot window) only when work is expected. A refused registration or
+timer leaves Home as it was.
 
 ## The pill
 
-- Placement: a window child of the menu asset, `pod_cache_pill` (`tools/pod_ui.py` `cache_pill`, constants `HC_*` in `patch/offsets.inc`): a view at (`HC_X` 12, `HC_Y` 10) of
-  `HC_W` 296 x `HC_PH` 40, fill `#1C1C1E`, `round_radius` 20 (a capsule). The asset has it on the Normal menu too, hidden and insensitive; only Home ever shows it.
-- Children (pill coordinates): the label `pod_cover_prog` at (18, 5), 230 x 18, 15 px (`HC_PX`) `#AAAAAA` (the grey of the Recently Played subtitles), left, middle; under it
-  a 4 px progress bar at y 26, the track `pod_cache_track` (`#FFFFFF33`) and the fill `pod_cache_fill` (`#EBEBEC`, role `ROLE_FILL`: the accent when one is chosen, a level off `#EBEBEB` under Neutral), both 230 wide at most and fully rounded, the same pair as the Podcasts refresh card's;
-  at the right end the stop button `pod_cache_x`, a 40 x 40 touch box drawing the 28 px disc `pod_cache_x` / `pod_cache_x_down` (`#2C2C2E`, pressed `#3A3A3C`, a white 14 px x; `tools/mod_icons.py` `CACHE_X`).
-  No Accent tint: neutral.
-- The bar is a resized child view: the payload sets the fill's width to `HC_BW * done / total` (230 px at most, never under 4 px) with `widget_resize` each time the counter moved.
-- Showing it makes room instead of overlapping: the stock `list_view` (`pod_listview`) and its `pod_scrollview` / `scroll_bar_m` move
-  down to `HOME_PAD + HC_H` (10 + 48 = 58: the pill and 8 px of air) and shrink by `HC_H` (392 px), then `menu_arrange` clamps the scroll offset; hiding it puts them back
-  to 10 / 430. So the first row is never covered, and the pill ends 8 px above where the list starts.
-- Hidden = `visible=false` + `sensitive=false` together, on the pill (its children follow). Shown only when the worker runs with at least one job: a library whose
-  albums all have a picture or the empty "no art" marker never shows it, and it is hidden again when the done counter reaches the total,
-  on background and on destroy. No first-run flag.
-- Text: `TR("Preparing covers")` (a key of our own, 13 languages) + `" done/total"`, the count formatted in code and rewritten at each poll that saw
-  the counter move (`widget_set_text_utf8`, rebuilt each time as the Cover Flow progress is). `test/pod/i18n.py` checks the widest
-  `... 4000/4000` fits the label in every language.
-- **The x** (`hc_on_stop`, `EVT_CLICK` on `pod_cache_x`, ctx = the window): `hc_off` is set and `hc_end` runs: the timers go, a half-scanned copy is freed, the durations done so far are saved,
-  a set Home owns is `cc_build_stop`ped (never joined here; a worker still inside a job is orphaned as ever) and the pill hides. While `hc_off` is set Home starts nothing: `hc_later`, `hc_on_start` and `hc_dur_begin` return at once,
-  also for a Home window opened later (the flag is a static in memory: a reboot clears it). Settings > Library > Rebuild Covers clears it when its request file is written (`homecover_rebuild_asked`, called from `rebuild_ask`),
-  so the explicit rebuild runs at the next Home foreground. A build another page owns (Albums, Songs, Cover Flow, an album page) is never touched by the x.
-- A static sync icon in the status bar shows on every page while any set runs: [Line Out pill and sync icon](lineout.md).
+- A window child of the menu asset, `pod_cache_pill`: a capsule (fill `#1C1C1E`) at the top of Home.
+  The asset has it on the Normal menu too, hidden and insensitive; only Home shows it.
+- A grey 15 px label, a 4 px progress bar (track `#FFFFFF33`, fill in the accent role: a level off
+  white under Neutral; same pair as the Podcasts refresh card) and the stop button `pod_cache_x`. No
+  accent tint on the rest.
+- The fill's width follows `done / total` and changes only when the counter moved. The label text is
+  `TR("Preparing covers")` plus `done/total`, rebuilt at each poll that saw the counter move.
+- Showing it makes room: the stock list and its scroll view move down and shrink (`HC_H`), then
+  `menu_arrange` clamps the scroll offset; hiding it puts them back. The first row is never covered.
+- Hidden = `visible=false` and `sensitive=false` together. Shown only when the worker runs with at
+  least one job, so a library whose albums all have a picture or marker never shows it. Hidden again
+  at done == total, on background and on destroy.
+- A static sync icon in the status bar shows on every page while any set runs ([lineout](lineout.md)).
+- **The x** (`hc_on_stop`) sets `hc_off` and runs `hc_end`: timers go, a half-scanned copy is freed,
+  durations done so far are saved, a set Home owns is stopped (never joined here), the pill hides.
+  While `hc_off` is set Home starts nothing, also for a Home window opened later (a static: a reboot
+  clears it). Settings > Library > Rebuild Covers clears it (`homecover_rebuild_asked`). **The x
+  writes nothing**, so after a reboot the pill comes back. A build another page owns is never touched
+  by the x.
 
 ## The check and the stamp
 
-Whether Home has work is decided before anything is queried or scanned (`hc_expect`, `hc_later`), from two cheap facts:
+Whether Home has work is decided before anything is queried or scanned (`hc_expect`), from the stamp
+and the database file's state.
 
-- **The stamp** `/mnt/mmc/.m1plus/cache-stamp` (`STAMP_FILE`, on the card like the cache): one line per part, `covers <albums> <hash>`, `tracks <albums> <hash>` and `artists <albums> <hash>` (decimal count, 8 hex digits; the artists line is the artist photos' own, so a stamp from before them has none and the pass runs once by itself on the first Home open of an unchanged library: no migration code). The signature of the library is the stock Albums
-  count and the order-independent sum of `cc_album_key` over its albums (`hc_lib_of`). A line is written when its part ran to the end (`hc_stamp`, atomic `m1_card_write`): covers when every album has a file or a marker
-  (also an empty library; **not** a set that **stalled**: the hung album has its `.bad`, but the watchdog ended the pass with other albums unlooked at, so the next foreground scans again and skips it; a stalled Rebuild Covers keeps its request file too), tracks when the duration pass found
-  the table complete or finished measuring (also no songs). A part that did not run to the end (card full, no thread, held worker, a save error) leaves its line as it was. Three more passes that look finished but are not:
-  a **truncated** cover pass (more albums missing than one set holds, `CC_MAX_JOBS` 4000, or a path copy failed: `cc_build_truncated`, set by `cc_build_near_step`) writes no covers line and chains the next chunk (see "Chunks"),
-  a **failed list copy** (`cc_list_failed`: rows but no memory for the copy) writes no line and hides the pill (Home asks again), and **no songs although there are albums** (stock `loadLocalClassList` returns the deque's size, so a query that failed before
-  any row reads as an empty list, not as -1) is a failed song read: no tracks line, the pill hides, Home asks again.
-  An **empty album list** may equally be a failed query. It is stamped (`covers 0 00000000` and `artists 0 00000000`, and `tracks 0 00000000` when the song list is empty too; the signature 0/0 matches no real library, so any later successful read sees work) but never trusted:
-  `hc_lib_of` leaves `lib.sigok` 0 for it, so `hc_expect` answers 4 at every foreground and the library is asked again silently at `HC_START_MS`. A still empty library matches its 0/0 stamp there: no pill, no scan. **The x writes nothing**, so after a reboot the pill comes back.
-  Developer > Clear Cover Cache drops the covers line (`homecover_stamp_drop(1)`), Clear Track Durations the tracks line (`(2)`); no line left removes the file.
-- **The database file's state** (`hc_dbsig`): `__xstat` of `/mnt/data/database.db` and its `-wal` and `-journal` (mtime, nanoseconds, size) as it was when the signature was last taken (`lib`, in memory, taken by every pass at HC_START_MS).
+**The stamp** `/mnt/mmc/.m1plus/cache-stamp` (on the card like the cache) has one line per part:
+`covers <albums> <hash>`, `tracks <albums> <hash>`, `artists <albums> <hash>` (decimal count, 8 hex
+digits). The signature is the stock Albums count and the order-independent sum of `cc_album_key`
+(`hc_lib_of`). A line is written only when its part ran to the end (`hc_stamp`, atomic
+`m1_card_write`). A part that did not (card full, no thread, held worker, a save error) leaves its
+line as it was. A stamp from before artist photos has no artists line, so the pass runs once by
+itself: no migration code.
 
-On Home open and on every foreground (not `hc_off`), `hc_expect` answers without a query or a per-album `access`:
+| Case | Line written? |
+|---|---|
+| covers: every album has a file or marker (also an empty library) | covers |
+| covers: set ended by **stall** (the hung album has its `.bad`, others unlooked at) | none; the next foreground scans again and skips it |
+| covers: **truncated** pass (more missing than `CC_MAX_JOBS` 4000, or a path copy failed) | none; chains the next chunk ([Chunks](#chunks)) |
+| **failed list copy** (`cc_list_failed`) | none; the pill hides, Home asks again |
+| tracks: table complete or finished measuring (also no songs) | tracks |
+| **no songs although there are albums** (stock reports a failed query as an empty list) | none; the pill hides, Home asks again |
+| artists: set finished unstalled, untruncated, every artist fitted | artists (also when nothing was queued) |
+| **empty album list** (may be a failed query) | `covers 0 00000000` etc., never trusted: `lib.sigok` stays 0, so every foreground asks again silently at `HC_START_MS`. A still empty library matches its stamp: no pill |
 
-- a missing stamp line, a pending `REBUILD_FILE` or `AREBUILD_FILE`: work (covers, tracks, or artist photos by the missing line; `hc_stale` bits 1, 2, 8; 4 is the probe); no card: nothing;
-- the database file changed since the signature was taken (a play changes it too), or nothing taken yet since the boot, both lines present: **not certain work**. The 5 s one-shot is armed silently (`hc.probe`, no pill) and the library is asked once then; equal to the stamp: done (the state is remembered, nothing was ever shown); different: the pill appears and the scan runs;
-- otherwise (database as it was, signature equal to the stamp): nothing. No pill, no timer, no `hc_on_start`, no album query, no duration pass.
+Clear Cover Cache drops the covers line (`homecover_stamp_drop(1)`), Clear Track Durations the tracks
+line (`(2)`); no line left removes the file. **The database file's state** (`hc_dbsig`: `__xstat` of
+`database.db` and its `-wal` and `-journal`) is kept from the last signature, in memory.
 
-Work certain (a missing line, a pending rebuild, or a stale stamp left by an unfinished pass): the pill shows **at once** in its waiting state (`hc_wait_text`): `Checking library…` (covers or tracks pending, also when the cover pass found nothing and the duration pass begins), or `Rebuilding covers…` while a Rebuild Covers request (`REBUILD_FILE`) is pending, the bar's fill hidden, no count; the list makes room as usual. **The dots move:** the label drops the translation's trailing ellipsis (`…`, or three ASCII dots) and shows 1, 2, 3 ASCII dots, back to 1, one step every `HC_DOTS_MS` 400 ms, on its own page-scoped timer (`hc.dots`, `hc_on_dots`, RET_REPEAT; only the label is invalidated). The label is left-aligned at a fixed x, so the text does not shift as the dots change. The timer is removed when the count text takes over, in `hc_end` (x, background, destroy); a tick that finds the wait over or the pill hidden ends it by answering RET_OK. A translation without a trailing ellipsis is shown as it is and starts no timer. `test/pod/i18n.py` checks the waiting texts fit with three ASCII dots. The 5 s one-shot is armed as before;
-the x in this state just removes it (`hc_end`) and hides the pill. The status-bar sync icon is untouched: it follows the worker (`cc_build_active`). At 5 s `hc_on_start` queries the albums once, takes the signature and compares it with the stamp (`hc_stale`): equal and no Rebuild
-Covers: the pill hides, no scan; the covers line stale: today's scan and worker (the first `Preparing covers n/m` swaps the label and shows the fill); only the tracks stale: the duration pass; a silent probe shows the pill only when the signature differs; the scan finding nothing missing writes the stamp and hides the pill.
-A worker held by another page at 5 s hides the waiting pill (the next foreground offers again).
-**Returning to Home** while the pill was up when it left (`hc.resume = hc.shown` in `hc_on_background`: a build or its wait was in progress) arms the one-shot `HC_RESUME_MS` (1 s) out instead of `HC_START_MS`: it only has to cover the page's return transition, not the first open's menu and Recently Played load. `hc_later` spends the flag. A silent probe (no pill), a finished build (pill hidden) and the x (`hc_off`) keep or skip the 5 s as before; an orphaned worker still inside its last album is retried every `HC_POLL_MS` as ever.
+On Home open and every foreground (not `hc_off`), `hc_expect` answers without a query or per-album
+`access`:
 
-Known limit: a song added to an existing album changes neither the album count nor the key sum, so the signature stays; its duration is measured by the album page, not by Home (a changed database alone, without a changed signature, starts no pass). After a reboot the first
-Home open, and each one after a database change such as a play, costs one stock album query at 5 s even when nothing changed (no pill).
+- a missing stamp line, a pending `REBUILD_FILE` or `AREBUILD_FILE`: **work certain**; no card:
+  nothing;
+- the database changed since the signature was taken (a play changes it too), or none taken since
+  boot, with both lines present: **maybe work**. A silent 5 s probe asks the library once; equal to
+  the stamp: done, nothing shown; different: the pill appears and the scan runs;
+- otherwise nothing: no pill, no timer, no query.
+
+Work certain shows the pill **at once** in its waiting state: `Checking library…`, or `Rebuilding
+covers…` / `Rebuilding artist photos…` while a request is pending, no count, with animated dots
+(`hc.dots`, 400 ms; the label's trailing ellipsis is dropped and 1 to 3 ASCII dots show). The 5 s
+one-shot is armed as before; the x in this state just removes it. At 5 s `hc_on_start` queries the
+albums once and compares the signature with the stamp. A worker held by another page at 5 s hides the
+waiting pill (the next foreground offers again). **Returning to Home** with the pill up when it left
+arms the one-shot at `HC_RESUME_MS` (1 s).
+
+**Known limit:** a song added to an existing album changes neither the album count nor the key sum,
+so the signature stays; its duration is measured by the album page, not Home. After a reboot the
+first Home open, and each one after a database change such as a play, costs one stock album query at
+5 s even when nothing changed (no pill).
 
 ## The build
 
-Called from `home_menu_opened` beside `recent_start` / `dailymix_start` (`homecover_start`, the Home instance only; no kill switch, no
-widget: nothing). **No new hook, nothing at boot:** `homecover_start` looks up two widgets, registers `EVT_DESTROY`, `EVT_WINDOW_TO_BG`,
-`EVT_WINDOW_TO_FG` on the window and arms one one-shot `HC_START_MS` (= `RC_RESOLVE_MS`, 5 s) out when `hc_expect` says work is expected (see "The check and the stamp"); a refused registration or timer leaves Home as it was.
-
-- `hc_on_start` (page-scoped timer; reached only when work is expected): if the worker is held (`cc_build_busy`: Cover Flow, the Albums page, anything) it does nothing and
-  the next foreground offers again. Otherwise it copies the library's albums (`cc_albums`, one stock query like the Albums page's open; `recent_rekey` first corrects Recently Played's cover keys from it, `docs/modules/recent.md`, and names the shelf's rows: `hc_order` moves them to the front of the scan, most recent first, so the shelf's placeholders are the first covers made),
-  opens a `CC_MISSING` set (capacity min(albums, `CC_MAX_JOBS`)) and scans in steps of `HC_BATCH` 64 albums with `cc_build_near_step(centre 0)`
-  (the displayed album order, no "in view" centre), re-arming itself `HC_SCAN_MS` 20 ms later so input is served between steps. After the
-  last step the album copy is freed (the jobs hold their own path copies) and `cc_build_start` runs: nothing missing, no card, under 16 MB
-  free or no thread frees the set and nothing is shown. Otherwise the pill shows `0/total` and the poll starts.
-- `hc_on_poll` (`HC_POLL_MS` 500 ms): reads `cc_build_done`; when it moved, rewrites the text and the bar and calls `recent_refresh`, which lets the
-  Recently Played tiles that showed the placeholder because their file was missing try again (`rc_tiles`: `art == 2` and the file exists now,
-  then the shelf's own one-per-tick loader decodes it; paint never touches files). The Daily Mix card's art is its own render and the
-  Made for You tiles pick the new covers up on the next foreground. At done == total the set is stopped (joined, freed), the pill hidden. A Rebuild Covers request is deleted then only if the set did not end by stall (`cc_build_stalled`) and the scan reached the end of the list (not truncated); a stalled one keeps it for the next foreground, which skips the hung album (its `.bad`).
-- `EVT_WINDOW_TO_BG`: `hc_end` removes the timer, frees a half-scanned copy, `cc_build_stop`s a set Home owns (only then: a set held by
-  anyone else is never touched) and hides the pill, so the worker never runs beside Cover Flow's or the Albums page's own build.
-  `EVT_WINDOW_TO_FG` runs the check again and arms the one-shot (5 s) only if work is expected and nothing runs or is pending. A page that goes to the background and comes back
-  with the stamp current and the database untouched does nothing; otherwise it scans again (about one `access` per album, 64 per 20 ms step). `EVT_DESTROY` ends it likewise
-  and clears the state (an earlier window's destroy is ignored).
+- `hc_on_start` (page-scoped timer): if the worker is held (`cc_build_busy`) it does nothing and the
+  next foreground offers again. Otherwise it copies the library's albums (`cc_albums`, one stock
+  query; `recent_rekey` corrects Recently Played's cover keys from it, [recent](recent.md)), opens a
+  `CC_MISSING` set and scans in steps of `HC_BATCH` 64 albums with `cc_build_near_step`, re-arming
+  `HC_SCAN_MS` 20 ms later so input is served between steps. After the last step the copy is freed
+  and `cc_build_start` runs: nothing missing, no card, under 16 MB or no thread frees the set and
+  shows nothing.
+- `hc_order` moves the Recently Played shelf's albums to the front, most recent first, so the shelf's
+  placeholders are the first covers made.
+- `hc_on_poll` (500 ms) reads `cc_build_done`; when it moved, rewrites the text and bar and calls
+  `recent_refresh` so shelf tiles that showed the placeholder try again. At done == total the set is
+  stopped and the pill hidden. A Rebuild Covers request is deleted then only if the set did not stall
+  and the scan reached the end of the list; a stalled one stays for the next foreground, which skips
+  the hung album. The Daily Mix card's art is its own render and the Made for You tiles pick the new
+  covers up on the next foreground.
+- An orphaned worker still inside its last album is retried every `HC_POLL_MS`.
+- `EVT_WINDOW_TO_BG`: `hc_end` removes the timer, frees a half-scanned copy, stops a set Home owns
+  (only then) and hides the pill, so the worker never runs beside Cover Flow's or the Albums page's
+  own build. `EVT_WINDOW_TO_FG` runs the check again. `EVT_DESTROY` ends it likewise (an earlier
+  window's destroy is ignored).
 
 ## Chunks
 
-A library with more missing covers than one set holds (`CC_MAX_JOBS`) is built in chunks, each resuming where the last one's scan stopped, never from the first album (the worker leaves no file for an album whose track is gone or whose rename failed, so a rescan from 0 would queue the same albums for ever).
+A library with more missing covers than one set holds (`CC_MAX_JOBS`) is built in chunks, each
+resuming where the last scan stopped, never from the first album (the worker leaves no file for an
+album whose track is gone, so a rescan from 0 would queue the same albums for ever).
 
-- `cc_build_near_step` stops at the first album the set cannot take and leaves `*cursor` on it (the cursor is 2 x distance + side around the centre; Home's centre is 0, so only even values occur and the album index is `cursor >> 1`); `cc_build_truncated` tells the caller.
-- The resume record `rs` (static, `.scratch`: it outlives the window) holds the library signature (`lib.n`, `lib.h`), the mode (missing / rebuild), the cursor, a position-sensitive hash of the cover keys in stored order (`lib.oh`, made in the signature's own pass at no extra cost) and the shelf's rows. It is written when a truncated chunk's set **finished** (`hc_on_poll`), so a chunk Home leaves is redone from its own start (the record still holds it; the first chunk has none, and starts at 0 anyway).
-  Then the next chunk is chained at once (`hc_on_start`, `HC_SCAN_MS`): it queries the albums again, and resumes only if signature, mode and the order hash match (otherwise it starts from 0 and the record is dropped). Each chunk queues at least one album, so the cursor moves on and the chain ends.
-- **Order:** the scan runs in the stored order (not the Albums page's display order: the Artist order would sort the whole library on the UI thread at every chunk, and Albums and Cover Flow build what they show themselves), with the Recently Played shelf's albums first. The shelf changes when a song is played, so the record keeps the shelf's rows and the next chunks use them; the hash catches what remains (a swapped pair of albums, a changed list) by starting again from 0. The album order does not affect the chain. When the shelf's order cannot be allocated, the pass is deferred to the next foreground rather than scanned in the stored order (a chain's cursor fits only the order it was taken in).
-- Only a scan that reaches the end of the list with no stall writes the covers line, clears the record and (Rebuild Covers) deletes the request. Albums whose tracks are gone stay missing, as in a pass that fits one set. Starting a truncated chunk drops a covers line that is present (`homecover_stamp_drop(1)`),
-  so a matching line can never skip an interrupted chain (the next foreground sees the missing line and shows the waiting pill). Rebuild Covers asked again and Clear Cover Cache clear the record. The durations start after the last chunk.
-
-**UI-thread cost** (`test/pod/homecover.py` 7d4, harness instructions of the payload only; the stock query is mocked and not counted): at 1,000 / 4,000 albums the first `hc_on_start` callback of a chunk (query copy, signature and order hash in one pass, first `HC_BATCH` step) is 227 k / 875 k, a later scan step 25 k, the silent probe at `HC_START_MS` 202 k / 850 k, arming it 1.4 k. At 4,002 albums the step that truncates is 15 k and the next chunk's first callback 852 k: every chunk repeats the query, copy and signature, nothing more. Measured with the Artist order (Home does not sort). For scale, the Albums page's open of 4,000 albums is 2.0 M.
+- `cc_build_near_step` stops at the first album the set cannot take and leaves `*cursor` on it;
+  `cc_build_truncated` tells the caller.
+- The resume record `rs` (static, outlives the window) holds the library signature, the mode
+  (missing / rebuild), the cursor, a position-sensitive hash of the cover keys (`lib.oh`) and the
+  shelf's rows. It is written when a truncated chunk's set finished, so a chunk Home leaves is redone
+  from its start. The next chunk is chained at once; it queries again and resumes only if signature,
+  mode and order hash match, else starts from 0.
+- The scan runs in the stored order, not the Albums page's display order (the Artist order would sort
+  the whole library on the UI thread at every chunk), with the shelf's albums first. When the shelf's
+  order cannot be allocated the pass is deferred rather than scanned in another order.
+- Only a scan that reaches the end with no stall writes the covers line, clears the record and
+  deletes a Rebuild Covers request. Starting a truncated chunk drops a present covers line so a
+  matching line can never skip an interrupted chain. Rebuild asked again and Clear Cover Cache clear
+  the record. The durations start after the last chunk.
 
 ## Track durations
 
-After the cover phase (or at once when no cover is missing), the same pill shows `Measuring tracks n/m` (key `Measuring tracks`,
-13 languages; `test/pod/i18n.py` checks the widest `... 4000/4000`) while the worker measures the library's songs the
-durations table lacks ([Album length](album-page.md#album-length)). The pill, its placement and the hide/show rules are the
-cover phase's.
+After the cover phase (or at once when no cover is missing) the same pill shows `Measuring tracks
+n/m` while the worker measures the songs the durations table lacks ([album-page](album-page.md#album-length)).
 
-- `hc_dur_begin` runs when the page is in front, Home owns no set and the worker is free: `cc_songs` copies the stock Songs list
-  (one query), a `CC_DURATIONS` set is opened (up to `CC_MAX_LEN_JOBS` 30000 files; a longer library runs more passes) and
-  `hc_on_dscan` walks it in steps (`HC_LBATCH` 1024 songs looked up, `HC_LSTAT` 64 files `stat`ed, `HC_SCAN_MS` apart).
-  A song is queued when its path has no table entry (CUE tracks with both ends and repeated paths are not queued).
-  Home does not `stat` songs already in the table, so a replaced file is re-measured when its album page opens, not by Home.
-- **Prune:** each pass names the paths of the in-memory song list (`dur_pass_seen`); entries nobody names are dropped and the
-  table is rewritten (`dur_pass_end`). An empty list prunes nothing. No file is touched.
-- `hc_on_dpoll` (500 ms) updates the pill and saves the finished jobs every `HC_LSAVE` 500 songs (merge, sort, atomic write).
-  At the end the rest is saved and the set stopped. `EVT_WINDOW_TO_BG`, destroy and `hc_end` save what was finished and stop
-  the worker (the job in flight is lost). The next foreground resumes with the songs still missing.
-- A pass that finds every song in the table is not repeated until the library signature (album count and key sum) changes or Developer > Clear Track
-  Durations is used (`hl_clean`, `dur_epoch`), and writes the tracks stamp line; songs added to existing albums are found by the album page (the stamp does not see them).
-- The set needs the card (the table is `/mnt/mmc/.m1plus/durations`; without it the pass does not start) but not 16 MB free. The kill switch stops Home's start.
-- Cost: not measured on hardware. Per file, TagLib reads the header and tags (an ID3v2 tag with a multi-MB cover is read
-  whole); the work runs in the background worker, beside the player.
-
-### Cache page rows
-
-Settings > Developer > Cache ([Cache page](#cache-page)) has two rows for the measured durations:
-
-- **Measured Tracks** (`INFO_DUR` 48, `dur_stat` in `patch/durations.c`) shows `<count> · <size>`: the count in the table header and the size of `/mnt/mmc/.m1plus/durations` (KB under 1 MB, else as Size on the Cache page). `dur_stat_open` reads the 12-byte header and the size (open, read, lseek, close) once as the page opens and again after a Clear Track Durations Yes; a refresh, and paint, read nothing. No card, no file or a bad magic: `0`.
-- **Clear Track Durations** (`ACT_CLEARDUR` 44, glyph `trash`, the last row of the Track Durations section) asks "Delete all measured track durations? They will be measured again on Home." in the [confirm dialog](ui-rules.md#confirm-dialog). Yes calls `dur_clear` (`patch/durations.c`): it deletes `/mnt/mmc/.m1plus/durations` (and its `.tmp`; nothing is touched while the card is out), empties a table held by an open page and counts the clear (Home reads the library again at its next foreground), then toasts "Track durations cleared". It does not wait for the worker. See [Album length](album-page.md#album-length).
+- `hc_dur_begin` runs when the page is in front, Home owns no set and the worker is free: `cc_songs`
+  copies the stock Songs list, a `CC_DURATIONS` set is opened (up to `CC_MAX_LEN_JOBS` 30000; a longer
+  library runs more passes) and `hc_on_dscan` walks it (`HC_LBATCH` 1024 songs looked up, `HC_LSTAT`
+  64 files `stat`ed per step). A song is queued when its path has no table entry (CUE tracks with both ends and repeated paths
+  are not). Home does not
+  `stat` songs already in the table, so a replaced file is re-measured when its album page opens.
+- **Prune:** each pass names the paths of the in-memory song list; unnamed entries are dropped and the
+  table rewritten. An empty list prunes nothing.
+- `hc_on_dpoll` (500 ms) updates the pill and saves finished jobs every `HC_LSAVE` 500 songs. At the
+  end the rest is saved and the set stopped. Background, destroy and `hc_end` save what finished and
+  stop the worker (the job in flight is lost); the next foreground resumes.
+- A pass that finds every song in the table is not repeated until the library signature changes or
+  Clear Track Durations is used, and it writes the tracks line.
+- The set needs the card (the table is `/mnt/mmc/.m1plus/durations`; without it the pass does not
+  start) but not 16 MB free.
 
 ## Rebuild Covers
 
-Settings > Library > Rebuild Covers ([settings](settings.md)) no longer opens Cover Flow. `ACT_REBUILD` calls `rebuild_ask`, which opens the
-[confirm dialog](ui-rules.md#confirm-dialog); only `CONFIRM_YES` acts. Yes writes the request file `/mnt/data/m1plus/covers-rebuild`
-(`REBUILD_FILE`, `"1\n"`, `home_write_atomic`, so it survives a reboot), clears the stop flag (`homecover_rebuild_asked`, "The pill") and
-shows the toast "Covers will rebuild on Home" (`pod_toast`; a failed write shows "Storage unavailable"). The translated message and toast
-are checked in all 16 string tables (13 languages, [i18n](i18n.md)). When `hc_on_start` begins a scan it checks the file (`access`):
+Settings > Library > Rebuild Covers (`ACT_REBUILD`, `rebuild_ask`) asks in the
+[confirm dialog](ui-rules.md#confirm-dialog); Yes writes the request file
+`/mnt/data/m1plus/covers-rebuild` (`REBUILD_FILE`, `home_write_atomic`, survives a reboot), clears
+the stop flag and toasts "Covers will rebuild on Home" (a failed write: "Storage unavailable"). When
+`hc_on_start` begins a scan it checks the file:
 
-- present: the set is opened in `CC_REBUILD` mode, so `cc_build_near_step` queues EVERY album with a track path (existing pictures and
-  markers too; the shelf's albums first, as always), and the pill reads `Rebuilding covers n/m` (key `Rebuilding covers`, 13 languages);
-- absent: the normal missing-only build above.
+- present: the set opens in `CC_REBUILD` mode (every album with a track path, the shelf's first) and
+  the pill reads `Rebuilding covers n/m`;
+- absent: the normal missing-only build.
 
-The request is removed only when the scan has reached the end of the list and the set completed (`done == total` in the poll, no truncation, no stall), or at once when no album has a track path (nothing
-to extract). A library over `CC_MAX_JOBS` albums rebuilds in chunks, each in `CC_REBUILD` mode and each starting at the cursor the last one stopped at ("Chunks"); without the cursor every chunk would rebuild the first 4000 again. Interruption (Home to the background, destroy, a held worker,
-no card or space, no thread) leaves the file, and the next foreground (5 s later) starts the rebuild again: from the beginning when the first chunk was interrupted, from the unfinished chunk's start after that; the worker replaces each file atomically, so a
-restart only repeats work. Files already replaced stay new. The worker is the one at a time, so a
-rebuild never runs beside Cover Flow's or Albums' own build.
+The request is removed only when the scan reached the end and the set completed (no truncation, no
+stall), or at once when no album has a track path. A library over `CC_MAX_JOBS` rebuilds in chunks,
+each in `CC_REBUILD` mode from the cursor the last stopped at. Interruption (background, destroy, a
+held worker, no card or space, no thread) leaves the file, and the next foreground starts again from
+the unfinished chunk; the worker replaces each file atomically, so a restart only repeats work.
 
-Its opposite is Clear Cover Cache on the [Cache page](#cache-page): it deletes the cache (and this request file) in steps; the next Home open then shows the waiting pill (the covers line is dropped) and the scan queues every album as missing.
+Its opposite is Clear Cover Cache: it deletes the cache and this request; the next Home open shows
+the waiting pill (the covers line is dropped) and queues every album as missing.
 
 ## Rebuild Artist Photos
 
-Settings > Library > Rebuild Artist Photos calls `arebuild_ask`, the same [confirm dialog](ui-rules.md#confirm-dialog) ("Rebuild all artist photos? This may take a few minutes."); only `CONFIRM_YES` acts. Yes writes `AREBUILD_FILE` (`/mnt/data/m1plus/artists-rebuild`, `home_write_atomic`), calls `homecover_rebuild_asked` and toasts "Artist photos will rebuild on Home" (a failed write: "Storage unavailable"). Tests: `test/pod/artistphoto.py` `settings_tests`. Details in `docs/modules/artists.md` "Rebuild Artist Photos, re-check on open, counts". `hc_expect` sees work (the waiting pill reads `Rebuilding artist photos…`, covers first when both requests are pending) and `hc_on_start` forces every artist; the covers' request, `.bad` files and cache are not touched. When the walk over the albums is complete `hc_on_start` saves the purity map (`ap_lib_save`) before the worker starts, and a pass without a snapshot removes it (`ap_lib_drop`).
+Settings > Library > Rebuild Artist Photos (`arebuild_ask`) asks in the same dialog ("Rebuild all
+artist photos? This may take a few minutes."); Yes writes `AREBUILD_FILE`
+(`/mnt/data/m1plus/artists-rebuild`), calls `homecover_rebuild_asked` and toasts "Artist photos will
+rebuild on Home" (a failed write: "Storage unavailable"). `hc_expect` sees work (the waiting pill reads `Rebuilding artist photos…`, covers
+first when both are pending; the pill counts `Rebuilding artist photos n/m`) and `hc_on_start`
+forces every artist; the covers' request, `.bad`
+files and cache are not touched. Before the worker starts, a complete walk saves the purity map
+(`ap_lib_save`); a pass without a snapshot removes it. Details: [artists](artists.md).
 
 ## Artist photos
 
-After the cover steps of the last chunk, `hc_on_start` walks the same album copy again (`hc.astage`, 64 albums a step) and calls `cc_build_add_artist` for every album; the artists without a result (or all of them under an `artists-rebuild` request, `AREBUILD_FILE`) become jobs after the cover jobs in the same set, so the pill counts `Preparing covers n/m`, then `Preparing artist photos n/m` (`Rebuilding artist photos` under the request; `hc.cn` is the number of cover jobs). **The artists line is separate from the covers line** (`hc_stale` bit 8; the covers line means covers only): written when the set finished unstalled, the cover pass was not truncated and every artist fitted (`hc.aok`: no `hc.atrunc`, snapshot usable; a library over `AP_LIB_MAX` albums has no artist photos and is stamped at once so it does not rerun), also when nothing was queued. A pass with only the artists line stale or missing (an upgrade, or `AREBUILD_FILE`; `hc.need` = 8) skips the cover scan altogether (`hc.cur` = count) so no album cover is looked at and the set holds only artist jobs; with the covers also stale it is the combined pass as before. A stalled or truncated pass writes no artists line and the next foreground runs it again; a library change makes both lines stale. Clear Cover Cache and Clear Track Durations do not drop it. The request is deleted like Rebuild Covers' (set finished unstalled, untruncated). The waiting pill reads `Rebuilding covers…`, else `Rebuilding artist photos…` while a request is pending (an upgrade's missing artists line reads `Checking library…`, then `Preparing artist photos n/m`). The set's capacity is twice the album count (at most `CC_MAX_JOBS`). Details, discovery rules and the cache: [Artists](artists.md#artist-photos).
+After the cover steps of the last chunk, `hc_on_start` walks the same album copy again
+(`hc.astage`, 64 albums a step) and calls `cc_build_add_artist` for every album. The artists without
+a result (all of them under a rebuild request) become jobs after the cover jobs in the same set, so
+the pill counts `Preparing covers n/m`, then `Preparing artist photos n/m`. The set's capacity is
+twice the album count (at most `CC_MAX_JOBS`).
+
+**The artists line is separate from the covers line** (`hc_stale` bit 8). It is written when the set
+finished unstalled, the cover pass was not truncated and every artist fitted (a library over
+`AP_LIB_MAX` albums has no artist photos and is stamped at once so it does not rerun). A pass with
+only the artists line stale skips the cover scan altogether (`hc.cur` = count) so the set holds only
+artist jobs. A stalled or truncated pass writes no artists line; a library change makes both stale.
+Clear Cover Cache and Clear Track Durations do not drop it. The request is deleted like Rebuild
+Covers'. Discovery rules and the cache: [artists](artists.md#artist-photos).
 
 ## Cache page
 
-Settings > Developer > Tools > **Cache** (a link row, glyph `hard-drive`) opens `m1plus_cache`, a cards page of the About kind (`ACT_INFO` rows: a label and a grey right-aligned value, no chevron, no touch). Three sections: **Covers** (`INFO_CC_*` kinds, values from `homecover_stat`), **Artist Photos** (`INFO_APHOTOS` 55, `INFO_ANONE` 56: **Photos**, the `a<key>-44.jpg` files with a picture in `/mnt/mmc/.m1plus/artists`, and **None**, the empty ones; counted by the same bounded steps after the covers folder, an ellipsis until then; `test/pod/artistphoto.py` `counts_tests`) and **Track Durations** (`INFO_DUR`, see [Cache page rows](#cache-page-rows)). Covers, card 1: **Albums** (library albums), **Covers** (`r<key>-168.jpg` with size > 0), **No art** (empty `r` markers), **Missing** (albums with neither, by the `CC_MISSING` rule: a track path and no file), **Old files** (every other file: unprefixed, `f`-prefixed, `.tmp`, a leftover `album` from the old Cover Flow position; `cp_is_pic` counts anything not `r<8 hex>-168.jpg` as old), **Size** (all files, MB with one decimal under 10 MB). Card 2: **Status**: Idle, Preparing n/m or Rebuilding n/m (Home's own set; in practice Home is in the background while Settings is open, so these show only if it ever holds the worker here), Building [n/m] (another page's set), Rebuild requested (the request file exists, nothing builds), Clearing. Card 3: **Clear Cover Cache**.
+Settings > Developer > Tools > **Cache** opens `m1plus_cache`, a read-only cards page of the About
+kind (`ACT_INFO` rows: label and grey right-aligned value, no chevron). Three sections:
 
-Counting never blocks and only runs while the page is open (`homecover_cache_open`, `patch/homecover.c`): the folder is read `CP_N` 64 entries per 20 ms tick (`cc_file_size` per file), then `cc_albums` is loaded once and checked 64 albums per tick; until a count is known its value is an ellipsis. A 500 ms poll refreshes the page when the Status text changed. Background and destroy remove both timers and free the directory handle and album copy; the foreground and a finished clear count again from nothing. No folder: zeros (every album missing), Status Idle. Tests: `test/pod/homecover.py` `cache_tests`.
+- **Covers.** Card 1: **Albums**, **Covers** (`r<key>-168.jpg` with size > 0), **No art** (empty
+  markers), **Missing** (a track path and no file, by the `CC_MISSING` rule), **Old files** (anything
+  not `r<8 hex>-168.jpg`), **Size**. Card 2: **Status**: Idle, Preparing or Rebuilding n/m (Home's
+  set), Building (another page's), Rebuild requested, Clearing. Card 3: **Clear Cover Cache**.
+- **Artist Photos:** **Photos** (`a<key>-44.jpg` with a picture) and **None** (empty ones), counted
+  after the covers folder ([artists](artists.md)).
+- **Track Durations:** **Measured Tracks** (`INFO_DUR`: `<count> · <size>` from the table header and the
+  file's size, read once as the page opens and after a clear; no card, no file or a bad header: `0`) and **Clear Track Durations** (`ACT_CLEARDUR`
+  44, glyph `trash`): "Delete all measured track durations? They will be measured again on Home." in
+  the confirm dialog; Yes calls `dur_clear` (deletes the file and its `.tmp`, empties a held table,
+  counts the clear so Home reads the library again) and toasts "Track durations cleared". Durations
+  themselves: [album-page](album-page.md#album-length).
 
-**The two lists.** **No art** and **Missing** are value rows (`ACT_CCLIST`, no glyph): the chevron shows and the row takes a tap only when the count is counted and above 0 (while an ellipsis or 0 they are plain values; the payload sets the chevron's visibility and the row's sensitivity at each refresh). A tap opens a plain list (`patch/covlist.c`, window `m1plus_covlist`, title No Art / Missing Covers): the Albums page's own asset pattern (`build_grid_page` without the toggle and Cover Flow button: plain navbar, stock list_view > scroll_view, one content view) and its list-mode painter (`grid_list_paint`, moved left over the cover's room, no bitmap so nothing is decoded or drawn as a disc): each row is the album's title (21 px white) and the artist (18 px grey), 64 px rows with a hairline from the text and the list chevron, in the Albums order. A tap on a row (a release within the scroll threshold of the press) opens that album with `cc_open_album`; Back returns to the list and Back again to Cache. The rows are display positions collected by the count's album scan (empty marker = No art, no file = Missing; at most `CC_MAX_JOBS` each) and copied into the list page, which loads `cc_albums` once for the texts; the copy, the order and the rows are freed with the window. Nothing to show: "No albums". The No art count is the folder's empty markers (including ones no album has), the list the albums that have one, so they can differ. The value text on this page is the standard 18 px (About's rows stay the stock About's 16 px). Tests: `covlist_tests` in `test/pod/homecover.py`, the Developer path in `test/pod/menu.py`.
+Counting never blocks and runs only while the page is open (`homecover_cache_open`): the folder is
+read `CP_N` 64 entries per 20 ms tick, then `cc_albums` is loaded once and checked 64 albums per
+tick; until a count is known the value is an ellipsis. A 500 ms poll refreshes the page when Status
+changed. Background and destroy remove the timers; no folder shows zeros (every album missing, Status Idle).
+
+**The two lists.** **No art** and **Missing** are value rows (`ACT_CCLIST`): the chevron shows, and
+the row takes a tap, only when the count is counted and above 0. A tap opens a plain list
+(`patch/covlist.c`, `m1plus_covlist`, title No Art / Missing Covers): the Albums page's list mode
+without the cover (title 21 px, artist 18 px grey, 64 px rows), in the Albums order. A tap on a row
+opens that album with `cc_open_album`; Back returns to the list, then to Cache. The rows are
+collected by the count's album scan (at most `CC_MAX_JOBS` each) and copied into the list page.
+Nothing to show: "No albums". The No art count is the folder's empty markers (including ones no album
+has), the list the albums that have one, so they can differ.
 
 ### Clear Cover Cache
 
-`ACT_CLEARCACHE`, glyph `trash`. `clear_ask` first refuses with the toast "Covers are being made, try later" when the shared cover worker is held (`cc_build_busy`; nothing is stopped, since a set may belong to Albums or Cover Flow). Otherwise it asks in the [confirm dialog](ui-rules.md#confirm-dialog) "Delete all cached covers? They will be made again on Home."; No does nothing. Yes calls `homecover_clear` (`patch/homecover.c`): it removes a pending Rebuild Covers request and deletes every regular file in `/mnt/mmc/.m1plus/covers` (`ART_DIR`): the `r<key>-168.jpg` pictures, their empty no-art markers, the `.bad` and `.inflight` markers, `.tmp` leftovers and the stale old-format files, a leftover `album` included. Cover Flow's position is not in that folder: it is `/mnt/mmc/.m1plus/coverflow-position` ([Cover Flow](coverflow.md)) and is kept. Deletion is 32 unlinks per 20 ms tick of a self-ending timer (the directory handle is kept between ticks), so nothing blocks; the timer needs no page, so leaving Settings mid-way lets it finish, and a build starting meanwhile stops it quietly (a partial clear is fine). The toast "Cover cache cleared" shows at the end. Home's build then finds every album missing at its next foreground. Tests: `test/pod/homecover.py` `clear_tests`.
-
-## Worker priority
-
-`cc_worker` (`patch/covercache.c`) first calls `setpriority(PRIO_PROCESS, 0, 10)` through a six-instruction asm stub (`cc_setprio`, o32 syscall 4097: no import, the same way as `patch/filetime.c`'s statx). On Linux `who` 0 is the calling thread only,
-so every cover and duration worker (any owner) runs at nice 10 while the UI and the player keep their priority; a refused call changes nothing. Tested with the harness's syscall answer (`Machine.sys`), not measured on hardware.
-
-## Notes
-
-- The scan's `cc_albums` runs `loadLocalClassList` like the other pages' opens do; it happens 5 s after Home is in front, never in the
-  boot window.
-- Tests (`test/pod/homecover.py`, Unicorn on the real payload with the harness's cache-file and worker mocks): hidden with nothing missing
-  (also an empty library), `0/2` then `1/2` then hidden with the list restored, scan bounded at 64 albums a step, stop on background and
-  destroy (also mid-scan), foreground re-offers once, a held worker / full card / refused thread / refused timer / asset without the pill.
-  `test/pod/homecover.py` `pill_tests`: the pill's widgets in the asset, the fill width, the x (stops, suppresses a later start and a rebuilt Home, Rebuild Covers clears it), the worker's `setpriority`.
-  `homecover/check_tests`: the waiting pill (no stamp, tracks only, Rebuild request), nothing when the stamp matches and the database is untouched, a changed database (silent; same library: nothing shown; one more album: pill and scan), the WAL, the x while waiting, the stamp at the end (a stalled set writes no covers line), a truncated pass (no line, a second chunk, then the line), a chain over 4002 albums whose first 4000 tracks are gone (the second chunk queues the two left, no third), a chain interrupted in its second chunk (resumed at its start; another album order starts again), a failed list copy and no songs with albums (no tracks line), an empty library (stamped 0/0, asked again silently at each foreground, no pill; then albums appear: the pill and the build), Rebuild Covers over 4002 albums (two chunks, the request kept until the second ends), Clear Cover Cache / Clear Track Durations dropping their lines.
-  `test/pod/durations.py` covers the song phase (phases, saves, prune, stop, resume, held worker).
+`ACT_CLEARCACHE`, glyph `trash`. `clear_ask` first refuses with the toast "Covers are being made, try
+later" when the shared worker is held (nothing is stopped: a set may belong to Albums or Cover Flow).
+Otherwise the confirm dialog asks "Delete all cached covers? They will be made again on Home."; Yes
+calls `homecover_clear`: it removes a pending Rebuild Covers request and deletes every regular file
+in `/mnt/mmc/.m1plus/covers` (pictures, markers, `.bad`, `.inflight`, `.tmp`, old-format files). Cover
+Flow's position file lives outside that folder and is kept ([coverflow](coverflow.md)). Deletion is
+32 unlinks per 20 ms tick of a self-ending timer, so nothing blocks; leaving Settings mid-way lets it
+finish, and a build starting meanwhile stops it quietly. The toast "Cover cache cleared" shows at the
+end.

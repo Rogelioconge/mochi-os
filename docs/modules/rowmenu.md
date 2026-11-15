@@ -2,14 +2,13 @@
 
 A grey "..." at the right end of every track row opens a bottom sheet in the look of Now Playing's More sheet ([playmore](playmore.md)).
 Pages: the album page (`patch/albumpage.c`) and the Songs page (`patch/songs.c`) with every list it hosts (the library, a playlist, genre, artist, Most Played,
-Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not in this phase: Search, Daily Mix, the Albums grid, Folders, Podcasts.
+Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not covered: Search, Daily Mix, the Albums grid, Folders, Podcasts rows; a "..." pressed state; a long-press menu.
 
 **Sources:** `patch/rowmenu.c` / `rowmenu.h` (open, close, the "..." bitmap and its painter, the actions), `patch/songinfo.c` (Get Info, [songinfo](songinfo.md)), the pages' row painters, hit tests and one-row
 `Add to Playlist`, `patch/upnext.c` (`upnext_add`, [queue](queue.md)), `patch/songops.c` (`so_add`), `patch/picker.c`, `tools/pod_ui.py` (`row_menu`),
 `tools/mod_icons.py` (`RM_MENU_ICONS`, `RM_DOTS`, `GLASS_ROWMENU`), `patch/offsets.inc` (`RM_*`), `tools/pod_i18n.py`.
-**Tests:** `test/pod/rowmenu.py` (five sections; `fav_info_tests`: the toggle, its label and glyph, the toasts, a failed add, Get Info); the pages' own tests keep their old numbers with no menu assets (`test/pod/songs.py`, `albumpage.py`).
+**Tests:** `test/pod/rowmenu.py`, `test/pod/songs.py`, `test/pod/albumpage.py`.
 **Preview:** `uv run python -I tools/preview/preview_rowmenu.py work/mod-release out/preview/rowmenu.png` (also `tools/preview/preview_songs.py`).
-Evidence tags: **[S]** static (read from the stock code), **[E]** emulated (Unicorn), **[U]** untested on the device.
 
 ## What the user sees
 
@@ -18,9 +17,9 @@ Evidence tags: **[S]** static (read from the stock code), **[E]** emulated (Unic
 
   | Page | Zone | Text ends |
   |---|---|---|
-  | album page | x 266..310 (`RM_MORE_RIGHT` 310) | 262 (was 298) |
-  | Songs, no rail (a list, or an order with no sections) | x 266..310 | 262 (was 296) |
-  | Songs, A-Z rail shown | x 240..284 (`RM_MORE_RIGHT_RAIL`: flush with the rail's touch column, which starts at 284); the "..." right-aligned in it | 236 (26 px narrower) |
+  | album page | x 266..310 (`RM_MORE_RIGHT` 310) | 262 |
+  | Songs, no rail (a list, or an order with no sections) | x 266..310 | 262 |
+  | Songs, A-Z rail shown | x 240..284 (`RM_MORE_RIGHT_RAIL`: flush with the rail's touch column, which starts at 284); the "..." right-aligned in it | 236  |
 
   Select mode has no "...": the text ends where it used to and a tap marks the row. An asset without the menu's widgets also leaves the old rows. The state is read once, when the page opens (`rowmenu_bind`), and again at every open of the menu.
 - **Tap**: the page's own press rules. DOWN in the zone remembers it (no press fill: only a tap elsewhere in the row highlights), ABORT (the scroll_view took a drag) forgets it, UP within
@@ -59,18 +58,18 @@ The menu also closes when the page reads its list again (`sg_load` / `ab_load`: 
 | `UPNEXT_MEMORY` | "Not enough memory" |
 | `UPNEXT_DLNA` | "Not available while DLNA is on" |
 
-## A library source's rows (ND-14)
+## A library source's rows
 
-`rowmenu_open_src(rm, row, rec, add, src)` (the pages pass their `src`, NULL for the card's library) shows the same five-row card for a Navidrome track (docs/modules/subsonic.md "Row sheet"): the third row is **Download**
+`rowmenu_open_src(rm, row, rec, add, src)` (the pages pass their `src`, NULL for the card's library) shows the same five-row card for a Navidrome track ([subsonic](subsonic.md) "Row sheet"): the third row is **Download**
 (`rm_ic_dl`), **Cancel Download** (`rm_ic_cxdl`, waiting or running) or **Remove Download** (`pc_ic_trash`, on the card) from `src->row` (`ls_row_t.dl`), in place of Add to Playlist; Favorite / **Undo Favorite** follows `ls_row_t.fav`
 and goes through `src->act(LS_ACT_FAVORITE)` (no stock myfav call); the words and glyph of the third row are set at every open (Add to Playlist and `rm_ic_add` again for the stock library). Download, Cancel and Remove are
 `src->act` (`LS_ACT_DOWNLOAD`, `LS_ACT_CANCEL_DL`, `LS_ACT_DELETE_DL`); the row re-paints when `src->gen` moves. Play Next / Play After hand `src->queue_row(rec)` (a stock queue record: the stream address or the local file, its
 synthetic id added to the queue map by `sba_queue_add`) to `upnext_add`, which skips the file test for a stream address whose id the map knows; the source shows why when it cannot (offline and not downloaded). An undownloaded DSD
-row asks `ls_dsd_confirm` instead ("Download to Play?"). Get Info is `songinfo_open` (it reads the source's data for an `nd://` record). Tests: `rowmenu/source_tests` (album page and Songs page over fake sources).
+row asks `ls_dsd_confirm` instead ("Download to Play?"). Get Info is `songinfo_open` (it reads the source's data for an `nd://` record).
 
 ## The Queue page's sheet
 
-The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next rows: same widgets, scrim, glass, row look and "..." painter, in a three-row form. The page's asset holds `row_menu(queue=True)`: `rm_card` 320 x 150 on `pc_sheet3` with `rm_item0..2`, rows **Play Next**, **Play After** and (under the one hairline) **Remove from Queue** (`rm_ic_remove`, `list-x`, bare 24 px, an accent glyph by the `rm_ic_` prefix). `rowmenu_bind_queue` binds those three (and sets `rowmenu_t.queued`), `rowmenu_open_queue(rm, row, fn)` shows the sheet with no row copy and no source, and a tapped row closes the sheet and calls `fn(row, RMQ_NEXT / RMQ_AFTER / RMQ_REMOVE)`: the page does the act (`pod_queue_move` / `pod_queue_remove`), not `upnext_add`. Everything else (close on the scrim, the "..." bitmap, `rowmenu_paint`) is shared. Tests: `rowmenu/queue_tests`.
+The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next rows: same widgets, scrim, glass, row look and "..." painter, in a three-row form. The page's asset holds `row_menu(queue=True)`: `rm_card` 320 x 150 on `pc_sheet3` with `rm_item0..2`, rows **Play Next**, **Play After** and (under the one hairline) **Remove from Queue** (`rm_ic_remove`, `list-x`, bare 24 px, an accent glyph by the `rm_ic_` prefix). `rowmenu_bind_queue` binds those three (and sets `rowmenu_t.queued`), `rowmenu_open_queue(rm, row, fn)` shows the sheet with no row copy and no source, and a tapped row closes the sheet and calls `fn(row, RMQ_NEXT / RMQ_AFTER / RMQ_REMOVE)`: the page does the act (`pod_queue_move` / `pod_queue_remove`), not `upnext_add`. Everything else (close on the scrim, the "..." bitmap, `rowmenu_paint`) is shared.
 
 ## Design notes
 
@@ -79,15 +78,4 @@ The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next r
   and `rm_card` (with `rm_item0..4`, `rm_icon0..4`, `rm_label0..4`) as the window's last two children (`pod_ui.row_menu`, after the sort card on the Songs page and the navbar on the album page).
 - `rowmenu_t` lives in each page's state (`sg.rm`, `ab.rm`); the page text edge follows `rowmenu_on` and, on Songs, the rail (`sg_edge`). A list read again with the rail's presence changed drops its text tiles
   (`sg.tend`): their ellipses were cut for the other width.
-- The temporary Developer rows "Test: Play Next / Test: Play After" (`ACT_UPNEXT_NEXT` 50, `ACT_UPNEXT_AFTER` 51), their log `/mnt/mmc/queue-probe.log` and their texts are gone; the ids 50 and 51 are unused.
-- Not done: Search, Daily Mix, Albums, Folders and Podcasts rows; a "..." pressed state; a menu on a long press; Go to Album / Go to Artist (dropped by the user); removing a queued song (the Queue page's own sheet does it, below).
-
-## Tests (`test/pod/rowmenu.py`, emulated)
-
-`asset_tests` (both assets: the menu last; the sheet's place, rows, glyphs, labels, hairlines; `pc_sheet5` and the glyph PNGs are the generator's; white labels >= 7:1 on the glass over black and over
-white under the dim, at rest and pressed; the "..." 6.2:1 on black; the Developer rows, their ids, texts and `upnext_test` gone; every text in 13 languages),
-`paint_tests` (the "..." at the right place (right-aligned beside the rail, centred without it and on the album page); the text widths 162 / 188 / 220; none in select mode, without the widgets;
-the bitmap's pixels), `touch_tests` (tap in the zone, one pixel left of it, first pixel of it, a drag, an abort, a press that leaves the zone, the title block, a section header, select mode, both pages),
-`menu_tests` (the sheet shown in the asset's place for rows on both pages, nothing moved or resized; every label of the 13 locales fits 250 px with the real font; Play Next / Play After with every status:
-the call, the one-row deque, destroy, close, toast and nothing else opened; Add to Playlist with our picker and with the stock fallback: class, count and exactly one mark, a second Add carries only its own row; the
-menu closing with the page). `upnext_add` and `picker_open` are trapped there: their own tests are `test/pod/upnext.py` and `picker.py`.
+- No Go to Album / Go to Artist (the owner dropped them). Removing a queued song is the Queue page's own sheet, above.

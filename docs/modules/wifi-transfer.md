@@ -1,21 +1,48 @@
-# Wi-Fi Transfer: web server side
+# Wi-Fi Transfer
+
+**Sources:** `patch/netservice.c` (pages), `patch/webapi.c` (`api.cgi`), `assets/webapp/index.html`,
+`tools/mod_webapp.py`, `tools/pod_pins.py` `NETSERVICE_PINS`. **Tests:** `test/webapi.py`,
+`test/pod/netservice.py`.
 
 Stock runs `thttpd -C /etc/thttpd.conf` when Wi-Fi Transfer is on (port 8888, `dir=/usr/share/web`,
 `cgipat=**.cgi`, `user=root`). The mod leaves the player binary, thttpd and its configuration alone and
-replaces what thttpd serves: one CGI, `/cgi-bin/api.cgi`, and a page. No hook, no payload change, nothing at
-boot or paint. The page is one hand-written vanilla-JS file, `assets/webapp/index.html` (see "The page").
+replaces what thttpd serves: one CGI, `/cgi-bin/api.cgi`, and one hand-written vanilla-JS page. No hook,
+nothing at boot or paint. The device side is Settings > Network Services and its Wi-Fi Transfer page.
 
-How the server is started on the device: **Settings → Network Services → Wi-Fi Transfer** (our page, [netservice](netservice.md)) stops the player and calls stock's `switch_wifitransport(1)` (that is the `thttpd` command above), and stops it
-with `switch_wifitransport(0)` when the page goes (Back, Home, the Now Playing button). Stock's own page (All System Settings → Network Service) still starts it the same way.
+## Network Services and the device page
 
-## Stock web app (removed)
+Settings > Network Services (`m1plus_netservice`) and its Wi-Fi Transfer page (`m1plus_wifitransfer`)
+replace stock's `systemset/netservice_page` and `systemset/wifitransport_page`. All System Settings keeps
+stock's own pages. The state is stock's own bytes; nothing of ours is saved.
 
-A Chinese GCDWebUploader port: jQuery 1.7.2 + Bootstrap 3 (about 330 KB of css/js/fonts) and five cgic CGIs
-(`cgi-bin/{list,upload,download,delete,create}.cgi`, symlinked at the web root). Known faults, all fixed by
-`api.cgi`: `list.cgi` shows only a built-in extension whitelist; names are not JSON-escaped (one `"` or `\`
-breaks a folder); delete, create and upload run `system("rm -rf \"%s\"")`, `mkdir "%s"` and `mv "%s" "%s" -f`
-after only a `/mnt/mmc` prefix check (shell injection, `../` escape); upload buffers the whole multipart body in
-`/mnt/mmc/cgicXXXXXX`.
+| Page | Rows |
+|---|---|
+| Network Services | AirPlay switch (ACT 166), DLNA switch (167), a gap, **SyncLink** (opens stock's page, Back returns here), **Wi-Fi Transfer** (168) |
+| Wi-Fi Transfer | no rows; centred: a hero (tile, white `wifi` glyph, title, grey description), one address card `<ip>:8888` (22 px bold, no `http://`), a grey footer note |
+
+- **Switches** call stock's `airplay_switch` / `dlna_switch` and show the byte. There is no
+  AirPlay-playing guard, as on stock's page (the Control Center tiles do refuse; [pulldown](pulldown.md)).
+  Turning one on without Wi-Fi shows the toast "Connect to Wi-Fi first"; the byte is still stored.
+- **The row** opens our page only while Wi-Fi is connected; otherwise the toast and no window (stock opens
+  a message dialog).
+- **Start on open.** In stock's order: bind a key filter, the close handler and a destroy handler, then
+  `stop_player()` and `switch_wifitransport(1)` (the `thttpd` command above). A refused bind starts
+  nothing. The key filter swallows the media keys `0xd5`..`0xd7` as stock does; volume keys work.
+- **Address.** `pod_big0_t` shows `<ip>:8888`, or `-` without a connection, as the page opens and each
+  time it is back in front. It takes no tap.
+- **Stop on close.** EVT_WINDOW_CLOSE (Back, Home, any close) calls `switch_wifitransport(0)`; EVT_DESTROY
+  does the same once for a window that never saw the close.
+- **Decision:** the Now Playing button also stops the server and the page restarts it, without stopping
+  the player again, when it is back in front (EVT_WINDOW_TO_FG). Stock leaves the server running under the
+  player, with the pull-down and the standby countdown blocked.
+- Wi-Fi dropping, USB, the lock screen and power-off are as in stock: nothing is stopped.
+- The page's texts are our own keys in 13 languages; stock's long `wifits_info` texts are not used.
+  `AirPlay` and `DLNA` are brands.
+- The page uses the layout items `Hero`, `BigCard` and `Note(center=True)` ([settings](settings.md#cards)).
+
+Stock shipped a Chinese GCDWebUploader port (jQuery, Bootstrap, five cgic CGIs) with shell-injection and
+JSON-escaping faults (a built-in extension whitelist in `list.cgi`, `system("rm -rf ...")` after only a
+prefix check, uploads buffered whole on the card); the build removes all of it and `api.cgi` replaces it.
 
 ## The page
 
@@ -68,10 +95,8 @@ player's CPU serves every byte).
 - replaces `index.html` (pinned stock hash) with `assets/webapp/index.html`;
 - builds `patch/webapi.c` and installs it as `usr/share/web/cgi-bin/api.cgi`, mode 755, stock mtime.
 
-Build cache: `tools/buildcache.py` records the directories a step removes (the stock `css`, `js`, `fonts`) with its removed files and replays them, so a cached build has the same tree as a fresh one.
-
-Freed: 686,625 bytes of files (web root 695,898 -> 27,232 bytes in the tree); the squashfs size is in the dev
-build log (`rootfs.squashfs: N bytes (stock M)`; fwtool fails above stock).
+`tools/buildcache.py` records the directories a step removes (the stock `css`, `js`, `fonts`) with its removed
+files and replays them, so a cached build has the same tree as a fresh one.
 
 ### The executable
 
@@ -145,27 +170,19 @@ nothing), so `rename` of a case-only change goes through a hidden temporary name
 if taken) in the same folder and renames it back to the old name if the second step fails. `move` keeps the
 file's name, so it has no case-only case.
 
-## thttpd findings (static: strings and disassembly of `usr/bin/thttpd`, version 2.29 23May2018; never executed)
+## thttpd limits the design works around
 
-- Methods: `GET`, `HEAD`, `POST` (the string table has these three and "Not Implemented"); anything else, `PUT`
-  and `OPTIONS` included, is 501. Hence POST uploads.
-- Request line plus headers must fit 5000 bytes (the read buffer grows by 1000 up to that, `0x402ae8`): keep the
-  query short and put item lists in the POST body. `Accept` and `Accept-Encoding` values are capped at 5000 each.
-- POST bodies: thttpd parses `Content-Length` with `strtol` (`0x4083dc`, a 32-bit value at connection offset
-  `0x13c`), so a request body is at most 2^31 - 1 bytes; a larger length clamps. `CONTENT_LENGTH` is passed
-  from that value. thttpd forks a copy process (`cgi_interpose_input`, `0x40a5e4`) that reads the socket in
-  1 KiB pieces and writes them to the CGI's stdin pipe until the length is reached: bodies are streamed, never
-  buffered, but throughput is bounded by 1 KiB read/write pairs (the mockup assumes ~6 MB/s; unmeasured).
-  Larger files use the chunked upload.
-- CGI output: a second process (`0x40a71c`) reads the CGI's stdout in 1 KiB pieces, parses the headers and
-  forwards. `Status: NNN` sets the code; the reason text is thttpd's own table (409, 507 and others read
-  "Something"). `Content-Length` and `Content-Disposition` pass through; without `Content-Length` the connection
-  close ends the body, so a truncated tar is detected by its missing end blocks, not by HTTP.
-- Time limit: none. The binary imports no `kill`, and the `killing indefinitely running CGI` strings are absent,
-  so `CGI_TIMELIMIT` is not compiled in; `alarm` belongs to the main loop's watchdog. The idle read/send timeouts
-  (`connection timed out reading/sending`) apply to connections thttpd itself serves, not to the forked
-  copy/CGI processes. Multi-GB uploads and tar downloads are not cut off by thttpd (device behaviour unverified).
-- A CGI's working directory is its own folder; it runs as root (`user=root`).
+Read statically from `usr/bin/thttpd` 2.29; never executed.
+
+- Only `GET`, `HEAD` and `POST` exist; `PUT` and `OPTIONS` are 501. Hence POST uploads.
+- Request line plus headers must fit 5000 bytes: keep the query short, put item lists in the POST body.
+- A POST body is at most 2^31 - 1 bytes (`Content-Length` is a 32-bit `strtol`). Larger files use the
+  chunked upload.
+- Bodies and CGI output are streamed in 1 KiB pieces, never buffered. `Status: NNN` sets the code (the
+  reason text is thttpd's own). Without `Content-Length` the close ends the body, so a truncated tar shows
+  as a missing end block, not an HTTP error.
+- There is no CGI time limit, so long uploads and tar downloads are not cut off.
+- A CGI runs as root in its own folder.
 
 ## Validation
 
@@ -187,14 +204,3 @@ file's name, so it has no case-only case.
 - Tree: the page is the built asset; the executable is in the rootfs, equals a fresh build of `patch/webapi.c`, is a static MIPS32 LE ELF
   (no `PT_INTERP`, no `PT_DYNAMIC`, o32, NaN 2008), the stock files, links and directories are gone, `thttpd`,
   `thttpd.conf` and `favicon.ico` are unchanged.
-
-Device results (V2.1zNUUVAAAC, real exFAT card): the CGI starts; `df`, `list`, upload (about 4.9 MB/s), 409,
-keep, download (about 5.9 MB/s, byte-identical), rename, tar (about 6.2 MB/s) and delete work; a missing
-Content-Type is 403 and `/../etc` is 400. Found there and fixed since: a case-only rename was a silent no-op, and a
-name with `"` failed only after part of the body was read.
-
-Seen on the device (2026-11-06): the page loads and lists the card in Safari on an iPad mini, dark theme. Not
-verified: other browsers and the operations below (no browser or headless test runs the page), the two-step case-only rename and the early 400 on illegal names, thttpd's
-behaviour above 2 GiB and the chunked upload, drag-and-drop and folder upload in each browser, the tar download
-of a large selection through the form POST, `rename` over an existing file, and the base-256 tar size field
-(needs an 8 GiB file).

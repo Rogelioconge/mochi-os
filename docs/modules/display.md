@@ -1,32 +1,103 @@
 # Display
 
-Sources: `patch/display.c`, `tools/pod_pages.py` (`DISPLAY_PAGE`), tests `test/pod/display.py`. Part of [settings](settings.md); the Lock Screen row opens [lockscreen](lockscreen.md).
+**Sources:** `patch/display.c`, `patch/tracklamp.c`, `patch/tracklamp.h`, `tools/pod_pages.py`
+(`DISPLAY_PAGE`), `LOCKSCREEN_PINS`. **Tests:** `test/pod/display.py`, `test/pod/tracklamp.py`.
+Part of [settings](settings.md).
 
-Settings > Display (`m1plus_display`, `DISPLAY_PAGE`, `patch/display.c`) replaces stock's Display list and its four pages with one cards page of four cards: the brightness slider; **Screen Timeout** and **Lock Screen** (a link to our [Lock Screen](lockscreen.md) page); **Screen Rotation** (a switch, below); **LED Light** alone (its page holds the lamp choices, **Follow Screen** and the Dynamic theme). No row opens a stock page, every state is stock's own and nothing of ours is saved. Stock's pages stay under All System Settings and show the same state.
+Settings > Display (`m1plus_display`) replaces stock's Display list and its four pages with one
+cards page: the brightness slider; **Screen Timeout** and **Lock Screen** (a link to
+[lockscreen](lockscreen.md)); **Screen Rotation**; and **LED Light**. No row opens a stock page.
+Every state is stock's own and nothing of ours is saved, except the Dynamic LED setting. The
+persisted values are in [settings](settings.md) "Persisted choices". Stock's pages stay under All
+System Settings and show the same state.
+
+Each row repeats what stock's page handlers do, in the same order (value stored, then saved, then
+the dependent call). `test/pod/display.py` runs stock's handlers in the emulator on the same state
+and compares the stored value and the calls with ours.
 
 ## Brightness
 
-A card of a row's height with the pull-down's control in it, the small sun (`drop_lighticon0`) in the glyph column, the slider from the label column (200 x 50: the pull-down slider's 6 px track and fill, `drop_bg` / `drop_fg`, so the fill takes the accent, under a white capsule thumb of our own, `pod_sl_thumb`, 38 x 24 with a soft shadow, `tools/mod_icons.py slider_thumb`) and the large sun at the card's right padding. The view is `pod_bright`, built by `pod_pages.Brightness` and `tools/pod_ui.py cards_brightness`. The slider is named `slider_brightness` with stock's range 0 .. 100, and a hidden, insensitive `label_brightness` is beside it, because the code behind it is stock's: `disp_opened` calls stock's refresh `0x4a4450(window)` (it looks both widgets up by name, writes the percentage and sets the slider from the word `lightness`, `0x97caf0`) and then binds stock's two handlers to the slider with the window as their context, as stock's `systemset/brightness_page` does (`0x4a43ac..0x4a43d8`): `0x4a4744` on `EVT_VALUE_CHANGING` (0x11d: the word, `backlight_changeflag` 1, the refresh, `reset_poweroptions_timer(1, 1, 1)`) and `0x4a4678` on `EVT_VALUE_CHANGED` (0x11c: the flag 0, the word, `toolSetBackLight(value + 1)`, `write_int_config(value, "SYSSET", "LIGHTNESS")`, the refresh, the timers). The payload repeats none of it. The refresh runs again each time the page is back in front (`disp_refresh`), so the slider follows the pull-down's. The card is a sensitive view (stock's hit test does not look into an insensitive parent) with nothing bound; a page without either widget binds and calls nothing.
+A card with the pull-down's control: the small sun, a 200 x 50 slider (the pull-down's track and
+fill, so the fill takes the accent, under our own white capsule thumb `pod_sl_thumb`) and the large
+sun. The slider is named `slider_brightness` (range 0 .. 100) and a hidden `label_brightness` sits
+beside it, because the code behind it is stock's: `disp_opened` calls stock's refresh and binds
+stock's two handlers (value changing, value changed) to the slider. The payload repeats none of it.
+The refresh runs again each time the page returns to the front, so the slider follows the
+pull-down's.
 
 ## LED Light and Follow Screen
 
-**LED Light** is stock's lamp mode, the byte `atmosphereled_mode` (`0xa05a75`, `LED_MODE`; `[SYSSET] ATMOSPHERELEDMODE`, `config_init` keeps 0 .. 2): 0 off, 1 green, 2 blue. Stock names mode 1 orange (`img_orange`, `led_orange.png`), but the lamp is green: `reset_atmosphereled_rgb` sets only the green channel for it (13; saved as `LEDGREEN`) and the image is a green disc. A value row (`ACT_LED` 99) and the picker `m1plus_ledlight` (`ACT_LEDSET` 100: Off, Green, Blue). `disp_led_set` does what stock's `systemset/atmosphereled_page` handlers do: the navbar switch `0x4a1c30` stores 0 (from non-zero) or 1 (from 0, so on is green), `img_orange` `0x4a1e14` stores 1 and `img_blue` `0x4a1d8c` stores 2 unless it is the mode already, and each then calls `write_int_config(mode, "SYSSET", "ATMOSPHERELEDMODE")` and `reset_atmosphereled_rgb()` (`0x4e6b9c`). Blue from off is one step on our page (stock: the switch, then the colour). **Follow Screen** (`ACT_LEDFOLLOW` 101, a switch row on the LED Light page, in a card of its own under the choices, with no glyph like the Theme row, and the static note "The light is off while the screen is off" under the card; the Theme row, hidden unless Dynamic is chosen, stays the page's last item) is stock's switch of that name: `disp_follow_toggle` stores the byte `ledfollowscreen_flag` (`0xa05a74`) xor 1 and then calls `write_int_config(new, "SYSSET", "LEDFOLLOWSCREEN")`, as stock's `0x4a1940` does (the byte in the call's delay slot), and nothing else. The row stays usable while the lamp is off (stock hides it then).
+**LED Light** is stock's lamp mode `[SYSSET] ATMOSPHERELEDMODE`: 0 off, 1 green, 2 blue. Stock
+labels mode 1 orange, but the lamp is green, so the picker says Green. A value row and the picker
+`m1plus_ledlight` (Off, Green, Blue; Dynamic below) call what stock's handlers call: store the mode,
+`write_int_config`, `reset_atmosphereled_rgb`. Blue from off is one step here (stock: the switch,
+then the colour).
+
+**Follow Screen** is stock's switch `[SYSSET] LEDFOLLOWSCREEN`, in a card of its own under the
+choices with the note "The light is off while the screen is off". It stays usable while the lamp is
+off (stock hides it then). The Theme row (below) is the page's last item.
+
+## Screen Timeout
+
+Stock's backlight time: a value row and the picker `m1plus_lighttime` with stock's five choices
+(Never, 15s, 30s, 1min, 5min in stock's order; the times are plain text, the same in every
+language; `[SYSSET] LIGHTTIME`). Choosing one stores the word, saves it and
+resets the screen's countdown from it, as stock's page does.
+
+## Screen Rotation
+
+A switch row in a card of its own, with the note "Turns the screen upside down"; on = 180 degrees.
+It is stock's `[SYSSET] ROTATEMODE` (0 or 1), the same choice as stock's rotation page. The label is
+our short key `Screen Rotation` (stock's Spanish text does not fit the switch row).
+
+- A toggle repeats stock's four steps in order: store the word, save it, call
+  `tk_set_lcd_orientation(0 or 0xb4)`, set the byte `scr_rotateflag`. Boot applies the word, and the
+  boot logo follows it too ([boot](boot.md)).
+- The rotation is global: pages keep their 320 x 480 coordinates, so our pages need no layout of
+  their own. Cover Flow's volume buttons swap with the word, as stock's key handler does.
+- `scr_rotateflag` is read by a dozen stock dialogs, which move themselves once. Our switch sets it
+  as stock does and nothing of ours reads it.
 
 ## Sample Rate
 
-A fourth LED Light choice, shown as **Dynamic** (the user-facing name: two of the themes do not show the rate; `ACT_LEDSET` argument 3; `patch/tracklamp.c`, constants in `patch/tracklamp.h`; contributed in PR #5). The lamp shows the playing track's sample rate as a colour. Choosing it saves the setting and sets stock's lamp mode to 0 (so stock lights nothing of its own); it opens no page. While Dynamic is the chosen lamp the LED Light page shows one more row in a card of its own, Theme, below the Follow Screen card (a hidden row keeps the gap before it, so Theme comes last and nothing moves when it shows; the page's spacers are fixed). The row is (`ACT_RGBROW` 143, a value row whose value is the theme's name), which opens the picker `m1plus_rgbtheme` (titled Theme: six check rows `ACT_RGBTHEME` 140 in two cards, Ambient (Candle, Wave) above Sample Rate, with a two-line wrapping note above the first card that describes the chosen theme's palette: "Red to blue to green as the sample rate rises" (Reference, Gentle Breathe, Lighthouse), "Rose to lavender to lime as the sample rate rises" (Heartbeat), "Warm amber, the same for every file" (Candle) or "All colors in turn, the same for every file" (Wave); `page_refresh` sets `pod_note0_t` from `tl_theme()` as the page opens and after a row is tapped (`rgb_note`, `patch/m1plus.c`), the page's own text is the first one; the page may be a little taller than one screen); `page_refresh` (`patch/m1plus.c`) shows or hides the row, like the Regenerate Daily Mix row, each time a choice is made and each time the page is back in front. Choosing Off, Green or Blue saves `0`, lets the lamp go and then does what the stock choice does. The one setting file is `led-dynamic` ([settings](settings.md)): `0` or missing is off, `1` .. `6` is on with the theme of that row.
+A fourth LED Light choice, shown as **Dynamic** (two of its themes do not show the rate). The lamp
+shows the playing track's sample rate as a colour. Contributed in PR #5.
 
-**Opt in.** Off (the default) the feature costs one compare of a cached int on the hook's path and nothing else: no file, no timer, no lamp write. Everything below runs only after the user chose Dynamic.
+- Choosing it saves the setting and sets stock's lamp mode to 0, so stock lights nothing of its
+  own. It opens no page. Choosing Off, Green or Blue saves `0`, lets the lamp go and then does what
+  the stock choice does.
+- While Dynamic is chosen, a **Theme** row (value row) appears in its own card below Follow Screen.
+  It opens the picker `m1plus_rgbtheme`: six check rows in two cards, Ambient (Candle, Wave) above
+  Sample Rate. A two-line note above the first card describes the chosen theme's palette: "Red to
+  blue to green as the sample rate rises" (Reference, Gentle Breathe, Lighthouse), "Rose to
+  lavender to lime as the sample rate rises" (Heartbeat), "Warm amber, the same for every file"
+  (Candle), "All colors in turn, the same for every file" (Wave).
+- The setting file is `led-dynamic` ([settings](settings.md)): `0` or missing is off, `1` .. `6` is
+  on with that theme.
+- **Opt-in:** with the setting off the feature costs one compare of a cached int on the hook's
+  path: no file, no timer, no lamp write.
+- **Hook:** payload hook 31 ([payload](payload.md)) wraps the idle handler's play-status call and
+  returns its result unchanged. With the setting on, it starts the module's timer if it is not
+  running. All other work is the timer's.
+- **Kill switch:** the card's kill switch makes the lamp stock's again.
 
-**The hook** (payload hook 31, [payload](payload.md)): `tl_play_status` replaces `on_wm_idle_status`'s call of `mclGetPlayStatus` (`0x4ce968`) and returns its result unchanged. `on_wm_idle_status` is an AWTK idle (`idle_add`, `home_page_init` `0x535048`), so the function runs on every pass of the main loop. With the setting on it does one more thing: when the module's timer is not running it adds it. All other work is the timer's.
+The timer polls every 250 ms (`TL_POLL_MS`) and runs every 50 ms (`TL_FAST_MS`) while a theme other
+than Reference plays or during the pause fade. What it shows, in order: the radio and a dark screen with Follow Screen on (stock's lamp),
+USB DAC mode (the host's rate), else the player's rate. A DSD stream counts as its rate divided by
+16, so DSD64 shows as 176.4 kHz.
 
-**The timer** (`tl_tick`, one AWTK timer). Every `TL_POLL_MS` (250 ms) it asks what to show: the card's kill switch (`access`), Follow Screen with a dark screen, the radio, then USB DAC mode (`POWER_USBSTATE` 2 and `POWER_FLAG` 1: the host's rate from `/sys/class/uac2/uac2_samprate`) or the player (`mclGetPlayStatus` 2: `mclGetInfo`'s rate; a DSD stream, known by 1 bit, the codec's name or the file's extension, counts as its rate divided by 16, so DSD64 shows as 176.4 kHz). Every tick it draws the theme's frame. The timer runs `TL_FAST_MS` (50 ms) apart while a theme other than Reference plays and during the pause fade, and `TL_POLL_MS` apart otherwise; it changes pace by ending and adding a timer at the new one. When the setting goes off the timer ends on its next tick.
+**The lamp.** A channel has 18 levels (the level stock uses for its red). The lamp file is written
+only when a level differs from stock's lamp state, in the format stock uses, so a fast timer does
+not mean many writes. If stock changes the lamp under a playing track, the next tick writes the
+theme's frame again.
 
-**The lamp.** A channel has 18 levels (0 .. `TL_LEVEL` 17, `0x11`, the level stock uses for its red). A frame is a colour (each channel 0 .. 100) and a brightness (0 .. 100), rounded to levels; the lamp file is written only when a level differs from stock's lamp state, so a fast timer does not mean many writes (Gentle Breathe: about 10 a second at most). It is written as stock's `config_atmosphere_light` (`0x4e6fec`) writes it, the decimal number `r << 16 | g << 8 | b` to `/sys/class/led_ktd2026/led_config_rgb`, but with `open` / `write` (stock runs `echo` through `system`), and stock's lamp state (`0xa038b8`: red, blue, green, a pending byte its 100 ms timer `0x4cff40` acts on) is set to the same levels with the pending byte 0. If stock changes the lamp under a playing track (power is plugged in), the next tick writes the theme's frame again.
+**Letting go.** The lamp is stock's again when playback stops (after a short grace, so the gap
+between tracks does not blink), 2.5 s after a pause (the frame fades first), with the kill switch,
+with the radio, with a dark screen while Follow Screen is on, and when another LED Light choice is
+made. The lamp then shows stock's mode-Off rule: red while external power is there and the battery
+is not full, dark otherwise. While a track plays the theme wins over stock's red charging light.
 
-**Letting go.** The lamp is stock's again when playback stops (after `TL_GONE` 4 polls, so the gap between two tracks does not blink), `TL_PAUSE_MS` (2.5 s) after a pause (the frame first fades to a fifth in `TL_FADE_MS` 500 ms, and a moving theme stands still), with the kill switch, with the radio, with a dark screen while Follow Screen is on, and when another LED Light choice is made. The module then shows what stock shows with its mode Off, the first rule of `reset_atmosphereled_rgb` (`0x4e6b9c`, pinned): red at level 17 while external power is there (`POWER_EXT` 1) and `pmucharge_status` (`0xa059e8`) is not 2 (full), dark otherwise. Stock's function itself is not called, because it also saves `LEDRED` / `LEDGREEN` / `LEDBLUE` to the config every time. While a track plays the lamp shows the theme, so stock's red light for external power does not show then.
-
-**Themes** (`TL_REFERENCE` .. `TL_OCEAN`, 0 .. 5; Reference, 0, is the default). The Theme page lists Ambient (Candle, Wave) first and Sample Rate (the other four) under it; a row's argument is its theme, and `pick_chosen` compares the argument, so the order of the rows does not matter.
+**Themes** (default Reference):
 
 | Theme | Colour | Movement |
 |---|---|---|
@@ -34,41 +105,15 @@ A fourth LED Light choice, shown as **Dynamic** (the user-facing name: two of th
 | Gentle Breathe | the rate's colour, palette 1 | 4 s: brightness up and down between 15 % and full |
 | Heartbeat | the rate's colour, palette 2 | 1.6 s: a beat, a softer one (65 %), 0.9 s dark |
 | Lighthouse | the rate's colour, palette 0 | 6 s: a 2 s rise to 65 %, a 0.2 s flash to full, a 2.8 s fall, 1 s dark |
-| Candle | red over a little green (its own) | brightness (55 .. 100 %) and warmth walk a step a tick towards random targets |
-| Wave | six colours around a wheel (its own) | 12 s a turn, full brightness |
+| Candle | warm amber, the same for every file | brightness (55 .. 100 %) and warmth drift towards random targets |
+| Wave | six colours around a wheel, the same for every file | 12 s a turn, full brightness |
 
-A palette has ten colours, one per rate band: up to 44.1, 48, 88.2, 96, 176.4, 192, 352.8, 384 kHz, up to 1411.199 kHz, above. Palette 0 runs from red-pink (44.1 kHz) through blue (96 kHz) to green (the highest rates). A theme's clock stands still while paused and starts again when the theme is chosen.
+A palette has ten colours, one per rate band (44.1, 48, 88.2, 96, 176.4, 192, 352.8, 384 kHz, up to
+1411.199 kHz, above). Palette 0 runs from red-pink at 44.1 kHz through blue at 96 kHz to green at
+the highest rates. A theme's clock stands still while paused.
 
-**Tests:** `test/pod/tracklamp.py`: `hook_tests` (off: stock's call alone on every pass; on: one timer, the poll's pace), `colour_tests` (every band, DSD, USB DAC mode, a failed lamp write, stock changing the lamp), `theme_tests` (each theme's range and pace; Gentle Breathe, Candle and Wave never skip a level), `pause_tests` (the fade, the stop's grace, the kill switch, Follow Screen, the radio, what the let-go lamp shows), `setting_tests` (the file, LED Light's four modes, the picker).
+## Limits
 
-**Not verified on a device:** every part of this section (the colours on the real lamp, the timer's cost, Follow Screen, USB DAC mode, the let-go rule).
-
-## Screen Timeout
-
-Screen Timeout is stock's backlight time: a value row (`ACT_LIGHT` 97) and the picker `m1plus_lighttime` (`ACT_LIGHTSET` 98, the argument is stock's index) with stock's five choices in stock's order: Never (index 0; our key, stock's English is "Off"), `15s`, `30s`, `1min`, `5min` (stock's plain texts, the same in every language). The state is the word `backlighttime_mode` (`0xa05a7c`, `LIGHT_MODE`), which `config_init` loads from `[SYSSET] LIGHTTIME` (`0x4e60d4`; a value outside 0 .. 4 becomes 0). `disp_light_set` repeats a row of stock's `systemset/lighttime_page`: each row's click handler (`0x4a8708` row 1 .. `0x4a8578` row 5) returns when its index is the word already, else calls the shared `0x4a8410` (the row images, then the word stored before `write_int_config(index, "SYSSET", "LIGHTTIME")`) and then `reset_poweroptions_timer(0, 0, 1)`, which sets the screen's countdown from the new word (`setlight_time` `0x4d77f4`).
-
-## Screen Rotation
-
-A switch row (`ACT_ROTATE` 153, `patch/display.c` `disp_rotate` / `disp_rotate_toggle`) in a card of its own under Screen Timeout and Lock Screen, with the grey note "Turns the screen upside down"; on = 180 degrees. The label is our short key `Screen Rotation` (stock's `system_scrotate` is "Rotación de la pantalla" in Spanish, 190 px against the switch row's 173), the glyph `rotate-ccw-square` (stock's own for the row, `tools/mod_icons.py`).
-
-**Stock.** The sysset list's row 9 (`system_scrotate`; click handler `0x4ad7b0`, row table `0x97c8c0`, jump table `0x748ae0` entry 9 = `0x4ada60`) only calls `navigator_to("systemset/screenrotate_page")`; the page does the work. Its init `0x4ab0a4` walks the widgets with `0x4aaca0` (title `system_scrotate`, `label_name0` = `rotate_0`, `label_name1` = `rotate_180`, "0 degrees" / "180 degrees"; `listitem0` bound to `0x4ab03c`, `listitem1` to `0x4aafd0`) and marks the row of the word `rotate_mode` (`0xa05a9c`, int, `[SYSSET] ROTATEMODE`; `config_init` `0x4e6484..0x4e64bc` keeps 0 or 1, anything else becomes 0). Two states only, so a switch. Each row handler returns when `rotate_mode` is the choice already (`0x4ab05c`, `0x4aaff8`); else it calls the shared `0x4aae68(win, choice)`, which marks `image_choice<choice>`, unmarks the old row and stores the word in the delay slot of `write_int_config(choice, "SYSSET", "ROTATEMODE")` (the word first, then the save), then `tk_set_lcd_orientation(0 or 0xb4)` (`0x5f35e8`: through `system_info_set_lcd_orientation` and a window-manager orientation event; nothing when the orientation is the system's already) and stores 1 in the byte `scr_rotateflag` (`0xa05a58`). `disp_rotate_toggle` repeats the four steps in that order (the row images are the page's own). The word is applied at boot by `awtk_configinit` (`0x4ccb5c`, at `0x4ccbd4`: `tk_set_lcd_orientation(0xb4)` for a non-zero word), so the setting survives a restart; the boot logo follows it too (`logo180.jpg`, [boot](boot.md)).
-
-**`scr_rotateflag`** is read (`lw` of the GOT slot) at 12 places in stock's dialogs: `0x4707f8`, `0x471e58`, `0x472854`, `0x47674c`, `0x478a58` (the Now Playing More sheet's 200 ms timer, [playmore](playmore.md)), `0x47a140`, `0x47c5c4`, `0x47c780`, `0x47e570`, `0x4b5214`, `0x4b5ba4`, `0x4bd270`. Read in full: `0x4707f4`, a timer callback that, while the byte is set, moves its dialog to (0, 0x168) if it is not there already, clears the byte and returns `RET_REPEAT`; the others were only seen to read the byte. Our switch sets it exactly as stock does and nothing of ours reads it; it stays 1 until one of those dialogs opens (as it does after stock's page).
-
-**Interactions found, not changed.** Stock handles the rotation as a global LCD orientation (`docs/firmware.md`: pages keep their 320 x 480 coordinates), so our pages need no layout of their own. Where our code looks at it: Cover Flow's volume buttons swap with the word as stock's `on_wm_keyup_fun` does (`patch/coverflow.c`, [coverflow](coverflow.md)); the Landscape Cover Flow and the Cassette's landscape page ([tape](tape.md)) turn their own frame 90 degrees inside the page's portrait bitmap and map touches back by hand; nothing there reads `rotate_mode`, and whether their hand-made touch mapping and frame still match the 180-degree orientation is not verified (not run on a device or in the emulator). The rotation changes while no dialog is open (the switch is a page row); the dialogs' own flag timers are stock's.
-
-## Pins and tests
-
-Every word relied on is pinned (`LOCKSCREEN_PINS`). `test/pod/display.py` runs stock's handlers under the emulator on the same state and compares the stored value and the calls with ours: the five backlight rows for all 25 changes, the lamp's switch and two colours for every change stock's page can make, Follow Screen both ways; for brightness it checks the bindings and runs stock's refresh and both handlers on our widget names. Section `rotate_tests` runs stock's two rotation handlers (`0x4ab03c`, `0x4aafd0`) and compares the word, the flag byte, the save and the `tk_set_lcd_orientation` call, in order and at each call, with ours, from both words and both flag states; then the switch on the page (image, tap, return to the front). Not verified on a device: the slider's drag inside the list; that the screen turns and stays turned after a restart; the touch and our landscape frames under 180 degrees.
-
-## State
-
-The Display rows of the persisted choices (the files and values are the ones in [settings](settings.md) "Persisted choices"; nothing of these is saved by us).
-
-| Setting | State | Values/default |
-|---|---|---|
-| Display > brightness slider | none: stock's `[SYSSET] LIGHTNESS` (the word `lightness`) | 0 .. 100, written by stock's own slider handlers (see Brightness above) |
-| Display > Screen Timeout | none: stock's `[SYSSET] LIGHTTIME` (the word `backlighttime_mode`) | 0 never, 1 15 s, 2 30 s, 3 1 min, 4 5 min; the same choice as stock's backlight time page (see Screen Timeout above) |
-| Display > LED Light | none: stock's `[SYSSET] ATMOSPHERELEDMODE` (the byte `atmosphereled_mode`) | 0 off, 1 green, 2 blue |
-| Display > LED Light > Follow Screen | none: stock's `[SYSSET] LEDFOLLOWSCREEN` (the byte `ledfollowscreen_flag`) | 1 on, 0 off |
-| Display > Screen Rotation | none: stock's `[SYSSET] ROTATEMODE` (the word `rotate_mode`) | 0 = 0 degrees (default), 1 = 180 degrees; the same choice as stock's screen rotation page (see Screen Rotation above) |
+- The landscape Cover Flow and Cassette frames turn inside the page's portrait bitmap and map touch
+  by hand. Nothing there reads the rotation word, so their frame and touch mapping under 180 degrees are
+  unchecked.

@@ -1,133 +1,254 @@
 # Lock screen
 
-## Lock screen (`tools/mod_lockscreen.py`)
+**Sources:** `tools/mod_lockscreen.py` (asset, `patch_cover_src`, `patch_date_names`, `MINI_RECT`,
+`apply_mini`), `tools/mod_wallpaper.py`, `tools/wallpaper_prepare.py`, `patch/lockscreen.c`
+(`lk_*`, `lkwp_*`), `patch/relnotes.c` (instructions page); pins `LOCKSCREEN_PINS`, `LOCKROW_PINS` in
+`tools/pod_pins.py`. **Tests:** `test/pod/lockscreen.py`, `test/awtk_fill.py`, `test/demo_diff.py`.
+**Preview:** `tools/preview/preview_lockscreen.py`; the picker in `tools/preview/preview_settings.py`
+(`draw_lockwall`).
 
-`ui/screensaver_page.bin` (fullscreen 320x480), page theme `styles/screensaver_page.bin`, the three
-`screens_*` battery images, `screens_rightslide.png`, and four words of `demo`.
-What the app touches by name: `img_screensaver` (wallpaper), `view_timeinfo` (shown/hidden by the "show
-time" setting), `app_gesture` (swipe), `btn_play`, `btn_next`, `img_battery` (image set to
-`screens_battery`/`screens_charge`/`screens_lowbattery`, refresh `0x53f520`, names at
-`0x53f5f0..0x53f694` only), `pgbar_battery`, `view_bottomview` (hidden **and disabled** when nothing is
-queued, `0x53f8d4..0x53f8f4`), `view_scrlabel_title/artist`, `view_img_icon`. Nothing looks up
-`dclock_time`/`dclock_date`. Every property is set absolutely, so the layout does not depend on earlier
-edits; applying it twice is refused. Digit_clock format tokens (demo's formatter): `Y YY M MM MMM D DD`
-(stock: MMM English only, September `Sept`), `w`, `W` (stock: full English weekday; zh_CN `星期日..`; both are short and translated in the build, see The date), `h hh H HH`
-(HH = 01..12), `m mm s ss`, `T`, `TT` (minute + " AM"/" PM"); the lock clock is always `hh:mm`
-24 h whatever the setting (the 12/24 h setting only reformats the status bar clock).
+Our own lock screen: a restyled stock page (large glass card, or a mini player like Home's), a short
+localised date, a wallpaper picker and a Lock Screen settings page that replaces stock's. Payload
+hook 25 (`screensaver_page_init`, stock-first, [payload](payload.md)) and a tap-only redirect on the
+Display page's Lock Screen row.
 
-Layout, top to bottom (window y): date `W, MMM D` ("Wed, Nov 11"; each language's own short date, see The date) 20 px, ink top 12 (box from `text_box`); the 68 px
-`hh:mm` clock centred (fitted to the widest digit, 159 px wide in Inter); a **glass card** at
-16,108 288x334 (the image `lk_card`, see Glass card) holding the **square 264x264 cover** at 12,12 (no mask), title
-(20 px white) and artist (16 px `#DDDDDD`) at 12,282 / 12,306 (164 wide), play and next at 180,278 /
-228,278 (48x56, off-white `np_*` glyphs via the page theme's `btn_imgplay1/pause1_style`); the swipe hint
-`img_slide` 31x14 (65 %) at 144,452; the status bar's gauge on the date line at 288,12 (the same 22x12 pictures, `battery_art.STATUS`, right edge x 310 as the bar's; fill
-`pgbar_battery` 290,14 16x8, moved before `img_battery` so it is drawn under the picture as in the bar) and, hidden, the Battery Percentage label `pod_pct_lk` at 252,10 32x16 (13 px white, right-aligned, 4 px before the outline; [battery](battery.md) "The lock screen"; the widest date of every language stays 4 px clear of it). With nothing queued the card is the hidden widget's own background, so
-the page is date, clock and gauge on the wallpaper and the whole screen swipes. `screens_rightslide` is replaced (premultiplied Lanczos).
-The stock battery props are restored on `pgbar_battery` (no text readout of its own).
+## Page asset
 
-- **Glass card.** The card (`view_bottomview`) has `bg_image` `lk_card` and a transparent `bg_color` in every state, no radius of its own: the same
-  pane as the Home mini player bar (`docs/modules/minibar.md`, `mod_icons.py glass_image(288, 334, 18, fill=GLASS_CARD_FILL)`: dark vertical gradient
-  `#2A2A2C` to `#1E1E20`, alpha 0.76 (the bar: 0.82; a little more see-through because only the 12 px frame and the text band show around the opaque
-  cover), 1 px rim light 30 % at the top to 8 % at the bottom, a faint inner highlight line). Committed as `assets/icons/png/lk_card.png` (2.5 KB) and
-  installed by `mod_nowplaying` with the `np_*` images. Drawn 1:1 by `canvas_draw_image_ex` (proved for the bar by `test/awtk_fill.py`), so the decoded
-  bitmap is 288 x 334 x 4 = 384,768 bytes in RAM. A 9-patch was not used: `canvas_draw_image_patch9` exists in demo (`0x647d20`) but no stock style
-  in this tree selects it (nothing pins the `bg_image_draw_type` value), and a stretched middle would smear the gradient and rim. Contrast over a pure
-  white wallpaper (the worst case): white title and `#DDDDDD` artist checked by `test/pod/assets.py` (>= 7:1 and >= 4.5:1 over every pixel of their
-  boxes, over white and over black). **Baked blur: not feasible.** The wallpaper is only the default (`screensaver_default`, `docs/modules/wallpaper.md`);
-  the user can pick any picture (`SCREENSAVERPATH` = `file://` path), and the card sits on whatever it is, so a blur baked at build time would only match the
-  default wallpaper. The large card has no blur (the live blur is the mini player bar's, below).
-- **Translucency works** (the flat `bg_color` fill the card had before the glass image; still how the fill API behaves). `bg_color` with alpha: `widget_fill_rect` (`0x66b170`) reads `bg_color` and
-  `round_radius` and calls `canvas_fill_rect`, or `canvas_fill_rounded_rect_gradient_ex` (the
-  `0x64d028` code) with a radius; the low-level fill dispatches per pixel format (`soft_fill_rect`
-  `0x681440`, e.g. `0x6cfc84` sends alpha >= 0xf9 to a plain fill and less to a per-pixel blend).
-  `test/awtk_fill.py` runs demo's own code on a bgr565 framebuffer: inside pixels are the blend within
-  one 565 step, outside untouched, anti-aliased edge, no seams. AWTK repaints a dirty region from the
-  window down, so a scrolling title or a clock tick re-blends over fresh wallpaper and never stacks.
-- **Why the cover is square.** A corner mask paints one fixed colour, wrong over a translucent card on
-  any wallpaper; image clipping does not exist (the image paint `0x62d494` is `widget_paint_helper`
-  plus `canvas_draw_image_ex` into the widget rect, canvas clip is a rectangle, `round_radius` rounds
-  only the background; only `draw_type icon` can transform), so rounding the picture would need payload
-  code. The card itself is rounded and the square cover sits 12 px inside, clear of the arcs.
-  Contrast over the worst wallpaper (pure white): see Glass card.
-- **Touch.** `app_gesture` is the parent of the whole page; its `on_event` (`0x5219e0`, vtable
-  `0x975654`) records the down point, grabs and compares on move and up. `view_img_icon` is
-  insensitive, so a touch on the cover, the card or its text lands on `view_bottomview` (a view with no
-  handler) and a swipe unlocks; play/next are 48x56 and hit at their centre; `check_touch` verifies this.
-- **The cover size is a demo constant.** demo writes `/tmp/coverpic.jpg` / `/tmp/externpic.jpg` with
-  `toolsGetAlbumCover` / `toolsGetExternCover(track, dst, w, h)` in `parseplaycover_thd` (`0x4ded84`):
-  fitted inside w x h, aspect kept, never upscaled, JPEG q90, per new track (the thread polls a start
-  flag every 100 ms and skips an unchanged path). The four `addiu a3/a2, zero, 0xfe` at `0x4df1dc`,
-  `0x4df1e0`, `0x4df21c`, `0x4df220` become `0x108` (264); `patch_cover_src` pins the 23 stock words
-  `0x4df1d4..0x4df22c` and the GOT slots (`0x9ff74c` -> `0x5eaee0`, `0x9ff750` -> `0x5eafec`) and refuses
-  otherwise. AWTK draws a smaller picture at the widget size by nearest neighbour, hence the 1:1 264 (the lock
-  card's cover and Now Playing's `img_playcover` are both 264: `mod_nowplaying` asserts the sizes agree).
-  Cost: 1.08x output pixels (about 209 KB instead of 194 KB RGB while encoding). Other readers of the
-  files (resampled by nearest neighbour, as before): `bigcover_page` (320; it has a 320 px picture of its own since [bigcover](bigcover.md), stock's 264 px one stays underneath), the Home strip (66), the
-  Now Playing (254), the remote-control replies (check
-  `stat().st_size < 0x16801` = 92,161 bytes; 264 px files are about 1.08x the 254 ones; a larger file means the phone shows no cover). Unchanged: `.downpic` art
-  (`cp -f`), DLNA/AirPlay 270 (`0x10e`), HiFi/Tidal 254 (`0x4df348`, `0x4df424`). Cover source types
-  (loader `0x53f9b4`, global `0x97cad8`): 2 = `/tmp/coverpic.jpg`, 3 and 5 = `/tmp/externpic.jpg`, 4 =
-  `random_cover0..7` (320x320 PNG), 6/7 = `/tmp/hifi_album.jpg` / `/tmp/album_tidal.jpg`, else
-  `defaultcover` (a 66x66 placeholder blown up, blocky; left alone because other pages use it).
-- **Mini player layout** (`patch/lockscreen.c`, `tools/mod_lockscreen.py MINI_RECT` / `apply_mini`, [payload](payload.md) hook 25). The file `/mnt/data/m1plus/lockscreen-layout` is one character: `1` = mini player; missing, empty or anything else (`0`, `2`, `11`, trailing junk) = the large card above (the default). The payload only reads it (`set_read`, once per lock screen init, never written), so a change applies the next time the lock screen opens; there is no tap or gesture on the cover. `screensaver_page_init` (`0x53fd44`) is hooked stock-first: stock's init runs completely and its result is returned; only for `RET_OK`, a window, no `/mnt/mmc/m1plus-off` and a file of `1`, the six stock widgets `view_bottomview`, `view_img_icon`, `view_scrlabel_title`, `view_scrlabel_artist`, `btn_play`, `btn_next` are looked up, and only when all exist `widget_move` / `widget_resize` lay them out as the Home bar (`docs/modules/minibar.md`; numbers `patch/offsets.inc` `LK_*` and `MB_*`, which `mod_lockscreen` reads with `cdefs`): card at 8,386 (304x56, 10 px over the swipe hint, ends at y 442) with the `mb_glass` image in the three states the asset sets (its `bg_color` is already transparent), cover 14,10 36x36, title 60,7 130x22 at 17 px white, artist 60,29 130x20 at 16 px `#D0D0D0`, play 194,0 and next 245,0 (48x56). The font sizes go through `widget_set_style`, the artist colour and the card image through `widget_set_prop_str`, in normal / disable / focused. Position is the only lock-specific thing; the look is the Home bar's:
-  - **Cover** (the Home bar's code: `mb_art_t`, `mb_art_cover`, `mb_art_settle`, `mb_art_paint` in `patch/minibar.c`, declared in `patch/minibar.h`): a 36 px RGBA bitmap of our own, box-filtered from the album's Cover Flow cache file, else demo's `/tmp` picture (`np_cover_file`, found the same way on the lock page: it is the file the lock screen's own loader reads, and settled for `MB_SETTLE` ticks after a track change), else the stock disc, the four `MB_ART_R` corners rounded in the bitmap's alpha, drawn by the card's own `EVT_AFTER_PAINT`, decoded on the timer, never in paint. Stock's `view_img_icon` is hidden (`widget_set_visible`, 0; it was already insensitive): stock keeps loading its picture into it, harmlessly, and the tick hides it again if stock shows it. Pixel for pixel equal to the Home bar's for the same track (test).
-  - **Glyphs** (Home's `mb_play`, `mb_pause`, `mb_next` and `_down` at the bar's sizes): stock swaps the play button's style with `widget_use_style(btn_play, "btn_imgpause1_style" / "btn_imgplay1_style")` (`0x53f874`), and only when its style name (widget `+0x1c`) differs from the one the status wants (`strcmp`, `0x53f860`), so stock's name logic must keep seeing its own names: we never call `widget_use_style` and never rename the style. The glyphs are overrides in the widget's own mutable style (`widget_set_prop_str "style:normal|over|pressed:icon"`, the Home bar's way), which hold over either theme style; the tick (100 ms lit) reads `mclGetPlayStatus` and the style name stock has set, and makes the three icons again whenever either differs from what was last made (so a swap that would have reset them is repaired within one tick; a status change within 100 ms). Next is not swapped: its `bg_image` (the page's `np_next`) is cleared in the five states and its icons set once. The large layout and its page theme styles are untouched. Verified in emulation only: that the overrides win over the theme style after `widget_use_style` (the Home bar relies on the same, but its buttons are never restyled by stock).
-  - **Labels**: `ellipses` and `only_parent_focus` set (`widget_set_prop_int`), so the lines are one-line ellipsis labels that never scroll, like the Home bar's (stock's scroll over a partly repainted pill would also defeat the blur).
-  - **Backdrop blur** (shared routine `mb_blur_paint` / `mb_blur_alloc` / `mb_blur_enable` / `mb_blur_free`, `mb_blur_t`; the Home bar's guards, plane, model `tools/pod_blur.py` and escape hatch `/mnt/mmc/m1plus-noblur`, see [minibar](minibar.md) "Backdrop blur"): the card's `EVT_BEFORE_PAINT` blurs what is under the pill, here the wallpaper (and the clock block never overlaps it). The card is invalidated whole on a cover or glyph change and on a press / release / abort of play or next; a partial frame (stock repainting the labels only) is not blurred and the next tick invalidates the whole card. There is no list or scroll handler on this page. Bit-exact against the model in `test/pod/lockscreen.py`.
-  - **Timer and handlers** (`lk_*`): registered after the layout, in this order: `EVT_DESTROY`, `EVT_WINDOW_TO_BG`, `EVT_WINDOW_TO_FG` on the window, `EVT_AFTER_PAINT` on the card, one 120 ms one-shot (`lk_first`, which arms `lk_tick`, 100 ms while the backlight is on, 1000 ms off: a track change in the dark is still made, so the cover is right when the screen wakes; the work is one key compare and one status read), then the blur plane and `EVT_BEFORE_PAINT` / press events. Only when all of that is up are the cover widget hidden, the labels and next restyled. Background removes the timer, foreground arms the one-shot again, destroy removes it and frees the bitmap and the plane (`lk_stop`); a window started over one that never said it was gone replaces the state. A missing widget, a refused `widget_on`, or no timer leave the moved stock widgets with stock's cover and glyphs: today's behaviour. No blur plane (no memory, `m1plus-noblur`, a refused handler): the glass over the sharp wallpaper. The radio is not shown here (stock's lock screen has no radio support; the bar follows the play queue).
-  Nothing in stock's lock screen code moves, resizes or restyles a widget (`test/pod/lockscreen.py` scans the page code's GOT loads), so the layout survives every refresh round and track change. The large layout is `apply()`'s, untouched. Any failure (kill switch, failed init, null window, missing widget) leaves the large card. Preview: `tools/preview/preview_lockscreen.py` panels with `,mini` (`out/preview/lock-mini.png`, `lock-mini-busy.png`), drawn with the Home bar's rendering (`tools/preview/preview.py`). Touch: play and next hit at their centres through demo's own `widget_find_target`; the cover and text land on the card inside `app_gesture`, so a swipe there unlocks as on the large card. Tests: `test/pod/lockscreen.py` (`hook_tests`, `layout_tests`, `life_tests`, `bar_tests`). Not checked on a device: the glyph overrides after stock's swap, the one-line labels, the blur on this page (panel type: see minibar), the first lock after changing the file, wake from sleep, the kill switch.
-- **The date** (`tools/mod_lockscreen.py patch_date_names`, `tools/pod_i18n.py` "The lock screen's date", `patch/lockscreen.c lk_date`). The short date of the UI language: `Wed, Nov 11`, `11月11日 周三` (zh_CN), `11月11日 週三` (zh_HK), `11月11日(水)`, `11월 11일 (수)`, `mer. 11 nov.`, `Mi., 11. Nov.`, `mié, 11 nov`, `mer 11 nov`, `พ. 11 พ.ย.`, `śr., 11 lis`, `ср, 11 нояб.`, `ср, 11 лист.` (stock, with our earlier format: `Wednesday, Nov 11` in every language but zh_CN's `星期三, Nov 11`). Stock's formatter (`wstr_format_date_time` `0x64e7b0`; its only other caller is the unused file browser's `YY-MM-DD hh:mm:ss`) writes `MMM` as `locale_info_tr` of the table `0x90497c`'s entry (no stock language file has the keys) and `W` by `strcpy` from the table `0x904960` (`星期日..`) when the locale is country `CN` and language `zh`, else from `0x904944` (`Sunday..`); nothing else refers to the tables or loads their strings, and this date is the only format with `W` or `MMM`. Three parts:
-  - **Names.** `Sunday..` become `Sun..` and `Sept` becomes `Sep` where they are (NUL padded; pointers and the other months untouched). The 19 names are also keys of `pod_i18n.TEXT` (`WEEKDAY_KEYS`, `MONTH_NAME_KEYS`) with each language's abbreviations.
-  - **`W` is translated as `MMM` is.** The weekday block (`0x64e934`: `lw fp` = wday, `sltiu 7`, `beqz` to the append, `lw t9` in the delay slot) clears a 32 byte buffer with six `sw zero` (`0x64e944..0x64e958`) before its locale test; those six words become the month's own four (`bal locale_info; nop; sll a2, fp, 2; addiu fp, s7, 0x4944`) and `b 0x64eaa4; nop`, the month's tail (`locale_info_tr`, `tk_utf8_to_utf16` into the 32 character buffer, `wstr_append`). The stock words of both paths are pinned (`DATE_W_CODE`, `DATE_M_CODE`); the old locale test, the `strcpy` and the zh_CN table are dead. A weekday out of 0..6 is still skipped by stock's bound.
-  - **Format.** The asset's format `W, MMM D` is itself a key (`LOCK_DATE_KEY`) whose translation is the language's format (`M月D日 W`, `M月D日(W)`, `M월 D일 (W)`, `W D MMM`, `W, D. MMM`, `W, D MMM`: numbers for the CJK months); `lk_date` sets it at the page's init with `digit_clock_set_format` (`0x626bbc`: copies the string, formats at once), after stock's init and not with the kill switch. The widget keeps the format for its own 1 s timer, so the date turns at midnight on a page left open. A format's own characters must not be formatter tokens and it must stay under 64 bytes (`date_samples` and the test check both).
-  With the kill switch, or without the widget, the asset's format shows with the language's names (`周三, 11月 11`). Widest date at 20 px in the built font: 120 px (zh), 114 px (pl), 107 px (en). Preview: `tools/preview/preview_lockscreen.py` panels with `,lang=zh_CN`. Tests: `date_tests` in `test/pod/lockscreen.py` (pins and edits, the format set per language, demo's formatter run on the built demo for 7 weekdays and 12 months in 13 languages against the preview's model, widths and glyphs), `test/demo_diff.py`. Not checked on a device: LOCK-05.
-- **Not possible asset-only:** the cover instead of the wallpaper (`img_screensaver` gets its image once,
-  in the init visitor).
+`ui/screensaver_page.bin` (fullscreen 320x480), the page theme `styles/screensaver_page.bin`, the
+three `screens_*` battery images, `screens_rightslide.png` (premultiplied Lanczos) and four words of
+`demo`. Every property is set absolutely, so the layout does not depend on earlier edits, and
+applying it twice is refused.
 
-## Setting (Settings > Display > Lock Screen)
+What the app looks up by name: `img_screensaver` (wallpaper), `view_timeinfo` (shown by the Show Time
+setting), `app_gesture` (swipe), `btn_play`, `btn_next`, `img_battery`, `pgbar_battery`,
+`view_bottomview` (hidden and disabled when nothing is queued), `view_scrlabel_title/artist`,
+`view_img_icon`. Nothing looks up `dclock_time` / `dclock_date`. The lock clock is always `hh:mm`
+24 h whatever the setting (that only reformats the status bar clock).
 
-A **Lock Screen** link row (a plain `ACT_PAGE` row like Control Center: lock glyph, label, chevron, no value text; zh 锁屏) is on our Display page (`DISPLAY_PAGE`, [display](display.md)), under Screen Timeout in the same card. It opens **our Lock Screen page** `m1plus_lockscreen` (`LOCK_PAGE`), which replaces stock's `systemset/screensaver_page` completely; stock's own Lock Screen entry (the Display page's row) opens it too ("The Display row"). Four cards:
+Layout, top to bottom (window y):
 
-1. **Enable** (a switch, lock glyph) - stock's own lock screen switch, `ACT_LOCKON` 79.
-2. **Wallpaper** (image glyph, chevron, no value; `ACT_LOCKWP` 84, opens the picker, see "Wallpaper picker") and **Show Time** (clock glyph, a switch; `ACT_LOCKTIME` 86, see "Show Time"). The Show Time label is our own short text in all 13 languages (stock's `scrlabel_time` text, the key `screenlock_timeshow` "Lockscreen Time Display", does not fit a switch row, and the page already says Lock Screen) (stock itself leaves it English in 10 of the 12 other languages, only zh_CN and zh_HK are translated).
-3. **Player Style** (square-play glyph, a value row `ACT_LOCKSTYLE` 85: the grey value is the saved layout, Large Cover or Mini Player; chevron) - opens the picker `m1plus_lockstyle` (`LOCKSTYLE_PAGE`): Large Cover, Mini Player (`ACT_LOCKSET` 83, arg 0 / 1), a check on the chosen row and the note "Applies the next time the lock screen opens." (the Record / Base pickers' pattern). The page's label is "Player Style" in the languages where it fits beside the value and a short word where it does not (ja スタイル, ko 스타일, fr Style, es Estilo, it Stile, pl Styl, ru / uk Стиль): the i18n width test checks every value text against the label in 13 languages.
-4. **Custom Wallpaper** (info glyph, chevron; `ACT_LOCKINFO` 87) - our own instructions page `m1plus_lockinfo` (`LOCKINFO_PAGE`, kind `relnotes`, titled like the row): a Release Notes page in every respect ([update](update.md) "Release notes"): the same asset (`tools/pod_ui.py build_relnotes_page`) and the same painter (`patch/relnotes.c`; the row calls `lockinfo_open`, which shares `rn_open` with `relnotes_open`, one `rn` state, so a second open while a page of the file is up does nothing). The heading "Add Your Own Pictures" (22 px white, y 12) is the heading style; the text is three paragraphs built at open from our own keys (the folder `lockscreenimage` at the top level of the card; JPG or PNG exactly 320 x 480 under 1 MB; at most 5 pictures, chosen in Wallpaper), joined by a blank line (the painter's 12 px gap), all in 13 languages (the Russian and Ukrainian headings use the short "photos" wording so that they fit one line). Unlike Release Notes the text is 20 px #E6E6E6 on a 27 px pitch (the asset's `label_line` style gets `RN_LOCK_LINE_PX` 20 for this page only; the pitch is a parameter of `rn_open`: `RN_PITCH_LOCK` 27; Release Notes keeps 18 px / 24 px). Scrolling by the stock scroll view; Back returns to the Lock Screen page; Light Mode and the nav fade as on Release Notes. If the page will not open nothing happens. The label is our own "Custom Wallpaper" in all 13 languages (stock's key `screenlock_about` overflowed the row in 7). Stock's `screensaverabout_page` and its keys `screenlock_info1..3` are no longer used (`STOCK_PAGES` is back to four); `systemset/screensaver_page` itself opens only as the fallback of the Display row.
+- Date, 20 px, ink top 12 ([The date](#the-date)).
+- The 68 px `hh:mm` clock, centred.
+- A **glass card** at 16,108, 288x334, holding the **square 264x264 cover** at 12,12, title (20 px
+  white) and artist (16 px `#DDDDDD`) at 12,282 / 12,306, and play and next at 180,278 / 228,278
+  (48x56, off-white `np_*` glyphs via the page theme's `btn_imgplay1/pause1_style`).
+- The swipe hint `img_slide` at 144,452.
+- The battery gauge on the date line at 288,12 (the status bar's 22x12 pictures; the fill
+  `pgbar_battery` is drawn under the picture as in the bar) and, hidden, the Battery Percentage label
+  `pod_pct_lk` at 252,10 ([battery](battery.md)). The widest date of every language stays 4 px clear
+  of it.
 
-Show Time and Custom Wallpaper have our own short labels (stock's texts, "Lockscreen Time Display" and "Custom lock screen", did not fit their rows); every label fits in all 13 languages. The rows are not dimmed when Enable is off (stock hides its wallpaper grid then; ours stays usable, a wallpaper chosen now applies the next time the lock screen opens, whether or not it is enabled).
+With nothing queued the card is hidden and the page is date, clock and gauge on the wallpaper, and
+the whole screen swipes.
 
-`lk_layout()` reads `/mnt/data/m1plus/lockscreen-layout` (`LK_LAYOUT_FILE`, `patch/home.h`; `1` = Mini Player, missing, empty or anything else = Large Cover; reading never writes). `lk_layout_set()` writes `0\n` or `1\n` with `home_write_atomic()`; the check moves only after a successful write, and a failed write changes neither the file nor the check. The checks and the Player Style value read the file when their page opens and when it is back in front (`page_refresh`). The lock screen reads the same file once per init (hook 25), so a choice applies the next time the lock screen opens; there is no live update.
+**Touch.** `app_gesture` is the parent of the page and records the down point, grabs, and compares on
+move and up. `view_img_icon` is insensitive, so a touch on the cover, card or text lands on
+`view_bottomview` (no handler) and a swipe unlocks. Play and next are 48x56.
 
-Settings Files lists `lockscreen-layout` (`sf_files`, `SETTING_FILES`, after `appearance-background`; `INFO_SFOLD` is `INFO_SF + 42`, `INFO_DUR` follows it), so its per-file delete and Reset All Settings return the large cover.
+**Not possible asset-only:** the cover in place of the wallpaper (`img_screensaver` gets its image
+once, in the init visitor).
 
-**Enable.** Stock's `systemset/screensaver_page` (the init is the code at `0x4abe04`) has `image_switch` (`sset_on` / `sset_off`), whose click handler `0x4aba34` flips the byte `screensaver_mode` (`0xa05aa3`, dynsym; `DATA` `LOCK_ON`) and then calls `write_int_config(state, "SYSSET", "SCREENSAVER")` (and hides `view_covers`, the wallpaper choice, while it is off; the page's own init reads the byte for both). Meaning: `config_init` (`0x4e615c`) loads `[SYSSET] SCREENSAVER` into the byte once at boot (`atoi`, 0 or 1); `into_standby` (`0x4e779c`) and the key handler `on_wm_keyup_fun` (`0x4cdca0`) read the byte every time the screen goes dark or a key wakes it: 0 = `awake_screen` (the screen simply wakes, no lock screen), 1 = the lock screen. So a change is live at once (the next time the screen would lock). `lk_enabled()` reads the byte; `lk_enabled_toggle()` repeats stock's two steps in stock's order (byte, then the save), because stock's handler only works inside its own page (it looks `image_switch` up there and returns 16 without it, so it cannot be called from ours). `write_int_config` returns nothing useful (stock ignores it too), so there is no failed-save path: the byte and the config key are both written. The switch is read when the page opens and each time it is back in front, so stock's page (reachable only as the Display row's fallback) and ours agree. The pins are `LOCKSCREEN_PINS` in `tools/pod.py` (checked at build).
+## Glass card
 
-**Show Time.** Stock's trace (disassembly of the stock demo; the pins are in `LOCKSCREEN_PINS`): the page's visitor `0x4ab120` finds `img_timeswitch` and binds its click to `0x4ab984`. That handler: `widget_lookup(window, "img_timeswitch", recursive)` (returns 16 without it, so it cannot be called from our page), then `s1 = &screensaver_timeshow` (`0xa05aa2`, dynsym; `DATA` `LOCK_TIMESHOW`; GOT load at `0x4ab9c8`), `a0 = *s1 xor 1` (`0x4ab9d8`, `0x4ab9e4`), `a1 = "SYSSET"`, `a2 = "SSAVERTIMESHOW"` (`0x4ab9e0`, `0x4ab9dc`) and `jalr write_int_config` (`0x4ab9e8`) **with `sb a0, (s1)` in its delay slot (`0x4ab9ec`)**: the byte is stored first and the config key saved after it (the callee finds the new state in memory). Then the switch picture (`sset_on` / `sset_off` by the byte). Nothing else: no other write, no flag. Readers: `config_init` (`0x4e6190..0x4e61b8`: `toolsReadConfig(.., "SYSSET", "SSAVERTIMESHOW")`, `atoi`, `sltiu 2` + `movz`: above 1 is 0, so the byte is 0 or 1) at boot, and the lock screen's page visitor `0x53f1bc` (`view_timeinfo` at `0x53f32c`: `lbu` the byte, `beqz` to hidden, else `widget_set_visible(1)` and `widget_set_enable(1)`), run each time the lock screen is built, so the choice is live at the next lock. **Ours:** `lk_time()` reads the byte (nonzero = on); `lk_time_toggle()` stores `byte xor 1` and then calls `write_int_config(new, "SYSSET", "SSAVERTIMESHOW")`, in that order, returning the new state; no file of ours, no failed-save path (stock ignores the result too). The switch is read when the page opens and each time it is back in front. `LOCK_TIMESHOW` is checked against demo's dynsym by the build. Test: `setting_tests` runs stock's own handler `0x4ab984` on the same byte and compares the byte, the order (the byte as `write_int_config` sees it) and the calls.
+`view_bottomview` has `bg_image` `lk_card` and a transparent `bg_color` in every state: the same pane
+as the Home mini player bar ([minibar](minibar.md); `glass_image(288, 334, 18, ...)` in
+`tools/mod_icons.py`; dark gradient `#2A2A2C` to `#1E1E20` at alpha 0.76, a 1 px rim light, a faint
+inner highlight). It is the committed `assets/icons/png/lk_card.png`, installed by `mod_nowplaying`,
+and drawn 1:1 (a 288x334x4 bitmap in RAM). No 9-patch: no stock style selects it, and a stretched
+middle would smear the gradient and rim.
 
-**The Display row.** Stock's Display page (`systemset_display_page_init`, list built once in `0x4a5eb8`) installs one click handler `0x4a5c10` on its four rows (`widget_on(item, EVT_CLICK, 0x4a5c10, item)` at `0x4a5f58`): `atoi` of the item's name picks the page - 0 `systemset/brightness_page`, 1 `systemset/lighttime_page`, 2 `systemset/screensaver_page` (the `beq v0, 2` at `0x4a5c38` into the case at `0x4a5ca8`), 3 `systemset/atmosphereled_page` - each by a shared `navigator_to` call (`0x4a5c88`), then `move v0, zero` and the epilogue. That case is the only `navigator_to` of `systemset/screensaver_page`; the string's other reference (`0x4d14a8`, attributed by the symbol table to `on_wm_timer_rgbled_state+0x1574`, a wrong size) is the navigator's page-init dispatcher, a `strcmp` against the name `navigator_to` was given that calls `systemset_screensaver_page_init` (`0x4abe04`), reached only by a `navigator_to` of that name; the first reference (`0x4a5cb0`, attributed to `systemset_datetime_page_init+0x3b4`) is the case's delay slot. Nothing else opens the page (no tile, key or timer path). **The redirect** is the Equalizer row's mechanism ([peq](peq.md) "The redirect"): the case's first two words (`lw a0, GOT; b 0x4a5c88`) become `j pod_lock_site; nop` (payload hook, [payload](payload.md) "Display page Lock Screen row", `LOCKROW`, `LOCKROW_PINS`: the case's three words, the handler's frame, `beq` and epilogue, the install site). `pod_lock_site` (asm stub in `tools/pod.py`) calls `lk_redirect()` (`patch/lockscreen.c`: `access(m1plus-off)` first, then `pod_open_lock()` = `open_page(POD_LOCK_PAGE)`, our Lock Screen page, the normal instance with Back; 1 once it is opening), sets `$gp`, and then `j 0x4a5c94` (the handler's epilogue: `lw ra`, `move v0, zero`, `jr ra`) when ours opened, or does **stock's own two words** (`a0 = "systemset/screensaver_page"`) and `j 0x4a5c88` (the shared `navigator_to` call) with the kill switch on or when `window_open` fails: stock's page opens exactly as before. A row click on a Settings page: not on the boot path, no work of its own, so the paved path of [safety](safety.md) (pinned, falls back to stock; the kill switch is checked as a courtesy although tap-only hooks need not). The handler is the same code whether the Display page was freshly opened or restacked by `m1_open_stock("systemset/display_page", "display_page")` (a restack sends `EVT_WINDOW_TO_FG` and keeps the item widgets, which are bound once at the page's init), so the redirect does not depend on how the window got to the front; our page opens over the Display window and Back (`navigator_back`) returns to it. Stock's page, its ui asset, init and dispatcher entry stay in the image (reached only through the fallback). Tests: `redirect_tests` in `test/pod/lockscreen.py` (the pinned words, the stub's words, stock's handler `0x4a5c10` run for real: case 2 opens `m1plus_lockscreen` and no `navigator_to`, cases 0 / 1 / 3 are stock's, kill switch and a refused page give `systemset/screensaver_page`, Display fresh or restacked, kill switch off and on), `test/demo_diff.py`, `test/pod/rows.py`.
+- **Contrast:** white title and `#DDDDDD` artist stay >= 7:1 and >= 4.5:1 over every pixel of their
+  boxes on white and on black (`test/pod/assets.py`).
+- **No baked blur.** The wallpaper can be any picture, so a blur baked at build time would match only
+  the default. The large card has no blur; the mini player has the live one.
+- **The cover is square** on purpose. A corner mask paints one fixed colour, wrong over a translucent
+  card on any wallpaper, and AWTK cannot clip an image to a radius, so rounding the picture would
+  need payload code. The card is rounded and the cover sits 12 px inside, clear of the arcs.
 
-**ids.** `ACT_LOCKON` 79, `ACT_LOCKSET` 88, `ACT_LOCKWP` 84, `ACT_LOCKSTYLE` 85, `ACT_LOCKTIME` 86, `ACT_LOCKINFO` 87; pages `LOCK_PAGE`, `LOCKWALL_PAGE`, `LOCKSTYLE_PAGE`, `LOCKINFO_PAGE`; payload hooks 25 (`hook_lockscreen`) and `hook_lock_row`. Tests: `setting_tests` in `test/pod/lockscreen.py` (the page and picker layout, glyphs, labels, saved values and invalid files, atomic writes, failed write, Enable and Show Time against stock's own handler, the instructions row and page, next init, delete, reset), the heading width test in `test/pod/i18n.py`.
+## Cover size patch
 
-## Wallpaper picker (Settings > Lock Screen > Wallpaper, `patch/lockscreen.c` `lkwp_*`)
+demo writes `/tmp/coverpic.jpg` / `/tmp/externpic.jpg` in `parseplaycover_thd`, fitted inside the
+requested size, aspect kept, never upscaled, once per new track. Four immediates become 264 (`0x108`)
+instead of 254 (`patch_cover_src` pins the stock words and GOT slots and refuses otherwise), because
+AWTK draws a smaller picture at the widget size by nearest neighbour, so the card's cover and Now
+Playing's `img_playcover` are both 264 and drawn 1:1 (`mod_nowplaying` asserts they agree).
 
-Our page `m1plus_lockwall` (`LOCKWALL_PAGE`, kind `lockwall`, built by `tools/pod_ui.py build_lockwall_page`; opened by the Lock Screen page's Wallpaper row, `ACT_LOCKWP` 84 -> `lkwp_open`) is stock's wallpaper grid under our navbar. It writes what stock writes, in stock's order, so stock's `systemset/screensaver_page`, stock's lock screen and ours always agree; there is no file of ours.
+- Cost is 1.08x output pixels. Other readers resample as before: the big cover page (its own 320 px
+  picture since [bigcover](bigcover.md)), the Home strip, Now Playing, and the remote-control replies
+  (a file must stay under 92,161 bytes or the phone shows no cover; 264 px files are about 1.08x the
+  254 ones).
+- Unchanged: `.downpic` art, DLNA/AirPlay (270), HiFi/Tidal (254).
+- Cover source types: 2 = `/tmp/coverpic.jpg`, 3 and 5 = `/tmp/externpic.jpg`, 4 = `random_cover0..7`,
+  6/7 = the HiFi / Tidal album files, else `defaultcover` (a 66x66 placeholder blown up; left alone
+  because other pages use it).
 
-**Stock trace** (disassembly of the stock demo; the addresses the build pins are in `LOCKSCREEN_PINS`, `tools/pod_pins.py`):
+## Mini player layout
 
-- **Page.** `systemset_screensaver_page_init` `0x4abe04` (the symbol's size is wrong; the page's handlers follow it from `0x4ab0a4`, attributed to `systemset_screenrotate_page_init+..`). It calls `get_screensaver_image` first (`0x4abe44`), takes `n = deque_size(pdeq_screensaverlist)`, looks up `view_covers` (0,50,320,400 in the asset) and, when found, builds one cell per entry with `image_create(view_covers, x, y, 90, 135)` and the cell builder `0x4abb3c`: x starts at 12 and grows by 103, y is 0 until the third cell, then 143 and x back to 12 (three columns, two rows; the list holds at most six). Then `widget_foreach(window, 0x4ab120)`, the visitor that sets the titles, the `view_covers` visibility from the byte `screensaver_mode` (hidden while the lock screen is off), the `image_switch` and `img_timeswitch` pictures and clicks (`0x4aba34`, `0x4ab984`), the About row (`0x4ab94c` -> `navigator_to("systemset/screensaverabout_page")`) and one EVT_CLICK (`0x10c`) handler per cell: `imgcover0..5` -> `0x4ab914, 0x4ab8dc, 0x4ab8a4, 0x4ab86c, 0x4ab834, 0x4ab7fc`, each `bal 0x4ab52c` with the index 0..5.
-- **List.** `get_screensaver_image` `0x4d7524` (`LOCK_LIST` = `pdeq_screensaverlist` `0xa045cc`, created by `platform_init`): `toolsGetScreenSaverPic("/mnt/mmc/lockscreenimage", 320, 480, 0x100000, deque, 5)` (`0x5e4b64`) clears the deque, then `opendir`/`readdir` in directory order, regular files only (`d_type` 8) whose last extension is `.jpg`, `.png` or `.jpeg` (`strcasecmp`), `strlen(dir) + strlen(name) < 201`, the path `dir + "/" + name` (no `file://`) in a 256-byte buffer, `toolsGetPictureInfo` (`0x5e0418`: PNG header by `fseek 0x10`, JPEG by `jpeg_read_header` + `jpeg_start_decompress`, no scanlines; and a file size, from a call at `0x5e05a4`, taken to be `stat`) must succeed with width exactly 320, height exactly 480 and size under 1 MiB (the stock text `screenlock_info2`: exactly 320 x 480, under 1 MB); the scan ends after five accepted files (`screenlock_info3`). A missing folder leaves the deque empty. Back in `get_screensaver_image`: `_deque_push_front("screensaver_default")` (so entry 0 is always the Default; the resource `images/xx/screensaver_default.png`, [wallpaper](wallpaper.md)), then when `screensaver_picture` differs from that name and `access(picture, R_OK)` fails the global is cleared, set to the default name and written (`toolsWriteConfig`, below). No sorting.
-- **Cell.** Cell builder `0x4abb3c(widget, i)`: entry 0: `image_base_set_image(cell, "screensaver_default")`, any other: `snprintf("file://%s", path)`, `widget_load_image` / `image_base_set_image` / `widget_unload_image` (a decode before the page shows, then the widget's own image decodes again on paint); `image_set_draw_type(cell, 4)` (scale_auto), `image_base_set_clickable(1)`, name `imgcover<i>`; a 26 x 26 child `img_choice<i>` at 4,4; cell 0 also a 24 x 24 `screensaver_defaulticon` child at 0,111. The chosen cell (`strcmp(entry, screensaver_picture) == 0`) gets `widget_use_style("picture_selected_style")` and `screensaver_selected` on the mark, the others `picture_unselect_style` (a cell with no style at creation) and `screensaver_unselect`. The styles are in the page theme `styles/screensaver_page.bin` (the lock screen's window has the same name `screensaver_page`, so one theme serves both): `picture_selected_style` = a 2 px border `#FE7E40`, `picture_unselect_style` = a 1 px transparent one. `screensaver_selected` / `screensaver_unselect` are the restyled circle-check / circle marks of [icons](../ui.md).
-- **Tap** (`0x4ab52c`, a0 the window, a1 the cell index i). `n` = list size; the old selection `s1` = the first entry that `strcmp`s equal to `screensaver_picture` (`0xa0473c`, 256 bytes), **0 when none does**; return when `s1 == i` or `i >= n`. Then, in this order: `picture_unselect_style` on `imgcover<s1>`, `screensaver_unselect` on `img_choice<s1>`, `picture_selected_style` on `imgcover<i>`, `screensaver_selected` on `img_choice<i>`, `snprintf(screensaver_picture, 256, "%s", entry i)` (the entry as the deque holds it: `screensaver_default` or the path), `toolsWriteConfig("/mnt/data/config.ini", "SYSSET", "SCREENSAVERPATH", screensaver_picture)` (`0x5e43f8`). Nothing else: no `write_*_config`, no flag, no refresh. (`screensaver_refresh` `0xa05a60` is the lock screen's track-info refresh flag set by the quick prev / next and key handlers, not the wallpaper.) The quirk: with a chosen picture that is not in the list (readable but no longer accepted) the old selection is taken as cell 0, so a tap on Default returns at once and writes nothing.
-- **Who reads the choice.** `config_init` `0x4e6208` (boot): `toolsReadConfig(SYSSET, SCREENSAVERPATH)` into a buffer, copied to `screensaver_picture` when `access(R_OK)` succeeds, else the default name. The lock screen's page visitor `0x53f1bc` (`img_screensaver`, run by `screensaver_page_init` `0x53fd44` for each lock screen that is built): `strcmp(screensaver_picture, "screensaver_default")` -> `image_base_set_image(widget, name)`; otherwise `access(R_OK)` and `snprintf("file://%s")` + `widget_load_image` / `image_base_set_image` / `widget_unload_image`, an unreadable file showing the default. So a tap is live at the next lock; the lock screen caches nothing.
+`/mnt/data/m1plus/lockscreen-layout`: one character, `1` = mini player; missing, empty or anything
+else = the large card (default). The payload only reads it (`set_read`, once per lock screen init), so
+a change applies the next time the lock screen opens; there is no tap or gesture on the cover.
 
-**Our page.** The asset is `view_covers` (0,50,320,400, stock's name) holding the six cells `imgcover0..5` exactly as stock builds them (x 12 / 115 / 218, y 0 / 143, 90 x 135, `scale_auto`, clickable, the 26 px `img_choice<i>` at 4,4, cell 0's 24 px `img_defaulticon`), each hidden and insensitive until the payload shows it, with a 2 px transparent border (`style:*:border_width` 2, `border_color` `#00000000`); the navbar is ours (title Wallpaper, Back, Now Playing). `lkwp_open`: `window_open("m1plus_lockwall")`, look up the twelve widgets (any missing, or a refused destroy / background / foreground handler: `navigator_back`, -1), `get_screensaver_image()` (stock's own builder: the same list, the same reset of an unreadable choice), copy the entries (at most six, `LW_PATH` 208 bytes each) so a stock page that rebuilds the deque while ours is open cannot change what a tap writes, show the cells that have an entry, bind EVT_CLICK on them, set the marks, set Default's picture, and arm a 40 ms timer that sets one more picture per tick. A tap (`lw_on_click`) is stock's handler: nothing when it is the chosen entry, the old mark off, the new one on (`screensaver_unselect` / `screensaver_selected` on the mark, the border colour (the accent, see Look) / `#00000000` on the cell: the payload sets the colour instead of switching the style name because the page theme `screensaver_page` is not ours), then the global and `toolsWriteConfig(...)`, the same four strings. Differences from stock: the old selection is "none" instead of cell 0 when nothing matches (so Default can be chosen then), the marks' border is a colour, and the pictures load one per tick. The marks are recomputed from the global when the page is back in front (`EVT_WINDOW_TO_FG`; the entries stay the ones listed at open).
-- **Look.** Copied from the restyled stock page in the built tree (`out/dev/<tag>/tree`, `ui/systemset/screensaver_page.bin`, `styles/screensaver_page.bin`): the geometry above, a 2 px selected border in the accent (stock's is orange `#FE7E40`; ours is `ui_ink(pal_fill())`: the Accent picker's colour, Neutral `#EEEEEC` by default and under the kill switch, dark in Light Mode when neutral), `screensaver_selected` / `screensaver_unselect` marks (white check-circle / circle), `screensaver_defaulticon`; only the navbar differs. Preview: `tools/preview/preview_settings.py draw_lockwall` ("Settings > Lock Screen > Wallpaper" in `out/preview/settings-mock-3.png`).
-- **Thumbnail cost.** The cells are AWTK image widgets, as stock's, so the decode is stock's (a 320 x 480 JPEG / PNG to RGBA8888, 614 KB each, held while the page is open) and the scaling is AWTK's scale_auto at paint. Stock decodes each picture twice before its page appears (load + set_image, then the first paint); here a picture is set per timer tick, so there is one decode (the first paint after the set) per tick, 40 ms apart, between touch events, and the page is up at once. Not measured on hardware; a 320 x 480 decode on this CPU is expected in the tens of milliseconds, so the worst case is about five such steps over 0.2 s instead of stock's blocking ten-odd. `cc_decode` (`patch/covercache.c`, the Home bar's `mb_art_*`) reduces to a square `size x size` bitmap only, so it does not fit a 90 x 135 cell and was not used.
-- **Pins.** The list builder (`get_screensaver_image` words), the grid numbers, the cell builder's draw type and mark size, the tap handler (no-op test, the style / mark / format / config strings in order), `config_init` and the lock screen visitor are pinned in `LOCKSCREEN_PINS`; a mismatch fails the build. The code relies on the list builder, the global and the config writer only (declared `get_screensaver_image`, `toolsWriteConfig`, `LOCK_PICTURE`, `LOCK_LIST`).
-- **Ids.** `ACT_LOCKWP` 84, page `LOCKWALL_PAGE`; see the id list above.
-- **Tests.** `wallpaper_tests` in `test/pod/lockscreen.py`: the row and page, the asset geometry against the pinned stock numbers, open (stock's list first, shown cells, marks, one picture per tick), taps (the writes and their order, no other write), stock's own tap handler `0x4ab52c` run on the same state and compared (global, config write, marks, styles), a chosen picture that is no longer listed, empty / missing folder, an unreadable chosen picture, more entries than cells, refusals (window, widget, handler, timer), background / foreground / destroy, the Lock Screen page's row. The list builder and config writer are modelled in the test (`WP`); the folder scan and picture checks are stock code.
+The init hook (hook 25) runs stock's init completely and returns its result. Only for `RET_OK`, a
+window, no `/mnt/mmc/m1plus-off` and a file of `1` does it look up the six stock widgets
+(`view_bottomview`, `view_img_icon`, `view_scrlabel_title/artist`, `btn_play`, `btn_next`); when all
+exist it moves and resizes them to the Home bar's layout ([minibar](minibar.md); numbers `LK_*` and
+`MB_*` in `offsets.inc`): card at 8,386 (304x56, 10 px over the swipe hint), cover 14,10 36x36, title
+60,7 at 17 px white, artist 60,29 at 16 px `#D0D0D0`, play 194,0 and next 245,0 (48x56). Position is
+the only lock-specific thing; the look is the Home bar's.
 
-## Open items
+- **Cover:** the Home bar's code (`mb_art_*` in `patch/minibar.c`): a 36 px bitmap of our own,
+  box-filtered from the album's cache file ([covercache](covercache.md)), else demo's `/tmp` picture,
+  else the stock disc, corners rounded in the bitmap's alpha, decoded on the timer and never in paint.
+  Stock's `view_img_icon` is hidden; the tick hides it again if stock shows it.
+- **Glyphs:** stock swaps the play button's style by name only when the name differs from what the
+  status wants, so we never call `widget_use_style` and never rename the style. The glyphs are
+  overrides in the widget's own style (`style:normal|over|pressed:icon`). The tick reads
+  `mclGetPlayStatus` and the style name stock set and remakes the icons whenever either changed, so a
+  swap that reset them is repaired within a tick. Next is not swapped: its `bg_image` is cleared and
+  its icons set once.
+- **Labels:** `ellipses` and `only_parent_focus` set, so they are one-line and never scroll like the
+  Home bar's (stock's scroll over a partly repainted pill would also defeat the blur).
+- **Backdrop blur:** the shared `mb_blur_*` routine ([minibar](minibar.md) "Backdrop blur"; escape
+  hatch `/mnt/mmc/m1plus-noblur`) blurs the wallpaper under the pill from the card's
+  `EVT_BEFORE_PAINT`. A partial frame is not blurred and the next tick invalidates the whole card.
+  Without a plane the glass shows over the sharp wallpaper.
+- **Timer and handlers** (`lk_*`): `EVT_DESTROY`, `EVT_WINDOW_TO_BG`, `EVT_WINDOW_TO_FG` on the window,
+  `EVT_AFTER_PAINT` on the card, one 120 ms one-shot that arms the tick (100 ms while the backlight is
+  on, 1000 ms off, so the cover is right when the screen wakes). Only when all of that is up are the
+  cover widget hidden and the labels and next restyled. Background removes the timer, foreground arms
+  the one-shot again, destroy removes it and frees the bitmap and the plane (`lk_stop`). A missing widget, a refused `widget_on` or no
+  timer leaves the moved stock widgets with stock's cover and glyphs. The radio is not shown here
+  (stock's lock screen has no radio support; the bar follows the play queue).
+- Nothing in stock's lock screen code moves, resizes or restyles a widget, so the layout survives
+  every refresh and track change. Any failure leaves the large card.
 
-- **Decode cost** of the wallpaper thumbnails (five 320 x 480 decodes at one per 40 ms tick): measure on the device; if the page stalls, add a non-square reduction helper (a 90 x 135 bitmap, about 49 KB each instead of 614 KB; `cc_decode` reduces to a square only) or drop to fewer cells decoded at once.
-- A hint under the grid when the folder is empty (stock has none; the Custom Wallpaper page explains the folder for now).
-- Renumber `ACT_*` ids and page indices at merge (other branches use 77 / 78 / 79 / 82 and the last page slots).
+## The date
+
+The short date of the UI language: `Wed, Nov 11`, `11月11日 周三`, `11月11日 週三`, `11月11日(水)`,
+`11월 11일 (수)`, `mer. 11 nov.`, `Mi., 11. Nov.`, `mié, 11 nov`, `mer 11 nov`, `พ. 11 พ.ย.`,
+`śr., 11 lis`, `ср, 11 нояб.` (uk `ср, 11 лист.`). Stock's formatter writes `MMM` through a locale table that no stock
+language file fills, and `W` as a full English weekday (zh_CN has `星期日..`); this date is the only
+format that uses either. Three parts (`patch_date_names`, "The lock screen's date" in
+`tools/pod_i18n.py`, `lk_date`):
+
+- **Names:** `Sunday..` become `Sun..` and `Sept` becomes `Sep` in place. The 19 names are also i18n
+  keys with each language's abbreviations.
+- **`W` is translated as `MMM` is:** six stock words that clear a buffer in the weekday path become
+  the month's own locale lookup plus a jump to the month's tail (`locale_info_tr`, `wstr_append`).
+  Both stock paths are pinned (`DATE_W_CODE`, `DATE_M_CODE`).
+- **Format:** the asset's format `W, MMM D` is itself an i18n key (`LOCK_DATE_KEY`) whose translation
+  is the language's format (`M月D日 W`, `W D MMM`, `W, D. MMM`, ...). `lk_date` sets it at the page's
+  init with `digit_clock_set_format`, after stock's init and not with the kill switch. The widget
+  keeps it for its own 1 s timer, so the date turns at midnight. A format's own characters must not
+  be formatter tokens and it stays under 64 bytes.
+
+With the kill switch, or without the widget, the asset's format shows with the language's names. The
+widest date at 20 px is 120 px (zh). Preview panels with `,lang=zh_CN`.
+
+## Settings
+
+A **Lock Screen** link row on [our Display page](display.md), under Screen Timeout, opens our page
+`m1plus_lockscreen` (`LOCK_PAGE`), which replaces stock's `systemset/screensaver_page` completely.
+Four cards:
+
+1. **Enable**: a switch, `ACT_LOCKON` 79.
+2. **Wallpaper** (`ACT_LOCKWP` 84, opens [the picker](#wallpaper)) and **Show Time** (`ACT_LOCKTIME`
+   86, a switch).
+3. **Player Style** (`ACT_LOCKSTYLE` 85): the value is Large Cover or Mini Player; opens the picker
+   `m1plus_lockstyle` (`ACT_LOCKSET` 88, arg 0 / 1) with a check and the note "Applies the next time
+   the lock screen opens."
+4. **Custom Wallpaper** (`ACT_LOCKINFO` 87): the instructions page `m1plus_lockinfo`, a Release Notes
+   page in every respect ([update](update.md): same asset and painter via `rn_open`; text 20 px
+   `#E6E6E6` on a 27 px pitch for this page only). It has a heading "Add Your Own Pictures" and three
+   paragraphs: the folder `lockscreenimage` at the top level of the card; JPG or PNG exactly 320x480
+   under 1 MB; at most 5 pictures, chosen in Wallpaper.
+
+Show Time and Custom Wallpaper have our own short labels in 13 languages (stock's texts did not fit
+their rows). The rows are not dimmed when Enable is off: a wallpaper chosen now applies the next time
+the lock screen opens. Ids: pages `LOCK_PAGE`, `LOCKWALL_PAGE`, `LOCKSTYLE_PAGE`, `LOCKINFO_PAGE`;
+hooks 25 and `hook_lock_row`.
+
+`lk_layout()` reads `lockscreen-layout`; `lk_layout_set()` writes `0\n` or `1\n` atomically
+(`home_write_atomic`), and the check moves only after a successful write. The checks and the Player
+Style value read the file when their page opens and when it is back in front. Settings Files lists
+the file, so its per-file delete and Reset All Settings return the large cover.
+
+**Enable.** Stock's switch flips the byte `screensaver_mode` and then calls
+`write_int_config("SYSSET", "SCREENSAVER")`. `config_init` loads it once at boot; `into_standby` and
+the key handler read it every time the screen goes dark: 0 wakes the screen without a lock screen,
+1 shows it. So a change is live at once. `lk_enabled_toggle()` repeats stock's two steps in stock's
+order (stock's handler works only inside its own page, so it cannot be called from ours). There is no
+failed-save path (stock ignores the result too). The switch is read when the page opens and when it
+is back in front. The pins are `LOCKSCREEN_PINS`.
+
+**Show Time.** Same shape: stock stores the byte `screensaver_timeshow` xor 1 and then calls
+`write_int_config("SYSSET", "SSAVERTIMESHOW")`, the byte first. The lock screen's page visitor reads
+the byte each time the lock screen is built, so the choice is live at the next lock.
+`lk_time_toggle()` does the same two steps in the same order. `LOCK_TIMESHOW` is checked against
+demo's dynsym by the build; `setting_tests` runs stock's own handler on the same byte and compares.
+
+**The Display row.** Stock's Display page installs one click handler on its four rows and picks the
+page by the row's name; case 2 is the only `navigator_to` of `systemset/screensaver_page`. The
+redirect is the Equalizer row's mechanism ([peq](peq.md)): the case's first two words become a jump
+to `pod_lock_site`, which calls `lk_redirect()` (kill switch first, then `open_page(POD_LOCK_PAGE)`)
+and returns through the handler's epilogue when ours opened. With the kill switch on or if the open
+fails it runs stock's own two words and the shared `navigator_to` call, so stock's page opens as
+before. A row click on a Settings page is a tap-only hook on the paved path ([safety](safety.md)).
+The redirect does not depend on whether the Display window was fresh or restacked. Stock's page and
+init stay in the image, reached only through the fallback.
+
+## Wallpaper
+
+### Default picture
+
+With no custom wallpaper stock keeps the resource name `screensaver_default` as `SCREENSAVERPATH`; a
+chosen picture is `file://` plus its path. Only the resource changes: `images/xx/screensaver_default.png`
+(320x480) becomes a drawn bokeh field (`assets/bokeh-320x480.png`, our own design): a vertical
+gradient from indigo through aqua to deep sea green with soft discs of lavender, blue and mint light,
+large and faint behind the clock, small and brighter along the card's sides. `wallpaper_prepare.py
+OUT.png` draws it with Pillow, reduces it to a 256-colour palette and compresses it losslessly with
+primage; the output is deterministic, primage is needed only to redraw it, and the build copies the
+committed file and pins the stock file's hash. The swap saves about 389 KB of rootfs. demo's loader
+(stb_image) expands palette PNGs.
+
+### Wallpaper picker
+
+`m1plus_lockwall` (`LOCKWALL_PAGE`, built by `build_lockwall_page`; opened by `lkwp_open`) is stock's
+wallpaper grid under our navbar. It **writes what stock writes, in stock's order**, so stock's page,
+stock's lock screen and ours always agree; there is no file of ours.
+
+What it relies on in stock (pins in `LOCKSCREEN_PINS`):
+
+- **The list:** `get_screensaver_image` scans `/mnt/mmc/lockscreenimage` in directory order for regular
+  `.jpg` / `.jpeg` / `.png` files (path under 201 bytes) of exactly 320x480 and under 1 MiB, at most
+  five, with `screensaver_default` always first. A missing folder leaves only Default. A chosen picture
+  that is no longer readable is reset to the default name.
+- **The tap:** unless the entry is already chosen, the old mark goes off, the new one on, then the
+  global `screensaver_picture` is set to the entry as the deque holds it and written with
+  `toolsWriteConfig("/mnt/data/config.ini", "SYSSET", "SCREENSAVERPATH", ...)`. Nothing else.
+- **Who reads it:** `config_init` at boot (unreadable file: the default name) and the lock screen's
+  page visitor each time the lock screen is built (an unreadable file shows the default). So a tap is
+  live at the next lock; nothing is cached.
+
+Our page: `view_covers` (0,50,320,400) holds six cells `imgcover0..5` exactly as stock builds them
+(three columns at x 12 / 115 / 218, rows y 0 / 143, 90x135, `scale_auto`; a 26 px `img_choice<i>` mark
+at 4,4; cell 0 a 24 px default icon), hidden until the payload shows them. The navbar is ours. The
+selected border is 2 px in the accent colour (Neutral by default, dark in Light Mode when neutral;
+stock's is orange); the payload sets the colour rather than switching a style name because the page
+theme is not ours.
+
+- `lkwp_open` opens the window, looks up the twelve widgets (any missing or a refused handler:
+  `navigator_back`, -1), calls stock's list builder, copies the entries (at most six, 208 bytes each,
+  so a stock page rebuilding the deque cannot change what a tap writes), shows the cells, binds
+  clicks, sets the marks and arms a 40 ms timer that sets one more picture per tick (the page is up at
+  once; stock decodes each picture twice before its page shows).
+- Differences from stock: when nothing matches the selection counts as none (stock takes it as cell 0,
+  so Default could not be chosen then), and the pictures load one per tick.
+- The marks are recomputed from the global when the page is back in front.
+- The cells are plain AWTK image widgets, so the decode is stock's (614 KB each, held while the page
+  is open). `cc_decode` reduces only to squares and was not used.
+
+## Limits
+
+- No hint under the grid when the folder is empty (stock has none; Custom Wallpaper explains the
+  folder).

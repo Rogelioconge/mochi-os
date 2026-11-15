@@ -1969,7 +1969,7 @@ TEXT.update([
     _t('Time Left', '剩余时间', '剩餘時間', '残り時間', '남은 시간', 'Temps restant', 'Verbleibend',
        'Tiempo restante', 'Tempo rimasto', 'เวลาที่เหลือ', 'Pozostały czas', 'Осталось', 'Залишилось'),
 ])
-# Settings > Network Services and its Wi-Fi Transfer page (patch/netservice.c, docs/modules/netservice.md). The page title and the row are stock's sset_netservice ("Network Service") made plural, the transfer row stock's netservice_wifitrans
+# Settings > Network Services and its Wi-Fi Transfer page (patch/netservice.c, docs/modules/wifi-transfer.md). The page title and the row are stock's sset_netservice ("Network Service") made plural, the transfer row stock's netservice_wifitrans
 # ("Wi-Fi file transfer") shortened; the Transfer page's description and footer note replace stock's wifits_info1 + wifits_info2 (crowded on the 320 px screen). Machine translations, checked for fit only.
 TEXT.update([
     _t('Network Services', '网络服务', '網絡服務', 'ネットワークサービス', '네트워크 서비스', 'Services réseau', 'Netzdienste',

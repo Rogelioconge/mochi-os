@@ -1,73 +1,129 @@
 # Subsonic (Navidrome)
 
-Subsonic (Navidrome, Gonic, Airsonic and any other Subsonic-compatible server; the menu row, page titles and strings say "Subsonic", the card folders and files keep the Navidrome names) is a **library source**: the Subsonic root page is a menu, and the library pages are this project's own
-Albums, album, Artists, Playlists, Songs and search pages, showing the server's music beside the card's. Downloads go to the card (`/mnt/mmc/Subsonic`) and play
-offline. Protocol code began as an external pull request by Gaurav Mishra; the user interface is ours. Milestone 2 is the rebuild of that UI around a source
-seam; the history is at the end.
+**Sources:** `patch/sbnet.c`, `patch/sbparse.c`, `patch/sbapi.c`, `patch/sbdl.c`,
+`patch/libsrc.c`, `patch/sbsrc.c`, `patch/ndroot.c`, `patch/ndserver.c`; builders
+`tools/pod_nd.py`, `tools/pod_ndserver.py`. **Tests:** `test/pod/subsonic.py`, `sbapi.py`,
+`sbdl.py`, `sbsrc.py`, `ndpages.py`, `ndflow.py`, `libsrc.py`, plus the source tests of the
+pages (`albums.py`, `albumpage.py`, `artists.py`, `songs.py`, `playlists.py`, `search.py`).
+**Preview:** `tools/preview/preview_ndroot.py`, `tools/preview/preview_ndserver.py`.
 
-Playback streams the server's original file (`format=raw`), so sample rate and bit depth are the file's. Seeking and rare formats are not verified. DSD tracks never stream: they play only after a download.
+Subsonic (Navidrome, Gonic, Airsonic and any Subsonic-compatible server) is a **library
+source**: the root page is a menu, and the library pages are our own Albums, album, Artists,
+Playlists, Songs and search pages, showing the server's music beside the card's. Strings say
+"Subsonic"; card folders and files keep the Navidrome names. Downloads go to the card
+(`/mnt/mmc/Subsonic`) and play offline. The protocol code began as a pull request by Gaurav
+Mishra (MIT); the interface is ours. The queue ABI was cross-checked against
+[shanling-m1plus-navidrome](https://github.com/shivaluma/shanling-m1plus-navidrome) (MIT).
+
+Playback streams the server's original file (`format=raw` only: no transcoding, no quality
+setting), so sample rate and bit depth are the file's. DSD tracks never stream: they play only
+after a download.
 
 ## What the user sees
 
-- **Root page** (menu row Subsonic, `ACT_SUBSONIC`): a large title with a grey status line under it: a 14 px glyph and the sync, "Synced 5m ago" (the Podcasts ages, "Synced just now" under a minute, "Not synced yet" when never). The glyph is the
-  Lucide check circle (`nd_st_ok`) when connected, the Wi-Fi page's spinner (`ls_spin`, `nd_st_spin`: a 14 px frame set fits the line) with "Syncing…" while a sync runs (and, after it, with "Updating library… 1200/2431" for the songs, "Loading covers… 300/812" and "Loading artist images… 40/190" while the Background fill runs, below), and the unplugged plug (`nd_st_off`) when offline (the line still tells the sync)
-  or with "Not Connected" when the server does not answer; the status record is re-read every 4 s. Then six rows, Albums, Artists, Songs, Playlists, Favorites and Downloaded (the Radio page's rows: a hairline from the label to x 310 under each, the theme's full-width row border off), and under them the library's grey footer (`nd_foot`, "2431 songs", the sync's total; none before the first
-  sync). The large title collapses like every large-title page (`m1_title_gone`: the small navbar title from offset `SG_COLLAPSE` 46, the fade while scrolled; the column is 456 px of the 400 px list so the offset can reach it) and so does the Server page's (its end spacer pads the 350 px of content to
-  the list plus the collapse offset and 10 px). The navbar is the capsule [Search | "..." | Now Playing] (`pod_nav_search` at 168 and `pod_nav_moremid` at 214, the Songs page's slots; the small title ends at 168). Search (`btn_search`, built hidden) shows with a server saved when
-  `lib_nd.caps` has `LS_CAP_SEARCH` and opens `search_open_src(&lib_nd)`; without it, or signed out, the capsule is ["..." | Now Playing] (`pod_nav_more`, the title ends at 214). The "..." (`btn_more`) opens the shared view-sort card (`vs_item6` / `vs_item7`, two action rows, no sort or view rows)
-  with **Sync Now** (`pod_ic_vsrefresh`, Lucide refresh-cw: `nd_sync_now`, one code with the Server page's row: no question, a sync loses nothing; the status line turns to Syncing… at once; inactive, grey and insensitive, while a sync runs; a refusal such as no Wi-Fi is the toast "Connect to Wi-Fi first") and **Server Settings**
-  (`pod_ic_vsserver`, Lucide server: the Server page). Signed out the card holds Server Settings alone (the capsule keeps its shape; the Add Server pill does the same). With no server saved the list is hidden and a
-  shared empty state shows the plug, "Not Connected", one grey line ("Navidrome, Gonic, Airsonic and other Subsonic servers"; the Sign In page has no free slot for it), an Add Server pill that opens the Sign In page (`nd_signin_open`, no Server page in between: sign in first, then sync; the card's Server Settings does the same while signed out) and, under it, a Downloaded pill (`nd_es_dl`) that opens the Downloaded list: the downloads and their manifest stay on the card after Sign Out and need no server.
-  Preview: `make preview` writes `nd-root-*.png` (`tools/preview/preview_ndroot.py`).
-- **Server page**: URL (no "Server" prefix in any language: 地址 / 位址, Adres, Адрес, URL elsewhere), Username and Password (grey value; the password shows as dots), each opening the Sign In page on that row. Sign Out's label is the destructive red (`RED_RGB`). Sync Now (`nd_sync_now`, shared with the root card) starts at once; Sign Out asks first. Sync Now and Sign Out (and the gap above them) are hidden while no server is saved. The Sync Now row shows its run: after the confirm the shared `ls_spin` spinner before a grey "Syncing…" (the row inactive and grey, as the root card's), then the grey "Synced just now" / "Synced 5m ago" (`nd_synced_line`, the root's wording); a 500 ms timer (`ns_tick`) re-reads the state on `sba_gen` and every 4 s; a failure is the toast. Sign Out goes back to the root, which shows its empty state.
-- **Sign In page** (`m1plus_ndlogin`, the Join Wi-Fi Network page's design, [wifi](wifi.md)): one card of three rows (URL, Username, Password) with our keyboard embedded;
-  one keyboard field moves to the row tapped and the other rows show their value or, empty, the grey placeholder that names the row (no label column: "Username" is up to
-  171 px in the 13 languages and a URL needs the room). The address and the password are `KB_PASSWORD` fields (English layout, lowercase, no clear button, up to 127 bytes), the
-  address unmasked and the password masked with an eye on its row (shown only while a password is typed: the saved one is not on the device, so its four dots have nothing to show); the username keeps the plain field with its clear button, whose disc is centred on the eye (x 287; the field is sensitive so that the button takes its touch). Touch tests: `ndpages` `server_login_touch`, `page_touch`. The address row has a clear button that leaves `http://` to type after (`keyboard_set_clear(NL_SCHEME)`; it is hidden while
-  the scheme is all there is). The password row of a saved login, not typed in yet, has the placeholder "Leave empty to keep" in place of "Password". An empty address starts as `http://`. The action
-  key reads Next while the login is not whole (it works when the field in front can be saved and moves on to the next row) and Sign In once the address, the user and the
-  password are all valid (from any row); dimmed otherwise and while connecting. A password left empty keeps the saved one (the page never reads it), one typed and emptied does not.
-  Sign In validates the three fields (`sba_conf_check`; the page's own address check only keeps the key dimmed) and asks for a ping with that login (`sba_ping_try`: nothing is saved or cleared yet; an empty password uses the saved one; every trial is its own request with its own id (`sba_trial_id`, state `sba_trial_state`) and its own copy of the login, so a second sign-in while the first is in flight is pinged on its own; the page waits for its id only and saves only when the fields still equal what that ping was asked with). Under the card one 20 px line shows
-  the Wi-Fi spinner (`ls_spin`) and "Connecting…" while the ping runs (a 250 ms timer, 40 s at most), then either the login is saved (`sba_conf_*_set`: the cache goes only if the server or the user differ from the saved ones; a conf that cannot be written is the reason line) and the page goes back to the page it came from (the Server page when signed in; the root when it was the Add Server sign-in, which then shows Syncing… as the sync runs) and a sync is asked, or the line turns
-  into the reason and the page stays: wrong user or password (`SBA_AUTH`), "Can't connect to the server" (no answer, HTTP, not a Subsonic reply), certificate (`SBA_CERT`,
-  `SBA_NOCERT`), clock never set (`SBA_NOCLOCK`), no Wi-Fi, a refused value or a conf that cannot be written. A typed character clears the line and ends a wait. A failed
-  sign-in changes nothing: the saved login and the cache stay as they were. Preview: `make preview` writes `nd-server.png` and
-  `nd-signin-*.png` (`tools/preview/preview_ndserver.py`).
-- **Library pages** on the source: Albums (grid or list, the shared `albums-view` mode), album page (cover, tracks, footer), Artists (A-Z) and an artist's albums,
-  Playlists (grid, playlist page with a mosaic of track covers when the playlist has no cover), Songs (list), Favorites and Downloaded. Their bars show only what the
-  source can do (`lib_src_t.caps`): the Albums bar is "..." | Now Playing (no Cover Flow), a Songs list's is Back, the title and Now Playing alone (no Select; Search where the control is on, below), and the title runs on to x 260. The Albums "..." card's Recently Added and Year orders work on a source too: they sort by the album records' own creation time and year from `getAlbumList2` (`cc_album_order_src`, no song query), albums without one last. Playlist tiles show the sync's `songCount` at once; the per-playlist read only makes the count exact and builds the mosaic.
-  Artists rows and an artist's page use the library's artist layout (`docs/modules/artists.md` "Artist photos", `docs/modules/albums.md`): a 40 px circle in each row; on the page the 88 px circle header of a library artist with a photo, or, without a picture, the header of a library artist without one (the centred name and the Play / Shuffle pills, `PH_SHIFT` higher, no circle and no placeholder). A source's albums on an artist's page show the album records' `REC_YEAR` as the year line, as the local artist page does. **The picture is the server's artist image**: `getArtists` (and `search3`) give each artist a `coverArt` id (`ar-<id>_<time>`), the record's `REC_META` carries it, and `lib_nd.cover` on an artist record is `sba_cover_get` of it, so the picture is fetched like any cover (`getCoverArt` at `SBA_COVER_PX` 168, one file by the hash of the id in `covers/`, an empty file = none). *Rows* (`ar_src_row`, patch/artists.c): the page's photo loader (one row a tick, none while the list moves) asks `src->cover` with key 0; 1 decodes the file into the circle exactly as a library photo (a stat, a decode, remembered as `AP_PHOTO`; a row that scrolls away and back decodes it again), 0 (asked) shows the placeholder (`ap_placeholder`, the grey disc with the mic-vocal glyph) with the 14 px cover spinner (`grid_spin_*`, as the Albums list) and arms the shared cover poll, whose tick sets the pending tiles back to not tried so the loader asks again; -1 (no id, an empty marker, a file that does not decode) is the placeholder alone, remembered as `AP_NONE` and never asked again by the poll. *Page* (`al_head_url`, patch/albums.c): the file is asked for when the page opens; there it sets `al.circ` (the 88 px circle, the header as a library artist with a photo) and the loader decodes it into the circle; while it is on its way the page shows the plain header (no circle, no placeholder, no spinner) and the same cover poll asks again, and when the file arrives `al_layout(1)` switches the circle in place (the name and pills `PH_SHIFT` lower, the content taller, the scroll offset kept); none (-1) keeps the plain header and is not asked again by the poll. *Shape*: the file is whatever the server sent (Navidrome serves an external image at its own aspect ratio, size 168 on the longer side); both pages decode with `cc_decode` box 2, the artist cache's cut (`pv_square`: a landscape file at the centre of its width, a portrait one starting a third of the extra height from the top, so a face stays in), a no-op on a square. The pills play the artist's songs through the All Songs record (`src->list(LS_SONGS)`, `src->play`; a DSD track not on the card asks to download). Tests: `artists` `source_tests`, `source_photo_tests`, `albums` `src_tests`, `sbsrc` `extras`.
-- **Search**: `lib_nd.caps` is `LS_CAP_SEARCH` alone (the cap gates only the Albums "..." card's Search row and the Songs navbar's Search button). The entry points are the library's: Songs
-  search button (all types), Albums "..." > Search Albums and Artists "..." > Search Artists (`search_open_src_in(src, SEARCH_ALBUMS / SEARCH_ARTISTS)`, one chip as in the library), all
-  over `search_open_src`, the library's page (`search.md`): keyboard, chips, rows, covers, tap targets. `search3` does the matching (the server's own rules: no pinyin initials or kana
-  folding is emulated); the rows are in the server's order, 20 artists, 20 albums, 20 songs, no playlists. A request goes out 480 ms after the last key (`SE_DEBOUNCE_SRC`; the library
-  searches in memory after 200 ms), one spinner (`se_spin`, `ls_spin`) shows while it is out, "No Results" for an empty answer, the failure's line (`sbs_message`; "Connect to
-  Wi-Fi first" offline, "Can't connect to the server" for a network failure) otherwise. A search typed over never overwrites a newer query: the worker drops a queued search when a later
-  one waits (`sba_main`), and `sba_search_is(term)` (the term that finished last) lets the page ignore an older answer that lands while the newer is out. Recent searches
-  (a tapped result or the action key) are the library's mechanism with their own file, `<cache>/search-history` (the Navidrome cache, so they go with it and never mix with the
-  library's `search-history`; not a Settings Files row). Not added: a Search row on the Navidrome root (the library's Search is a Home-menu item over the card, not this server's
-  pages), Playlists search (`search3` returns no playlists). Tests: `search` (`src_tests`), `artists` (`source_tests`), `albums` (`src_tests`), `sbapi` (`songs`).
-- **Row marks** (grey, neutral only): on the album page the downloaded disc, the download ring and the DSD tag sit at the title's end; on the Songs page they lead the grey line,
-  with the artist after them. The ring (14 px, PA_DL_* atlas cells, 12 steps) is a dark grey track, a light grey arc from 12 o'clock for the progress (rounded to the nearest
-  twelfth, so 100 % shows step 11 until the disc replaces it). A running download (ACTIVE) draws a light grey stop square (5 px, centred, antialiased) over its step, so
-  an unknown progress shows the empty ring with the square; a queued track (WAIT) shows the empty ring with a down arrow (8 px). The marks are cells 12 (arrow) and 13 (stop)
-  on the same grid (PA_DL_ARROW, PA_DL_STOP), not tappable: Cancel Download stays in the "..." sheet. There is no "Downloading" text. The marks bitmap (libsrc.c) copies the disc, tag
-  and ring cells from pc_atlas once; the page repaints the ring from `src->row` on each paint.
-  offline row (not downloaded, no Wi-Fi) dims its title and grey line.
-- **Row sheet** (the track "..."): Play Next, Play After, Download / Cancel Download / Remove Download, Favorite / Undo Favorite (the server's star; the sheet's record is freed after `act` has run) and Get Info.
-  Get Info for a Navidrome track reads the cache (see [Song info](songinfo.md)).
-- **DSD confirm**: tapping an undownloaded DSD track (row, Play or Shuffle, or the sheet's Play Next / After) asks "Download to Play?". The text is
-  "DSD tracks play from the card. <title>, <size> MB." (a title over 24 bytes is cut with three dots; an unknown size reads "?"). Buttons: Cancel and
-  Download. Download queues the file; Cancel Download or Remove Download stops it.
-- **Now Playing**: a queued track's cover comes from the Navidrome cache, and the album page's playing marker follows the server track that is playing. `sba_now_cover` asks for a playing track's cover when the file is not cached (once; not again after a failed ask) and answers NULL until it lands. Stock draws the big art from `/tmp/coverpic.jpg`, which it never writes for a stream, so `np_server_art` (patch/nowplaying.c) decodes the cached 168 px file into a 264 px bitmap of its own and `np_on_art_paint` draws it over the widget while the playing track's `REC_ID` is the one it was made for; a local track draws stock's picture as before. The previous cover stays up across a track change until the new one is decoded, and the next queue record's cover is asked for once while a server track plays ([Now Playing](nowplaying.md)). The info page's File Size and Location lines show the server size (`sba_rec_size`, kept in the queue map) and the server address, never the stream address. The size is the list size (`SBA_COVER_PX`, part of the cache file name), enlarged to 264 px.
-- A server playlist page is the local playlist page (header with mosaic tile, name, Shuffle disc + Play pill, footer count; no Search), and an artist's All Songs the local artist's songs (grey line = album, no A-Z sections or rail, no Search): `patch/songs.c` `sg_playlist` / `sg_artist_songs`. The Songs footer count shows only once the paged list is complete. Tests: `songs` `src_tests`.
-- **Playback-side pages treat a server track (streamed or downloaded; its `REC_ID` is in the queue map, `sba_rec_track`) as a source track, never as a local one.** The record's `REC_PATH` is a stream address that carries the login token: it is never shown, hashed, looked up or used as a key.
-  - *Cover.* `sba_rec_cover(record, path, cap)` (the one lookup; `sba_now_cover` is its NULL-folding form) answers 1 with the cached file, 0 asked (look again), -1 none, from the record's `REC_ID`. The Queue page's rows and header, the mini bar (and the lock screen's) and the timed cover page use it, as Now Playing does; none of them looks a server track up under the library's album key (a stream that shares artist and album with a local album would show the local cover, and a picked cover would overwrite it). A cover on its way keeps the placeholder (stock's picture on the timed page) and is asked about again: the Queue page's tick, the mini bar's settle ticks held while it is pending, the timed page's 250 ms tick for up to 60 s.
-  - *Favorite.* Now Playing's star on a server track is the server's favourite (`ls_favorite(&lib_nd, record, was)`, the row sheet's Favorite and toast), read by `nd_row` on the queue record (`sbs_track` completes it from the queue map's `album_id` / `suffix` and the cached album file, or the Favorites list), and stock's handler is kept away with `RET_STOP`: it would write the stream record, address and token included, into the local `myfav` table. The star's style follows the cache (`np_server_fav`, re-read when the track or `sba_gen` changes, so a refused star puts itself back). Local tracks keep stock's star.
-  - *Find Cover & Lyrics* is dimmed and insensitive on the More sheet and refuses to open (`oa_track`) for a server track: its cover pick writes the cover cache under the album key and `<track>.lrc` and folder pictures beside the file, none of which a stream or a download has. Lyrics (`lyrics.c`) never look at the path: they show what stock loaded (nothing for a stream).
-  - *Queue page.* `qp_stream` tests the player's class word (2, 3, `0xf0`, `0xf1`: the stock drawer's streams); a server queue is opened from a list class (`so_play_src`'s `cls`), so it is this page's.
-  - Vinyl Mode's label (`vn_cover`) and the Pod Now Playing cover (`ip_cover`) take a server track's cover first through `ls_rec_cover` (patch/libsrc.c: the record's `REC_ID` mapped by `sba_rec_track`, then `sba_rec_cover`; the mini bar uses the same), a placeholder while it is on its way and the page's settle ticks asking again without counting off; the main menu's cover pane (`ip_pane_want`) skips a server track (the rotation shows) instead of showing the library album of the same name. Local tracks are unchanged. These pages, the Queue page, the mini bar and the timed cover page already run a tick of their own, so they ask on it and do not use the shared poll below.
-- A server album page has no Select button; a **"..."** (`btn_more`, the capsule's left cap `pod_nav_more` on Select's slot, Now Playing the right cap as on the library's page) takes its place and opens the shared view-sort card with one row, **Download Album** (`pod_ic_vsdownload`, Lucide download; `vs_glass1`; the scrim closes it). The row calls `src->act(src, ab.list, LS_ACT_DOWNLOAD_ALL)`; `nd_act` (`nl_download_all`, `patch/sbsrc.c`) walks the page's list in order and queues each track that is neither on the card nor waiting or running (`sba_dl_state`; a failed one is tried again), DSD tracks included, then toasts once: "Downloading n songs" ("Downloading 1 song"), "Already downloaded" when nothing was left to queue, the first refusal's message (`sbs_message`: no Wi-Fi, no card, card full ...) with nothing queued, or, when the 32-file queue filled, "Downloading n, queue full" (the tracks that fit stay queued; "Download queue is full" when none did). The keep-awake timer is armed as for one download. While the page has no tracks (still loading, or none) the "..." keeps its place but is insensitive, as Play and Shuffle are hidden then. The library's album page is unchanged (the "..." and the card are hidden there).
+- **Root page** (`ACT_SUBSONIC`): a large title and a grey status line: a 14 px glyph plus "Synced
+  5m ago" / "Synced just now" / "Not synced yet". The glyph is a check circle when connected,
+  the Wi-Fi spinner with "Syncing…" while a sync runs (then "Updating library… 1200/2431",
+  "Loading covers… 300/812", "Loading artist images… 40/190" during the Background fill, and
+  "Downloading 12 songs" or "12 downloads waiting"), and a plug when offline ("Not Connected" when the server does not answer). The status is
+  re-read every 4 s. Rows: Albums, Artists, Songs, Playlists, Favorites, Downloaded, then a grey
+  footer with the song total. The large title collapses like every large-title page.
+- The navbar is [Search | "..." | Now Playing]; Search shows only with `LS_CAP_SEARCH` and a
+  saved server. The "..." opens the shared view-sort card ([albums](albums.md)) with **Sync Now**
+  (no question; a refusal is the toast "Connect to Wi-Fi first") and **Server Settings**. Signed
+  out, the card holds Server Settings alone.
+- **No server saved**: the list is hidden and an empty state shows "Not Connected", a grey line
+  naming the supported servers, an **Add Server** pill (opens the Sign In page, then syncs) and a
+  **Downloaded** pill, because downloads and their manifest stay on the card after Sign Out.
+- **Server page**: URL (no "Server" prefix in any language), Username and Password (shown as dots), each opening the Sign In page on
+  that row; **Sync Now** (shows Syncing… then "Synced just now"); **Sign Out** (red, asks first,
+  returns to the root). Sync Now and Sign Out are hidden while no server is saved.
+- **Sign In page** (the Join Wi-Fi Network design, [wifi](wifi.md)): one card of URL, Username
+  and Password with our keyboard embedded; empty rows show a grey placeholder naming the row.
+  The URL starts as `http://` (its clear button leaves that scheme); the password has an eye
+  while one is being typed; an empty password keeps the saved one ("Leave empty to keep"), but
+  one typed and emptied does not. Address and password are English-layout fields of up to 127
+  bytes. The action key reads Next until the
+  login is whole, then Sign In (dimmed while connecting).
+  - Sign In validates the fields (`sba_conf_check`), then pings the server with that login
+    (`sba_ping_try`) before anything is saved. Each ping has its own id and copy of the login, so
+    a second sign-in while the first is in flight cannot save the wrong fields.
+  - A 20 px line shows the spinner and "Connecting…" (40 s at most). On success the login is saved
+    (the cache is cleared only if the server or user differ), the page goes back and a sync starts.
+    On failure the line gives the reason (wrong user or password, "Can't connect to the server",
+    certificate, clock never set, no Wi-Fi, a conf that cannot be written) and nothing changes.
+- **Library pages** on the source: Albums (grid or list), album page, Artists (A-Z) and an
+  artist's albums, Playlists (a mosaic of track covers when the playlist has none), Songs,
+  Favorites, Downloaded. Their bars show only what `lib_src_t.caps` allows: no Cover Flow, no
+  Select. Recently Added and Year orders sort by the album records' own creation time and year.
+  Playlist tiles show the sync's `songCount` at once. An artist's albums show the album
+  records' year.
+- **Artists**: rows and the artist page use the library's artist layout. The picture is the
+  server's artist image (`getArtists` / `search3` give a `coverArt` id `ar-<id>_<time>`),
+  fetched like any cover and cropped square like a local photo. While it is on its way the row
+  shows the placeholder with a spinner; a missing picture is the placeholder alone. The Play /
+  Shuffle pills play the artist's songs through the All Songs record. The artist page has the
+  88 px circle header once the picture is there and the plain header (no circle, no placeholder)
+  while it is on its way or missing; the page switches in place. Until `getArtist` answers, the
+  artist's albums come from `albums.idx` (by `artist_id`) and their tracks from the derived album
+  files.
+- **Search**: entry points are the Songs search button (all types), Albums "..." > Search Albums
+  and Artists "..." > Search Artists, over the library's own search page ([search](search.md));
+  `search3` does the matching with the server's
+  rules (no pinyin or kana folding; no Playlists search, `search3` returns none). Results are 20 artists, 20 albums, 20 songs,
+  no playlists. A request goes out 480 ms after the last key; a newer query is never overwritten
+  by an older answer. An empty answer reads "No Results"; a failure shows its `sbs_message` line.
+  Recent searches use their own `<cache>/search-history` (not a Settings Files row).
+- **Row marks** (grey): on the album page the downloaded disc, a progress ring (12 steps) and the
+  DSD tag sit at the title's end; on Songs they lead the grey line. A running download draws a
+  stop square over its ring, a waiting one a down arrow. Marks are not tappable (Cancel Download
+  stays in the sheet) and there is no "Downloading" text. An undownloaded
+  row offline dims its title.
+- **Row sheet** (a track's "..."): Play Next, Play After, Download / Cancel Download / Remove
+  Download, Favorite / Undo Favorite (the server's star) and Get Info ([songinfo](songinfo.md),
+  read from the cache).
+- **DSD confirm**: tapping an undownloaded DSD track (row, Play, Shuffle, Play Next / After)
+  asks "Download to Play?" ("DSD tracks play from the card. <title>, <size> MB."; a title over
+  24 bytes is cut, an unknown size reads "?"). Cancel or Download; Download queues the file.
+- **Download Album**: a server album page has no Select; its "..." opens a card with **Download
+  Album**. It queues each track that is neither on the card nor waiting (DSD included; a failed
+  one is retried), then toasts once: "Downloading n songs", "Already downloaded", the first
+  refusal's message, or "Downloading n, queue full" ("Download queue is full" when none fit).
+  While the page has no tracks the "..." is insensitive.
+- **Server playlists** use the local playlist page, and an artist's All Songs the local artist's
+  songs page (no A-Z, no Search). The Songs footer count shows once the paged list is complete.
+
+### Playback-side pages treat a server track as a source track
+
+A server track (streamed or downloaded; its `REC_ID` is in the queue map, `sba_rec_track`) is
+never treated as a local one. Its `REC_PATH` is a stream address carrying the login token: it is
+never shown, hashed, looked up or used as a key.
+
+- **Cover**: `sba_rec_cover` gives 1 with the cached file, 0 asked, -1 none. Now Playing (which
+  decodes the cached 168 px file into its own 264 px bitmap, as stock draws only
+  `/tmp/coverpic.jpg`), Queue, mini bar, lock screen, timed cover page, Vinyl and the Pod cover
+  use it, never the library's album key (a local album of the same name would show its cover).
+  Pages ask again on their own ticks while it is pending. The main menu's cover pane skips a
+  server track (the rotation shows) instead of a same-named library album. Now Playing keeps the
+  previous cover until the new one is decoded.
+- **Favorite**: Now Playing's star is the server's (`ls_favorite`); stock's handler is kept away
+  with `RET_STOP` because it would write the stream address and token into the local `myfav`.
+  The star follows the cache, so a refused star puts itself back.
+- **Find Cover & Lyrics** is dimmed and refuses to open ([onlineart](onlineart.md)): a stream has
+  no album key or file to write beside. Lyrics show what stock loaded (nothing for a stream).
+- **Queue page**: `qp_stream` tests the player's class word for stock streams; a server queue is
+  opened from a list class, so it is this page's.
+- **Info page**: File Size and Location show the server size (`sba_rec_size`) and address, never
+  the stream address.
+- **Recently Played**: `recent_note` skips a record whose path is a stream address, so the
+  credential never reaches the card.
+- **Stock's play history**: `add_playrecord` would write the stream record (with the token) into
+  `recentplay` and `oftenplay`. `jal sbs_play_record` ([payload](payload.md) hook 28) skips a
+  record whose path is an http address (the test is the path alone) and calls stock for
+  everything else, and always with the kill switch.
+- **Reboot**: stock tests the saved playing file with `access`, which a stream address fails, so
+  a stream does not resume; the queue map is memory only.
+
 ## Architecture
 
 ```
@@ -80,307 +136,307 @@ sbnet  ->  sbparse  ->  sbapi / sbdl  ->  sbsrc (lib_nd)  ->  pages, through lib
 
 | File | Content |
 |---|---|
-| `patch/sbnet.c`, `patch/sbnet.h` | HTTP (`sbn_http`, a request of [network](network.md)), salted-token auth, URL building (`sbn_url` terminates the string on every successful return; `sbn_urlenc` does not), JSON walker, MD5, `sbn_download` (`.part`, validated resume) |
+| `patch/sbnet.c` | HTTP (`sbn_http`, a request of [network](network.md)), salted-token auth, URL building, JSON walker, MD5, `sbn_download` |
 | `patch/sbparse.c` | `sba_parse_*` (pure: no network, no files) |
-| `patch/sbapi.c`, `patch/sbapi.h` | conf, guard, cache files, the metadata worker, requests, status record, the queue map, covers, `sba_retire_old` |
-| `patch/sbdl.c` | download worker, manifest `dl.idx`, stall and free-space rules |
-| `patch/libsrc.c`, `patch/libsrc.h` | `lib_src_t` (the seam) and `lib_stock`, the stock library as a source |
-| `patch/sbsrc.c`, `patch/sbsrc.h` | `lib_nd` / `lib_navidrome()`: records from `sba_*`, the queue builder, row state, row-menu actions, `ls_dsd_confirm` |
-| `patch/ndroot.c` | root page, the shared empty state |
-| `patch/ndserver.c` | Server page, Sign In page (`nl_*`), Sync Now, Sign Out |
-| `tools/pod_nd.py`, `tools/pod_ndserver.py` | asset builders for the root, the Server page and the Sign In page (`build_login`; dispatched from `tools/pod_ui.py`) |
-| existing pages | `src` plumbing in `patch/albums.c`, `patch/albumpage.c`, `patch/artists.c`, `patch/songs.c`, `patch/playlists.c`, `patch/songops.c`, `patch/rowmenu.c`, `patch/search.c`, `patch/songinfo.c` |
+| `patch/sbapi.c` | conf, guard, cache files, the metadata worker, requests, status record, the queue map, covers |
+| `patch/sbdl.c` | download worker, manifest `dl.idx`, queue `dlq.idx`, stall and free-space rules |
+| `patch/libsrc.c` | `lib_src_t` (the seam) and `lib_stock`, the stock library as a source; shared page helpers |
+| `patch/sbsrc.c` | `lib_nd`: records from `sba_*`, the queue builder, row state, row-menu actions, `ls_dsd_confirm` |
+| `patch/ndroot.c`, `patch/ndserver.c` | root page and empty state; Server page, Sign In page, Sync Now, Sign Out |
+| existing pages | `src` plumbing in `albums.c`, `albumpage.c`, `artists.c`, `songs.c`, `playlists.c`, `songops.c`, `rowmenu.c`, `search.c`, `songinfo.c` |
 
-Entry points take a source argument: `albums_open_src`, `album_open_src`, `artists_open_src`, `songs_open_src`, `playlists_open_src` (and `search_open_src`).
-The existing entries call them with NULL, which is the stock path and is unchanged. `ACT_SUBSONIC` keeps its id and opens the root. Asset page names:
-`m1plus_ndroot`, `m1plus_ndserver`, `m1plus_ndlogin`.
+Entry points take a source argument (`albums_open_src`, `album_open_src`, `artists_open_src`,
+`songs_open_src`, `playlists_open_src`, `search_open_src`); the existing entries pass NULL, the
+unchanged stock path. Asset pages: `m1plus_ndroot`, `m1plus_ndserver`, `m1plus_ndlogin`.
 
 ### The seam
 
-A page keeps `const lib_src_t *src` (NULL = stock) and calls it where it called a stock query: `list` (the deque of records), `play`, `cover`, `seconds`, `row`
-(download state, DSD, favourite, offline; read while painting, from memory only), `act` (Download / Delete / Cancel / Favorite; Download All takes the page's list in place of a record), `queue_row` (Play Next / After), `gen`
-(the page's timer re-reads when it moves), `rec_id` (the server id), `playing` (the playing marker; NULL = the stock test) and `count` (a row's list size from the
-source's own record while that list is not cached; the Playlists page shows a playlist's `songCount` with it). `state` (`LS_ST_READY` / `LOADING` / `FAILED`: whether a row's tracks can still arrive; NULL = ready) lets a page with no rows show its layout and a spinner while they are on their way instead of the empty text. `caps` (read through `ls_caps`) holds the stock-only
-controls a source's pages may show — `LS_CAP_COVERFLOW`, `LS_CAP_SEARCH`, `LS_CAP_SELECT`; NULL/&lib_stock is all of them, `lib_nd` has `LS_CAP_SEARCH` only. Source records have a synthetic
-`REC_ID` <= -3 (-2 is the artist's All Songs row; the artist page's All Songs tile hands that record, not the artist's, to `songs_open_src_in`, so `list(LS_SONGS)` lists the artist's songs), `REC_PATH` `nd://<id>` (no stock worker starts for them; pages skip `cc_build_add` and the durations table when
-`src` is set), and one string at `+0x28` holding the row's own data, so a record is enough to play, download, star, draw its extras or find its cover even after a
-page copied it. Records stay stock-shaped, so painters, sorts and hit tests are shared.
+**One `lib_src_t` seam; pages hold a pointer.** A page keeps `const lib_src_t *src` (NULL =
+stock) and calls it where it called a stock query. Separate pages for sources would be copies of
+500 to 1,650 line pages that drift from every later restyle. Cover Flow keeps its stock code and
+a source page hides its entry through `caps`.
 
-Why a pointer per page and not separate pages: each page holds its state in one `static` struct and is 500 to 1,650 lines, and a copy would drift from every later
-restyle. Cover Flow keeps its stock code; a source page hides its entry point through `caps` (Cover Flow is the stock library's window, which has no
-source yet). Search is our page (`search_open_src`) and takes the source.
+| Member | Use |
+|---|---|
+| `list`, `play`, `cover`, `seconds` | the deque of records, play, the cover file, a row's seconds |
+| `row` | download state, DSD, favourite, offline; read while painting, from memory only |
+| `act`, `queue_row` | Download / Delete / Cancel / Favorite (Download All takes the page's list); Play Next / After |
+| `gen`, `gen_rows` | change counters the page's timer reads; `gen_rows` moves only with the lists |
+| `rec_id`, `playing`, `count` | the server id; the playing marker; a row's list size before its list is cached |
+| `state` | `LS_ST_READY` / `LOADING` / `FAILED` / `OFFLINE`; NULL = ready |
+| `caps` | `LS_CAP_COVERFLOW`, `LS_CAP_SEARCH`, `LS_CAP_SELECT`; `lib_nd` has `LS_CAP_SEARCH` only |
+| `dl_rows` | how many leading rows of Downloaded are still to come |
+
+Source records have a synthetic `REC_ID` <= -3 (-2 is an artist's All Songs row), `REC_PATH`
+`nd://<id>`, and one string at `+0x28` with the row's own data, so a record is enough to play,
+download, star, draw extras or find its cover even after a page copied it. Records stay
+stock-shaped, so painters, sorts and hit tests are shared. Pages skip `cc_build_add` and the
+duration table when `src` is set.
+
+### Shared source-page helpers (`patch/libsrc.c`)
+
+- `ls_cover_poll` / `ls_cover_tick` / `ls_cover_end`: one 250 ms timer polls the pending covers
+  of every source page (top window, screen lit); gives up after `LS_COVER_POLLS` 1200 asks.
+- `ls_spin`: the Wi-Fi page's 14 px spinner, one timer, used for loading and "Connecting…".
+- `grid_spin_*`: the grey cover spinner drawn on a tile that is still downloading.
+- `gen_rows` / `ls_gen_rows`: list changes without download steps; Songs, Albums, Artists and
+  Playlists read their list again only on it. All gen timers run at `LS_GEN_MS` 500 ms.
+- `ls_same_list`: a page that reads again and finds the same rows keeps its tiles.
+
+**Loading.** `state` is asked only when `list` returned no rows (cached rows always show at once).
+While `LOADING` a page shows the tapped row's data and one spinner, nothing else, and keeps its
+title and navbar. `READY` with no rows is the empty text; `OFFLINE` is "Connect to Wi-Fi first",
+`FAILED` "Can't connect to the server". The Artists page does not read while the finger is down
+or the list is flinging.
+
+**Playlists scan.** The Playlists page reads every playlist for its mosaic and count
+(`sbs_playlist_scan`) and asks the server only for one that is not cached; opening a playlist
+refreshes it once per run.
+
+**Wi-Fi off.** Browsing works from the cache. A request made offline returns `SBA_NOWIFI` and
+toasts "Connect to Wi-Fi first". Downloaded tracks play; an undownloaded streamable row is dimmed
+and its tap toasts. A stream that loses Wi-Fi is the stock player's problem.
+
+**Sign Out** clears the cache, cancels every download (`sba_dl_cancel_all`) and stops the player
+when it is on a server stream. **Music files and their manifest are kept**, so Downloaded still
+works.
 
 ### Cache and requests
 
 | Data | Fetched | Cached |
 |---|---|---|
-| Albums, Artists, Playlists, Favorites | Sync: when the Navidrome root opens and the cache is over 15 minutes old with Wi-Fi up; or Sync Now | `albums.idx`, `artists.idx`, `playlists.idx`, `starred.idx`, replaced whole. `getAlbumList2` alphabeticalByName, 250 a call |
-| An album's, artist's or playlist's tracks | when its page opens (the cache shows first, a refresh follows); an album's file also comes from the Background fill (below), so it is there before the page opens | `al/<id>.idx`, `ar/<id>.idx`, `pl/<id>.idx`; an artist's albums come from `albums.idx` (its `artist_id`) until `ar/<id>.idx` is there |
-| Songs | the Background fill pages the whole library after a sync (`search3`, empty query, 100 a page); the Songs list also pages as it is scrolled to its end when the fill has not got there | `songs.idx` (cut at 50,000 rows), `songs.part` while the fill pages |
-| Covers | `getCoverArt` at 168 px: visible rows, and every album's and every artist's picture after a sync (Background fill); a track asks for its ALBUM's cover (below) | `nd/covers/<hash of the coverArt id>-168.jpg`; an empty file = no art |
-| Album covers by id | with the sync | `albcov.idx`, written with `albums.idx`: per album the hashes of its id, the hash of its coverArt id, its row |
-| Background fill cursor | with the fill | `bg.txt`: library signature, stage, derive cursor, time |
-| Search | `search3`, three kinds, 20 each, 480 ms after the last key | `search.idx`, `search-al.idx`, `search-ar.idx`, replaced by the next search; `search-history` (recent queries) |
-| Downloaded tracks | no request | `dl.idx` (the track's whole row) and the files in `/mnt/mmc/Subsonic` |
-| Star / unstar | at once (the overlay below); the worker edits the files first, then asks | the flag flips in place in `songs.idx`, `search.idx` and the album's file (found by reading; a file without the row is not touched), `starred.idx` is replaced whole; all revert on a refusal |
+| Albums, Artists, Playlists, Favorites | the sync: root opens with a cache over 15 min old and Wi-Fi up, or Sync Now | `albums.idx`, `artists.idx`, `playlists.idx`, `starred.idx`, replaced whole (`getAlbumList2`, 250 a call) |
+| An album's, artist's or playlist's tracks | when its page opens (cache first, refresh follows); an album's also from the Background fill | `al/<id>.idx`, `ar/<id>.idx`, `pl/<id>.idx` |
+| Songs | the Background fill (`search3`, empty query, 100 a page); the Songs list also pages as it is scrolled | `songs.idx`, `songs.part` while paging |
+| Covers | `getCoverArt` at 168 px (`SBA_COVER_PX`): visible rows, plus every album and artist picture after a sync | `covers/<hash of coverArt id>-168.jpg`; an empty file = no art |
+| Album cover by id | with the sync | `albcov.idx` (per album: hashes of its id and cover id, its row) |
+| Fill cursor | with the fill | `bg.txt` |
+| Search | `search3`, 20 each | `search.idx`, `search-al.idx`, `search-ar.idx`, `search-history` |
+| Downloaded tracks | no request | `dl.idx` and the files in `/mnt/mmc/Subsonic` |
+| Star / unstar | at once | flag edited in place in `songs.idx`, `search.idx`, the album file; `starred.idx` replaced; all revert on a refusal |
 
-**A track shows its album's cover.** A Navidrome song with embedded art has its own coverArt id (`mf-<song id>_<time>`; `EnableMediaFileCoverArt` is on by default) that differs from its album's (`al-<album id>_<time>`), and the cache file is named by the hash of the id, so a song's own id would miss the album covers the Background fill fetched and fetch one near-identical file per song. Everywhere a server TRACK's cover is shown, `sba_track_cover(album_id, own, path, cap, ask)` (patch/sbapi.c) gives the ALBUM's file: it finds `album_id` in `albcov.idx`, checks the file named by the stored cover hash (1 when it is there, -1 for an empty marker, no request for the song's own id), and asks for the album's cover id only when the file is missing (the row is read back from `albums.idx` by its stored row number and must still name the album). The track's own coverArt id is used only when the album is unknown (no `album_id`, not in `albcov.idx`, no `albcov.idx` yet) or the album has no coverArt. Both entries go through it: `nd_cover` for a record of a track (song rows on Songs, an album's page, Search, Favorites, a playlist's page and its header and Playlists mosaics through `sbs_mosaic_keys`, whose songs of one album now fill one quadrant) and `sba_rec_cover` on the queue map (`album_id` is in the map) for Now Playing, the Queue page, the mini bar, Vinyl, the iPod view, the timed cover page and Get Info (`ask` 0, never requests). Albums, artists (`ar-` pictures, which the fill fetches in its last stage) and playlists' own `pl-` covers keep `sba_cover_get`, one cover id to one file; nothing asks for a size other than `SBA_COVER_PX` or a key other than the hash of the coverArt id, so every file the fill wrote is the file a page reads. `albcov.idx` (kind 5, 16-byte rows in `albums.idx` order, written by the sync worker page by page beside `albums.idx` and committed after it; removed when it cannot be written, so it never names rows of older albums) is read by the page thread when first needed and again when a sync or a cache clear moved `sba.agen`, sorted by the id's two hashes (FNV-1a and a second, 64 bits together) and searched by bisection: 16 bytes an album in RAM, 80 KB for 5,000 albums and 320 KB at the 20,000-album cap. A cache from before this file has none until the next sync (a root open more than 15 minutes after the last one), and tracks keep their own covers until then. Tests: `sbapi` `sync`, `cover`; `sbsrc` `trackcover`, `extras`, `play`.
+**A track shows its album's cover.** A song with embedded art has its own coverArt id
+(`mf-<song id>_<time>`) that differs from its album's (`al-<album id>_<time>`), and a cache file
+is named by the hash of its id. Using the song's id would miss the album covers the fill fetched
+and fetch one near-identical file per song. `sba_track_cover(album_id, ...)` therefore gives the
+ALBUM's file through `albcov.idx` and asks for the album's cover only if the file is missing. The
+track's own id is used only when the album is unknown or has no coverArt. Albums, artists and
+playlists keep `sba_cover_get`, one cover id to one file. `albcov.idx` is written beside
+`albums.idx`, removed when it cannot be written, and searched by bisection (16 bytes an album).
 
-The sync (phase 1) needs only `getAlbumList2`; for the artists, playlists and favourites lists a refusal of that list (an HTTP error, a Subsonic error such as no rights to playlists, a body that does not parse) keeps the list's old file, or writes an empty one when there was none, and the sync still commits `sync.txt` and starts the fill. A login, certificate, Wi-Fi, network or storage error still fails the whole sync. The status record stays that of the sync (OK): no page shows FAILED for one refused list. The Songs pager ignores a stale page request (offset below the rows the list already holds) instead of cutting the list back.
+**Sync.** Phase 1 needs only `getAlbumList2`. A refusal of the artists, playlists or favourites
+list keeps that list's old file (or writes an empty one) and the sync still commits and starts
+the fill. A login, certificate, Wi-Fi, network or storage error fails the whole sync.
 
-Requests run on one detached metadata worker (a queue of 8: lists, covers, star, search; the next request when full is refused; the Background fill runs on the same worker behind them). The root's "Synced" status line is the
-album track total (`sync.txt`). A list is requested once per run when cached, and again 10 seconds after a missing or failed one, so a failing server is not
-hammered. Pages re-read on the source's `gen`, the sum of the list, download and retry counters. A cover does not move the list counter (`sba_gen`): a cover request and its file
-are `sba_cover_gen`, and the pages poll for their own covers through the shared cover poll below (a page that dropped its tiles on every cover would blank the grid while it scrolls). A list that was asked for and did not
-appear (the request failed, the queue was full, no Wi-Fi) is asked for again 10 seconds later (1.5 s after a full queue): `nd_gen` moves then, so the open page reads again; an answer with no
-rows is final. A page that is read again and finds the same albums keeps its tiles (`al_src_reload`). A source page decodes the file `src->cover` names (Navidrome's own folder), never the Cover Flow cache file of the album's key. The root page re-reads its status every 500 ms when the generation moved,
-and at least every 4 seconds (Wi-Fi has no counter).
+**Requests** run on one detached metadata worker (a queue of 8: lists, covers, star, search; the
+next request when full is `SBA_QFULL`; the fill runs on the same worker behind them). A list
+asked for that did not appear is asked again 10 s later (1.5 s after a full queue), so a failing
+server is not hammered; an answer with no rows is final. A cover does not move `sba_gen`
+(`sba_cover_gen` does), or a grid would blank while it scrolls.
 
-**Loading.** `lib_src_t.state` answers `LS_ST_READY` / `LOADING` / `FAILED` / `OFFLINE` and is asked only when `list` came back with no rows (cached rows always show at once, even while a refresh runs). `nd_state` answers for the tracks of an album, an artist's All Songs row or a playlist (scope: the row) and for the whole-library lists (scope NULL): Albums, Artists, Playlists and Favorites come with the sync (`SBA_K_SYNC`), Songs with its own paging (`SBA_K_SONGS`) or, once the Background fill has paged the library, complete from `songs.idx`. The server's answer, even an empty one, is `READY` (a recent sync that found none counts too, `sba_sync_due`); a failed request is `FAILED`, or `OFFLINE` when it failed for want of Wi-Fi, and so is nothing cached with no Wi-Fi to ask on; asked or about to be asked is `LOADING`.
-
-**Gen split.** `gen` (`sba_gen` + `sba_dl_gen` + the retry epoch) moves with every download step (about every 2 % of a file); `gen_rows` (`sba_gen` + the epoch, read with `ls_gen_rows`) moves only with the lists. Songs, Albums, Artists and Playlists read their list again only when `gen_rows` moved; a download-only move repaints the visible rows (Songs) or does nothing (the others). The album page still reads again on any move. **Playlists scan.** The Playlists page reads every playlist for its mosaic and count through `sbs_playlist_scan`, which asks the server only for a playlist that is not cached (the 16-entry ring of `nl_may_ask` forgets a cached one, so with more than 16 playlists the plain `list` would have refreshed all of them on every page open); opening a playlist still refreshes it once per run.
-
-While `LOADING` a page shows what the tapped row already told and the one spinner, nothing else: `ls_spin` (patch/libsrc.c) turns the Wi-Fi page's `wf_spin0..7` 14 px frames every 250 ms from one timer that ends with the wait (`ls_spin_end` at the page's destroy), centred in the content area (Albums, an artist's albums, Artists, Playlists, Songs: `al_spin`, `ar_spin`, `pl_spin`, `sg_spin` in the room under the large title the page keeps, as the empty line `label_status` is: `ls_room`, `docs/modules/ui-rules.md` "Empty and loading states"; `sg_spin` is a child of `view_grid`, so `sg_spinner` places it in the view's coordinates, 50 px less; the album page and a playlist's page where the Play pill will be). The list pages keep their large title (the content view is shown with no rows; no title is lost, no status line shows) and the navbar. The album page (`ab_load`) keeps the cover, the album title and the artist from the tapped row, with no "0 tracks"; its Shuffle disc and Play pill (buttons, glyph and painted text), the meta line and footer stay hidden. A playlist's Songs page hides its cover tile and pills; the library Songs page and the Favorites page hide the Play and Shuffle pills, the footer and the rail. The "..." sort card button stays (the card works on nothing yet but is harmless). The rows and the pills arrive in one `gen` move; the header does not move and the scroll position is kept. Paged All Songs spins only before its first page. `READY` with no rows is the page's empty text ("No albums", "No songs"); `OFFLINE` is "Connect to Wi-Fi first" and `FAILED` "Can't connect to the server" in its place (`ls_empty_key`). The Artists page keeps its scroll offset when `gen` moves, reads only while it is the top window with no finger down, no fling and the card closed (else next tick), and keeps its circles when the list is the same rows (`ls_same_list`, shared with Albums). The Playlists page keeps its tiles when `gen` moves: its signature is a hash of the rows' ids, names and row data (cover, songCount, seconds: `REC_META`; `pl_src_sig`, `pl_same_list`, the gen moves for any fetch anywhere), a changed list carries each unchanged playlist's tile, decoded cover and scan to its new place (`pl_carry`; the loader reads them again and `pl_same_art` keeps the picture), and a playlist whose tracks are `LOADING` is scanned again (`PL_SCAN_MISS`) until they arrive. The local library's pages (state NULL) are unchanged.
-
-**Cover poll.** One helper, `ls_cover_poll` / `ls_cover_tick` / `ls_cover_end` (patch/libsrc.c, `ls_cpoll_t` in libsrc.h), polls every source page's covers: Albums (grid and list), the album page's header, Songs (and a playlist page's mosaic), Playlists, Search, and no page has a timer of its own for it. A page calls `ls_cover_poll(&cp, win, ask, spin, giveup)` whenever a cover answers 0 (asked, not there yet); that is the "pending" flag. One timer (`LS_COVER_MS` 250 ms, `timer_add` with a null ctx, the callback ignores stock's `timer_info_t`) serves up to six pages; per tick, for a page that is pending, the top window (`m1_is_top`) and with the screen lit (a hidden page or a dark screen waits and costs nothing): the tick clears the flag and calls `ask` (look at the pending covers again: tiles back to 0, the header's file; a cover that is still on its way sets the flag again), then `spin` (turn the grid's cover spinners and redraw, returns how many tiles still load). Two quiet ticks with nothing pending end the poll (a spinner still showing is cleared through `giveup`), and the timer with the last page; the page's destroy calls `ls_cover_end`. The one give-up rule: `LS_COVER_POLLS` (1200 asks, 5 minutes) without the cover, then `giveup` (spinners off, redraw, placeholder stays) and no more asking; a file that lands later is found when the tile is next loaded (scroll, a gen re-read, reopening the page) because that asks `src->cover` again and a 0 starts a fresh count. Search resets its grids only when `sba_cover_gen` moved; Playlists' ask reads the `PL_SCAN_MISS` playlists again; Songs' ask is its retry. The gen timers share one pace, `LS_GEN_MS` (500 ms), on Albums, the album page, Artists, Playlists and Songs (a gen read is a sum of counters; the 1000 ms pace of Albums, Songs and Playlists was only history). Tests: `libsrc` `poll_tests` (pace, top and lit, quiet end, give-up, fresh count, stacked pages), and each page's source tests.
-
-**Cover spinners.** A source cover still downloading shows a grey spinner centred on its placeholder disc (not widgets: the grids paint tiles). `src->cover` answering 0 ("asked") sets `grid_tile_t.load`; `grid_blit` (patch/grid.c) then draws the current frame of `grid_spin_open`'s eight bitmaps (the `wf_spin` frames made grey with alpha, as the album page's wave) while the tile has no picture (`art` not 1), cut at the view's edges as the cover is. The cover poll's tick (`al_cp_spin`, `pl_cp_spin`, `ab_cp_spin`; `grid_spin_turn` advances the frame and counts the tiles loading) redraws the page every 250 ms while some tile loads, then once more when the last spinner goes. Albums (grid and list) and Playlists use 14 px `wf_spin0..7`: Albums on a tile whose `src->cover` answered 0 until the file is there or the source answers -1 (no cover: the disc alone), Playlists on a tile whose scan has a cover still asked for (`PL_SCAN_MISS`, or its tracks still on their way) and no mosaic yet (a mosaic of the covers that did arrive replaces it; the rest fill in later without a spinner). The album page header uses 28 px `wf_spinL0..7` (`tools/mod_icons.py`, the same art scaled) on the header cover while the cover poll runs (`ab_cp_ask`); it goes when the cover arrives, the source has none, or the poll gives up (`ab_cp_giveup`, which looks once more first). A page without a source never sets `load`, so stock pages are unchanged. Tests: `test/pod/albums.py` `src_tests`, `playlists.py` `src_tests`, `albumpage.py` `source_tests`, and `libsrc.py` `poll_tests` for the shared tick. Mock-up: `tools/preview/preview_coverspin.py`.
-
-**Wi-Fi off.** Browsing works from the cache. A request made offline returns `SBA_NOWIFI` without changing anything, and a toast says "Connect to Wi-Fi first".
-A list never fetched shows "Connect to Wi-Fi first" in place of its empty status (see Loading); an album or playlist whose tracks are not cached yet is not that case with Wi-Fi up. Downloaded tracks play and show their badge; an undownloaded streamable row is dimmed and its
-tap toasts. Sign Out clears the cache (the music files and their manifest stay), cancels every waiting or running download (`sba_dl_cancel_all`) and stops the player when it is on a server stream (`stop_player`; a downloaded file keeps playing). A stream that loses Wi-Fi is the stock player's problem, as in the PR.
+**Cache writes** are atomic (temporary file, then rename) and only the metadata worker writes
+them; the UI thread never does. The cache keeps 4 MiB free. A star goes through a 32-entry
+**star overlay** so the heart flips at once; the worker edits the files, asks the server and puts
+the files back if it refuses. **`starred.idx` is the truth for every heart**: the page side holds
+its ids as sorted 32-bit hash pairs (at most 3,000) and sets `starred` from them on every track
+list read, so a song starred from another client shows a heart.
 
 ### Background fill (phase 2 of the sync)
 
-"Showing things is slow": after the sync (phase 1, unchanged: the root is usable as soon as the lists land) the same worker keeps loading metadata while nothing else asks for it, so pages open on data instead of a spinner. It only runs with Wi-Fi (`sba_bg_kick` checks `sba_guard`; a lost connection shows as request errors) and in three stages, kept in `bg.txt` (`<signature> <stage> <derive cursor> <time>`; the stage numbers are 1 songs, 2 derive, 3 covers, 4 artist pictures, 5 done):
+After the sync the same worker keeps loading metadata while nothing else asks for it, so pages
+open on data instead of a spinner. It runs only with Wi-Fi, in stages kept in `bg.txt`:
 
-1. **Songs (A).** `search3` with an empty query, 100 a page (`sba_songs_page`, the Songs pager's request, shared), appended to `songs.part` (append-only, the card sees one write and an fsync a page; no copy of the earlier pages, unlike the Songs pager's rewrite-the-file commit, which is quadratic over a big library). The paging ends at an empty page, at `SBA_MAX_TRACKS`, or at a short page once the rows held reach the sync's song total (`sync.txt`; a short page before the total, the server's own page limit, goes on by offset; a page that repeats the previous page's first song is the server ignoring the offset and ends it). The first page empty for a library that has songs is a failure of the run (retried later), never a finished empty list. The end renames it to `songs.idx` (flags 0: the Songs list is complete, so its A-Z appears) and replays the stars taken meanwhile (the last 16, `star_ev`) onto it. **Derive:** `al/<id>.idx` for each album whose songs are all in the list. The worker reads `songs.idx` in chunks and keeps an index of (hash of the album id, row) sorted in memory (8 bytes a song, at most 400 KB, freed when the stage ends); then, in `albums.idx` order and 16 albums a step, each album's rows are read back by seek and written as a track file of the getAlbum kind (same `sba_track_t` rows: `search3` and `getAlbum` songs are the same child object, and no page uses a field only `getAlbum` has such as play counts; the album page sorts disc, then track on read). An album is derived only when its row count equals the album's own `songCount` (a library cut at `SBA_MAX_TRACKS`, or a server that miscounts, leaves such an album to `getAlbum`). Existing `al/` files are replaced (they are as new). The album page still asks `getAlbum` for a refresh in the background as before; what changes is that the rows are there when it opens. An artist's page and its All Songs open from `albums.idx` (the albums whose `artist_id` is the artist) until `getArtist` has been answered, and read the derived album files (no `getAlbum` per album).
-2. **Covers (B).** Every album's cover at `SBA_COVER_PX`, in `albums.idx` order, one `getCoverArt` a step, the same cache files the grids ask for (`sba_run_cover`); files already there and empty markers are skipped (the first step counts what is missing, which is the progress total); a 404 leaves the marker and counts. A cover that fails three times in a run is left for the next run.
-3. **Artist pictures (C).** The same stage over `artists.idx` (the server's order, at most 6,000 artists): each artist's `coverArt` id (`ar-<id>_<time>`) at `SBA_COVER_PX`, one `getCoverArt` a step (`sba_bg_covers(w, 1)`, the album stage's code with the artist file as its row source, progress kind 3); files and empty markers already there are skipped, an artist with no id is left out, a 404 leaves the marker and counts, three failures in a run leave the picture for the next run, a waiting request cuts it off as in B. The progress total is what was missing when the stage began, and nothing is published (no "0/0" line) when nothing was. A re-run (a new signature, a week) fetches only the missing pictures. When the covers stage left covers for the next run (`bg.cskip`) the fill still goes on to the artists and, at the end of the stage, steps `bg.txt` back to the covers stage so the next run takes those first; a run that ends in the artist stage forgets that.
-   **Navidrome's stand-in picture.** For an artist (or album) with no art of any kind Navidrome does not answer 404: `GetOrPlaceholder` serves its own `artist-placeholder.webp` / `album-placeholder.webp` with status 200, never resized and with `Cache-Control: no-store` (read in `core/artwork` and `server/imghttp` of v0.64.2 on 2026-11-09; real art is resized and re-encoded to JPEG or PNG, and has an `ETag`). The reply is a WebP, so `sba_run_cover` takes a `RIFF....WEBP` body as "no art": the same empty marker as a 404 (before this it was a parse error and, in the fill, an error that backs off and ends the run after five). The `artistImageUrl` of `getArtists` was looked at and not used: Navidrome fills it for every artist (a share link made from the same `coverArt` id) whether or not there is an image behind it. A server that answers a stand-in as a JPEG or PNG (another server, or Navidrome with another placeholder) cannot be told from a picture without comparing images, which is not done: the artist shows that picture. Device check ND-24.
-4. **Done.** `bg.txt` says so; nothing runs until the signature changes or a week has passed.
+1. **Songs.** `search3` pages appended to `songs.part` (append-only, one write and an fsync a
+   page), ended by an empty page, a page that repeats the previous one's first song (the server
+  ignores the offset), `SBA_MAX_TRACKS`, or a short page once the rows reach the sync's
+   song total. A first page that is empty for a library with songs is a failure of the run. The
+   end renames it to `songs.idx` and replays the last 16 stars onto it. **Derive:** `al/<id>.idx`
+   for each album whose songs are all in the list (only when the row count equals the album's
+   `songCount`), 16 albums a step, from an in-memory index of 8 bytes a song.
+2. **Covers.** Every album's cover, one `getCoverArt` a step; files already there and empty
+   markers are skipped. A cover that fails three times in a run is left for the next run.
+3. **Artist pictures.** The same over `artists.idx` (at most 6,000).
+4. **Done.** Nothing runs until the library signature changes (song count, seconds, album count
+   and the newest album's creation time, stored in `sync.txt`) or `SBA_BG_MAX_AGE` (7 days)
+   passes.
 
-**Priority.** Phase 2 runs only when no request is waiting (`sba_pick() < 0`), one bounded step at a time (one request, or a few dozen rows of file work), so a page's request waits for at most one step. A transfer of phase 2 in flight is cut off by `sba_xfer` when a request arrives (the page is asked again afterwards; not counted as an error). The download worker is a separate thread: phase 2 waits (a second at a time) while `sba_dl_busy`. One worker, no extra concurrency. A star taken during the fill is logged for the replay above.
+**Navidrome's stand-in picture.** For an artist or album with no art Navidrome answers 200 with
+its own WebP placeholder, not 404. `sba_run_cover` takes a `RIFF....WEBP` body as "no art" (the
+same empty marker as a 404). `artistImageUrl` is not used: Navidrome fills it for every artist.
+A server that answers a stand-in as JPEG or PNG cannot be told from a picture; it is shown.
 
-**Stops, errors, resume.** Each step re-checks the cancel counter (Sign Out and a changed server or user call `sba_cancel` and clear the cache: `bg.txt` and `songs.part` go with it, and the next library fills from scratch), the card (the 32 MiB floor the downloads use, `SBA_RESERVE_KB`, checked before every page, album batch and cover; below it the run ends) and the guard. Login errors, a refused certificate, a full card and storage errors end the run at once. Other errors (network, HTTP, a reply that is not Subsonic) pause 10, 20, 40 then 60 s and try again; five in a row end the run (`SBA_BG_FAILS`). A picture is the exception for a server's answer: a 404, a WebP, or a 200 whose body is no picture (a Subsonic error in JSON, a web page) leaves the empty marker at once and the stage goes on; a picture whose request gets an answer but keeps failing (an HTTP error, a body that is no picture) is skipped after three tries, and the skip resets the run's failure count (a skip is progress), so two such pictures side by side do not end the run before the ones after them are fetched. A request with no answer at all (`SBA_NET`: Wi-Fi gone, server unreachable) is not a try of the picture and never a skip: it only counts as a failure of the run, so with Wi-Fi off the run ends after five failures with the cursor where it was. An ended run leaves its state: the page cursor is `songs.part` itself (its row count; a row half written by a power loss is cut away, by copying the whole rows to a new file, and the fill resumes from the whole rows), the derive cursor and stage are in `bg.txt`, and the covers are the files, so the next kick (the root page's open, `sba_sync_auto`, when the sync is fresh; or the sync's own end) continues without fetching again. Sleep, a Wi-Fi loss and a reboot are all of these.
+**Not used:** `getIndexes?ifModifiedSince` and `getScanStatus`: their meaning differs between
+Navidrome, Gonic and Airsonic and they change with scans that changed nothing.
 
-**When it runs again.** A sync of a library with the same signature does nothing (the signature is the sync's own totals: song count, seconds, album count and the newest album's creation time, stored as the 4th number of `sync.txt`; no extra request). A different signature restarts A (`songs.part` thrown away) and B and C continue over the new albums and artists only (existing covers and pictures are skipped). A finished fill is also repeated after `SBA_BG_MAX_AGE` (7 days) so that retags that change no total reach the cache. **Not used:** `getIndexes?ifModifiedSince` and `getScanStatus` (`lastScan`): the former is for the artist index and the latter changes with scans that changed nothing, and their meaning differs between Navidrome, Gonic and Airsonic; this could not be checked against a server. Sync Now never starts a bigger job than the totals call for.
+**Priority: the fill is low priority and yields to pages.** It runs only when no request waits,
+one bounded step at a time, and a transfer in flight is cut off when a request arrives. It waits
+while a download runs. One worker, no extra concurrency.
 
-**Progress.** `sba_bg_progress` gives the kind and the count; the root page's status line shows the spinner and "Updating library… 1200/2431" (songs), "Loading covers… 300/812" (done of what was missing when the stage began; the numbers restart after a resume) and "Loading artist images… 40/190" (the same for the artists' pictures, kind 3). Sync Now stays active; a sync in the middle runs first (a different library restarts the fill). Tests: `sbapi` `bg` (the artist stage: order, progress, skip, marker, WebP, resume, cut-off), `cover` (WebP), `sync`; `ndpages` `root` (status line and widths, all three lines); `ndflow`.
+**Stops and resume.** Each step re-checks the cancel counter (Sign Out or a changed server clears
+the cache, `bg.txt` and `songs.part` with it), the card (the 32 MiB floor) and the guard. Login,
+certificate, full-card and storage errors end the run at once. Other errors pause 10, 20, 40, 60 s;
+`SBA_BG_FAILS` 5 in a row end it. A picture whose answer is 404, a WebP, or a body that is no
+picture leaves the empty marker at once; one that keeps failing is skipped after three tries (a
+skip is progress); a request with no answer (`SBA_NET`) is never a skip. An ended run keeps its
+state (`songs.part` is the page cursor, a half-written row is cut away), so the next kick
+continues without fetching again.
 
 ### Downloads (`patch/sbdl.c`)
 
-One detached worker drains a queue of up to 1024 (`SBA_DLMAX`; the oldest waiting entry runs first, so a second add never starts a second thread).
+The shared request and file layer (`.part` + rename, Range resume, CA bundle, free-space floor,
+the stall rule) is in [network](network.md). Subsonic's own behaviour:
 
-**The queue is the worker's** (`patch/m1job.h`). Its slots in memory and `dlq.idx` on the card are changed by the worker thread only. The UI thread posts a message -- add (with the
-track's row), cancel, cancel all, resume -- and returns (`sbd_post`, `m1_job_post`: the post that finds no worker makes the thread; a worker ends only with the box empty, under the
-box's lock, so no message is left behind). The worker applies the messages in the order posted (`sbd_drain`): at the top of its loop, inside a transfer (the transfer-info hook
-`sba_dl_xfer`, so an add or a cancel made while a file comes is on the card within about a second) and after each track. An add and a cancel therefore never cross: the last one
-posted holds. A cancel of the running track that is followed by an add of it in the same batch is taken back before the transfer hears of it; once the transfer has been told to
-stop (`sbd.told`) no message is taken until it has ended, and an add that comes then queues the track anew, behind the others. A track's end is recorded from what its transfer
-answered before the next messages are taken, so a cancel of a track that has just failed takes it out and it does not come back with the network.
-
-What the UI thread reads is the slots with the messages not yet applied laid over them (`sbd_view`, under the box's lock; a message stays in the box until it is applied): a tapped
-row shows waiting, or gone, at once. `sba_dl_pending` counts the same way (an add as one more, a cancel as one less), exact once the worker has taken them. `sba_dl_add` still answers
-by itself what only needs reading: the guard, the card, the free space and a full queue. That last answer is given only when it is sure and cheap (`sbd_room`, one pass, no ids compared): the waiting and running slots plus the adds in the box, which are
-distinct tracks because an add of a track that waits or runs already is posted as `SBD_OP_GO` (start fetching, no track); with a cancel in the box the count cannot be known from
-there, the add is posted and the worker answers. The box takes at most 2 * `SBA_DLMAX` adds (`SBA_MEM`). What the card refuses when the
-worker writes -- a queue row, or a cancel that got neither its line nor the rewrite -- is reported as a failed transfer is (`sbd_report`, `sba_dl_failure`: the page toasts
-"Storage unavailable" at its next tick); the same for a queue that filled between the add and the worker (`SBA_QFULL`). A message that cannot be posted is `SBA_MEM`; when the
-thread cannot be made no worker runs, so a cancel is applied where it was asked and an add is refused. Cancel all (Sign Out) cannot fail that way: its message is one fixed struct
-(`sbd.all`), not an allocated one; asked again while that is still in the box, the messages posted after it are made void (op 0) instead, which is the same as a second one behind them.
-
-Tests: `sbdl/control_tests` and `sbdl/order_tests` (the cases by name), and two sweeps for the interleavings nobody thought of (`sweep_runner`, as `pcdl/sweep_tests` does for the
-episode queue). Two tracks are asked for, the first transfer of one breaks in the middle (a timeout: the `.part` stays, the worker stops and the queue waits), then the page resumes.
-The run's steps are the worker's card calls (open, write, rename, unlink, statfs, fsync, the folder scan) and the transfer-info calls, 115 of them; the box's spin lock is held
-over no call, so each is a place where the UI thread can run. `sbdl/sweep_tests` does add, cancel, cancel all, Delete and their sequences at every step (about 710 runs),
-`sbdl/sweep_pair_tests` one action at a step and one at the next step, and at pairs of every 6th step (about 490 runs; every pair would be some 20,000). Only the ends are checked.
-At the stop: the box is empty, no worker runs, and `dlq.idx` (the last line of a track counts) holds the tracks that wait in memory. After the resume: nothing waits in memory or on
-the card, a file is whole and has its manifest row or is not there, a `.part` is a start of its file and not beside it, the track asked for last is downloaded, one deleted when it was
-downloaded is gone, no add was refused. A track whose last action is a cancel (or a Delete, or a cancel all) does not wait at the stop, and from the cancel on it has at most the one
-request of a track already taken up and one transfer-info call, the one that takes the cancel and stops the transfer (a cancel made at a call is taken by that call), and a track with such a call is not downloaded: so a cancel
-that did nothing fails the sweep at every step up to the last transfer-info call of the track's last transfer (a resume would
-otherwise download the track and hide it). A pair's failure counts even when the run never reached the second step. Not covered: a Delete while the worker holds the file lock `mf` (the UI thread waits there; the emulation has one thread), `sba_dl_resume`
-as an action (it does nothing while a worker runs), and a failing card.
-
-**The queue is on the card.** Memory holds only a slot a track (id, state, failure code); an add appends the track's whole row to `dlq.idx` (one `O_APPEND` write, no sync: a lost
-line is a download asked for again) and the worker reads it back when the slot's turn comes (`sbd_q_row`). The first use of the download layer reads `dlq.idx` (`sbd_q_load`, after
-the manifest; the one read of the file that may be the UI thread's, under the file lock `mf` that all the file work on `dl.idx` and `dlq.idx` takes): every row whose track is not
-downloaded waits again, in the file's order, so a queue outlives a reboot, a crash or a pulled card. Nothing starts by itself: `sba_dl_resume` (the Subsonic root page's open, and its
-tick when the guard clears: `sbs_dl_resume`, which arms the keep-awake timer) or the next `sba_dl_add` starts the fetching (`sbd.go`); a worker started for a cancel alone does the
-card's side and ends without fetching a queue that was stopped. Rows of finished, cancelled and given-up tracks are dropped when the queue drains or after a batch of messages with
-a cancel (`sbd_settle`, `sbd_q_compact`: an atomic rewrite, once for the batch; an empty queue removes the file); Sign Out (`sba_dl_cancel_all`) removes it.
-
-A `dlq.idx` that cannot be read (it will not open, a read fails or comes short) is the card's failure, `SBA_STORAGE`, not a missing row: `sbd_q_row` answers -1, the fetching stops and the row
-is kept for the next start (a row that is really not there, in a file that was read whole, is `SBA_PARSE` and is dropped). The other two readers follow the same rule (`sbd_slurp_st`):
-`sbd_q_load` loads no queue from a file read in part and reads again at the next use (`sba_dl_add` answers `SBA_STORAGE` meanwhile: nothing is added on top of rows not seen), and
-`sbd_q_compact` leaves such a file as it is. A cancel does not depend on that rewrite: `sbd_q_cancelled` first appends one line `-=<id>` (no read needed), and `sbd_q_load` takes
-the rows before such a line out of the queue, so a cancelled track does not wait again after a restart; a later add of the track appends its row after the line and counts. The
-compaction drops these lines with the rows. The file is read as a log: the LAST row of a track is the track's (`sbd_q_row`, and the row `sbd_q_compact` keeps), so a row an earlier
-failed rewrite left before a cancel's line is never the one downloaded, and `sbd_q_row` finds no row for a track whose last line is a cancel, so `sba_dl_resume` never fetches it.
-
-**The root page tells the downloads.** `sba_dl_pending` counts the running download, the waiting ones and the one a stopped worker left to try again; when no sync runs the status line
-reads "Downloading 12 songs" with the spinner while the worker runs and "12 downloads waiting" (the state's own glyph) while it does not (`nr_refresh`, `patch/ndroot.c`).
-
-**The worker stops at a failure that is not the track's** (`sbd_later`: no server saved, no Wi-Fi, the clock, a certificate, the network, the login, the card, memory, a full card). That
-track is `FAILED` with its code (the page toasts it once, as before), the rest stay `WAIT`, the fetching stops (`sbd.go`) and the worker ends, so a lost Wi-Fi no longer turns the whole queue into failures and the
-device may go to standby (`sba_dl_busy` is 0). `sba_dl_resume` puts the track it stopped at back in the queue, behind the others (a track that keeps failing cannot block them), and
-starts a worker; adding a waiting track again does the same for the rest. A failure of the track itself (404, an HTTP error, not audio, a refused write) leaves it `FAILED` and the
-worker goes on with the next; its row is not kept past the drain.
-
-**Folders.** Each file is `/mnt/mmc/Subsonic/<artist>/<album>/<nn> <title>.<suffix>` (`sbd_file_name`): the artist is the ALBUM's artist (`sba_album_artist`, a row-by-row read of
-`albums.idx` by the worker, one lookup an album), so the tracks of a compilation share a folder, and the track's own artist when the cache does not have the album; `<nn>` is the
-two-digit track number (`<disc>-<nn>` from the second disc on, nothing when the track has no number). Each name is cut at a character (64 bytes a folder, 100 the title), control
-characters and `/ \ : * ? " < > |` become `_`, a leading dot becomes `_`, leading and trailing spaces and trailing dots go, and an empty one is `Unknown Artist`, `Unknown Album` or
-`Track`. The manifest's `p=` field is that path relative to the folder (`sbd_file_ok`: plain parts joined by `/`, none empty or starting with a dot, no backslash). Remove Download removes the album and artist folders when they are
-left empty (`sbd_rmdirs`). The file is written through `sbn_download` to a `.part` file with a validated Range resume. A stall below
-512 B/s for 45 seconds fails the transfer; the free-space floor is 32 MiB, checked before the request and again during it. A file of that name that the manifest does
-not know is adopted as it is (never overwritten, nothing fetched); a name owned by another track gets ` (2)` before the suffix. The owner is asked before the card is, and names are compared without the case of the ASCII letters (`sbd_same_file`: exFAT and FAT fold the case, so `03 Song One.flac` and
-`03 SONG ONE.flac` are one file). The card folds every script with a table of its own (`Café.flac` and `CAFÉ.flac` are one file too), so before a file that no name of the manifest
-owns is adopted the card itself is asked (`sbd_shared`: the file is held open and its `st_dev` / `st_ino` compared with those of every other track's file; a file that cannot be told is
-not adopted). So a second track never adopts, and later deletes, the first one's file. A cancel of the running transfer
-drops its `.part`; a network fault keeps it, so the next download resumes.
-
-A download keeps the device awake: a successful add (`LS_ACT_DOWNLOAD`) arms `nl_awake_tick` (`patch/sbsrc.c`, see "Keep awake" under Playback and the queue), which calls `reset_poweroptions_timer(1, 1, 0)` every second while `sba_dl_busy()`, so stock standby does not stop Wi-Fi and the CPU mid-file. A full queue (`SBA_QFULL`, 1024 files) toasts "Download queue is full" (the play queue's "Queue is full" is another text). Download Album (`LS_ACT_DOWNLOAD_ALL`, the album page's "...") adds the page's tracks one by one through the same `sba_dl_add` with a single toast at the end, and arms the timer once if any was queued.
-
-**Safe resume** (`sbn_download`, the PR's rules; the header reader, the reserve, the file write and the rename are the shared ones of [network](network.md)). When the first body byte of a download arrives the worker saves a resume record `<part>.etag` (magic `SBRES1`, the identity
-server, user and track id, and the response's ETag), but only for a strong ETag (quoted, no `W/`); a failure without one keeps no `.part`. A `.part` is continued only if its
-record exists for the same identity: the request is `Range: bytes=N-` with `If-Range: <ETag>`, and a 206 is appended only if its Content-Range starts at N, ends at the file's last
-byte with a known total, and its ETag is the recorded one. A 200, a 416, or any other 206 (and a `.part` with no record, or another track's) starts the file again from byte 0. Every
-response is checked before the first byte is written: a `text/*`, JSON or XML Content-Type, a redirect's body, or a status other than 200 (206 on a resume) is refused (SBA_NOTAUDIO,
-nothing appended); the finished file also needs the announced length and a first byte that is not `<`, `{` or `[`. The record is removed with the `.part` (cancel, finish,
-Remove Download). A resume that wrote no byte and got no usable answer (no answer, 5xx, 408, 429 or a time-out) keeps the `.part` and its record exactly as they were, so the next try resumes at the same offset; a response that started appending bytes keeps the strict rule above.
-
-**Failure words** (`sbs_message`, `patch/sbsrc.c`). A download that fails keeps its `SBA_*` code (and, for `SBA_HTTP`, the HTTP status) and the first Navidrome page to read the source's `gen` after it toasts it once
-(`sba_dl_failure`; a failure older than 30 s is dropped): "Storage unavailable" (no card, `.part` not openable), "Card is full" (the 32 MiB floor, before or during the transfer), "Write failed" (a write, sync or rename
-the card refused; `sink->werr`), "Server error 503", "Song not found on the server", "Incorrect username or password", "Server certificate not trusted", "Unexpected server response" (text or JSON instead of audio, a short
-or empty body), "Download interrupted" (network), "Not enough memory". The same function words a refused request (the row menu's Download and Favorite, Sync Now) and a sync that the root page watched run and fail.
-
-The manifest `dl.idx` holds one line per finished track (the whole row, plus file name and size) and is replaced atomically. A manifest over 4 MiB (`SBD_IDX_MAX`) is read as empty but is never overwritten: an edit that needs it fails with a storage error and the file stays. Row state reads an in-memory copy and
-never touches the card. A file deleted by hand is dropped when `sba_dl_path` or `sba_downloaded` finds it gone. **Downloads are in the local library too.** The worker calls stock's
-`scanSpecFolder(<the album's folder>, 0)` (as the PR did after a DSD file) once a folder: when it moves on to a file of another folder, when the queue drains and when it stops
-(`sbd_scan`, always before the worker is seen to have ended, so two scans never run together). The files are the server's originals with their tags, so they show under the local
-Albums, Artists and Songs like copied music, and in Subsonic > Downloaded as well.
-
-**Download queue on the Downloaded page.** `nd_list(LS_DOWNLOADED)` puts the downloads still to come first (`sba_dl_queue`: the running one, then the waiting ones in the worker's `seq` order, and the track a stopped
-worker left for `sba_dl_resume`; the list is the worker's slots, so an add or a single cancel shows once the worker has taken its message, within about a second, while a cancel-all in the box empties it at once; their rows are the last row of each track in `dlq.idx`, a cancel's line after it leaves none; a queue file that will not read lists none) and the manifest's rows after them.
-`lib_src_t.dl_rows` (appended last; `nd_dl_rows`) tells the page how many leading rows those are and returns `sba_dl_rows`, a number made from the manifest's row count and the `seq` of every pending slot: it moves
-when a track joins or leaves the queue or a download lands or is removed, never with progress, so `gen_rows` stays what it was for every other page and only the Downloaded page reads its list again (`sg_rows_same`).
-With rows to come the Songs page shows two named sections through the A-Z furniture (`az_t.sec_text`: "Downloading", "Downloaded"; headers on whatever the Section Headers switch says, no rail) and a grey text
-button "Clear" at the right end of the first header (`az_t.sec_act`, the grey row line's style; `az_act_hit` is its touch test, in the flow and on the pinned header, where it wins over the row under it):
-`LS_ACT_CANCEL_ALL_DL` → `sba_dl_cancel_all`, then the list is read again. The footer counts the finished downloads only. With nothing to come the page is the plain list as before. Play and Shuffle take the
-whole list (a waiting row plays as a stream, as on any other page). Not done: no reorder, no pressed state on Clear, a cancelled running track's `.part` stays as before. Not done: Remove Download does not take the track out of stock's library (it stays listed there
-until the next library scan). The transfer-info hook that `sbn_init` takes returns `sba_dl_xfer(...)` first; `sbapi.c` supplies the
-guard, the login (`sba_net_open`) and `sba_is_dsd`.
+- **One worker, a queue of up to 1024** (`SBA_DLMAX`; `SBA_QFULL` when it is full; the oldest
+  waiting entry runs first). Rows wait in `dlq.idx` on the card (one `O_APPEND` write, no sync: a lost
+  line is a download asked for again); memory holds only a slot a track (id, state, failure
+  code). A full queue toasts "Download queue is full" (the play queue's "Queue is full" is
+  another text).
+- **The queue is the worker's** (`patch/m1job.h`). Slots in memory and `dlq.idx` are changed by
+  the worker thread only. The UI thread posts ordered messages (add with the track's row, cancel,
+  cancel all, resume) through `sbd_post`; the worker applies them in the order posted, also
+  inside a transfer, so an add or cancel made mid-file is on the card within about a second.
+  The last message posted holds. This is why the queue is not a shared state table: it rules
+  out the races that model brings ([network](network.md)).
+- What the UI reads is the slots with the unapplied messages laid over them (`sbd_view`), so a
+  tapped row shows waiting, or gone, at once. `sba_dl_add` answers only what needs reading: the
+  guard, the card, free space, a full queue (`SBA_MEM` when the box is full or no thread can be
+  made). What the card refuses while the worker writes is reported as a failed transfer.
+- **The queue survives a reboot**: the first use reads `dlq.idx` and every row whose track is not
+  downloaded waits again, in the file's order. Nothing starts by itself: `sba_dl_resume` (the
+  root's open, or its tick when the guard clears) or the next add starts fetching. Finished,
+  cancelled and given-up rows are dropped when the queue drains.
+- A `dlq.idx` that cannot be read is `SBA_STORAGE`, not a missing row: fetching stops and the row
+  is kept. A cancel appends a line `-=<id>` first, so a cancelled track does not wait again after
+  a restart; the last line for a track is the track's.
+- **The worker stops at a failure that is not the track's** (no server, no Wi-Fi, clock,
+  certificate, network, login, card, memory, full card): that track is `FAILED`, the rest stay
+  waiting and the worker ends, so a lost Wi-Fi does not fail the whole queue and the device may
+  go to standby. `sba_dl_resume` puts the stopped track behind the others. A failure of the
+  track itself (404, not audio, a refused write) leaves it `FAILED` and the worker goes on.
+- **Files**: `/mnt/mmc/Subsonic/<artist>/<album>/<nn> <title>.<suffix>`. The artist is the
+  ALBUM's artist so a compilation shares a folder; `<nn>` is the track number (`<disc>-<nn>` from
+  the second disc). Names are cut (64 bytes a folder, 100 the title), `/ \ : * ? " < > |` and
+  control characters become `_`. An unknown file of that name is adopted, never overwritten; a
+  name owned by another track gets ` (2)`. Names compare case-folded (exFAT folds), and the card
+  itself is asked (`st_dev`/`st_ino`) before adopting, so a second track never adopts and later
+  deletes the first one's file. Remove Download removes empty folders.
+- **Cancel** of the running transfer drops its `.part`; a network fault keeps it for the resume.
+- **Safe resume** (`sbn_download`): the first body byte saves a record `<part>.etag` (server,
+  user, track id and the response's strong ETag; no strong ETag keeps no `.part`). A `.part` is
+  continued only with that record: `Range: bytes=N-` plus `If-Range`, accepted only for a 206
+  whose Content-Range starts at N, ends at the file's last byte and carries the recorded ETag.
+  Anything else restarts from byte 0. A text, JSON or XML type, a redirect body or a wrong
+  status is refused (`SBA_NOTAUDIO`); the finished file needs the announced length and a first
+  byte that is not `<`, `{` or `[`. A resume that wrote nothing and got no usable answer keeps the
+  `.part` and its record as they were.
+- **Keep awake**: a successful add arms `nl_awake_tick`, which calls
+  `reset_poweroptions_timer(1, 1, 0)` every second while `sba_dl_busy()`, so stock standby does not
+  stop Wi-Fi mid-file (see Keep awake below).
+- **Failure words** (`sbs_message`): "Storage unavailable", "Card is full", "Write failed",
+  "Server error 503", "Song not found on the server", "Incorrect username or password", "Server
+  certificate not trusted", "Unexpected server response", "Download interrupted", "Not enough
+  memory". The page toasts a failure once (older than 30 s: dropped). A refused request (Download,
+  Favorite, Sync Now) uses the same words.
+- **Manifest** `dl.idx`: one line a finished track (the row, file name, size), replaced
+  atomically; over 4 MiB (`SBD_IDX_MAX`) it is read as empty and never overwritten. Row state reads
+  a memory copy. A file deleted by hand is dropped when found gone.
+- **Downloads are in the local library too**: the worker calls stock's `scanSpecFolder` once a
+  folder (when it moves on, when the queue drains, when it stops), so the files show under the
+  local Albums, Artists and Songs as well as in Subsonic > Downloaded. Remove Download does not
+  take a track out of stock's library until the next scan.
+- **Downloaded page**: `nd_list(LS_DOWNLOADED)` puts the downloads still to come first (the
+  running one, the waiting ones in order), then the manifest's rows. With rows to come, Songs
+  shows two sections ("Downloading", "Downloaded") with a grey **Clear** at the right of the first
+  header (`LS_ACT_CANCEL_ALL_DL`). `dl_rows` moves only when a track joins or leaves the queue,
+  never with progress. The footer counts finished downloads only; Play and Shuffle take the
+  whole list.
 
 ### Playback and the queue
 
-A row tap or Play builds the queue as the local library does (`so_play_with`): the list's rows in the list's own order, opened at the tapped track's index in the queue (Previous goes to the track before it, nothing wraps to the top). A list longer than `SBA_QUEUE_MAX` (500) gives a 500-row window that starts at the tapped row, moved back near the end of the list (start = min(tapped, count - 500)) so it still holds 500 rows; the play's buffers and the queue map are sized by the rows that go in (an album of 12 allocates 12). Rows that cannot play (a DSD track not on the card, a stream while offline, a non-track) are left out and the index is the tapped track's place among those that went in; the tapped row's own checks come first (an undownloaded DSD track returns -2, an undownloaded one offline toasts "Connect to Wi-Fi first"). The Play pill (`LS_PLAY_ORDER`) is not a row: when its row cannot play it starts at the first later row that can (offline with some tracks on the card, a DSD track first), and only when none can does the row's own answer show. Shuffle (a random playable start) walks the whole list by a random stride coprime with its length (the search is bounded; a count with no such stride, such as 6, walks in order), so it queues up to 500 distinct tracks spread over the list, not one run, and opens at index 0. `sba_queue_note` replaces the queue map when the play notes its queue; a build that then fails ("Can't play") calls `sba_queue_undo` and the playing stream keeps its map (`sba_queue_keep` drops the old one when the build worked). A DSD track not on the card is left out (and, as the first row, asks to download). If no stream address can be made for a track, or the queue map is full, the toast is "Can't play" ("Not enough memory" only when the queue itself cannot be allocated). An artist page's Play / Shuffle with no songs list yet toasts "Loading…" while the fill is deriving it, "Can't play" otherwise. The queue records are `stSongInfo` records with the stream address in `REC_PATH` (`format=raw`), or
-the local file for a downloaded track, through `mclLoadPlayList`, then `start_playqueue` and Now Playing through `pod_open_player`. Each record's id is noted in the
-queue map (`sba_queue_note`, `sba_queue_add`; up to `SBA_MAP_MAX` 1024; id, cover id, album id, suffix and size per record), which lets Now Playing find the cover (`sba_now_cover`, `sba_rec_cover`), the star find the
-track (`sba_rec_row`) and the playing marker find the server track (`sbs_playing(rec_id)`). Play Next / Play After insert one record through `pod_queue_insert` and `upnext_add`; an undownloaded DSD row, or a stream
-while offline, gives no record.
+A row tap or Play builds the queue as the local library does (`so_play_with`): the list in its own
+order, opened at the tapped track.
 
-**Recently Played.** A server track never enters the Recently Played shelf: `recent_note` skips a record whose `REC_PATH` is a stream address (`http://`, `https://`, `nd://`), which would write the credential in the address to the card and show a dead entry.
+- A list longer than `SBA_QUEUE_MAX` (500) gives a 500-row window from the tapped row, moved back
+  near the end so it still holds 500 rows.
+- Rows that cannot play (a DSD track not on the card, a stream offline, a non-track) are left out.
+  The tapped row's own checks come first: an undownloaded DSD track asks to download, an
+  undownloaded one offline toasts "Connect to Wi-Fi first". The Play pill starts at the first
+  later row that can play.
+- Previous goes to the track before the tapped one; nothing wraps to the top.
+- Play Next / Play After insert one record (`pod_queue_insert`, `upnext_add`); an undownloaded DSD
+  row, or a stream offline, gives no record.
+- An artist page's Play / Shuffle with no songs list yet toasts "Loading…" while the fill derives
+  it, "Can't play" otherwise.
+- Shuffle walks the list by a random stride coprime with its length, queueing up to 500 distinct
+  tracks spread over the list, and opens at index 0.
+- Records are `stSongInfo` with the stream address in `REC_PATH`, or the local file for a
+  downloaded track, loaded through `mclLoadPlayList`. Each record's id is noted in the **queue
+  map** (`sba_queue_note`; up to `SBA_MAP_MAX` 1024: id, cover id, album id, suffix, size), which
+  lets Now Playing find the cover, the star find the track and the playing marker find the server
+  track (`sbs_playing`; `REC_PATH` cannot be compared, the stream address is salted). A build that
+  fails calls `sba_queue_undo`, so the playing stream keeps its map.
+- A queue with no stream address or a full map toasts "Can't play".
 
-**Stock's play history.** Stock's `add_playrecord` `0x4efb08` (one caller, `on_wm_idle_status` `0x4ce930`, once per track start) writes the queue record of a list play type (`& 0xf000`, which a source's queue has) into `recentplay` and `oftenplay` of `/mnt/data/database.db`. For a stream that record is the address with the login token, and the card's Recently Played and Most Played lists would show a row that cannot play. The call site is `jal sbs_play_record` ([payload](payload.md) hook 28, `patch/sbsrc.c`): a record whose path is an http address is not written, everything else (a downloaded file included) is stock's call, and with the kill switch it is always stock's call. The test is the path alone, so it needs no queue map. Tests: `sbsrc` `playrecord`.
+**Scrobble.** A server track that has played for half its length, or four minutes if sooner or the length is
+unknown, is
+reported to the server once (`sba_scrobble`, `scrobble.view?submission=true`), so the server's
+play count moves and it forwards the play where set up. `nl_scrobble` runs in the keep-awake tick
+and counts the clock between two ticks that saw the player on the same server track. A report
+that the guard refuses is made again at the next tick. A play that ends with no Wi-Fi is not
+reported later; there is no "now playing" notification; a track on repeat is one play.
 
-**Reboot.** Not checked on a device: stock's `save_memoryplay_info` `0x4e3340` saves the playing record (the stream address included) and `memeory_startplayer` `0x4e34dc` rebuilds the class's own list at boot and tests the saved file with `access`, which a stream address fails, so a stream should not resume; the queue map is memory only, so a resumed stream would not be known as a server track.
-
-**Scrobble.** A server track that has played for half its length, or four minutes when that is sooner or the length is unknown, is reported to the server once: `sba_scrobble`
-(`scrobble.view?id=..&submission=true`, request kind `SBA_K_SCROBBLE` on the metadata worker; no status record, no generation move, the answer is nobody's news), so the server's play
-count and last played move and it forwards the play where it is set up to (Last.fm, ListenBrainz). `nl_scrobble` (`patch/sbsrc.c`) runs in the keep-awake tick: it counts the clock
-between two ticks that both saw the player playing the same server track (`sba_rec_track` of the queue record; a stream or its downloaded file, so a late tick loses nothing and a
-pause counts nothing; the length is the queue map's `seconds`), and a report the guard or a full request queue refuses is made again at the next tick while the track still plays.
-Not done: a play that ends with no Wi-Fi is not reported later, there is no "now playing" notification, and a track on repeat is one play. Tests: `sbsrc` `scrobble`, `sbapi` `play`.
-
-**Keep awake.** `nl_awake_tick` (`patch/sbsrc.c`, a 1 s timer on the UI thread, armed by a play, by Play Next / After and by a download queued successfully, whichever page is open) calls stock's
-`reset_poweroptions_timer(1, 1, 0)` (standby and auto power-off set again; the screen's light left alone) while the player is playing (`mclGetPlayStatus` 2) a Navidrome
-record whose path is a stream address, and while the download worker runs (`sba_dl_busy`; stock standby would stop Wi-Fi and the CPU mid-file, as the Podcast downloads' `pg_awake_tick` avoids). Paused, stopped, a downloaded file and other sources' tracks never call by themselves. It ends once the player stops or plays a track that is not ours and no download runs,
-after a 5 s grace for the queue to load. The function is pinned already (Radio, Podcast downloads); no new hook.
-
-A tap that cannot start (an undownloaded DSD track) returns -2 from `so_play_src` and the page shows the DSD confirm. Shuffle skips the rows that cannot start and
-answers -2 only when nothing else can. The playing marker cannot compare `REC_PATH`, because the queue holds the salted stream address.
+**Keep awake.** `nl_awake_tick` (a 1 s timer, armed by a play, Play Next / After or a queued
+download) calls `reset_poweroptions_timer(1, 1, 0)` while the player plays a server stream or
+`sba_dl_busy`. It ends once neither holds, after a 5 s grace. No new hook.
 
 ### Songs memory
 
-`sba_songs` would load `songs.idx` whole (820 bytes a row; 41 MB at 50,000). The Songs list is read 32 rows at a time (`sba_songs_window`) and holds records for
-the first `SBS_SONGS_MAX` = 10,000 rows: about 3.4 MB of heap with 36-character ids. Past the cap `songs.idx` is not read further, and the list is then complete (the
-A-Z rail appears only then).
+`songs.idx` rows are 820 bytes (41 MB at 50,000), so the Songs list is read 32 rows at a time
+(`sba_songs_window`) and holds records for the first `SBS_SONGS_MAX` 10,000 rows (about 3.4 MB).
+Past the cap `songs.idx` is not read further, the list counts as complete and the A-Z rail
+appears.
 
 ## Files on the card
 
 | Path | Content |
 |---|---|
-| `/mnt/mmc/.m1plus/subsonic.conf` | the server: one line `url\|user\|secret` (the salt and token, 48 hex digits; never the password), mode 0600 where the card allows |
-| `/mnt/mmc/.m1plus/subsonic/` | the cache: `albums.idx`, `albcov.idx`, `artists.idx`, `playlists.idx`, `starred.idx`, `songs.idx`, `search.idx`, `sync.txt` (time, song total, truncated, library signature), `bg.txt` and `songs.part` (the Background fill's cursor and half-built song list), `al/`, `ar/`, `pl/` track files |
-| `/mnt/mmc/.m1plus/subsonic/covers/` | Navidrome's covers, in the Cover Flow file format; separate from Cover Flow's own folder (Rebuild Covers and Developer > Cover Cache do not see them) |
-| `/mnt/mmc/.m1plus/subsonic/dl.idx` (+ `.tmp`) | the download manifest |
-| `/mnt/mmc/.m1plus/subsonic/dlq.idx` (+ `.tmp`) | the downloads that wait (a row a track); removed when the queue drains and by Sign Out |
-| `/mnt/mmc/Subsonic/` | downloaded music, `<artist>/<album>/<nn> <title>.<suffix>`, `.part` until complete; kept by Sign Out; scanned into the local library |
-
-Cache writes are atomic (a temporary file, then rename; the starred flag is the one exception, a single byte written in place at the row's offset, which every reader sees whole) and only the metadata worker writes them: the UI thread never does. A star therefore goes through a small **star overlay** (32 entries of id, wish and request count, under a spin lock): `sba_star` sets it and bumps `sba_gen`, so the heart flips at once; every track list read (`sba_tracks_at`) and `sbs_track` (`sba_star_pending`) show the held flag over the file's (after the starred set, below); the worker's `SBA_K_STAR` run edits the files, asks the server, puts the files back if that failed, and only then drops the entry (a star taken back by `sba_cancel` before it ran only drops the entry, no file was written). The same worker logs the last 16 stars (`star_ev`) for the Background fill's songs.idx replay; the log has one thread on each side now. A full overlay refuses the star with `SBA_QFULL`. The cache keeps 4 MiB free. **starred.idx is the truth for every heart:** the page side holds the ids of starred.idx as two 32-bit hashes each (sorted, at most 3,000, read in chunks, 8 bytes an id) and every track list read (`sba_tracks_at`, `sba_songs_window`; the Downloaded list through `sba_hearts`, its manifest row's flag being the day of the download's) sets `starred` from it before the overlay, so a song starred from another client shows a heart in every list (and the reverse); the set is read again when the worker committed the file (`sgen`: the sync's store, `sba_track_edit`, a cache clear), and with no readable starred.idx the files' own flags stand. A cancelled star (Sign Out, a changed server) is not put back (the cache is being cleared) and its argument and overlay entry are freed; the status record never replaces an entry in use (a request loading, the sync, the Songs pager, the search) unless all 48 are.
-
-**One-off removal.** `sba_retire_old` runs when the root page opens, once per boot and only with the card mounted. It deletes the PR's old files if present:
-`navidrome.index` (and `.tmp`, `navidrome.dsd.tmp`), the `navidrome-art` folder and `navidrome-view` (and `.tmp`). The conf and `/mnt/mmc/Subsonic` are never touched.
+| `/mnt/mmc/.m1plus/subsonic.conf` | one line `url\|user\|secret` (salt and token, 48 hex digits; never the password), mode 0600 where the card allows |
+| `/mnt/mmc/.m1plus/subsonic/` | the cache: `albums.idx`, `albcov.idx`, `artists.idx`, `playlists.idx`, `starred.idx`, `songs.idx`, `search*.idx`, `sync.txt`, `bg.txt`, `songs.part`, `al/`, `ar/`, `pl/` |
+| `.../subsonic/covers/` | covers in the Cover Flow file format, separate from Cover Flow's own folder (Rebuild Covers and Developer > Cover Cache do not see them) |
+| `.../subsonic/dl.idx`, `dlq.idx` (+ `.tmp`) | the download manifest; the downloads that wait (removed when the queue drains and by Sign Out) |
+| `/mnt/mmc/Subsonic/` | downloaded music, `.part` until complete; kept by Sign Out; scanned into the local library |
 
 ## Limits
 
 | Limit | Value |
 |---|---|
 | Songs list | first 10,000 rows held (`SBS_SONGS_MAX`); `songs.idx` cut at 50,000 (`SBA_MAX_TRACKS`) |
-| Background fill | songs: one `search3` page at a time (about 140 KB; the 100-song page applies); derived `al/` files: about 0.8 KB a song, so `songs.idx` plus the album files take about 1.6 KB a song (82 MB at 50,000 songs); RAM: the sort index, 8 bytes a song (400 KB at the cap), the response buffer (256 KiB after a page), freed when a stage ends; artist pictures: a 168 px JPEG each (about 10 KB; an artist with no art is an empty file); stops below 32 MiB free; five errors in a row end a run |
-| Albums / artists | 20,000 albums or artists (`SBA_MAX_ALBUMS`), artists 6,000, playlists 500 |
-| Favorites | 3,000 tracks (`SBA_STARRED_MAX`; getStarred2's albums are not kept) |
-| Playlist / album tracks | 3,000 a list (`SBA_ALBUM_TRACKS`); a list is parsed whole in memory (`sba_track_t` is about 0.85 KB, so about 2.5 MB for 3,000 rows, on the heap) |
-| Play queue | the list in its order, up to 500 tracks (a 500-row window from the tapped row, moved back near the end); opened at the tapped track; the queue map 1,024 ids |
-| Response | 4 MiB per response (`SBN_RESPONSE_MAX`, the NUL included); a larger one fails whole. The sink's body buffer is on the heap: 64 KiB at the first write (`SBN_RESPONSE_START`), doubled (a new `calloc`, copy, `free`: demo imports no `realloc`) as the body needs, kept for the next request of the same worker and freed after a request that grew it past 256 KiB (`SBA_KEEP_BODY`) and when the worker ends; no memory for a doubling frees it and fails the transfer. File downloads never use it. Pages are still sized for small replies: `getAlbumList2` 250 albums (about 0.8 KB each), `search3` 100 songs (about 1.4 KB each). `getPlaylist` and `getStarred2` have no paging (about 1.3 KB a track), so a playlist or favourites list of up to roughly 3,000 tracks arrives whole (3,000 rows are 3.9 MB); one over 4 MiB fails. A streaming parser is not used: the reply is parsed from the buffer |
-| Download queue | 32 files; one at a time |
-| Downloads | 512 B/s for 45 s stall limit; 32 MiB free-space floor |
-| DSD | never streamed; plays only from a finished download |
-| Transcoding, quality setting | none: `format=raw` only |
+| Albums / artists / playlists | 20,000 (`SBA_MAX_ALBUMS`) / 6,000 / 500 |
+| Favorites | 3,000 tracks (`SBA_STARRED_MAX`) |
+| Playlist / album tracks | 3,000 a list (`SBA_ALBUM_TRACKS`), parsed whole |
+| Play queue | 500 tracks; queue map 1,024 ids |
+| Response | 4 MiB (`SBN_RESPONSE_MAX`); a larger one fails whole |
+| Download queue | 1,024 files (`SBA_DLMAX`), one at a time |
+| Download stall | 512 B/s for 45 s |
+| Free-space floor | 32 MiB (`SBA_RESERVE_KB`); the cache keeps 4 MiB |
+| Background fill | stops below the floor; five errors in a row end a run |
+
+DSD plays only from a finished download. No transcoding. A server that only takes the plain
+password (LDAP and the like) cannot be used.
 
 ## Credentials and network
 
-The password is not kept. Sign In makes the login secret once (`sbn_auth_make`): a random salt from `/dev/urandom` (16 hex digits) and the token MD5(password + salt) (32), which is what `subsonic.conf` and the memory hold and what every request sends as `s` and `t` (the Subsonic token login; a fixed salt is allowed, Navidrome, Gonic and Airsonic take it). A file written before this (the password as its third field) is turned into the secret at its first read and written again without the password. Whoever reads the card still gets a login for that one server (the token can be sent again, and a weak password can be guessed from it), but not the password itself. A server that only takes the plain password (LDAP and the like) cannot be used, as before. HTTPS verifies the server certificate
-against `/etc/m1plus-cacert.pem`; plain HTTP is allowed (a LAN server) and unencrypted. Connect timeout 12 s; a low-speed abort. `patch/sbnet.c` holds no page or
-playback state: the caller registers a progress hook and an after-transfer observer through `sbn_init`.
+**The password is not kept; the token is stored.** Sign In makes the login secret once
+(`sbn_auth_make`): a random salt from `/dev/urandom` and the token MD5(password + salt), which
+`subsonic.conf` and memory hold and every request sends as `s` and `t`. Whoever reads the card
+gets a login for that one server (the token can be replayed), but not the password. HTTPS
+verifies the server certificate against `/etc/m1plus-cacert.pem`; plain HTTP is allowed for a
+LAN server. `patch/sbnet.c` holds no page or playback state: the caller registers a progress hook
+and an after-transfer observer through `sbn_init`.
 
-## Removed from the PR
+## Songs cap and the sign-in token
 
-The PR's page (`patch/subsonic.c`, `patch/subsonic.h`, deleted; `sb_page_open` is replaced by `nd_root_open`), its second toolbar, tab row and DSD section, the
-inline progress bar, the flat whole-library song index and its artwork worker, the page's own grid/list toggle and English-only strings (`SB_ENGLISH`; every string is
-`TR()` in 13 languages), hard-coded colours, and the playback-owned standby timer (replaced by the keep-awake tick, see Playback and the queue).
-
-## Credits
-
-- Gaurav Mishra's pull request #2 (MIT) began the protocol code, the playback and the download rules.
-- The queue ABI was cross-checked against [shanling-m1plus-navidrome](https://github.com/shivaluma/shanling-m1plus-navidrome) (MIT, Copyright 2026 shivaluma and
-  contributors).
-
-## Open questions
-
-1. **Songs cap at 10,000 rows.** The list holds the first 10,000 rows of `songs.idx` (about 3.4 MB) and has no A-Z rail past that. Pending the user's OK.
-2. **The sign-in token on the card.** `subsonic.conf` travels with the card and holds the salt and token (not the password); for the Subsonic API they are as good as the password.
-   The settings-folder rule (`/mnt/data/m1plus/<area>-<thing>`) is for small settings and is not applied here.
-4. **Download a playlist, an artist, Favorites.** The queue holds them now (`LS_ACT_DOWNLOAD_ALL` on any list of tracks); what is missing is the row on those pages' "..." cards.
-5. **Remove Download and the local library.** The track stays in stock's library until the next scan (see Downloads).
-3. **DSD streaming.** A follow-up: serve `.dsf` / `.dff` through a suffix the stock player decodes, or have the server transcode DSD to FLAC. Until then DSD needs a download.
-
-## Validation limits
-
-Nothing in Navidrome has been validated on hardware for milestone 2. The parsers, cache, download worker, source and pages are covered by emulation tests
-(`test/pod/subsonic.py`, `sbapi.py`, `sbdl.py`, `sbsrc.py`, `ndpages.py`, `libsrc.py`, `albums.py`, `albumpage.py`, `artists.py`, `songs.py`, `playlists.py`, `search.py`,
-`rowmenu.py`, `songinfo.py`, `upnext.py`, `i18n.py`; `check.py --list`). Emulation does not certify the network, worker timing, the stock player with a remote queue or
-the page appearance. Not run on a device: the DSD confirm's line break and button relabel, a stream-address row in the stock queue (`mclLoadPlayList` has taken
-them since milestone 1), seeking and rare formats.
-
-`ndflow.py` runs real demo-server responses (`test/data/navidrome`) through the compiled pages: the album page, and (`artist_pl`) the Artists page's tap to the artist's
-albums page and the Playlists row's tap to its Songs page, with the queue empty and full of covers; all pass under emulation. The device report that an artist shows no albums
-and a playlist no tracks (demo.navidrome.org) is therefore not reproduced there: the cause is in what emulation does not model (real threads, libcurl over TLS, the stock heap).
-
-## History
-
-Milestone 2 rebuilt the pull request's interface as a library source. Its phases: the network layer split out of the PR's code; the parsers, the cache and the
-download worker; the source seam (`lib_src_t`) and the library pages on it; the root and Server pages; row marks, the row sheet and the DSD confirm; source search; and
-removal of the PR's page and its strings.
+- Songs beyond the first 10,000 rows are not listed and have no A-Z rail.
+- `subsonic.conf` travels with the card and is as good as the password for the Subsonic API; it
+  is not in the settings folder rule (`/mnt/data/m1plus/...`), which is for small settings.
+- A server's `getPlaylist` and `getStarred2` have no paging, so a list over 4 MiB fails.

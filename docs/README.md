@@ -12,16 +12,16 @@
 
 | Reference | Contents |
 |---|---|
-| [Architecture](architecture.md) | Payload, build pipeline, hooks and feature source maps |
+| [Architecture](architecture.md) | Build overview and the index of every module doc |
 | [UI](ui.md) | Preview, layout rules, fonts, assets and rendering |
 | [Firmware](firmware.md) | Stock hashes, updater behaviour, partitions and space recovery |
-| [History](history.md) | Recorded milestones, device findings and lessons |
-| [Idle lyrics page](modules/idlelyrics.md) | The Lyrics idle display: header and lyrics over Now Playing, the lyrics engine retargeted |
-| [Mono Audio and Crossfeed](modules/stereo.md) | The player's stereo stage, its record, and the hciplayer edit that keeps the filter with EQ off |
-| [Subsonic / Navidrome](modules/subsonic.md) | Remote library, raw streaming, SD downloads and validation limits |
+| [History](history.md) | Milestones, device findings and lessons |
+| [Payload](modules/payload.md) | Segment layout, trampolines, stock calls and hooks |
+| [Addresses](modules/addresses.md) | Stock symbols, offsets and record layouts |
+| [Safety](modules/safety.md) | Allowed entry points and required invariants |
+| [Validation](modules/validation.md) | Test boundaries and what they prove |
 
-Read the relevant `modules/` doc for implementation, pins and tests before changing a feature.
-Before searching stock binaries, read [payload](modules/payload.md) and [addresses](modules/addresses.md).
+Read the relevant module doc before changing a feature.
 
 ## Source layout
 
@@ -32,7 +32,4 @@ Before searching stock binaries, read [payload](modules/payload.md) and [address
 | `test/` | MIPS/host tests and package goldens |
 | `assets/` | Fonts, icon sources, boot logo and wallpaper |
 
-Module references describe current behavior, source files, safety constraints and validation
-limits. Keep implementation plans and superseded designs in git history. Use `tools/pod.py`
-for current pins/sources and build manifests for sizes. Device results apply only to their
-recorded build.
+Use `tools/pod.py` for current pins and sources.

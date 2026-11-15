@@ -1,4 +1,4 @@
-"""Time zones: the picker's zones, their TZ values and the pinned words (docs/modules/timezones.md).
+"""Time zones: the picker's zones, their TZ values and the pinned words (docs/modules/datetime.md).
 
 Ported from q2-pod (tools/build.py TIMEZONES, TIMEZONE_ORDER, timezone_offset). Stock's saved indices
 0-26 (`[SYSSET] TIMEZONE`) keep their place; q2-pod's additions follow as 27 and up. Stock's rows

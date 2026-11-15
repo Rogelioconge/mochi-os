@@ -1,88 +1,132 @@
 # Date & Time
 
-Settings > General > Date & Time (`m1plus_datetime`, `DATETIME_PAGE`, `patch/datetime.c`) is an own cards page for what stock keeps behind
-System list row 5 (`system_time`, All System Settings): Set Automatically, Time Zone, manual date and time, 24-Hour Time. Every
-state is stock's own; nothing of ours is saved to a file. Stock's three pages stay under All System Settings and show the same
-state ([autotime](autotime.md) for the sync and the RTC, [timezones](timezones.md) for the 43-zone table). No new hook, nothing at boot or paint.
+**Sources:** `patch/datetime.c` (page), `patch/timezones.c` (zone hooks), `tools/timezones.py`
+(table, order, pins), `tools/autotime.py` (RTC edits), `tools/pod.py` (`patch_timezones`),
+`DATETIME_PINS` in `tools/pod_pins.py`; page `DATETIME_PAGE`. **Tests:** `test/pod/datetime.py`,
+`test/pod/timezones.py`, `test/demo_diff.py`. **Preview:** `tools/preview/preview_timezones.py`.
+
+Settings > General > Date & Time (`m1plus_datetime`) is an own cards page for what stock keeps
+behind All System Settings > `system_time`: Set Automatically, Time Zone, manual date and time,
+24-Hour Time. Every state is stock's own and nothing of ours is saved to a file; stock's three pages
+stay under All System Settings and show the same state. No new hook for the page, nothing at boot
+or paint. The zone table and the RTC edits come from q2-pod.
 
 ## Page
 
 | Row | Kind | State | Opens |
 |---|---|---|---|
-| Set Automatically | switch (`ACT_DTAUTO` 157) | byte `auto_sync_nettime` `0xa05ab1`, `[SYSSET] AUTOSYNCTIME` | |
-| Time Zone | value (`ACT_DTZONE` 158), the zone's English label | word `time_zone` `0xa05ab4`, `[SYSSET] TIMEZONE` | `m1plus_timezone`: 43 check rows (`ACT_DTZONESET` 159) in `tools/timezones.py` `ORDER` (west to east), arg = the saved index |
-| Date | value (`ACT_DTDATE` 160), `2026-11-15` | the local clock | `m1plus_dtdate` |
-| Time | value (`ACT_DTTIME` 161), `14:05` or `2:05 PM` | the local clock, 24-Hour Time | `m1plus_dttime` |
-| 24-Hour Time | switch (`ACT_DT24` 162) | byte `time24hflag` `0xa05ab0`, `[SYSSET] TIME24H` | |
+| Set Automatically | switch (`ACT_DTAUTO`) | `auto_sync_nettime`, `[SYSSET] AUTOSYNCTIME` | |
+| Time Zone | value (`ACT_DTZONE`), English label | `time_zone`, `[SYSSET] TIMEZONE` | `m1plus_timezone`: 43 check rows (`ACT_DTZONESET`), arg = saved index |
+| Date | value (`ACT_DTDATE`), `2026-11-15` | the local clock | `m1plus_dtdate` |
+| Time | value (`ACT_DTTIME`), `14:05` or `2:05 PM` | the local clock | `m1plus_dttime` |
+| 24-Hour Time | switch (`ACT_DT24`) | `time24hflag`, `[SYSSET] TIME24H` | |
 
-The Date page holds Year, Month and Day (value rows, `ACT_DTFIELD` 163) and a Set Date row (`ACT_DTAPPLY` 165, arg 0); the Time page
-Hour and Minute and Set Time (arg 1). Each field opens a check-row picker (`m1plus_dtyear` 2022..2050, `dtmonth`, `dtday`,
-`dthour`, `dtminute`; `ACT_DTSET` 164, arg = field * 4096 + value). The pages open with the date being typed read from the clock
-(`dt_edit_start`); the pickers only change it in memory. Set Date / Set Time write the clock and go back. Choosing a month or year
-that leaves the day past the month's end moves the day to the month's last (ours; stock's selector offers only valid days). A
-clock outside stock's range (year before 2022 or after 2050, month or day out of range) starts at 2022, 1, 1 as stock's init does.
+The Date page holds Year, Month, Day and a Set Date row; the Time page Hour, Minute and Set Time.
+Each field opens a check-row picker (years 2022 to 2050). The pickers only change the date being
+edited in memory; Set Date / Set Time write the clock and go back. A month or year that leaves the
+day past the month's end moves the day to the month's last. A clock outside 2022..2050 starts at
+2022-01-01, as stock's init does.
 
-What the switch controls (from stock's own pages, not a choice of ours):
+## Rules
 
-- Time Zone is **always** live, whatever Set Automatically says. Stock lists the zones only while auto time is on: its page builder
-  `0x4a2424` makes the zone rows only then (`movz v0, 1, auto` at `0x4a2474`: auto off leaves the one switch row). That is layout
-  only (the address is kept): the click handler `0x4a25b8` does not test the byte, and a chosen zone just stores `time_zone`, saves
-  `[SYSSET] TIMEZONE` and calls `select_timezone`. Ours never dims the row and `dt_zone_set` does not look at the auto byte, so
-  someone without Wi-Fi can pick a zone without turning automatic time on.
-- Date and Time are live only while it is **off**: stock's Manual row (`typedatetime_page`, refresh `0x4aebd8`) is disabled while the
-  byte is set (`0x4aec74` / `0x4aec7c`). Ours dims them and `dt_apply` refuses while auto is on.
-- (`timezones.md` said the zone rows exist while auto time is off; the page builder's `movz` shows the reverse. Corrected there.)
+- **Auto on:** the clock syncs over NTP by stock's thread. Date and Time are dimmed and `dt_apply`
+  refuses.
+- **Auto off:** Date and Time are live (stock's Manual row is likewise disabled while auto is on).
+- **Zone:** always live, whatever Set Automatically says. Stock builds the zone rows only while auto
+  is on, but that is layout only: its click handler does not test the byte. Ours never dims the row,
+  so someone without Wi-Fi can pick a zone.
+- Choosing a zone stores `time_zone`, saves `TIMEZONE` and calls `select_timezone`. Choosing the
+  zone already chosen does nothing.
+- Set Date keeps the clock's time of day and Set Time its date. Both call stock's `set_systime`
+  with the same five numbers as stock's confirm handler (checked under the emulator).
+- 24-Hour Time stores the byte, calls stock's `change_time24h_12h` (the status bar clock format)
+  and saves `TIME24H`. `config_init` keeps 0 and 1; anything else is 1 (default).
+- **UI thread:** `set_systime` runs `system()` twice (`date`, `hwclock`), so the page freezes for
+  that moment, as under stock.
 
-## Stock
+## Stock flows
 
-`typedatetime_page` (init `0x4aed58`; title `system_time`) holds three rows: Auto (`listitem_auto`, opens `autosynctime_page`), Manual
-(`listitem_manual`, opens `datetime_page`) and the 24-hour switch (`listitem_24h`, handler `0x4aeb50`).
+- **Set Automatically:** stock stores the byte and the need-sync flag together and saves
+  `AUTOSYNCTIME`; `dt_auto_toggle` repeats this in order. `networktime_adjust_thd` (a thread, every
+  second) acts on the flag once Wi-Fi is up: `ntpdate` against four servers (time.nist.gov,
+  time.apple.com, cn.pool.ntp.org, time.windows.com), stopping at the first success and clearing the
+  flag even if all fail, then `toolsSetRtcTime`.
+- **Manual:** `get_systime` reads the clock after `tzset`; `set_systime` calls `date -s` then
+  `hwclock -wu`.
+- **Boot:** `platform_init` runs `hwclock -s` after `config_init` has exported `TZ`.
 
-- **Set Automatically** (`autosynctime_page` click `0x4a25b8`, row name `0`): from on, store 0 in `sync_nettime_flag` `0xa05a66` and in
-  the byte, then `write_int_config(byte, "SYSSET", "AUTOSYNCTIME")`; from off, store 1 in both, then the save. Then it rebuilds the list.
-  The flag is what `networktime_adjust_thd` `0x4d92bc` (a thread, every second) acts on once Wi-Fi is up: it runs `ntpdate` (four servers),
-  then `toolsSetRtcTime`. The switch itself calls nothing blocking. `dt_auto_toggle` repeats the stores and the save, in order.
-- **Time Zone** (same handler, row `n` is zone `n - 2`): the zone that is chosen already does nothing; else `time_zone` is stored, then
-  `write_int_config(index, "SYSSET", "TIMEZONE")`, then `select_timezone` `0x4d6b2c` (our `tz_select` hook: `setenv("TZ")` from the table).
-  `dt_zone_set` does the same. No `tzset`; `get_systime` calls it before reading the clock, so the Date and Time rows show the new zone.
-- **24-Hour Time** (`0x4aeb50`): byte xor 1 stored in the delay slot of `change_time24h_12h` `0x544ab0` (the status bar clock's format,
-  `"hh:mm"` when the byte is set, else `"HH:TT"`; it looks up `bar_dclock` in the status bar window and does nothing without one), then
-  `write_int_config(byte, "SYSSET", "TIME24H")`. `config_init` keeps 0 and 1, anything else is 1 (default). The label and the on image
-  mean 24 hours when the byte is 1; which of the two AWTK format strings shows 24 hours is read from that label, not tested on a device.
-- **Manual date and time** (`datetime_page`): init `0x4a58fc` calls `get_systime(&minute, &hour, &day, &month, &year)` `0x4d76e4`
-  (`toolsGetSysTime`: `tzset`, `localtime`) and fills five text selectors (year clamped to 2022..2050). The confirm handler `0x4a576c`
-  reads the five and calls `set_systime(year, month, day, hour, minute)` `0x4d7770` (which calls `toolsSetRtcTime(0, minute, hour, day,
-  month, year)`: `date -s "Y-M-D h:m:s"`, then `hwclock -wu`, [autotime](autotime.md)), then `navigator_back`. Ours calls `set_systime` with
-  the same five numbers (checked against the confirm handler under the emulator); Set Date keeps the clock's time of day and Set Time its
-  date, because stock's page holds both.
+## Time zones
 
-**UI thread.** `set_systime` runs `system()` twice (`date`, `hwclock`) on the UI thread, in stock's confirm handler and in ours; the page
-freezes for that moment. Kept as stock does it. Nothing else blocks: the toggles store, save and return.
+The picker lists 43 zones (stock 27) west to east; the saved index maps to a `TZ` value from our
+table (`tools/timezones.py` `ORDER`, `TIMEZONES`).
 
-## Not done
+- **Indices 0-26 keep stock's order**, so a saved zone keeps its meaning. 27-42 are added
+  (Marquesas, South Georgia, Colombo, Kathmandu, Yangon, Eucla, Lord Howe, Noumea, Chatham,
+  Tongatapu, Kiritimati, Chicago, Phoenix, Kolkata, Brisbane, Auckland).
+- **Corrected stock zones:** 0 `<-12>12` (stock Kwajalein is +12), 4 Los Angeles (stock Tijuana),
+  6 `CST6` (Mexico City dropped DST), 8 Halifax, 16 `<+0330>-3:30` (Tehran dropped DST), 20 Dhaka
+  (stock Almaty), 26 `<+12>-12` (Fiji suspended DST). Every zoneinfo name exists in the stock
+  rootfs; POSIX rules stand in where its tzdata is out of date.
+- **Labels are English in every language** (`GMT+5:30 Kolkata`, at most 31 characters); stock's
+  translated labels named the old zones. They show the standard offset and are not relabelled in
+  daylight saving.
+- Config clamps: stock's `config_init` turns an index of 27 or more into 22 (Shanghai); ours keeps
+  an index below 43.
 
-- Date format and week day: stock has none.
-- A calendar or wheel entry: the pickers are plain check lists (no new widget).
-- The status bar clock and the lock screen read the byte and the clock on their own; nothing here repaints them (24-Hour Time calls stock's
-  `change_time24h_12h`, as stock does).
+### Hooks
 
-## Pins and tests
+All pinned in `tools/timezones.py` (`PINS`, `edits`); the build refuses on a mismatch.
 
-`tools/pod_pins.py` `DATETIME_PINS` (checked at build): the switch's stores and save, the page builder's row count, the zone click's
-store, save and same-zone test, the 24-hour switch, `config_init`'s clamp, the Manual row's gate, the manual page's clamps, the confirm
-call and `set_systime`'s call. Stock functions and bytes: `tools/pod.py` (`get_systime`, `set_systime`, `select_timezone`,
-`change_time24h_12h`, `AUTO_TIME`, `SYNC_NEED`, `TIME_24H`; names checked against the dynsym).
+| Site | Change |
+|---|---|
+| `select_timezone` prologue | jumps to `tz_select` |
+| `config_init` index clamp | keeps indices below 43 |
+| Picker page builder | 45 rows instead of 30; click limit raised to match |
+| Picker row builder | `tz_row` builds the row of zone `ORDER[row - 2]` through stock's builder, so row name, tick and click decode stay stock's |
+| Picker label copy | `tz_label` writes the English literal instead of an i18n key |
+| Zone row height and text | 48 px rows (stock 64), 18 px label style (stock 21), label y 13, tick y 11; the switch and header rows keep their words |
 
-`test/pod/datetime.py` runs stock's own handlers under the emulator on the same state and compares the stored words, the calls in order
-and the state at each call: Set Automatically from all four states, 24-Hour Time from both, every zone change (4 current zones x 43), and
-stock's confirm handler against ours for `set_systime`'s arguments. It also checks the clock texts (24 and 12 hours), the edit rules
-(clamps, leap years, refusals), the page rows and kinds, the dimming, the refresh on return to the front, the pickers, Set Date / Set Time
-and the assets. `test/pod/i18n.py` measures every row, title and note in all 13 languages.
+- `tz_select` reads `time_zone`; for an index below 43 and no `/mnt/mmc/m1plus-off` it calls
+  `toolsSetTimeZone(name)` (`setenv("TZ")`); otherwise stock's function runs. **Under the kill switch
+  a saved index of 27 or more maps to Shanghai**, as on stock. It runs at boot and after a tap.
+- **A device whose saved index is 27 or more boots on a stock build with Shanghai.**
+- The picker's row, count and label edits are static words, not hooks; the kill switch affects only
+  `tz_select`.
+- No `tzset` follows `setenv`; `localtime` re-reads `TZ`, `localtime_r` does not.
 
-## Device checks open
+## Clock and RTC
 
-- Set Automatically on with Wi-Fi up: the clock syncs within a few seconds (the thread, as under stock's page).
-- Time Zone: choose Kolkata, the Date and Time values follow; stock's zone page ticks the same zone.
-- Set Date and Set Time with auto off: the clock changes, survives a reboot (the RTC write), and stock's manual page shows it.
-- 24-Hour Time: the status bar clock changes format; which format is 24 hours (see above).
-- The freeze while Set Date / Set Time run (`system()` twice) is short enough.
+Stock V2.1 already syncs the clock over NTP. The mod changes only how the RTC is stored, as q2-pod
+does, with two pinned string edits (`tools/autotime.py`, applied by `tools/pod.py`). Stock's
+`ntpdate` command and servers are untouched.
+
+| Slot | Stock | New | Reason |
+|---|---|---|---|
+| RTC write (`toolsSetRtcTime`) | `hwclock -w` | `hwclock -wu` | the RTC holds UTC (q2-pod) |
+| RTC read (boot, `toolsGetRtcTime`) | `hwclock -s` | `hwclock -su` | the player's own boot read must not take UTC as local time |
+
+Each is a NUL-padded literal replaced by text of the same slot length. `EDITS` pins the stock bytes
+and `NEIGHBOURS` the following literal of each slot; a mismatch fails the build before anything is
+written.
+
+**Why the read changes too:** q2-pod changes only the write because its kernel's `hctosys` sets the
+clock from the RTC as UTC at boot. The M1 kernel has no `hctosys` and no RTC driver strings;
+instead the player runs `hwclock -s` itself at every start, after `TZ` is exported. The rootfs has
+no `adjtime`, so without `-u` it would read a UTC RTC as local time and shift the clock by the zone
+offset. `-su` is required for `-wu` to be consistent.
+
+**Default:** `config_init` copies the default `config.ini` only when `/mnt/data/config.ini` is
+missing, and the default has `AUTOSYNCTIME=1` and `TIMEZONE=22`. A fresh device has auto time on; a
+saved `0` stays off; a config without the key reads off. The mod does not touch `config.ini`.
+
+## Limits
+
+- **An RTC last written by stock holds local time.** After the update `hwclock -su` reads it as
+  UTC, so the clock is off by the zone offset until the next sync (automatic when Wi-Fi connects
+  with auto time on) or a manual set.
+- The sync runs once per connection event, not periodically.
+- Stock `time_t` is 32-bit; dates after January 2038 are wrong.
+- The status bar clock and the lock screen read the byte and the clock on their own; nothing here
+  repaints them.
+- No date format, week day, or calendar entry: the pickers are plain check lists.
+- BusyBox ash may not support the `&>` in stock's `ntpdate` command; left as in stock.

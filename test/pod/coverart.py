@@ -1,4 +1,4 @@
-"""Album cover extraction with our own resize (patch/covercache.c art_embedded / art_folder, patch/pccover.c pv_cover; docs/modules/coverflow.md "Cover resampling"): the cache worker takes the
+"""Album cover extraction with our own resize (patch/covercache.c art_embedded / art_folder, patch/pccover.c pv_cover; docs/modules/covercache.md "Cover resampling"): the cache worker takes the
 embedded picture (taglib_album_picture, as stock's toolsGetAlbumCover does) or the folder image (stock's choice, reproduced), decodes it at libjpeg's DCT scale (or through the streaming PNG
 decoder) and writes the output size stock's resize would, by an exact area average. The compiled payload runs under Unicorn; libjpeg is the PIL mock of test/pod/pcnet.py, which decodes at the
 scale it is asked and records it. Every failure must hand the same album to the stock call."""

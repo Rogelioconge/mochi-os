@@ -1,89 +1,236 @@
 # Playlists
 
-The menu opens `ui/m1plus_playlists.bin` through `ACT_PLAYLISTS`. It adds no hook. A failed
-window open falls back through `pod_home_open(14)` to stock `playlist_page`, which remains
-available from Shanling Home.
+**Sources:** `patch/playlists.c`, `patch/grid.c` (`grid_mosaic`, `grid_list_paint`),
+`tools/pod_ui.py` (`build_playlists_page`), `tools/pod_pages.py` (`PLAYLISTS`, `ACT_PLAYLISTS`),
+`PLAYLIST_PINS` in `tools/pod_pins.py`. **Tests:** `test/pod/playlists.py` (Clean Up Playlist:
+`test/pod/songs.py`). **Preview:** `tools/preview/preview_playlists.py`.
 
-Sources: `patch/playlists.c`, `patch/grid.c` (`grid_mosaic`), `tools/pod_ui.py`
-(`build_playlists_page`) and `tools/pod_pages.py` (`PLAYLISTS`, `ACT_PLAYLISTS`).
-Tests: `test/pod/playlists.py`; preview: `tools/preview/preview_playlists.py`.
+The menu opens `ui/m1plus_playlists.bin` through `ACT_PLAYLISTS`. No hook. A failed open falls back
+through `pod_home_open(14)` to stock `playlist_page`. The same page is the Add to Playlist picker
+([picker](picker.md)): list mode, a New Playlist row and a Favorites row pinned first, then the
+playlists in the saved order; no list-plus button, "..." or Now Playing; a tap adds the selection.
 
 ## What the user sees
 
-- **Large title** (the Albums page's, `docs/modules/albums.md` "Layout and state"): `pl_title`, the first child of `view_grid`: "Playlists" (the picker: "Add to Playlist", `az_fit`), 32 px white at x 12, 296 wide, `SG_TITLE_H` 52 px high, insensitive; it scrolls with the content. The grid's first gap or the list's first row starts `PL_TOP` (= `SG_TITLE_H`) 52 px down, so every row, cell, mark and touch is offset by it (`pl_coff()` = the offset less 52, used by `pl_span`, `pl_top`, the paint and `pl_cell_at`). The navbar's small title `label_title` is hidden at rest and shown once the offset reaches `SG_COLLAPSE` 46 (`m1_title_gone`), in select mode ("N Selected"), and always when the scroll events cannot be registered; `img_nb_fade` shows while the offset is above 0 (`pl_fade`, from the scroll_view's `EVT_SCROLL` / `EVT_SCROLL_END`). Select mode keeps the large title in the content; the picker has the same title block.
-- **Two modes of one page, as Albums** (`docs/modules/albums.md`): the navbar reads Back, the small title (above) and the capsule **list-plus | "..." | Now Playing** as Songs' Search | "..." | Now Playing (`btn_plactions`, `pod_nav_listplus` = Lucide `list-plus`, the SF Symbols text.badge.plus, the left cap at x 168, 46 x 50, Albums' Cover Flow place; `btn_more` the middle piece `pod_nav_moremid` at x 214; the small title runs to 168). The grid / list toggle left the navbar: **Grid** and **List** are rows of the "..." card (below); the four actions are the list-plus button's card. A tap on the other view switches the mode **in place** (`pl_set_mode`: tiles dropped and remade in the new size and shape, the content resized, the first playlist in view kept, a coasting list stopped), and saves it in **`/mnt/data/m1plus/playlists-view`** (`1` grid, `0` list, anything else the grid; its own file, apart from Albums' `m1plus-albums`), so it survives re-open.
-- **List mode**: 64 px rows (`LIST_ROW_H`), the 52 px mosaic (quadrants of 26 px; one album full size; none the placeholder; `LIST_R` corners cut in the alpha) at (10, 6), the name in 21 px white and "N tracks" in 18 px `#AAAAAA` from x 74 (the styles of the hidden labels `label_row_title` / `label_row_sub`), a `#222222` hairline from the text to x 310, the grey chevron at x 288 (`LIST_CHEV_X`; the text ends at x 278) except in select mode and in the picker (its rows add a song, they open nothing), the pressed row `#333333`. The row painter is shared with Albums: **`grid_list_paint`** in `patch/grid.c` (moved there from `patch/albums.c`, which calls it). A tap on a row (any x) opens the playlist.
-- Grid mode: the Albums grid's page (navbar as above), under it a stock `list_view` > `scroll_view` + `scroll_bar_m` holding one content view, two columns of 144 px tiles with the shelf's 8 px corners. Under a tile the playlist's name (18 px white) and "N tracks" (15 px `#AAAAAA`, the album page's `%d track` / `%d tracks` keys). A tap on a cell opens the playlist.
-- **The tile** is a 2 x 2 mosaic of the playlist's albums: four albums fill the quadrants (A B / C D); three repeat the first (A B / C A); two (A B / B A); one is that cover full size; no album with a cover (an empty playlist, or none of its albums has a cache file) is the stock placeholder disc.
-- **Two cards, one set of widgets.** Both are the shared view-sort card (`patch/viewsort.c`, [albums](albums.md) "The ... card"), the one `vs_card` offered again at each open (`pl_menu_kind`: `vs_offer` with the rows of the card, then `vs_menu`), the list-plus button's **four 50 px rows in `vs_glass4`**, the "..."'s **three in `vs_glass3`**, right edge 311, top y 52, fitted to the language. **The list-plus button** (`btn_plactions`, `pl_on_actions`): the **actions** group **New Playlist, Import, Export, Delete Playlists** (the glyphs `pl_ic_new`, `pl_ic_import`, `pl_ic_export`, `pl_ic_delete`: `mod_icons.PL_MENU_ICONS`; with an accent the four are tinted at decode: `ACCENT_GLYPH_STOCK`), no hairline (mask `PL_ROWS_ACTIONS`). The four actions are slots 6..9 of the helper (`VS_SEARCH`, `VS_SELECT` and `VS_ACT2`, `VS_ACT3`; `vs_item8` / `vs_item9`, `vs_label8` / `vs_label9`, `vs_glyph8` / `vs_glyph9` exist only in this page's asset, `vs_bind` finds them only when the mask asks for them). **The "..."** (`pl_on_more`): the **View** group **Grid, List** (a tick on the current view), one hairline (Name's top border: `vs_offer` takes it away while the list-plus button's card is offered and gives it back, `vs_t.bare`), the **Order** group **Name** (the helper's sort slot 0; slots 1..3 are in the asset and never offered; `vs_dated` none), ticked with its direction under it (A–Z / Z–A) (mask `PL_ROWS_MORE`). **One card at a time**: `pl.menu` is 0, 1 ("...") or 2 (list-plus button); a tap on either button while a card is open does nothing (the scrim lies over the navbar anyway), the "..." closes its own card; the list-plus button is hidden and insensitive in select mode and in the picker. Old `pl_scrim`, `pl_card`, `pl_item0..3`, `pl_label0..3`, `pl_icon0..3`, `pl_fit` and the `pl_glass` pane are gone from this page (`pl_glass` stays for the two dialogs that borrow it). Labels: **New Playlist**, **Import**, **Export** (new short translations of ours: the stock "Import playlist" would not fit beside the glyph in Spanish, German or Japanese), **Delete Playlists** (it starts select mode on this page, below). Behaviour of the four actions is unchanged (below, "Menu").
-- **The order.** Name is the one sort row of the "..." card; it is ticked, and a tap reverses it (A–Z / Z–A, `pl_on_item`). Saved first in **`/mnt/data/m1plus/playlists-sort`** (`PLAYLISTS_SORT_FILE`, one character as `folders-sort`: **`a` Name Z–A**, written `0` for A–Z; missing or anything else Name A–Z (no compat handling: a leftover `1` / `b` from the retired Recently Added reads as A–Z); through a `.tmp` file; a failed save changes nothing) and listed in Settings Files after `folders-sort`. The default is Name A–Z, **not** the stock order: the page, its Add to Playlist picker (Favorites and New playlist stay pinned as its first two rows) and every list follow it. **Name** is `cc_name_keys` / `cc_key_cmp` as the Artists page's (digit runs by value, ASCII case folded, a leading "The " and leading punctuation dropped, a CJK name placed by its pinyin initials; ties keep the stock order); Z–A is the whole order reversed. **The stock list is never reordered**: `pl.pls` stays the copy of the stock rows and `pl.ord` maps each displayed position to its stock row (`pl_slot`, `pl_rec`), so a row tap, the select marks and the picker's rows follow the displayed order while the stock calls keep stock positions (select mode's Delete fills the stock vector with `pl_slot(row)` and checks the fresh stock list against `pl.pls` by stock position). A re-sort (`pl_reorder`) carries every playlist's scan (`info_t`) over to its new place, so no count is read again; only the tiles are made again (as for a view switch) and the list returns to the top; with no memory for it the page reads everything again.
-- **Sorts not offered, and why.** "Recently Modified" and "Number of Tracks" are not on the card: a playlist has no modification time (the stock `playlist` table holds its name and id, its songs are rows of the one table, and nothing records when one changed), and its track count is known only after the loader has read its songs (`loadLocalClassList(0xff13)`, one playlist a tick, up to 100 queries that each replace `*pdeq_showlist`), so a count order would need the page to read every playlist before it could show a row. Both can be added if a cheap source turns up.
-- **The cards fit the language** (`vs_fit`, as every view-sort card): as wide as the widest label (or direction line) plus its x (66 after a glyph, 38 for Name) plus 16, 206..292, right edge 311, top y 52; the four action labels fit the 210 px room after the glyph in all 13 languages (test/pod/playlists.py, i18n.py). The small title ends at the list-plus button (x 168, 110 px: `label_title`), and "Playlists" fits or ellipsizes in every language (tested).
-- **Select mode (the card's Delete Playlists), in the Songs page's manner** (`docs/modules/songs.md` "Select"). The marks (`m1_make_mark`, `patch/common.c`) are cut to the ring's circle (radius 11 in their 26 px square, coverage alpha): the decode flattens them over black, which showed as a black square on every cover (device test of oWA). The row keeps its name and its trash glyph: select mode here exists for deleting (it is the stock Playlists page's multi-select, whose only actions are export and delete; export stays the menu's row), so a separate "Select" row would only lead to Delete; the tap on the row is the Select button of the Songs page. In select mode the navbar's Back becomes the glass x (`ah_nav_close`), the title reads **N Selected** (cut at x 208), the text button **Select All** (all, or none when all are marked) is at the right, and "..." and Now Playing go (hidden and insensitive). Every cell has a 26 px mark (the stock `unselect` / `selected` images) at the bottom right of its cover, 6 px in; in list mode a mark column of 30 px (`SG_SEL_COL`) opens left of each row and the cover and the texts move right by it (`grid_list_paint`'s `shift` argument, which also moves the hairline's start, and no chevron; the row's texts are made again at the narrower width, `pl_retext`). A tap marks and unmarks (it opens nothing; a drag marks nothing); no pressed fill. A 64 px bar (the Songs page's: black, a #222222 hairline) holds one flat **Delete** pill across it (300 x 40 at x 10, the glyph `sg_trash`, `m1_centre_pill`), the content is 64 px longer so the last row scrolls clear. Back (the x) leaves the mode first; a page read again (the window comes back to the front, after a delete) is out of it, since the marks were of the old list. **Delete** is the stock handler's sequence (`pl_on_delete`; evidence below): nothing marked is the stock message `msg_delplaylistfailed`; the stock confirm dialog with `msg_delplaylist` (Yes, 0xa, anything else ends it, the mode stays); then the stock list is read again and must be what the page shows (as many rows with the same ids in the same order, else nothing is deleted and the page reads again), the stock vector is filled from the marks (`select_recordinit(n)`, `set_selectindex(i)`), `batch_delete_file(0xf00b, *pdeq_playlist, the vector, 0, 0)`, the message `msg_delplaylistsuccess`, select mode ends and the page reads again. Where the page cannot do it (the asset lacks `btn_selall`, `pl_bar` or `pl_del`, the marks do not decode, no selection bitset or vector) the row opens the stock Playlists page as before (`pod_home_open(14)`, its multi-select deletes); with no playlist the row only closes the menu.
-- Empty (no playlist): the grid is hidden (its large title with it, as Albums) and a centred "No playlists" shows; the card is still there.
+- **Large title** (the Albums page's, [albums](albums.md) "Layout and state"): `pl_title`, first
+  child of `view_grid`, "Playlists" (the picker: "Add to Playlist"). Rows start `PL_TOP` (52 px)
+  down. The small navbar title shows from `SG_COLLAPSE` 46, in select mode ("N Selected") and
+  when scroll events cannot be registered.
+- **Navbar**: Back, the small title, and the capsule **list-plus | "..." | Now Playing**
+  (`btn_plactions` with `pod_nav_listplus`, the left cap at x 168; `btn_more` at x 214). The small
+  title runs to x 168.
+- **Grid** (default): two columns of 144 px tiles with 8 px corners; under a tile the name (18 px
+  white) and "N tracks" (15 px `#AAAAAA`). A tap on a cell opens the playlist.
+- **List**: 64 px rows (`LIST_ROW_H`), 52 px mosaic at (10, 6), name 21 px white and "N tracks"
+  18 px grey from x 74, hairline to x 310, chevron at x 288 (none in select mode or the picker),
+  pressed row `#333333`. The painter is `grid_list_paint`, shared with Albums.
+- **The tile** is a 2 x 2 mosaic of the playlist's albums: four fill the quadrants (A B / C D),
+  three repeat the first (A B / C A), two (A B / B A), one is that cover full size, none (empty
+  playlist, or no album has a cache file) is the placeholder disc.
+- Empty: the grid and large title are hidden and a centred "No playlists" shows; the card is still
+  there.
 
-## The stock database calls (reverse engineering, V2.1 `demo`)
+The view is saved in `/mnt/data/m1plus/playlists-view` (`1` grid, `0` list, else the grid), apart
+from Albums' file. A switch is in place (`pl_set_mode`: tiles remade, first playlist kept).
 
-- Playlists are rows of the `playlist` table of `/mnt/data/database.db` (`toolsInitDatabase` 0x5ed734; `create table %s(id INTEGER PRIMARY KEY, filename VARCHAR(512), f...` 0x757948 / 0x757aec). A row with `id <= 100` is a playlist (`getAllPlayList` 0x4ec4e8, `select * from playlist where id <= 100`: name in `REC_TITLE`, id in `REC_ID` and `REC_DISC`, which `createPlayListItem` 0x4eeca8 stores alike, type 4), a row with `id > 100` is a song linked by `cd_num` = the playlist id (`getMusicByPlayList` 0x4eddac, `select * from playlist where id > 100 and cd_num=%d`, no ORDER BY: insertion order).
-- **Open question 1, the song columns.** The row callback (0x4e9058) takes **18 columns**, the same as a library song (`stSongInfo`, 0x58 bytes): a playlist song carries `REC_ALBUM` and `REC_ARTIST` as they were when it was added, so the Cover Flow cache key (`cc_album_key`: FNV-1a of artist then album) is computed from the row itself. That is the key of the album record only when the track's artist is the one SQLite picked for the album (`getAllAlbum` is `select id,album,songer,fileurl ... group by album COLLATE NOCASE`: one arbitrary artist per album), so a track of a compilation can miss: the page then takes the key of the library album of that name (`cc_nocase` on `REC_ALBUM` in `cc_albums()`, the Albums page's copy, loaded at the first scan), tested.
-- `loadLocalClassList(0xf00b)` (0x4ee504; `getAllPlayList` at 0x4ee618, assigned to `*pdeq_playlist` 0xa045d0 at 0x4ee63c) lists the playlists; with `classinfo[1]` (0xa0c768 + 4) = a playlist id, `loadLocalClassList(0xff13)` (0x4ee744: `getMusicByPlayList(classinfo[1])`, assigned to `*pdeq_showlist`) lists its songs. Both return the deque size.
-- **Open question 2, opening a playlist.** The stock Playlists page (`playlist_page_init` 0x53eb24: the page context into `0xa00000 + 0x6f50 / 0x6f54`, `loadLocalClassList(0xf00b)`, the rows built by 0x53e74c: `playlist_firstitem_layout` 0x53e064 = the create row, `playlist_seconditem_layout` 0x53e19c = Import / Export, `playlist_listitem_layout` 0x53e44c = one per playlist, each registered with the shared row handler 0x53d300) opens a playlist in **mode 0** (`0xa00000 + 0x6f50` <= 0, the page opened from Home with context 0): `snprintf(nagvation_title 0xa0533c, 0x200, "%s", name)` (0x53d5b8), `classinfo[1] = REC_DISC` of the row (0x53d5f4), **`navigator_to_with_context("allmusic_page", 0xff13)`** (0x53d5e8 .. 0x53d428; the context is the class, a value). `allmusic_page_init` 0x528968 then runs `loadLocalClassList(0xff13)` itself and copies `nagvation_title` into the page's title. `pl_open` does exactly those three steps, so play, delete and reorder are the stock page's.
-- **Open question 3, create / import / export.**
-  - *Create*: the handler at 0x53e8e4 calls `navigator_to_with_context("dialog/kbaddplaylist_dialog", buf)` (modal; the dialog stores the context pointer at `0xa00000 + 0x39e0`, `dialog_kbaddplaylist_dialog_init` 0x477c24, the edit's max is 127 characters; returns 0 for accepted), then `createPlayListItem(*pdeq_playlist, buf)` (-1 full: the message `msg_playlistfull`, -2 exists: `msg_playlistexist`, else the new id, in `addPlayList` 0x4ee1cc -> `toolsInsertDbTable`), then rebuilds its own list (0x53e74c, which looks up the stock page's widgets: not callable from our page). Our page does not open stock's T9 dialog: `pl_create` opens our own keyboard (`keyboard_open`, docs/modules/keyboard.md; title the stock `playlist_create`, hint the stock `msg_newplaylists` "Enter a playlist name", the action key reads **Done** through `KB_DONE`; Chinese (Pinyin) works when Customize > Keyboards has it on). The keyboard is **not modal**: Done (a non-empty name, trimmed; an empty or all-space field does nothing and the keyboard stays open) closes the keyboard page and then calls `pl_named(name)`: the stock list is read first (`createPlayListItem` reads it for the free id and the duplicate name check), `createPlayListItem`, the two messages in the stock message box (from the callback, the keyboard page already told to close), and `pl_load` when the page is still up (`pl.win`; the page's to-foreground handler reads again too, so the order of the two does not matter). Back creates nothing. The name is at most the keyboard's 63 bytes (stock's edit took 127), cut on a character boundary by the keyboard itself. `pl_on_item` returns after `pl_create` (the read is the callback's). The stock `dialog/kbaddplaylist_dialog` is no longer used by our pages.
-  - *Import / Export*: the click handlers of the stock rows (static, 0x53dedc and 0x53dd34, `ret_t (ctx, event)`, neither reads its arguments) ask with `dialog/confirminfo_dialog` (`msg_importplaylist` / `msg_exportplaylist`), run `importPlayList` 0x4ef394 / `exportPlayList` 0x4ef0b0(`all`, `*pdeq_playlist`, `*0xa045e0`) over `/mnt/mmc/_explaylist_data` and report in the stock message box. They are **called as they are** (pinned by prologue and call words, `tools/pod.py` `PLAYLIST_PINS`); export reads `navigation_status` (0xa05a24, 1 = the lists' multi-select mode) to choose all or the selected playlists, so the page stores 0 there first (the stock pages reset it at their init).
-  - *Delete* (the evidence for the page's select mode). The stock handler `0x53dbcc` (registered on the multi-select mode of the stock Playlists page: `navbar_btnmulselect_style`, then select-all, `navbar_btndel_style`, `navbar_btncancel_style`, the navbar built by `0x53d5f8`) touches **no widget** and does not rebuild its page; its whole sequence, read from the disassembly: (1) `select_recordempty()` `0x4da60c`; if nothing is selected a `dialog/msginfo_dialog` context (kind 1, 2000 ms, `getFormatString("msg_delplaylistfailed")` at +8) and it ends; (2) else a `dialog/confirminfo_dialog` context (kind **1**, the text `msg_delplaylist`; the Songs delete uses kind 3, which has the checkbox) and the call returns 0xa for Yes (`0x53dcc0`, `0x53dcc4`: anything else ends it); (3) **`batch_delete_file(*0x97cad4, *pdeq_playlist, *0xa045e0, 0, 0)`** (`0x53dcd0` .. `0x53dcf0`: the browsing class `g_class_type` is 0xf00b on that page; the fifth argument, `delete_file`, is 0: no file belongs to a playlist); (4) the msginfo message `msg_delplaylistsuccess`. `batch_delete_file` takes the class from its argument: its jump table `0x74b7b0` (`word + gp 0xa03ed0`, one word for each class `0xf003 .. 0xf00b`) sends 0xf00b (the ninth word, `0x74b7d0` = `0xffade414`, 0x4e22e4) to the loop whose body is `0x4e2264`: for each `i` below `vector_size(selection)` and `deque_size(list)` with `vector_at(selection, i)` non-zero, **`deletePlaylist(*deque_at(list, i))` `0x4edf98` and `deleteAllMusicByPlaylist(*deque_at(list, i))` `0x4edfdc`** (the record's first word is the id: `REC_ID`, as `REC_DISC`), then the common tail (`*0xa05a5a = 1`, the \"library changed\" flag). The class is passed by the page (0xf00b), not read from `g_class_type`, so the page does not depend on what the browsing class was. The selection vector is the one the Songs page fills (`select_recordinit`, `set_selectindex`, `docs/modules/songs.md`); pinned (`tools/pod.py` `PLAYLIST_PINS`): the handler's Yes test and its `batch_delete_file` call words, the class's jump-table word and the two `bal` words of the loop. **Chosen path: select mode on our page** (above), the stock page only as the fallback.
+### The two cards
+
+Both are the shared view-sort card on one `vs_card` ([albums](albums.md) "View sort card"),
+offered again at each open (`pl_menu_kind`: `vs_offer` with the rows, then `vs_menu`). Right edge
+311, top y 52, fitted to the language (`vs_fit`).
+
+| Card | Button | Rows | Glass |
+|---|---|---|---|
+| actions | list-plus (`pl_on_actions`) | New Playlist, Import, Export, Delete Playlists; no hairline, no tick column | `vs_glass4` |
+| view and order | "..." (`pl_on_more`) | View: Grid, List (tick on the current); hairline; Order: Name, ticked, direction under it | `vs_glass3` |
+
+- The four actions are slots 6..9 (`VS_SEARCH`, `VS_SELECT`, `VS_ACT2`, `VS_ACT3`); slots 8 and 9
+  exist only in this page's asset. Glyphs `pl_ic_*` (`mod_icons.PL_MENU_ICONS`).
+- One card at a time (`pl.menu` 0, 1 or 2). The list-plus button is hidden in select mode and the
+  picker. `New Playlist`, `Import`, `Export` are short translations of ours (the stock "Import
+  playlist" does not fit beside the glyph in es, de, ja).
+- `vs_offer` takes Name's top border away while the actions card is offered and gives it back
+  (`vs_t.bare`).
+
+### Order
+
+Name is the one sort row; a tap on the ticked row reverses it (A-Z / Z-A).
+
+- Saved first in `/mnt/data/m1plus/playlists-sort` (`PLAYLISTS_SORT_FILE`; `a` Name Z-A, written
+  `0` for A-Z; missing or anything else A-Z; a failed save changes nothing; listed in Settings
+  Files).
+- The default is Name A-Z, **not** the stock order. The page, the picker (Favorites and New
+  Playlist stay pinned first) and every list follow it. Name is `cc_name_keys` / `cc_key_cmp`, as
+  the Artists page ([artists](artists.md)); ties keep the stock order and Z-A is the whole order
+  reversed.
+- **The stock list is never reordered**: `pl.pls` is the copy of the stock rows and `pl.ord` maps
+  each displayed position to its stock row (`pl_slot`, `pl_rec`). Taps, select marks and the picker
+  follow the order shown; stock calls keep stock positions. A re-sort (`pl_reorder`) carries every
+  scan over, so no count is read again.
+- **No Recently Added sort.** An order by playlist id was dropped: stock `createPlayListItem`
+  reuses the lowest free id, so after a delete a new playlist lands in the middle, and no creation
+  time is stored.
+- Recently Modified and Number of Tracks are not offered: a playlist has no modification time, and
+  its count is known only after the loader has read its songs (one query per playlist, each
+  replacing `*pdeq_showlist`), so a count order would have to read every playlist before showing a
+  row.
+
+### Select mode
+
+Started by the card's Delete Playlists, in the Songs page's manner ([songs](songs.md) "Select").
+It exists for deleting (stock's multi-select only exports and deletes; export stays the menu row).
+
+- Back becomes the glass x, the title reads "N Selected", Select All is at the right, "..." and
+  Now Playing go. Every cell has a 26 px mark (`m1_make_mark`, cut to a circle) at its cover's
+  bottom right; in list mode a 30 px column (`SG_SEL_COL`) opens left of each row and cover, texts
+  and hairline shift right. A tap marks; a drag marks nothing.
+- A 64 px bar holds one flat **Delete** pill (300 x 40 at x 10). The content is 64 px longer.
+- Back (the x) leaves the mode. A page read again (returning to the front, after a delete) is out
+  of it, since the marks were of the old list.
+- Where the page cannot do it (no `btn_selall`, `pl_bar` or `pl_del`, marks that do not decode)
+  the row opens the stock Playlists page (`pod_home_open(14)`); with no playlist it only closes the
+  menu.
+
+**Delete** (`pl_on_delete`; evidence below): nothing marked shows `msg_delplaylistfailed`; the stock
+confirm dialog with `msg_delplaylist` (Yes = 0xa; anything else ends it, the mode stays); then the
+stock list is read again and must match what the page shows (same ids, same order, else nothing is
+deleted); the stock vector is filled from the marks; `batch_delete_file(0xf00b, *pdeq_playlist,
+vector, 0, 0)`; `msg_delplaylistsuccess`; the mode ends and the page reads again.
+
+## The stock database calls
+
+- Playlists are rows of the `playlist` table of `/mnt/data/database.db`. A row with `id <= 100` is a
+  playlist (`getAllPlayList`: name in `REC_TITLE`, id in `REC_ID` and `REC_DISC`, type 4). A row
+  with `id > 100` is a song linked by `cd_num` = the playlist id (`getMusicByPlayList`, no ORDER BY:
+  insertion order). Rows have the 18 columns of a library song, `REC_ALBUM` and `REC_ARTIST` as when
+  added.
+- That album/artist pair gives the Cover Flow key only when the track's artist is the one SQLite
+  picked for the album (`getAllAlbum` groups by album), so a compilation track can miss. The page
+  then takes the key of the library album of that name (`cc_nocase` over `cc_albums()`).
+- `loadLocalClassList(0xf00b)` lists the playlists into `*pdeq_playlist`; with `classinfo[1]` = a
+  playlist id, `loadLocalClassList(0xff13)` lists its songs into `*pdeq_showlist`.
+- **Opening a playlist.** Stock (`playlist_page_init`, mode 0) copies the name into
+  `nagvation_title`, sets `classinfo[1]` = `REC_DISC`, and calls `navigator_to_with_context(
+  "allmusic_page", 0xff13)`. `pl_open` does the same three steps when our Songs page will not open.
+
+### Create
+
+Stock runs `dialog/kbaddplaylist_dialog`, then `createPlayListItem(*pdeq_playlist, buf)` (-1 full:
+`msg_playlistfull`; -2 exists: `msg_playlistexist`; else the new id). Ours opens our own keyboard
+instead (`pl_create`, [keyboard](keyboard.md); title `playlist_create`, hint `msg_newplaylists`,
+action key **Done**).
+
+- The keyboard is not modal. Done with a non-empty trimmed name closes it, then `pl_named(name)`
+  reads the stock list first (`createPlayListItem` needs it for the free id and the duplicate
+  check), creates, shows the two messages, and calls `pl_load` if the page is up. Back creates
+  nothing. The name is at most 63 bytes.
+
+### Import and Export
+
+The stock row handlers (static, `PLAYLIST_PINS`) ask with `confirminfo_dialog`, run `importPlayList`
+/ `exportPlayList` over `/mnt/mmc/_explaylist_data` and report in the stock message box. They are
+**called as they are**. Export reads `navigation_status` (1 = multi-select) to pick all or selected
+playlists, so the page stores 0 there first.
+
+### Delete
+
+The stock handler touches no widget. Its sequence: `select_recordempty()`; nothing selected is
+`msg_delplaylistfailed`; else a kind 1 confirm (`msg_delplaylist`; the Songs delete uses kind 3 with
+a checkbox); then `batch_delete_file(*g_class_type, *pdeq_playlist, *SEL_VEC, 0, 0)` (`delete_file`
+0: no file belongs to a playlist); then `msg_delplaylistsuccess`. For class `0xf00b` the loop calls
+`deletePlaylist` and `deleteAllMusicByPlaylist` per marked row. The page passes the class itself,
+so it does not depend on `g_class_type`. The selection vector is the Songs page's
+([songs](songs.md) "Select").
 
 ## The page (`patch/playlists.c`)
 
-- Widgets (`tools/pod_ui.py` `build_playlists_page`): `playlists_listview` > `playlists_scrollview` > `view_grid` + `scroll_bar_m`, the content's first child the large title `pl_title`, the navbar's `label_title` (hidden in the asset) and `img_nb_fade` (the Albums structure: the mobile bar is required, `docs/modules/albums.md`), the hidden `label_status`, `label_grid_title` / `label_grid_sub` (the text styles), then **last** (above everything) the shared card's hidden, insensitive `vs_scrim` and `vs_card` with ten row buttons `vs_item0..9` (`view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=pod_pages.PLAYLIST_MENU, act_glyphs=...)`: Name in sort slot 0; slots 1..3 exist but the page never offers them); the navbar's `btn_plactions` (`navbar(plactions=True)`). No widget of the page is renamed or removed (the old popup's are gone with the card); hide = `visible=false` + `sensitive=false`, as everywhere.
-- **Data.** `pl_load` (at open and whenever the window gets `EVT_WINDOW_TO_FG`: back from the songs page, the stock Playlists page or a dialog) runs the stock query `loadLocalClassList(0xf00b)`, copies the rows (`cc_copy_list`) and sizes the content. **The scans and tiles are kept** when the page comes back with nothing changed (`pl_same_list`: as many rows, the same id and name in each; and `pl_dbsig`: the modification time, its nanoseconds and the size of `/mnt/data/database.db` and of its `-wal` and `-journal`, taken at each `pl_load`, are as they were): a Back from a playlist's songs page, the menu or a dialog then queries only the playlist list, no playlist and decodes nothing. Every playlist's songs are rows of that one file, so any edit (the stock picker, our pages, the player's own writes, which only cost a rebuild) changes the signature; a rename, add, delete or reorder changes the list; an unreadable database file keeps nothing. The cover cache is not in that signature (the Cover Flow build writes files while another page is open), so a kept scan that **found an album with a key but no cache file** (`grid_mosaic_keys`' `miss`, stored as `info_t.scanned == PL_SCAN_MISS`) is marked unread again on the return and the loader scans it once more (its tile is rebuilt only when the albums found differ: `pl_same_art`; the same albums keep the finished bitmap, so a file still missing costs one query and no decode); scans where every album had its file or has no key (placeholder tiles of empty playlists included) stay untouched: no query, no decode. Otherwise every tile and scan is dropped and made again. At most `PL_MAX` (100: the id range) playlists. Per playlist the loader's **scan** (`pl_scan`, one playlist a tick) sets `classinfo[1]`, runs `loadLocalClassList(0xff13)`, takes the count, and from the first `PL_SCAN` (50) songs the first four **distinct** albums that have a cache file (`cc_url`; a key is looked at once; the library lookup above when the song's own key, not looked at before, has no file (a later song of that album skips both); this choice is `grid_mosaic_keys` in `patch/grid.c`, which the Songs page's playlist header calls too, `docs/modules/songs.md` "A playlist's header"). The list of every song is the stock one (`*pdeq_showlist`, replaced by the next query), so the page holds only four keys per playlist (`info_t`, 24 bytes).
-- **Tiles and the loader.** The Albums page's ring (`GRID_TILES` 12 tiles of 144 x 144 x 4 = 81 KB, plus the placeholder; the same 1.1 MB bound as Albums, plus one 72 x 72 quadrant buffer of 20 KB and the library copy for the lookup, which Albums holds too). `grid_mosaic` (`patch/grid.c`): one source per call, `cc_decode` box-reduced to 72 px (the area average of `cc_box`) into the quadrant buffer and copied into every quadrant that shows it; the bitmap exists, grey and unfinished, until the last source, which rounds the corners (`GRID_R`, blended into black once: the tile is opaque) and sets `art` 1, so paint shows the placeholder until then. One album is `grid_art` (the cover at 144). The page timer (`pl_on_load`, 16 ms) does ONE step a tick (a scan or one source) for the cell nearest the middle of the view, the cells in view before the row ahead; it does nothing while the `scroll_view` drags or flings (`pl_moving`, the Albums page's check of the stock fields), and is re-armed by `EVT_SCROLL` / `EVT_SCROLL_END`. **It stops when the window goes behind another** (`EVT_WINDOW_TO_BG`: the timer removed, `pl.bg` keeps a late scroll event from re-arming it) and restarts with the to-foreground's read: a scan sets `classinfo[1]` and replaces `*pdeq_showlist`, which the stock songs page of the playlist just tapped draws its rows from and plays (a tap before the mosaics in view were done showed and played another playlist's songs). Paint never decodes and never queries. The tile's texts are made when the tile is, with the count blank until the playlist is scanned and re-made after the scan. **On a library source** (`playlists_open_src`) the scan reads `src->list(LS_PLAYLISTS, row)`; while that is not cached yet the tile shows `src->count` (the sync's `songCount`, `patch/sbsrc.c nd_count`), so an unread playlist never reads "0 tracks", and the list's own size replaces it when the tracks arrive. A moved gen (any fetch anywhere moves it) does not reload the page: the signature is a hash of the rows' ids and names, so an unchanged list keeps every tile and decoded cover, and a changed one carries each unchanged playlist's tile and scan to its new place (`pl_carry`) while only new rows start empty. With the source's `state` loading, a playlist's scan is marked `PL_SCAN_MISS` and read again until its tracks are there. The "..." button takes the left cap's icon (`pod_nav_more`) on a source page, where the list-plus cap is hidden.
-- **Touch.** As the Albums grid: DOWN remembers the cell, ABORT (the scroll_view took a drag) forgets it, UP within `SC_DRAG_PX` of the press on the same cell opens the playlist (`pl_open`) **in our Songs page** (`songs_open_playlist`: the name as the title, the id in `classinfo[1]`; docs/modules/songs.md "The other lists"); only when that page will not open does it take the stock way of open question 2 (the stock songs page).
-- **Menu.** `btn_more` toggles the "..." card and the scrim, `btn_plactions` opens the actions card (`pl_menu_kind(kind)`: `vs_offer` with `PL_ROWS_MORE` / `PL_ROWS_ACTIONS`, then `vs_menu(&pl.vs, on, PL_SORT_ROW(pl.sort), pl.rev, pl.list)`: the tick on the current view, the order's direction line, the width fitted to the language by `vs_fit`), the scrim closes either. Every row closes the card first, then: slot 6 New Playlist -> `pl_create` (our keyboard, below); 7 Import / 8 Export -> `stock_playlist_import` / `_export` with `navigation_status` = 0; 9 Delete Playlists -> select mode (`pl_select(1)`; `pod_home_open(14)` where the page cannot); 4 Grid / 5 List -> `pl_set_mode` and the save (the ticked view does nothing); 0 Name / 3 Recently Added -> the order (saved first, then `pl_reorder`). After Import and Export the page runs `pl_load` (after New, `pl_named` does when the name is in).
-- **The glass.** The list-plus button's card draws `vs_glass4`, the "..." card `vs_glass3` (the helper's four- and three-row panes, `patch3_x`; [albums](albums.md) "The ... card"; it exists for Folders, no new picture). The page's own `pl_glass.png` (and its stock `patch3_x` evidence) belonged to the retired card: the image stays in the tree for the Podcasts refresh and Software Update dialogs that borrow it.
-- Texts: the stock key `playlist_create` (the keyboard's title), `msg_newplaylists` (the keyboard's hint), `msg_playlistfull`, `msg_playlistexist`; stock `msg_delplaylist`, `msg_delplaylistfailed`, `msg_delplaylistsuccess` (the select mode's confirm dialog and messages) and the Songs page's `%d Selected`, `Select All`, `Delete`; ours `New Playlist`, `Import`, `Export`, `Delete Playlists`, `No playlists` (`tools/pod_i18n.py`; `Name`, `Recently Added`, `Grid`, `List`, `A–Z`, `Z–A`, `Newest First` and `Oldest First` are existing keys), `%d track(s)`. The stock keys `playlist_import` and `playlist_export` are no longer used.
-- Pins (`tools/pod.py`): `createPlayListItem` 0x4eeca8 (a named function), the data words `pdeq_playlist` 0xa045d0, `nagvation_title` 0xa0533c, `navigation_status` 0xa05a24, and `PLAYLIST_PINS` for the two static click handlers. The payload grew to 103,304 bytes.
+- **Widgets**: `playlists_listview` > `playlists_scrollview` > `view_grid` + `scroll_bar_m` (the
+  Albums structure, [albums](albums.md)), the large title first in the content, the navbar's
+  hidden `label_title` and `img_nb_fade`, hidden text styles, then last the shared card's
+  `vs_scrim` and `vs_card` with ten row buttons `vs_item0..9`. Hide = `visible=false` +
+  `sensitive=false`.
+- **Data.** `pl_load` (at open and on `EVT_WINDOW_TO_FG`) runs `loadLocalClassList(0xf00b)`, copies
+  the rows and sizes the content. At most `PL_MAX` 100 playlists.
+  - Scans and tiles are **kept** when nothing changed: same rows (`pl_same_list`) and same
+    `pl_dbsig` (mtime, nanoseconds and size of `database.db` and its `-wal` / `-journal`, taken at
+    each load). Every playlist's songs live in that one file, so any edit changes the signature.
+    A return from a playlist's songs page then queries only the playlist list.
+  - The cover cache is not in the signature. A scan that found an album with a key but no cache
+    file (`PL_SCAN_MISS`) is read again on return; its tile is rebuilt only when the albums found
+    differ (`pl_same_art`).
+  - Per playlist the loader's **scan** (`pl_scan`, one a tick) sets `classinfo[1]`, runs
+    `loadLocalClassList(0xff13)`, takes the count and, from the first `PL_SCAN` (50) songs, the
+    first four **distinct** albums with a cache file (`grid_mosaic_keys`, which the Songs page's
+    playlist header also calls). The page holds only four keys per playlist (`info_t`).
+- **Tiles and loader.** The Albums ring (`GRID_TILES` 12 tiles of 144 x 144) plus one 72 x 72
+  quadrant buffer. `grid_mosaic` decodes one source per call, box-reduced to 72 px, and rounds the
+  corners at the last one. The 16 ms timer (`pl_on_load`) does one step a tick for the cell
+  nearest the middle, nothing while the list moves (`pl_moving`). Paint never decodes or queries.
+  - **It stops when the window goes behind another** (`EVT_WINDOW_TO_BG`) and restarts with the
+    to-foreground read, because a scan sets `classinfo[1]` and replaces `*pdeq_showlist`, which the
+    playlist's songs page draws and plays from. A tap before the visible mosaics were done once
+    played another playlist's songs.
+- **On a library source** (`playlists_open_src`) the scan reads `src->list(LS_PLAYLISTS, row)`;
+  until cached the tile shows `src->count`, so an unread playlist never reads "0 tracks". The
+  signature is a hash of the rows' ids and names, so a moved gen keeps tiles and covers
+  (`pl_carry`). While the source is loading a scan is marked `PL_SCAN_MISS` and read again. The
+  "..." takes the left cap (`pod_nav_more`) on a source page.
+- **Touch.** As the Albums grid: UP within `SC_DRAG_PX` of the press on the same cell opens the
+  playlist in our Songs page (`songs_open_playlist`, [songs](songs.md) "The other lists"), the
+  stock page only if that will not open.
+- **Menu.** Every row closes the card first, then: slot 6 New Playlist -> `pl_create`; 7 / 8 Import
+  / Export -> `stock_playlist_import` / `_export` with `navigation_status` 0; 9 Delete Playlists ->
+  `pl_select(1)`; 4 / 5 Grid / List -> `pl_set_mode` and the save; 0 Name -> the order. The page
+  runs `pl_load` after Import and Export.
+- **Glass.** The actions card uses `vs_glass4`, the "..." card `vs_glass3`. `pl_glass.png` stays
+  in the tree only for the Podcasts refresh and Software Update dialogs that borrow it.
+- **Pins** (`tools/pod.py`): `createPlayListItem` (named), data words `pdeq_playlist`,
+  `nagvation_title`, `navigation_status`, and `PLAYLIST_PINS` for the two static click handlers.
 
 ## Clean Up Playlist (`patch/songs.c` `sg_clean`, `patch/songops.c`)
 
-**Why.** A playlist's song is a row of the `playlist` table with its own copy of the song's columns, the path (`fileurl`) among them, as it was when the song was added. Stock Update Library rebuilds `songtable` and leaves `playlist` alone, so a song whose file was deleted, or moved to another folder, stays in the playlist with a path that no longer exists: the library and Search show the song at its new place, the playlist's row does not play. (A row's tap, Play Next / Play After and Shuffle check the first file with `access`; the message is **"File not found"** with the card in, `/tmp/mmc_add`, and "Storage unavailable" without it: `so_missing`.)
+**Why.** A playlist song is a row of the `playlist` table with its own copy of the song's columns,
+the path (`fileurl`) among them. Stock Update Library rebuilds `songtable` and leaves `playlist`
+alone, so a song whose file was deleted or moved stays with a path that no longer exists: the
+library shows it at its new place, the playlist row does not play. (A tap, Play Next / After and
+Shuffle check the first file with `access` and toast **"File not found"** with the card in, or
+"Storage unavailable" without it: `so_missing`.)
 
-**The row.** A stock playlist's songs page has the "..." in place of the Select button (`sg_cleans`; the capsule's left cap at 214, the asset's `pod_nav_more`), its card two rows in `vs_glass2`: **Select**, then **Clean Up Playlist** (the Songs asset's slot 8, `VS_ACT2`, Lucide `list-x` as `pod_ic_vsclean`). A server playlist (a library source) keeps the Select button. The row works on this playlist only:
+**The row.** A stock playlist's songs page has the "..." in place of Select (`sg_cleans`); its card
+is two rows in `vs_glass2`: **Select**, then **Clean Up Playlist** (slot 8, `VS_ACT2`, glyph
+`pod_ic_vsclean`). A server playlist keeps the Select button. It works on this playlist only:
 
-1. **Check** (`sg_gone`, `so_gone_mark`): each row whose path starts with `/mnt/mmc/` is tested with `access`; any other path (USB, none) is never tested, marked or written. The marks are the page's select bitset, cleared afterwards.
-2. **Guards**, nothing written: no card (`/tmp/mmc_add`), the stock `msg_nottf` "No TF Card Found"; nothing missing, "All songs are on the card"; the card is in but `/mnt/mmc` is not its own file system (`m1_card_mounted`: every path would look missing), "Card not readable, nothing removed".
-3. **Repair**, unasked (`so_relink`): the library is asked for the missing rows' file names, `select * from songtable where filename in (...)` (40 names a query, `SO_RELINK_ROWS`; stock's song row callback through `toolsQueryDbTable`, as the Daily Mix's `dm_rows`, the rows cleared after). A library row is the missing row's song when the file name, the CUE start and end, the title, the album and the artist are equal, its path is another one under `/mnt/mmc/` and its file is there (`so_same_song`; the first when several are; a copy on USB is no twin, as the check never looks at a USB path again). The row then gets that path: `update playlist set fileurl='..' where id=N` (`so_set_path`, quotes doubled) through **`toolsUpdateDbTable(db, sql)` `0x5eefb0`**, and the page reads its list again. A song re-tagged or renamed since it was added has no twin and stays missing.
-4. **Removal**, asked: for the rows still missing, `pod_confirm` "Remove N missing song(s) from this playlist?" (the key by N == 1). Yes: the rows are marked again from what is missing then (the dialog is modal) and cut down to the row ids the dialog counted (`so_marked_ids` before it, `so_keep_ids` after: a file that went missing under the dialog was not asked about and stays for the next clean-up; one that came back keeps its row), and each leaves the table by its own id, **`toolsDeleteItemById("playlist", db, id)` `0x5ef370`** (`so_clean`), then stock's `delete_flag` (`0xa05a5a`) is set as `batch_delete_file` leaves it, "Playlist cleaned up", and the list is read again. No: nothing is removed.
+1. **Check** (`sg_gone`, `so_gone_mark`): each row whose path starts with `/mnt/mmc/` is tested
+   with `access`. Other paths (USB, none) are never tested, marked or written.
+2. **Guards**, nothing written: no card (`/tmp/mmc_add`) shows `msg_nottf`; nothing missing, "All
+   songs are on the card"; the card is in but `/mnt/mmc` is not its own file system
+   (`m1_card_mounted`), "Card not readable, nothing removed".
+3. **Repair**, unasked (`so_relink`): the library is asked for the missing rows' file names (40 a
+   query, `SO_RELINK_ROWS`). A library row is the missing row's song when file name, CUE start and
+   end, title, album and artist are equal, its path is another one under `/mnt/mmc/` and its file
+   exists (`so_same_song`; a USB copy is no twin). The row gets that path through
+   `toolsUpdateDbTable` (`so_set_path`) and the page reads again. A re-tagged or renamed song has
+   no twin and stays missing.
+4. **Removal**, asked: `pod_confirm` "Remove N missing song(s) from this playlist?". Yes: rows are
+   marked again from what is missing now and cut down to the ids the dialog counted
+   (`so_marked_ids`, `so_keep_ids`: a file that went missing under the dialog stays for the next
+   run; one that came back keeps its row). Each leaves by its own id through
+   `toolsDeleteItemById("playlist", db, id)` (`so_clean`), then stock's `delete_flag` is set as
+   `batch_delete_file` leaves it, "Playlist cleaned up". No removes nothing.
 5. Repaired rows with nothing removed: "N song(s) updated".
 
-**The evidence** (disassembly; pinned in `tools/pod_pins.py` `PLAYLIST_PINS`). `getMusicByPlayList` reads `select * from %s where id > 100 and cd_num=%d` with the 18-column song row callback (`0x4e9058`), whose column 0 is `atoi`'d into the record's `+0`: a playlist song's `REC_ID` is its own row's id (`id INTEGER PRIMARY KEY`), and `so_row_id` writes no row whose id is 100 or less (the playlists themselves). The table's columns are `songtable`'s (`id, filename, fileurl, album, songer, style, name, composer, albumsonger, year, track, cd_num, time, time_end, time_create, Initial, bitdepth, samprate`): only `fileurl` holds the path, `filename` is the name without its folder. `toolsUpdateDbTable` opens the shared handle if it is closed (`0x5ddd50`) and calls `sqlite3_exec(handle, sql, 0, 0, &err)`: 1 when it ran, -1 (and the handle closed) when not; stock's one use is the Most Played count (`update oftenplay set track = track + 1 ...`). `toolsDeleteItemById` formats `delete from %s where id=%d`: 1 when it ran; stock's one use is `deletePlaylist`, on this table. Neither takes a lock; they run on the UI thread from a tap, as stock's own.
+**Stock calls** (pinned in `PLAYLIST_PINS`). A playlist song's `REC_ID` is its own row id; the
+columns are `songtable`'s and only `fileurl` holds the path. `so_row_id` writes no row whose id is
+100 or less (the playlists themselves). `toolsUpdateDbTable` runs `sqlite3_exec` (1 ran, -1 not).
+`toolsDeleteItemById` formats `delete from %s where id=%d`. Neither takes a lock; both run on the UI
+thread from a tap, as stock's do.
 
-**Why not the stock delete.** `batch_delete_file(0xff13, ...)` (the Songs page's Delete on a playlist) runs `deleteMusicFromPlaylist`, whose WHERE is `filename`, `fileurl`, `time`, `time_end` with no id and no `cd_num`: it removes the song from every playlist that holds it. The clean-up removes this playlist's row alone.
+**Why not the stock delete.** `batch_delete_file(0xff13, ...)` runs `deleteMusicFromPlaylist`, whose
+WHERE has `filename`, `fileurl`, `time`, `time_end` and no id or `cd_num`: it removes the song from
+every playlist that holds it. The clean-up removes this playlist's row alone.
 
-**Tests** (`test/pod/songs.py` `clean_tests`): the asset's slot 8, the card, the guards, the confirm text by count, No, Yes (the ids deleted, the other playlist's rows of the same songs kept, `delete_flag`), a playlist emptied, paths that are not on the card, an id of 100 or less, the repair (the query, the statements, quotes doubled, 90 rows in three queries, a write that fails, twins refused for another title, a twin's missing file, the row's own path, a CUE start, a copy on USB), repair and removal together, the card pulled under the dialog, files gone or back under the dialog (only the rows asked about go), and the row tap's toast by the card's state.
+## Limits
 
-**Not verified on the device:** all of it. The two stock database calls are read from the disassembly and mocked in the emulation, never run for real; the time of a check on a playlist of thousands of rows (one `access` a row, on the UI thread); the two-row card's look; a clean-up while Update Library runs (the shared database handle has no lock: not guarded).
-
-## Tests (`test/pod/playlists.py`)
-
-Section 15 (the large title): the asset's `pl_title` first in the content, the small title hidden at rest, the content and the first row under the block in both modes, the collapse at SG_COLLAPSE 46 (one px short hides it, the fade shows while scrolled), taps through the scrolled view (the title block opens nothing, the first row opens at its offset), the small title in select mode, no scroll events = the small title kept, and the empty page. Section 13 and the select tests place their rows and marks TOP px lower.
-
-List mode (section 13): the "..." geometry in the asset (no toggle), the default grid, the saved `0` opening the list, 52 px bitmaps, content height and `virtual_h` (rows x 64), the 52 px mosaic fills per row, the texts in the list styles and rects, hairlines, the pressed fill and its release / abort, a row tap opening the right playlist, nothing below the last row, the card's Grid / List both ways (in place, saved `1` / `0`, the tick, the first playlist kept, tiles 52 / 144 px), the mode surviving a re-open in its own file, garbage = grid, the loader rules and the menu in list mode.
-
-The asset (structure, the hidden and insensitive shared card with its ten rows, the four action glyphs and labels in the 13 languages), the menu row and its fallback, the open (one playlist query, no cover decoded), mosaics for 0, 1, 2, 3, 4 and 7 albums (the pixels of the four quadrants, one source decoded per tick, the bitmaps alive within the ring), a playlist with no songs and one whose albums have no cover (the placeholder), skipping albums with no file, the 50-song limit, the library lookup for another artist, taps (the right playlist id, name and class in the stock call; a drag, the gap and an abort open nothing), no decoding while the list is dragged, the loader stopped while the window is behind another (no scan under the stock songs page, a late scroll event arms nothing), reading again on the window's return (new playlist, an emptied one), the empty page, the cards (open, close by the button, the scrim, an action; the list-plus button's four rows and the "..."'s three packed from the top in `vs_glass3`, no hairline on the list-plus button's, Name's top border on the other, the view and order ticks; one card at a time; the card's width per language for both, clamped both ways, kept when a label is not measurable, measured again at every open; `pl_glass` used by the two dialogs only), New (dialog, the stock list read before `createPlayListItem`, a read after; full, exists and cancelled), Import and Export (the stock handlers with `navigation_status` 0, a read after), closing frees every bitmap. Select mode (`select_tests`): the asset's hidden, insensitive select widgets and the bar's place; the card row starting it (the card closes, Back becomes the x, "0 Selected", Select All and the bar shown, "..." and Now Playing hidden, the content 64 px longer); the marks in grid and list mode (their places, the selected image per marked cell, the list's shifted covers and texts, the stock hit test of the pill and Select All); a tap marks (a drag does not, a press does not fill), Select All twice, Back leaving the mode first; Delete with nothing (the message), No, Yes in the stock order (confirm kind 1 `msg_delplaylist`, the stock list read, the vector filled for rows 1 and 3, `batch_delete_file(0xf00b, list, vector, 0, 0)`, the success message, the page read again), a stock list that changed or reordered meanwhile (nothing deleted), no stock vector; the fallbacks to the stock page (no `pl_bar`, `pl_del` or `btn_selall`, marks that do not decode), no playlist, the window's return leaving select mode, closing freeing the marks. Section 14 (the Name order; the retired `1` / `b` read as A–Z): A–Z by default (digit runs by value, case folded), the ticked row reversing and `playlists-sort` written through its `.tmp` (`a` / `0`), the saved file read at open (`a`, `0`, junk, trailing junk, empty), a failed save changing nothing, the grid and the list in the same order, every playlist keeping its count across a re-sort with no scan read again, a row tap opening the playlist shown, select mode's Delete filling the stock vector with the stock positions of the rows shown, the empty page, the Settings Files order.
-
-## Pick mode
-
-The same page is the Add to Playlist picker (`docs/modules/picker.md`): list mode, a New playlist row and a Favorites row pinned first, then the playlists in the page's saved order (Name A–Z or Z–A), no list-plus button, "..." or Now Playing; a tap adds the Songs / album page's selection.
-
-## Not verified on the device
-
-Everything above is checked on the emulated payload and the real stock code where the harness runs it; not seen on the device: the large title and its collapse, the shared card on this page (its glass, the scrim's dim, the hairlines, the row hit-testing), the two cards on the device, the list-plus button glyph's look, the Name order on a real playlist table, the keyboard dialog opening from a click handler of our page (the stock page does the same from its own), the stock import / export dialogs over our page, the "..." glyph's look, the time of a scan on a large playlist table (one `select ... where id > 100 and cd_num=` per playlist, one a 16 ms tick), the select mode (its look: the marks at the covers' corner, the pill across the bar; the stock confirm dialog kind 1 and `batch_delete_file(0xf00b, ...)` called from our page: read from the disassembly and run in the emulation with the call mocked, never run for real) and the stock Playlists page as its fallback.
-
-Preview: `uv run python -I tools/preview/preview_playlists.py work/mod-release out/preview/playlists.png` (also two panels of `tools/preview/preview.py`).
-
-## List-plus and the two cards
-
-Navbar list-plus | "..." | Now Playing; the list-plus button's card New Playlist, Import, Export, Delete Playlists, the "..." card Grid, List | Name in `vs_glass3`; `playlists-sort` `a` = Z–A, anything else A–Z. Changes outside the page: `viewsort.c` `vs_offer` takes Name's top border off while no view rows are offered and gives it back (`vs_t.bare`, set only on a change), `mod_icons.NAV_VIEW` / `NAV_VIEW_POS` `pod_nav_listplus` (lucide `list-plus.svg` added to `assets/icons/lucide/svg`). The list-plus card has no tick column (no row can be ticked): `vs_fit` puts the glyphs at x 14 and the labels at x 42, so its width is 24 px less than before (floor `VS_CARD_MIN`); the "..." card keeps the tick column. Not done: Recently Modified and Number of Tracks (no cheap source, above).
-
-**No Recently Added sort.** An order by playlist id (Newest First = the stock order reversed) was dropped: stock `createPlayListItem` reuses the lowest free id, so after a delete a new playlist lands in the middle of the list, and no creation time is stored, so the order was misleading. Dropped with it: the `pl.sort` field and the id-order branch of `pl_sort`, the row's mask bit, the `playlists-sort` values `1` / `b` (now read as A–Z, no compat handling), `pod_pages.PLAYLISTS_SORT_KEYS` (the asset's sort labels are `Name` again), the preview's `new` / `old` orders and test section 14b. `vs_offer`'s `vs_t.bare` and `vs_dated` stay (the card is still offered again per open).
+- A clean-up while Update Library runs is not guarded (the shared database handle has no lock).
+- A check is one `access` per row on the UI thread, so a playlist of thousands of rows takes a
+  while.

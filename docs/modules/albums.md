@@ -1,160 +1,332 @@
 # Albums
 
-**Sources:** `patch/albums.c`, `patch/viewsort.c` (the "..." card), `patch/grid.c`, `patch/covercache.c`,
-`tools/pod_ui.py` (`navbar(albums=True)`, `view_sort_card`). **Tests:** `test/pod/albums.py` (`az_tests`: the A-Z list; `years_tests`: the Year list and its edge cases; `year_grid_tests`: the Year grid), `test/coverflow.py`.
-Previews: the Albums panels in `tools/preview/preview_icons.py`.
+**Sources:** `patch/albums.c`, `patch/viewsort.c` (the "..." card), `patch/grid.c`,
+`patch/covercache.c`, `patch/azlist.c`, `tools/pod_ui.py` (`navbar(albums=True)`,
+`view_sort_card`). **Tests:** `test/pod/albums.py`, `test/pod/artists.py` (scoped page),
+`test/pod/sort.py`, `test/coverflow.py`. **Preview:** the Albums panels in
+`tools/preview/preview_icons.py`.
 
-Albums opens a grid or list in the last selected mode. Tapping an album calls
-`cc_open_album`; Back returns to the same position. Cover Flow opens above this page.
-If the window cannot open, the Home dispatcher opens stock Albums.
+Albums opens a grid or list in the last selected mode. A tap on an album calls `cc_open_album`; Back
+returns to the same position. Cover Flow opens above this page. If the window cannot open, the Home
+dispatcher opens stock Albums. No hook.
 
-Scoped to an artist or composer: a tap on a row of the Artists page (`albums_open_artist(list, row, scope)`)
-opens the same window and mode on that artist's albums. The page holds a copy of the artist's row and the album list
-and cache keys from `coverflow_artist_albums` (`patch/coverflow.c`: `loadAlbumList(0xf004 / 0xf005, artist)`, each album
-keyed like the library album of the same name, the case-insensitive index from 24 albums; shared with Cover Flow's
-scoped page). The stock trailing "All songs" row (id -2) is kept as the last tile with two albums or more (dropped with one):
-same tile size, the cards' placeholder disc (key 0: no cache file, never scanned or built), "All Songs" (stock key
-`local_allsong`) over the artist's name. Its tap opens our Songs page on every song of the artist (`songs_open_artist(row, scope)`; a composer's on class `0xff14`, docs/modules/songs.md;
-the stock page on the All songs row if it will not open, as Cover Flow's card). An **artist's** or **composer's** page has the **artist header** in place of the large title (with the circle when the artist has a photo in the cache, without it otherwise; a composer's never has the circle: no photo is looked up or re-checked for a composer; the Artist header row of the table has both layouts): the album page's header with a circle (`album-page.md`: the cover is 160 px; here `AL_PHOTO_D` 88 px, much smaller, at x `AL_PHOTO_X` 116 (centred), y `AL_PHOTO_Y` 8 under the navbar), the name under it centred (`al_name`, 22 px white in the album page's 286 px title box at y `AL_NAME_Y` 110, 14 px under the circle, `PH_NAME_X` / `_W` / `_H`, fitted with an ellipsis; `al_title` is hidden and insensitive), then the Play and Shuffle pills at y 148 (`AL_HEAD_PILL_Y`, moved there with `widget_move`), the block ending at `AL_HEAD_END` 188; the rows start there (`al_top()`: 188, + `GRID_ROW_GAP` in the list). Every offset of the page goes through `al_top()` (paint, hit test, loader window, `al_first`, `al_set_mode`, content height), so nothing else changed. The navbar's small title (the name, fitted to 110 px) appears once the name's box has scrolled away (`AL_HEAD_COLLAPSE` 132, `m1_title_gone`). The circle is the artist's -168 photo (or the lead artist's, `ap_lookup`, `docs/modules/artists.md` "Artist photos"): the loader's first tick (`al_head_load`, before the covers, not while the list moves) decodes it (`cc_decode` box 2, the square box-reduced from the 168 px file to 88 px: the centred square of a square or landscape file, a portrait one cut from its top third as `pv_square` cuts the cache's) and cuts it to a circle (`ap_circle`, alpha); a photo that does not decode takes the circle away (`al_layout(0)`: there is no placeholder on this page). Paint draws it at (116, 8 less the offset), cut by hand at the window's edges; a touch on it, the name or the pills' block opens nothing. A page without `al_name` (an asset that is not ours) keeps the large title and the pills at y 52. The library page keeps the large title (the rows start `SG_TITLE_H` down). The large title (library) is the name, fitted with an ellipsis (296 px; the navbar's small title, 110 px, is fitted too); an empty
-list says "No albums". An album tap is `cc_open_album(row, scope, index)`: class `0xff01` / `0xff02`. The Cover Flow
-button opens Cover Flow scoped to the same artist (`coverflow_artist`) above the page; Back returns here, then to
-the Artists page. The mode file is shared with Home > Albums, toggling writes it, and Cover Flow is never stored.
-The cache scan uses the scoped keys (`cc_build_near_step`'s `keys`; it skips the All songs row). The deque, list and keys are freed on destroy.
-If the window cannot open the caller opens Cover Flow on the artist.
+## Scoped to an artist
+
+A tap on a row of the Artists page (`albums_open_artist(list, row, scope)`) opens the same window
+and mode on that artist's or composer's albums.
+
+- The page holds a copy of the artist's row and the album list and cache keys from
+  `coverflow_artist_albums` (`loadAlbumList(0xf004 / 0xf005, artist)`; each album keyed like the
+  library album of the same name; the case-insensitive index from 24 albums is shared with Cover
+  Flow's scoped page, [artists](artists.md)).
+- **"All songs" tile.** The stock trailing "All songs" row (id -2) is kept as the last tile with two
+  albums or more, dropped with one. Same tile size, the placeholder disc (key 0: no cache file,
+  never scanned or built), "All Songs" (stock key `local_allsong`) over the artist's name. Its tap
+  opens our Songs page on every song of the artist (`songs_open_artist(row, scope)`; a composer's on
+  class `0xff14`, [songs](songs.md)), or the stock page on the All songs row if that will not open.
+- An album tap is `cc_open_album(row, scope, index)`: class `0xff01` / `0xff02`.
+- The Cover Flow button opens Cover Flow scoped to the same artist (`coverflow_artist`) above the
+  page; Back returns here, then to the Artists page. The mode file is shared with Home > Albums,
+  toggling writes it, and Cover Flow is never stored. If the window cannot open the caller opens
+  Cover Flow on the artist.
+- The cache scan uses the scoped keys and skips the All songs row. The deque, list and keys are
+  freed on destroy. The large title is the name (296 px, ellipsis; the small title is fitted to 110
+  px); an empty list says "No albums".
+
+### Artist header
+
+An **artist's** or **composer's** page has the artist header in place of the large title. A
+composer's never has the circle (no photo is looked up for a composer). The library page keeps the
+large title.
+
+| Part | Geometry |
+|---|---|
+| circle | `AL_PHOTO_D` 88 px at x `AL_PHOTO_X` 116 (centred), y `AL_PHOTO_Y` 8; only with a photo in the cache |
+| name | `al_name`, 22 px white in a 286 px box at x 17, y `AL_NAME_Y` 110 (`PH_NAME_X/_W/_H`), ellipsis; `al_title` hidden and insensitive |
+| pills | Play and Shuffle at y 148 (`AL_HEAD_PILL_Y`, moved with `widget_move`) |
+| rows start | `AL_HEAD_END` 188 (`al_top()`: 188, plus `GRID_ROW_GAP` in the list) |
+| small title | shows from `AL_HEAD_COLLAPSE` 132 |
+| no photo | the same widgets `PH_SHIFT` 96 higher: name y 14, pills y 52, block ends `AL_PILLS_END` 92, small title from 36; `albums.c` asserts the relations (`_Static_assert`) |
+
+- Every offset goes through `al_top()` (paint, hit test, loader window, `al_first`, `al_set_mode`,
+  content height).
+- The circle is the artist's -168 photo, or the lead artist's (`ap_lookup`,
+  [artists](artists.md) "Artist photos"). The loader's first tick (`al_head_load`, before covers, not
+  while the list moves) decodes it (`cc_decode` box 2: the centred square of a square or landscape
+  file, a portrait one cut from its top third as `pv_square` does) and cuts the circle (`ap_circle`).
+  A photo that does not decode takes the circle away (`al_layout(0)`: no placeholder on this page).
+- A touch on the circle, name or pills' block opens nothing. A page without `al_name` (an asset that
+  is not ours) keeps the large title and the pills at y 52.
 
 ## Layout and state
 
 | Element | Contract |
 |---|---|
-| Window | `ui/m1plus_albums.bin`; 320 × 450 px with a 50 px navbar |
+| Window | `ui/m1plus_albums.bin`; 320 x 450 px with a 50 px navbar |
 | Scrolling | `albums_listview` > `albums_scrollview` > `view_grid`, plus `scroll_bar_m` |
-| Large title | `al_title`, the first child of `view_grid`: the Songs and Artists pages' label (32 px white at x 12, 296 wide, `SG_TITLE_H` 52 px high, insensitive; "Albums", or the artist's name on the scoped page; `az_fit` cuts a wide one with an ellipsis). It scrolls with the content, so every row, cell and hit test starts `AL_TOP` (= `SG_TITLE_H`) 52 px down: the content is 52 px + the grid (10 + 200 per row) or + 64 px per list row; `al_coff()` (the offset less 52) is the offset the paint, the loader and `al_first` use, negative while the title is in view. A touch on the title block opens nothing. Switching the mode keeps the first album at the top (the title block is scrolled past, or the page is at 0 when the first album is the first) |
-| Artist header | Artist-scoped page only: the circle (drawn by the payload, `al.hdr`, only with a photo: `al.circ`), `al_name` (22 px white, centred, x 17, y 110, 286 x 22, hidden in the asset), the pills at y 148; the content starts `AL_HEAD_END` 188 (see above); the small title shows at `AL_HEAD_COLLAPSE` 132. **No photo**: the same widgets `PH_SHIFT` 96 (`AL_PHOTO_Y` + `AL_PHOTO_D`) higher: name y 14, pills y 52 (`SG_PILL_Y`), the block ends at `AL_PILLS_END` 92, the small title shows at 36; nothing else differs (same x, same 16 px name-to-pills gap, same fonts and pills). `offsets.inc` has `PH_SHIFT` beside the photo layout's values and `albums.c` asserts the relations (`_Static_assert`); `test/pod/artists.py` `scoped_plain_tests` checks the gap and the x positions of both |
-| Small title | `label_title` in the navbar, hidden in the asset; shown once the offset reaches `SG_COLLAPSE` 46 (204 under the photo header, 36 without a photo) (`m1_title_gone`, the shared rule; `al_fade` runs from the scroll_view's `EVT_SCROLL` / `EVT_SCROLL_END`) with `img_nb_fade` shown while the offset is above 0. Without the scroll events it stays shown. "Albums" fits its 110 px in all 13 languages; a long artist name is cut with an ellipsis to the 110 px before Cover Flow, but only after the large title has scrolled away |
-| Grid | Two 144 px covers, 12 px margins, 8 px column gap; 190 px cells on a 200 px pitch |
-| Grid text | Album 18 px white, artist 15 px grey; one ellipsized line each |
-| List | 64 px rows, 52 px covers at (10, 6) (6 px above, 5 + the 1 px hairline below), text from x 74 (title y 9, artist y 35) to x 278 (`LIST_TEXT_W_CHEV`); title 21 px, artist 18 px; the hairline runs from the text to x 310 (`LIST_HAIR_END`, Apple's inset) and the grey chevron (`m1_make_chevron`, 10 x 16, x 288 `LIST_CHEV_X`, centred above the hairline) marks that a row opens a page (the artist-scoped page and its All Songs row too) |
-| Corners | Grid 8 px blended into black; list 4 px in the bitmap alpha |
-| Navbar | Back, small title (x 58 to 168, 110 px, hidden at rest), one glass capsule: Cover Flow 168, "..." 214, Now Playing 260 (46 / 46 / 60 px, the Songs page's slots and pieces: `pod_nav_coverflow` left cap, `pod_nav_moremid` middle, `ah_nav_play` right cap); no Search button (it is the card's first row). A library source without Cover Flow (`LS_CAP_COVERFLOW`) hides 168 and the "..." takes the left cap (`pod_nav_more`) at 214, the title running to 214; without `LS_CAP_SEARCH` the card has the sorts and Grid / List only (patch/libsrc.h) |
+| Large title | `al_title`, first child of `view_grid`: 32 px white at x 12, 296 wide, `SG_TITLE_H` 52 px high, insensitive; "Albums", or the artist's name. It scrolls with the content, so every row, cell and hit test starts `AL_TOP` (= `SG_TITLE_H`) down; `al_coff()` (offset less 52) is what paint, loader and `al_first` use. A touch on it opens nothing. A mode switch keeps the first album at the top |
+| Small title | `label_title` in the navbar, hidden at rest; shown from `SG_COLLAPSE` 46 (`m1_title_gone`; 204 under the photo header, 36 without a photo) from the scroll_view's `EVT_SCROLL`, with `img_nb_fade` while the offset is above 0. Without scroll events it stays shown |
+| Grid | two 144 px covers, 12 px margins, 8 px column gap; 190 px cells on a 200 px pitch; album 18 px white, artist 15 px grey, one ellipsized line each; corners 8 px blended into black |
+| List | 64 px rows, 52 px covers at (10, 6), text from x 74 to x 278 (`LIST_TEXT_W_CHEV`), title 21 px, artist 18 px; hairline to x 310 (`LIST_HAIR_END`); grey chevron at x 288 (`LIST_CHEV_X`) marks that a row opens a page; corners 4 px in the bitmap alpha |
+| Navbar | Back, small title (x 58 to 168), one glass capsule: Cover Flow 168, "..." 214, Now Playing 260 (46 / 46 / 60 px). No Search button (it is the card's first row). A library source without Cover Flow (`LS_CAP_COVERFLOW`) hides 168, the "..." takes the left cap at 214 and the title runs to 214; without `LS_CAP_SEARCH` the card has sorts and Grid / List only |
 | Mode file | `/mnt/data/m1plus/albums-view`: 1 grid, 0 list; otherwise `ALBUMS_DEFAULT_GRID` |
-| Order file | `/mnt/data/m1plus/albums-sort`: one character, `0` Title, `1` Artist, `2` Recently Added, `3` Year, or `a` .. `d` for the same order reversed (Z-A, Oldest First); missing or anything else is Artist, not reversed. The retired Settings > Library > Album Order file (`album-order`) is moved into it once (`0` Title, else Artist; only when `albums-sort` is missing) and deleted by `cc_sort_mode` ([settings](settings.md)) |
-| A-Z list | List mode in Title order, the whole library (not the artist's albums): section headers, a pinned header and, with Index Rail on, the rail, from `patch/azlist.c` (below) |
-| Year list | List mode in Year order, the whole library: a header per year (Unknown last), the rail by decade, the same furniture ("Year list" below) |
-| Year grid | Grid mode in Year order, the whole library: a header per decade (Unknown last), each section on a new row, no rail ("Year grid" below) |
+| Order file | `/mnt/data/m1plus/albums-sort`: one character, `0` Title, `1` Artist, `2` Recently Added, `3` Year, or `a`..`d` for the same reversed; missing or anything else is Artist, not reversed. The retired `album-order` file is moved into it once and deleted by `cc_sort_mode` ([settings](settings.md)) |
+| A-Z list | list mode, Title order, whole library: section headers, pinned header, rail (below) |
+| Year list / grid | Year order, whole library: headers by year / decade (below) |
 
-**A-Z list (list mode, Title order).** The sections are the first letter of the title by the name order ("The " and leading punctuation skipped, so "(What's the Story) Morning Glory?" is under W; a title of punctuation only stays under "#"). The Title order's list uses the Songs page's furniture (`patch/azlist.c`, [artists](artists.md) "Shared furniture"): `al.az` with `top` = `al_top()` (the large title block; kept by `al_size`) and the 64 px rows, so a row is at `az_row_y` (28 px headers between the sections, `grid_t.az` makes `grid_list_paint` read it; the list paints and loads from the absolute offset), the hit test is `az_at` (a header and the title block are dead), the loader and the span use `az_span` / `az_row_y`, and the content is `az_rows_end`. The sections are `az_sections` of the rank of the album title's initial (`cc_name_initial`, a CJK title by its pinyin initial, kana by its Hepburn initial; the order is the same keys, so the sections follow it exactly: "#" first holds the digit and symbol titles, すずめ is under S, Z holds only Z titles, Z-A mirrors); a stray stays in the section around it. Z-A (the ticked Title row reversed) mirrors the ranks as the Songs page does, so the sections run Z..A with "#" last. The Artist and Recently Added orders are plain lists (the Year order has its own sections, below), as are the grid and the artist's own albums (their order is Cover Flow's); `al_sections` runs when the page opens and after each sort (`al_resort`). Row layout (`grid_list_paint`, which reads `grid_t.az`): text to x 278, chevron x 288, hairline to x 310 with no rail; while the rail is shown (`az_inset`, `SG_RAIL_INSET` 26 px) all three move left by it (text to 252, chevron x 262, hairline to 284), clear of the rail, which is the 36 px touch column x 284..320 whose letters are drawn in the strip x 310..320, as on Songs. The grid has no rail (and headers only in the Year order, "Year grid" below): the card's Grid row hides the rail and bubble, the List row shows them again (`al_rail`). The two Settings > Library switches, **Index Rail** and **Section Headers** (both on by default), are read when the page opens (`az_prefs`; [settings](settings.md)): with the rail off nothing is drawn or touchable and the rows keep the full width; with the headers off `az.hdr_h` is 0, no letter or pinned band is drawn and the rows close up (the rail, when on, jumps to each section's first row). A mode switch keeps the first album under the pinned header (`al_first`, `al_set_mode`). The page's asset has the furniture's hidden labels, the rail and the bubble (`build_grid_page(az=True)`); a page without them stays a plain list.
+The stock mobile scrollbar is required: the list-view layouter enables vertical scrolling through
+it. The content view and `virtual_h` both hold the full content height as 32-bit integers. Empty
+content is hidden and insensitive.
 
-The stock mobile scrollbar is required: the list-view layouter enables vertical scrolling
-through it (`0x60b1c8..0x60b1e8`). The content view and `virtual_h` both hold the full
-content height as 32-bit integers. Empty content is hidden and insensitive.
-
-Switching the mode (the card's Grid or List row) stops a running scroll animation, drops tiles, changes geometry and preserves
-the first visible album. It moves the tick to the new view and writes the choice with
+Switching the mode (the card's Grid or List row) stops a running scroll animation, drops tiles,
+changes geometry and keeps the first visible album. It moves the tick and writes the choice with
 `home_write_atomic`. Missing required style labels or content widgets close the page.
 
-## The "..." card, search and order
+## A-Z list (list mode, Title order)
 
-- **Search Albums** (the card's first row, slot 6, below): closes the card, then `search_open_in(SEARCH_ALBUMS)` (the Search page scoped to albums, [search](search.md)); the library search (`search_open`) when that will not open. The scoped artist (and composer) page has no Search Albums row: it searched every album, not the artist's (a library artist's page uses the slot for Find Artist Photo, "Scoped artist page" below).
-- **The card** (`btn_more`, x 214): an Apple-style grouped menu built by `view_sort_card` and run by `patch/viewsort.c`, a helper the other pages can reuse. Full-window scrim `#00000082` (a tap closes the card), card right edge 311, top y 52, seven 50 px rows (350 px high, the bottom sheets' row height; the artist-scoped page has six, 300 px, below), pressed 6 % white, on the card's own glass `vs_glass7` (`mod_icons.GLASS_VIEWSORT`, 72 x 336, drawn `patch3_x`; one picture per height, the same pane and radius as the Playlists menu's). The first row is **Search Albums** (slot 6, search glyph `pod_ic_vssearch` at x 38, label at x 66, no tick), a group of its own; then the **View** group, **Grid** and **List** (20 px glyphs `pod_ic_vsgrid` / `pod_ic_vslist` at x 38, labels at x 66), a tick on the current view, a tap on the other view switches (the ticked one only closes the card); then the **Sort** group, **Title**, **Artist**, **Recently Added**, **Year** (labels at x 38), a tick on the current one. The tick column is x 14 (14 px `sg_tick`, centred in the row) on every row; a card of action rows only (nothing tickable: the Playlists list-plus card, a playlist file's Folders card) has no tick column: `vs_fit` moves the glyphs to x 14 and the labels to x 42 (the same 28 px glyph-to-label gap) at every open and narrows the card to match (still `VS_CARD_MIN`..292); the glyph column starts 10 px after the tick, and a label sits 8 px after its glyph (`VS_TICK_X`, `VS_TICK_W`, `VS_GLYPH_X`, `VS_GLYPH`, `VS_LABEL_X`, `VS_LABEL_X_GLYPH` in `patch/offsets.inc`). 13 % white hairlines between the groups only: under Search Albums (the `vs_hair` widget, 1 px at y 48, hidden with the row) and between List and Title (the first sort row's top border); none between the rows of a group. The ticked sort row shows a second line, 15 px `#AAAAAA`, with the direction (below). The card is as wide as its widest label or direction line from its own x plus 16 px, 206 (`VS_CARD_MIN`) to 292 px, measured again at every open (`vs_fit`; a text that cannot be measured leaves 292). Strings: `Search Albums`, `Title`, `Grid`, `List`, `A–Z`, `Z–A`, `Newest First`, `Oldest First` (`tools/pod_i18n.py`, 13 languages); `Artist`, `Recently Added`, `Year` existed. The mock-up's geometry (48 px rows) is used as drawn; the Songs Sort card is the same card (four rows).
-**Year list (list mode, Year order).** The library page's list in the Year order uses the same furniture with years in place of letters (`az_year_sections`, `az.years`). The order's one scan gives the years: `cc_album_order_years` is `cc_album_order_mode(…, CC_SORT_YEAR, rev)` that also hands back `so_year` (the earliest year tag 1000..2999 by stock row, 0 none) in `al.ykey`, so a sort costs no second pass over the songs and a paint costs nothing (`al_order` frees and refills it; `al_reload_with` also compares it, so a changed year with the same order re-sections the page). `al_sections` maps `ykey[order[i]]` to a `unsigned short` per row (an out-of-range value is none), and a section is a run of equal years: newest first or, reversed (Oldest First), oldest first, the albums with no year (and the "Unknown Album" row, which the order keeps last) in one last section headed with the language's "Unknown". No Unknown albums: no such section. The rail has an entry per decade that has albums, labelled by its first year in four digits ("2020", "2010", ..., "1900"), and one per century before 1900 ("1800", "1700", ...; the headers stay per year); the Unknown section has none; an entry jumps to the first section of its decade or century, as the header at the window's top (the first entry: offset 0). Gaps in the decades are absent. The labels are the rail's 12 px style drawn in the whole 36 px column (x 284..320; four digits are 28 px wide), centred in it, the rows' inset unchanged (`SG_RAIL_INSET`); the touched entry's disc is stretched to a pill (the 16 px disc's two halves and a stretched middle column, at most 36 px wide). A finger's y maps to an entry directly (no dots between entries). The bubble shows the four digits at `SG_BUBBLE_PX_YEAR` 40 px (84 px wide; the letters' 56 px would be 120 px in the 110 px bubble) and sets the letters' `SG_BUBBLE_PX` again when a letter list's bubble is used. With fewer than two entries (one decade, one album, every album Unknown) there is no rail and the rows keep the full width (`az_rail_on`; the headers stay), unlike the A-Z list, which keeps a rail of one letter. At most `SG_RAIL_ITEMS` (20) entries are drawn: eight or more centuries before 1900 on top of the decades (only badly tagged libraries) leave the surplus, oldest, to the last drawn entry. `SG_MAX_SEC` is 128: more distinct years than that (or no memory for the years or the sections) is a plain list. The two Settings switches, the other orders, Grid <-> List and the first-album rule work as for the A-Z list (the grid has headers by decade: "Year grid"). A tap on a header or on the pinned header's band over the scrolled rows (`az_pin_hit`, `al_row_at`) opens nothing. The artist's and composer's pages and a library source's page (its year is the grey line, the order its own records') stay plain lists.
+The Songs page's furniture ([songs](songs.md) "The A-Z rail", `patch/azlist.c`): `al.az` with `top`
+= `al_top()` and the 64 px rows; `az_row_y` (28 px headers between sections), `az_at` (a header and
+the title block are dead), `az_span`, `az_rows_end`; `grid_t.az` makes `grid_list_paint` read it.
 
-**Year grid (grid mode, Year order).** The library page's grid in the Year order has section headers by decade, not by year (one album per year must not put a header over every half-empty row): `al_sections` hands the same display-order years it gives `az_year_sections` to `az_decade_sections`, which fills `al.gz` (an `az_t` with `years` 2, `row` = `PITCH` and `count` = the grid ROWS, so `az_hdr_y`, `az_row_y`, `az_rows_end`, `az_row_from`, `az_at`, `az_span` and `az_paint_heads` work unchanged on rows of `GRID_COLS` albums) and `al.gstart[s]`, the first album of section s. A section is a run of equal `az_year_key` values (the rail's grouping: a decade from 1900, a century before, so "2020s" .. "1900s", "1800s", "1700s" ..; 0 / invalid years are "Unknown", last, none when no album lacks a year) and starts a grid row of its own, so the last row of the section before it may hold one tile; tiles keep their size, columns and gaps. A header is the list header's (`SG_HDR_H` 28 px, the `label_hdr` style at `SG_HDR_X`, the "s" added by `az_decade_wide`) directly above its section's first row (`az_row_y(gz, row)` = `top` + (section + 1) headers + `row * PITCH`; the plain grid's 10 px gap above the first row is not added), scrolls with the content, and the section holding the window's top stays pinned like the list's. The content is `az_rows_end(&al.gz)`. `al_g_row` / `al_g_first` / `al_g_last` / `al_cell_y` map an album to its row and back; the paint (`al_paint_grid`) draws each visible section with `grid_paint_base` (cell a at position a - gstart[s] of the run); `al_span` / `al_window` / `al_next_load` / `al_on_load` use the same map, the hit test (`al_cell_at`) is `az_at` on the rows plus the cell's column (a header, the pinned header's band over the scrolled tiles (`az_pin_hit`), the gaps and the empty slot of a partial row are dead), `al_first` and `al_set_mode` use the section's first row under the pinned header (Grid <-> List keeps the first album in view as for the A-Z list). Nothing is computed per paint. Section Headers off (`az.hdr_h` 0), the Title, Artist and Recently Added orders, the artist's and composer's pages, a source's page, no memory for the year array (one `calloc`) leave `gz.nsec` 0: the plain grid, exactly as before. The grid has no rail and no bubble (`al_rail`). Decades never exceed `SG_MAX_SEC` sections (a century before 1900 and a decade since give at most 23 keys).
-- **Order and direction.** A sort row saves `albums-sort` (`cc_sort_mode_set(mode, rev)`, atomic; a failed save changes nothing), rebuilds `al.order` and starts the list at the top (tiles dropped, scroll 0, the cover scan restarted from the first album in view). A row that is not ticked starts in the order's default direction; **tapping the ticked row reverses it**. Defaults: Title and Artist A-Z, Recently Added and Year newest first; reversed they read `Z–A` / `Oldest First` in the ticked row's second line (`vs_dir`, `vs_menu`). The file is one character: `0` Title, `1` Artist, `2` Recently Added, `3` Year, or `a`, `b`, `c`, `d` for the same order reversed (`cc_sort_rev`); missing or anything else is Artist, not reversed (so a file written before the direction existed reads as the default direction). The retired Settings > Library > Album Order file (`album-order`) is moved into it once (`0` Title, else Artist; only when `albums-sort` is missing) and deleted by `cc_sort_mode` ([settings](settings.md)). `cc_album_order` (`patch/covercache.c`) is shared: Title is an explicit order over the album titles by the same name rule (`cc_name_keys` / `cc_key_cmp` on the title: white space and "The " dropped, CJK by pinyin initial, kana by Hepburn initial, accented Latin by base letter, digit runs by value, digits, symbols and scripts with no initial first under "#", leading punctuation not skipped; one key per title; ties keep the stock position, in both directions; without memory for the keys it falls back to the stock list, backwards for Z-A) because stock's title comparator (`0x5e0dac`) puts symbol-led titles ("÷", "=", "(What's the Story)...") after Z and kana after the Latin letters, which no section labelling can show; Artist is the album row's artist then title (the name order of [artists](artists.md): digit runs by value, "The " and leading punctuation ignored, CJK by pinyin initial); **Recently Added** ranks each album by its newest song and **Year** by the earliest year tag (1000 to 2999) among its tracks, newest year first, albums with no year last. Both read the library song list once (`loadLocalClassList(0xf001)` under `sort_flag` 3, `time_create desc`; the flag and the browsing class are put back; each song finds its album by name in a copy of the rows ordered by name, a binary search, on the UI thread). A song with no album is ignored; ties and albums with no song keep the stock order; with no song list (an empty library, no memory) the stock order is used. Reversed, the key comparison flips: Z-A, oldest song first, earliest year first; "Unknown Album" (id -1), the scoped All Songs row (id -2), albums with no year and albums with no song stay last in either direction (ties keep the stock order). Grid, list and Cover Flow (`coverflow_open`, the Cover Flow button) all call `cc_album_order` (the saved mode and direction); the artist-scoped page and Cover Flow call `cc_album_order_mode(albums, cc_scoped_sort(), cc_sort_rev())` (below). Home's cover scan and the Cache page's lists walk the same order.
-- **Artist and composer page: pills and years** (the library page has neither; a composer's page runs the same code on the composer queries, below). Under the large title the **Play** and **Shuffle** pills of the Songs page (`btn_play` / `btn_shuffle` in the asset's content view, flat `#1C1C1E`, pressed `#333335` (`ROLE_PRESS_PILL`), 40 px high at y `SG_PILL_Y` 52, radius 20, glyph + 18 px label centred by `m1_centre_pill`; hidden and insensitive in the asset, shown by `al_open` only for an artist). **Play** is 145 wide at x 10 (`AL_PLAY_X`, `AL_PLAY_W`: x 10 .. 155) and **Shuffle** 145 wide at x 165 (`AL_SHUFFLE_X`, `AL_SHUFFLE_W`: x 165 .. 310), a 10 px gap, the same 145 as the Songs page's select-bar pills (the Songs page's own pills stay 129 wide, `SG_PILL_W`, because of its rail). The block ends at `AL_PILLS_END` 92: the grid's first gap (`GRID_ROW_GAP`) follows it, the list's first row is `GRID_ROW_GAP` under it (`al_top()`: 102 in list, 92 + 10 in grid; 52 without pills). The small title still shows at `SG_COLLAPSE` 46 (the pills are under the title, as on Songs). **Play** = every song of the artist in order from the first, **Shuffle** = the same list in the stock Shuffle mode from a random song, both `songs_play_artist` (`patch/songs.c`): the two stock queries of `songs_open_artist` (`songs_artist_list`: `loadAlbumList(0xf004)`, `loadAlbumdetailList(0xff01, the All songs row)`) then `so_play(0xff11, list, 0 / -1, SO_IN_ORDER / SO_SHUFFLE, sg_open_player)`: what the Songs page's pills do on an artist's list. A **composer's** page (scope `CLASS_COMPOSERS`) does the same with the composer queries (`songs_artist_list(row, CLASS_COMPOSERS)`: `loadAlbumList(0xf005)`, `loadAlbumdetailList(0xff02, the All songs row)`, which `getAlbumByComposer` appends as `getAlbumByArtist` does, docs/modules/addresses.md) and plays class `0xff14` (`CLASS_14`, what that row leaves in classinfo); not run on a device (COMP-01). Its All Songs tile opens our Songs page on the composer's songs (class `0xff14`). The grey line under each album is its **year**: `al_open` reads the artist's songs once (`songs_artist_list`) and `cc_album_years` (`patch/covercache.c`, the Year order's `so_scan`: earliest year tag 1000..2999 among the album's songs, a binary search per song over the albums by name) fills `al.years` by stock row; an album with no usable year has an **empty** second line, and the All Songs tile/row has none either (no artist name under it). Cost: one artist-songs query and one pass over those songs at open (bounded by the artist's songs; no library scan, nothing per paint: `al_tile` formats four digits when a tile is made). An album shared with other artists (a compilation) takes the earliest year among this artist's tracks of it, which can differ from the Year order's library-wide year. Tests: `test/pod/artists.py` `scoped_pills_tests`.
-- **Scoped artist page.** The same page and one shared order (`albums-sort`, direction included): the artist's albums follow it (the All Songs row stays last). One artist has one artist name, so the card has no **Artist** row: `vs_bind(..., sorts)` takes the set of sort rows offered (`VS_ALL_SORTS & ~(1 << CC_SORT_ARTIST)` here), hides the others (`vs_item1`; hidden and insensitive, the widget names stay in the asset), packs the rest from the top in `vs_fit` and sets the card's `bg_image` to the glass of its row count. A **library artist's page** (`al_can_find`: not a composer's, not a source's, not Unknown Artist's) offers the action slot (slot 6, the Search row's widgets) as **Find Artist Photo**: `al_open` gives `vs_label6` that text and `vs_glyph6` the image `pod_ic_vsphoto` (Lucide `user-round-search`: a person and a magnifier), so the card is Find Artist Photo, the hairline, Grid, List, Title, Recently Added, Year: six 50 px rows, 300 px, `vs_glass6`. The row closes the card and calls `onlineart_open_artist(name)` ([onlineart](onlineart.md) "Artist photos"); `al.finding` is set while that page is up and `al_on_fg` then compares `ap_epoch()` with the value kept when the row was tapped: a picked photo switches the header in place (`al_recheck_done`: the circle appears, or the replaced picture is decoded again). A composer's page and a source's artist page have no action row: five rows, 250 px, `vs_glass5`, no hairline above Grid. A row still reports its own number to the page (Recently Added is 2, Year 3). When the saved order is Artist the page shows the albums in Title order (the stock list; reversed when the saved Artist is reversed) and ticks Title (`cc_scoped_sort`); a row of this card writes `albums-sort`, so it changes the library Albums page too. A tap on that ticked Title row reverses the shown direction and saves Title (`0` / `a`). The artist-scoped Cover Flow reads the same order (`load_artist`: `cf.order`, Artist as Title), so switching grid / list and Cover Flow keeps the album sequence; its cache keys stay by stock row (`cf.keys[cf.order[i]]`, as `al.keys[order[a]]` here, also in `cc_build_near_step`). The library page keeps all four sorts. The page's large title is the artist's name (296 px, ellipsis) and the small title the same name cut to the 110 px before Cover Flow (`az_fit`).
-- **Year** needs year tags: `songtable.year` is the file's tag (`taglib_tag_year`), read per song; an untagged album sorts last.
+- Sections are the initial of the title by the name order ("The " and leading punctuation skipped):
+  `cc_name_initial`, CJK by pinyin initial, kana by Hepburn initial. "#" first holds digit and symbol
+  titles; Z-A mirrors. A stray stays in the section around it. `al_sections` runs at open and after
+  each sort (`al_resort`).
+- The Artist and Recently Added orders, the grid, and an artist's own albums are plain lists.
+- Rows: text to x 278, chevron 288, hairline to 310 with no rail; with the rail shown
+  (`SG_RAIL_INSET` 26) all three move left by it. The grid has no rail; the card's Grid row hides
+  rail and bubble, List shows them (`al_rail`).
+- **Index Rail** and **Section Headers** (Settings > Library) are read at open (`az_prefs`).
+- A mode switch keeps the first album under the pinned header (`al_first`, `al_set_mode`). The
+  asset has the furniture's hidden labels, rail and bubble (`build_grid_page(az=True)`); a page
+  without them stays a plain list.
+
+## Year
+
+**Year list** (list mode, Year order): the same furniture with years in place of letters
+(`az_year_sections`, `az.years`).
+
+- One scan gives the years: `cc_album_order_years` is `cc_album_order_mode(.., CC_SORT_YEAR, rev)`
+  that also hands back `so_year` (the earliest year tag 1000..2999 by stock row, 0 none) in
+  `al.ykey`. A changed year with the same order re-sections the page (`al_reload_with`).
+- A section is a run of equal years, newest first (reversed: oldest first). Albums with no year (and
+  the "Unknown Album" row) form one last section headed "Unknown"; no such albums, no section.
+- The rail has an entry per decade that has albums, labelled by its first year ("2020", "2010",
+  ...), and one per century before 1900; an entry jumps to the first section of its decade. The
+  Unknown section has none. Labels are the rail's 12 px style centred in the 36 px column; the
+  touched entry's disc stretches to a pill. A finger's y maps to an entry directly (no dots). The
+  bubble shows four digits at `SG_BUBBLE_PX_YEAR` 40 px.
+- With fewer than two entries there is no rail and rows keep the full width (headers stay), unlike
+  the A-Z list. At most `SG_RAIL_ITEMS` 20 entries are drawn; surplus oldest centuries go to the
+  last entry. `SG_MAX_SEC` is 128: more distinct years, or no memory, gives a plain list.
+- A tap on a header or the pinned band opens nothing (`az_pin_hit`). The artist's and composer's
+  pages and a library source's page stay plain lists.
+
+### Year grid (grid mode, Year order)
+
+Headers are **by decade, not by year**: one album per year must not put a header over every
+half-empty row.
+
+- `al_sections` hands the display-order years to `az_decade_sections`, which fills `al.gz` (an
+  `az_t` with `years` 2, `row` = `PITCH`, `count` = the grid rows, so `az_hdr_y`, `az_row_y`,
+  `az_at`, `az_span`, `az_paint_heads` work unchanged on rows of `GRID_COLS` albums) and
+  `al.gstart[s]`, the first album of section s.
+- A section is a run of equal `az_year_key` values (a decade from 1900, a century before: "2020s"
+  .. "1900s", "1800s" ..; no year is "Unknown", last) and **starts a grid row of its own**, so the
+  last row of the section before may hold one tile. Tiles keep their size, columns and gaps.
+- The header is the list header's (`SG_HDR_H` 28 px) directly above its section's first row,
+  scrolls with the content, and the section at the window's top stays pinned.
+- `al_g_row`, `al_g_first`, `al_g_last` and `al_cell_y` map an album to its row and back; paint
+  (`al_paint_grid`), `al_span`, `al_window`, `al_next_load`, `al_on_load` and the hit test
+  (`al_cell_at`: a header, the pinned band, the gaps and the empty slot of a partial row are dead)
+  use the same map. Nothing is computed per paint.
+- Section Headers off, the other orders, the artist's and composer's pages, a source's page, or no
+  memory leave `gz.nsec` 0: the plain grid. The grid has no rail. Decades never exceed `SG_MAX_SEC`
+  (at most 23 keys).
+
+## View sort card
+
+Every page with a "..." menu uses `patch/viewsort.c` (`vs_bind`, `vs_view`, `vs_menu`,
+`vs_offer`, `vs_fit`) and `tools/pod_ui.py` `view_sort_card`. Users: Albums (this page), Artists /
+Genres / Composers ([artists](artists.md)), Songs ([songs](songs.md)), [folders](folders.md),
+[playlists](playlists.md).
+
+**This page's card** (`btn_more`, x 214): an Apple-style grouped menu on the card's own glass
+(`vs_glass7`, `mod_icons.GLASS_VIEWSORT`). Full-window scrim `#00000082` (a tap closes it), right
+edge 311, top y 52, seven 50 px rows, pressed 6 % white.
+
+1. **Search Albums** (slot 6, glyph `pod_ic_vssearch`): closes the card, then
+   `search_open_in(SEARCH_ALBUMS)` ([search](search.md)), the library search if that will not open.
+2. **View**: Grid, List (glyphs `pod_ic_vsgrid` / `pod_ic_vslist`), tick on the current view; a tap on
+   the other switches.
+3. **Sort**: Title, Artist, Recently Added, Year, a tick on the current one with its direction line
+   (15 px `#AAAAAA`) under it.
+
+Hairlines (13 % white) sit between groups only. The tick column is x 14 on every row; a card of
+action rows only (nothing tickable) has none, and `vs_fit` moves glyphs to x 14 and labels to x 42.
+The card is as wide as its widest label from its own x plus 16 px, 206 (`VS_CARD_MIN`) to 292,
+measured again at every open. Strings: `Search Albums`, `Title`, `Grid`, `List`, `A–Z`, `Z–A`,
+`Newest First`, `Oldest First` (13 languages in `tools/pod_i18n.py`).
+
+**Order and direction.** A sort row saves `albums-sort` (`cc_sort_mode_set(mode, rev)`, **atomic; a
+failed save changes nothing**), rebuilds `al.order` and restarts the list at the top. A row not
+ticked starts in the order's default direction; **tapping the ticked row reverses it**. Defaults:
+Title and Artist A-Z, Recently Added and Year newest first.
+
+`cc_album_order` (`patch/covercache.c`) builds `order[]`, an array of stock row numbers, by
+`cc_heapsort`; the stock deque is unchanged. Grid, list, Cover Flow and Home's cover scan all use it.
+
+- **Title**: an explicit order over album titles by the name rule (`cc_name_keys` / `cc_key_cmp`:
+  white space and "The " dropped, CJK and kana by initial, accented Latin by base letter, digit runs
+  by value, symbols and scripts with no initial first under "#"; ties keep the stock position; with no memory for the keys, the stock list, backwards for Z-A).
+  Stock's own title comparator puts symbol-led titles after Z and kana after Latin, which no section
+  labelling can show.
+- **Artist**: the album row's artist, then title, each by the name order
+  ([artists](artists.md) "Order and the album Artist rule"). Unknown Album (id -1) is last.
+- **Recently Added** ranks each album by its newest song (`time_create`), **Year** by the earliest
+  year tag (1000..2999) among its tracks, newest first, albums with no year last. Both read the
+  library song list once (`loadLocalClassList(0xf001)` under `sort_flag` 3; the flag and browsing
+  class are put back). A song with no album is ignored.
+- Reversed, the key comparison flips. "Unknown Album" (-1), the scoped All Songs row (-2), albums
+  with no year and albums with no song stay last in either direction. Recently Added and Year depend
+  on `time_create`, which a rescan rewrites ([recent-albums](recent-albums.md)).
+- `songtable.year` is the file's tag (`taglib_tag_year`); an untagged album sorts last.
+
+**Scoped artist page.** One shared order (`albums-sort`, direction included); the All Songs row
+stays last. The scoped card has no Search Albums row (it searched every album, not the artist's) and, since one artist
+has one artist name, no Artist row: `vs_bind(.., sorts)`
+takes the set of sort rows offered, hides the rest, packs the card from the top and picks the glass
+of its row count.
+
+| Page | Card |
+|---|---|
+| a library artist (`al_can_find`: not a composer, not a source, not Unknown Artist) | Find Artist Photo (slot 6, glyph `pod_ic_vsphoto`), hairline, Grid, List, Title, Recently Added, Year: six rows, 300 px, `vs_glass6` |
+| a composer, or a source's artist | the same without the action row: five rows, `vs_glass5` |
+
+- Find Artist Photo closes the card and calls `onlineart_open_artist(name)`
+  ([onlineart](onlineart.md) "Artist photos"). `al.finding` is set while that page is up, and
+  `al_on_fg` compares `ap_epoch()` with the value kept: a picked photo switches the header in place
+  (`al_recheck_done`).
+- A row still reports its own number (Recently Added 2, Year 3). When the saved order is Artist the
+  page shows Title order and ticks Title (`cc_scoped_sort`); a tap on that ticked row reverses the
+  direction and saves Title. A row of this card writes `albums-sort`, so it changes the library
+  Albums page too.
+- The artist-scoped Cover Flow reads the same order (`load_artist`: `cf.order`, Artist as Title), so
+  the shelf and the grid list albums alike. Its cache keys stay by stock row.
+
+**Artist page: pills and years** (a composer's page runs the same code on the composer queries).
+
+- Under the large title the Songs page's **Play** and **Shuffle** pills (`btn_play` / `btn_shuffle`,
+  flat `#1C1C1E`, pressed `#333335`, 40 px high, radius 20): Play 145 wide at x 10, Shuffle 145 at
+  x 165. In the artist header they sit at y 148 ([Artist header](#artist-header)). Play is every song
+  of the artist in order, Shuffle the same list in stock Shuffle mode from a random song, both
+  `songs_play_artist` (`patch/songs.c`): the two stock queries of `songs_open_artist` then
+  `so_play(0xff11, list, 0 / -1, SO_IN_ORDER / SO_SHUFFLE, sg_open_player)`. A composer's page plays
+  class `0xff14`.
+- The grey line under each album is its **year**: `al_open` reads the artist's songs once
+  (`songs_artist_list`) and `cc_album_years` fills `al.years` by stock row (earliest year tag among
+  the album's songs). An album with no year has an empty second line; so does the All Songs tile.
+  Cost is bounded by the artist's songs, nothing per paint. An album shared with other artists takes
+  the earliest year among this artist's tracks, which can differ from the library-wide year of the
+  Year order.
+
+**Design.** Each page gets its own order file (listed in `pod_pages.SETTING_FILES` and
+`patch/setfiles.c`, in the same order) and its own order function.
+
+- `tools/pod_ui.py` `view_sort_card`: the page's asset appends the card last (names `vs_*`); the
+  page binds it at open and keeps its own state. The asset always has four sort rows, two view rows,
+  the Search row and the Select row (`VS_SORTS` 4, `VS_ROWS` 8). `vs_bind`'s `sorts` mask offers
+  rows (`VS_WITH_VIEWS`, `VS_WITH_SEARCH` -> `VS_SEARCH`, `VS_WITH_SELECT` -> `VS_SELECT`); sort row
+  0 must stay. `vs_offer(v, mask)` changes the mask later and repacks an open card. A row not
+  offered is hidden and insensitive. The hairline under the first group sits under the last of it and
+  hides when nothing follows.
+- Glass is height-specific (`VS_GLASS_FMT`: `vs_glass1`..`vs_glass7`, `mod_icons.GLASS_VIEWSORT*`);
+  another height needs its own picture.
+- A page keeps its sort and direction (`vs_menu(on, sort, rev, list)`) and its handler reverses the
+  ticked row. `vs_dated(v, mask)` picks which sort rows read Newest First / Oldest First (default
+  rows 2 and 3; Songs passes row 3 alone).
+- The Artists page's Show group uses view rows 4 and 5 (a click arrives as `VS_SORTS` or `+1`).
+- Widget names are per window, so the same `vs_*` names work on every page.
+- Per page: Songs ([songs](songs.md)) folds Search, Sort, Select and Recently Added's view toggle
+  into one card; Folders: Select + Name, Date Modified, Type (`vs_glass4`); Playlists: two cards on
+  one `vs_card` ([playlists](playlists.md)).
 
 ## Album order and initial selection
 
-`cc_album_order` (`patch/covercache.c`, the order of `cc_sort_mode`, the card's `albums-sort`, all four rows and
-their reversed forms, "Order and direction" above) keeps the stock deque unchanged and builds `order[]`, an array of
-stock row numbers, by a heapsort (`cc_heapsort`; access through the stock rows, no callback into the payload).
+Per-artist Cover Flow reads the same order with Artist read as Title (`cc_scoped_sort`;
+`load_artist` in `patch/coverflow.c`).
 
-- **Title:** the album titles by the name order described in [artists](artists.md); ties keep the stock position.
-- **Artist:** the album row's artist, then its title, each by the same name order; ties keep the stock position.
-  Unknown Album (ID -1) goes last.
-
-Recently Added and Year rank by song creation time and by year tag (tie rules in "Order and direction" above).
-
-Per-artist Cover Flow reads the same order with Artist read as Title (`cc_scoped_sort`, "Scoped artist page" above; `load_artist`
-in `patch/coverflow.c`), so the artist's shelf and the artist's grid list the albums alike. Its cache keys stay by stock row.
-
-Cost: 4000 albums sort in 30.8 M payload instructions (two keys per row; stock's own in-memory sort of the same list, which
-runs first, is over 10x that: `docs/modules/artists.md` "Cost against stock's sort").
-
-At open, `find_playing` (`patch/coverflow.c`) checks `cc_playing` (`patch/covercache.c`: `mclGetPlayPos` and the play
-queue at `PLAY_QUEUE`, bounded by `deque_size`). It matches the album by `cc_album_key` (FNV of artist/title), then by
-title ignoring ASCII case, for compilations. Selection priority is the playing album, then the saved centre album key
-(`POSITION_FILE`, `coverflow-position` on the card, kept only by the main Cover Flow: an artist's shelf does not read or write
-it), then the first album. This is a one-time lookup, not polling.
+At open, `find_playing` (`patch/coverflow.c`) checks `cc_playing` (`mclGetPlayPos` and the play
+queue at `PLAY_QUEUE`, bounded by `deque_size`). It matches the album by `cc_album_key` (FNV of
+artist/title), then by title ignoring ASCII case, for compilations. Selection priority: the playing
+album, then the saved centre album key (`POSITION_FILE`, `coverflow-position`, kept only by the main
+Cover Flow: an artist's shelf does not read or write it), then the first album. One lookup, no
+polling.
 
 ## Covers and painting
 
-The shared grid supplies tile records, rounded artwork, ellipsis fitting, painting and hit
-testing. Recently Played uses the same helpers. Covers come from
-`r<album-key>-168.jpg`, reduced by an area average of the centered square.
-An absent file or empty “no art” marker uses the placeholder disc.
-A `.bad` marker (an album whose extraction hung, `docs/modules/coverflow.md`) also keeps it out of the missing set.
+The shared grid supplies tile records, rounded artwork, ellipsis fitting, painting and hit testing.
+Recently Played uses the same helpers. Covers come from `r<album-key>-168.jpg`, reduced by an area
+average of the centred square. An absent file or empty "no art" marker uses the placeholder disc. A
+`.bad` marker (an album whose extraction hung, [coverflow](coverflow.md)) also keeps it out of the
+missing set.
 
-Twelve resident tiles cover visible cells, prefetch and recent history. Grid artwork uses
-about 1.1 MB including the placeholder; list artwork about 130 KB for the ring. The copied
-album list adds about 0.3 KB per album. A decode temporarily holds the 168 px source.
-
-Paint draws resident covers and text only: no image decoding, bitmap allocation or timer
-creation. Text is measured and ellipsized once per tile. Drawing is limited to the 400 px
-viewport; partial text lines are omitted. The stock scroll view clips the canvas.
-
-The 16 ms loader decodes at most one cover per tick, prioritizing visible cells nearest the
-viewport center, then one grid row or two list rows ahead in the scroll direction.
-Visible tiles are retained; other tiles use LRU replacement. Decoding pauses during a stock
-drag or running scroll animation (`grid_moving`) and resumes when it ends.
-Backgrounding stops the loader; foregrounding restarts missing work.
-If scroll events cannot be registered, the loader polls while the page is open.
+- Twelve resident tiles cover visible cells, prefetch and recent history. Grid artwork uses about 1.1
+  MB including the placeholder; list artwork about 130 KB.
+- Paint draws resident covers and text only: no decoding, bitmap allocation or timer creation. Text
+  is measured and ellipsized once per tile. Drawing is limited to the 400 px viewport.
+- The 16 ms loader decodes at most one cover per tick, visible cells nearest the viewport centre
+  first, then one grid row or two list rows ahead in the scroll direction. Visible tiles are
+  retained; others use LRU. Decoding pauses during a stock drag or scroll animation (`grid_moving`).
+  Backgrounding stops the loader; foregrounding restarts missing work. If scroll events cannot be
+  registered, the loader polls while the page is open.
 
 ## Cache building
 
-The shared `cc_build_*` worker builds missing cache files without blocking page open.
-A 50 ms startup timer scans in batches of 64 albums, 20 ms apart, nearest the initial
-viewport first. The worker starts after the scan finishes; scrolling does not reorder it.
-A 500 ms poll makes placeholder tiles eligible for reload as files arrive.
+The page starts the shared cover worker and its scan ([covercache](covercache.md)): a 50 ms startup
+timer scans in batches of 64 albums, nearest the initial viewport first; a 500 ms poll makes
+placeholder tiles eligible for reload as files arrive. Only one page owns the worker, so opening
+Cover Flow releases the Albums build first. Destroy stops owned work and removes timers.
 
-Only one page owns the worker. Opening Cover Flow releases the Albums build first.
-Destroy stops owned work and removes timers. `cc_build_stop` never waits for the thread: a worker
-that has exited is joined and its set freed; one still inside a job (stock's art call cannot be
-interrupted, and can be slow) is cancelled and orphaned, keeps the set and is joined and freed by the next
-`cc_build_open` / `cc_build_busy` / `cc_build_orphan` after it exits. Meanwhile `cc_build_open` refuses and
-`cc_build_busy` is true; the Albums and Songs start timers ask again every 500 ms while `cc_build_orphan` (true for 10 s after the orphaning, then they stop until the next foreground or open).
-A refused timer/thread, busy worker or less than 16 MB free space leaves placeholders.
-A completed scan with no missing files is not repeated during that page's lifetime.
+`cc_build_stop` never waits for the thread: an exited worker is joined and freed; one still inside a
+job (stock's art call cannot be interrupted) is cancelled and orphaned, and joined by the next
+`cc_build_open` / `cc_build_busy` / `cc_build_orphan` after it exits. Meanwhile `cc_build_open`
+refuses and the Albums and Songs start timers ask again every 500 ms for up to 10 s. A refused
+timer or thread, a busy worker or under 16 MB free space leaves placeholders. A scan with nothing
+missing is not repeated in that page's life.
 
-**A source's artist page** (`al.src`, `docs/modules/subsonic.md` "What the user sees") decides the layout by the same rule with the server's picture: `al_head_url` asks `src->cover` for the artist's record (key 0; the file is the circle's, `al_has_photo` is 1 when it is there), and there is no cache worker re-check. A picture on its way gives the plain header and arms the shared cover poll (`al_cp_ask` looks again with the tiles' covers); when the file is there `al_layout(1)` switches the circle in place, as the re-check below does for a library artist. None (-1) is remembered in `al.rk` 2 and not asked again. Never a placeholder circle on this page.
+**A source's artist page** (`al.src`, [subsonic](subsonic.md) "What the user sees") decides the layout
+by the server's picture: `al_head_url` asks `src->cover` for the artist record (key 0; `al_has_photo`
+is 1 when the file is there). There is no cache worker re-check. A picture on its way gives the plain
+header and arms the shared cover poll; when the file is there `al_layout(1)` switches the circle in
+place. None (-1) is remembered in `al.rk` 2. Never a placeholder circle on this page.
 
-**Artist photo re-check (artist-scoped page).** The header layout is decided when the page opens from the cache (`al_has_photo`: `ap_lookup` finds a non-empty -168 file, the artist's or the lead artist's: circle layout; an empty marker or no file: no circle). Once the page's own cover build is over, or at once when it had nothing to build (`al_recheck`, once per open), the page asks the cover worker to look at this artist again (`ap_recheck`, `docs/modules/artists.md` "Re-check on open"): the job holds the first track of each of the artist's albums (the page's own album copy; no library query), the page's set and its 500 ms poll (`al_on_build`) are used, so a page that closes cancels it like a cover build. A busy worker (Home's pass, Cover Flow) means no re-check. When the set is over `al_recheck_done` asks the cache again: a photo that appeared or went switches the layout in place (`al_layout`: the name label and the pills move by `PH_SHIFT`, the content is resized, the offset is kept inside it, the circle is made by the loader); a replaced photo (`ap_epoch` moved) is read again with the layout unchanged. The Artists page behind it compares `ap_epoch` when it is in front again (`ar_on_fg`).
+## Artist photo re-check
 
-## Input and validation
+The header layout is decided when the page opens from the cache (`al_has_photo`: `ap_lookup` finds a
+non-empty -168 file, the artist's or the lead artist's). Once the page's own cover build is over, or
+at once when it had nothing to build (`al_recheck`, once per open), the page asks the cover worker
+to look at this artist again (`ap_recheck`, [artists](artists.md) "Re-check on open"): the job holds
+the first track of each of the artist's albums (the page's album copy; no library query) and uses the
+page's set and its 500 ms poll (`al_on_build`), so a page that closes cancels it. A busy worker
+means no re-check. When the set is over `al_recheck_done` asks the cache again: a photo that
+appeared or went switches the layout in place (`al_layout`: name and pills move by `PH_SHIFT`, the
+content is resized, the offset kept inside it); a replaced photo (`ap_epoch` moved) is read again.
+The Artists page behind compares `ap_epoch` when it is in front again (`ar_on_fg`).
 
-The stock scroll view owns drag, fling and end stops; [list gestures](gestures.md) handles
-coasting catches. Page listeners return without consuming events. A release on the original
-cell within 10 px on both axes opens the album. Drag, abort, backgrounding or a touch that
-stops coasting clears the press and opens nothing. List presses use `#333334` (`LIST_PRESS`, the pressed-row role colour).
+## Input
 
-Tests cover the capsule, the card (asset: groups, two hairlines, tick column, glasses; the Search row and its fallback; ticks, each order, the saved file, the View rows, the fit; `reverse_tests`: the direction line, a tap on the ticked row, the saved letter, special rows last; Cover Flow in `test/pod/sort.py`; on the artist's page `test/pod/artists.py` `scoped_sort_tests`: the rows hidden and packed (Find Artist Photo first, no Search Albums row), the 300 px card and its glass; `find_photo_tests`: the row's text and glyph, its tap, the header after a pick, a composer's five-row card, Artist shown as Title, each order and direction, the shared file, the artist's Cover Flow order); `test/pod/i18n.py` measures the card's texts in all 13 languages, both modes, real stock layout and pointer handlers, large-library content
-heights, tile bounds, loader deferral, cache-worker ownership, persistence and failure paths;
-`az_tests` the Title list's sections (A-Z and Z-A), pinned header, rail and bubble, the grid and the other orders without them, the four
-switch combinations (header height 0 geometry, the rail jumping to a section's first row) and a list without memory for the ranks.
-Real frame timing and canvas/text appearance need the device.
-See [album page](album-page.md) for album opening, [Cover Flow](coverflow.md) for the shared
-cache worker and [rows](rows.md) for common library styling.
-
-## Design notes (view sort menus)
-
-Every page with a "..." menu uses the helper: Albums (this page), Artists with Genres and Composers, Songs (Title, File Name, Format, Recently Added, [songs](songs.md)), [folders](folders.md) and [playlists](playlists.md). How a page uses it:
-
-- Reuse `patch/viewsort.c` (`vs_bind`, `vs_view`, `vs_menu`) and `tools/pod_ui.py` `view_sort_card` (its arguments give a page's own row texts and view glyphs): the page's asset appends the card last (names `vs_*`), binds it at open and keeps its own state (current sort, mode). The asset always has the four sort rows, the two view rows, the Search row and the Select row (`VS_SORTS` 4, `VS_ROWS` 8 in `patch/offsets.inc`; the card is built seven rows high, Select sharing Grid's place until the payload packs it); a page passes the `sorts` mask to `vs_bind` (`VS_WITH_VIEWS` offers the two view rows, `VS_WITH_SEARCH` the Search row, whose click arrives as `VS_SEARCH`, `VS_WITH_SELECT` the Select row (`VS_SELECT`, a check-circle glyph `pod_ic_vsselect`, the second row); sort row 0 must stay) and gets the card packed; `vs_offer(v, mask)` changes the mask later (the Songs page's Recently Added drops Select in its albums view) and packs an open card again. A row not offered is hidden and insensitive; `vs_hair`, the hairline under the first group (Search, Select), sits under the last of them and is hidden when none is offered or nothing follows; the first sort row's top border (the hairline between View and Sort) goes when no view row is offered. The view rows are the page's second group when it is not Grid / List (the Artists page's Show group: a click arrives as `VS_SORTS` or `VS_SORTS + 1`, `vs_view` ticks the second when `list` is set). The card always has the glass of its row count (`VS_GLASS_FMT`: `vs_glass7` 336 px, `vs_glass6` 288, `vs_glass5` 240, `vs_glass4` 192, `vs_glass3` 144, `vs_glass2` 96 and `vs_glass1` 48 px exist); a glass is height-specific (`mod_icons.GLASS_VIEWSORT*`), so another height needs its own picture in `mod_icons` (generated with `np_images`, the PNG committed in `assets/icons/png`). A page keeps its sort and direction (`vs_menu(on, sort, rev, list)`) and its handler reverses the ticked row. `vs_dated(v, mask)` picks which sort rows read Newest First / Oldest First instead of A–Z / Z–A (default rows 2 and 3; the Songs page passes row 3 alone).
-- Each page gets its own order file (`albums-sort` here; list it in `pod_pages.SETTING_FILES` and `patch/setfiles.c`, kept in the same order) and its own order function; this page's is `cc_album_order`. The Artists page (with Genres and Composers) has Search, a Show group and Name in `patch/artists.c` ([artists](artists.md)). The Songs page ([songs](songs.md): its navbar buttons Search, Sort, Select and Recently Added's view toggle are folded into the one "..." card, a mask per list from `sg_offers`: the library `vs_glass5`, the other lists `vs_glass1`, Recently Added `vs_glass3` / `vs_glass2`; Search is back as a navbar button on the Songs page, x 168 like Cover Flow on Albums; its Z-A reverses the stock list in place and the play queue with it). The Folders page is done ([folders](folders.md): "..." with Select and Name, Date Modified, Type in `vs_glass4`, `folders-sort`, `vs_dated` row 1, the sorted `vis` index and the reordered play queue `so_play_with`). The Playlists page is done ([playlists](playlists.md)): list-plus | "..." | Now Playing (Songs' pattern); two cards on one `vs_card` (the list-plus button's in `vs_glass4`, the "..." in `vs_glass3`): the list-plus button's four action rows (`VS_SEARCH`, `VS_SELECT`, `VS_ACT2`, `VS_ACT3` = slots 6..9: New Playlist, Import, Export, Delete Playlists; the extra two slots exist only in its asset and `vs_bind` finds them only when the mask asks) and the "..."'s Grid / List and Name (sort slot 0; `playlists-sort` `a` = Z–A; the displayed order through `pl.ord` over the untouched stock copy); Recently Added was tried and dropped (ids are reused, no creation time), Recently Modified and Number of Tracks were not offered (no per-playlist time; a count needs every playlist read first).
-- The widget names are per window, so the same `vs_*` names work on every page. Tests: `test/pod/albums.py` `card_asset_tests`, `sort_card_tests` (the card, the fit with `ListMachine`) are the model; `VS_WIDGETS` in `test/pod/harness.py` lists the widgets a machine needs for an Albums page (eight rows). Machines share widget names, so a page opened in a test over another (Artists' All Songs row opening Songs) re-binds a shared `btn_more`.
-- Recently Added and Year depend on `time_create`, which a rescan rewrites ([recent-albums](recent-albums.md)).
+The stock scroll view owns drag, fling and end stops; [gestures](gestures.md) handles coasting
+catches. A release on the original cell within 10 px on both axes opens the album. Drag, abort,
+backgrounding or a touch that stops coasting clears the press and opens nothing. List presses use
+`#333334` (`LIST_PRESS`). See [album-page](album-page.md) for album opening, [coverflow](coverflow.md)
+for the shared cache worker and [rows](rows.md) for common library styling.
 
 ## Returning to the page
 
-The local library's lists are read once at open and again each time the page comes back to the foreground (`al_on_fg`, `al_reload_with`): the unscoped list (`cc_albums`) and an artist's or composer's (`al_scoped_reload`: the albums, their cache keys and the years, as at open). Songs deleted on an album page opened from it remove that album from the grid, and a tile never opens a stale row. The same albums in the same order with the same years and keys swap the records only; a different order (Year and Recently Added can move an album with the rows the same), a different year, or a different cover key (a compilation whose library representative song was deleted) makes the tiles again. A failed read of the unscoped list keeps the grid. A source's page keeps its gen-driven reload.
+The local library's lists are read once at open and again each time the page returns to the
+foreground (`al_on_fg`, `al_reload_with`): the unscoped list (`cc_albums`) and an artist's or
+composer's (`al_scoped_reload`: albums, cache keys and years). Songs deleted on an album page opened
+from it remove that album, and a tile never opens a stale row. The same albums in the same order with
+the same years and keys swap the records only; a different order, year or cover key makes the tiles
+again. A failed read of the unscoped list keeps the grid. A source's page keeps its gen-driven reload.

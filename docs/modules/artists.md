@@ -1,138 +1,431 @@
 # Artists
 
-**Sources:** `patch/artists.c`.
+**Sources:** `patch/artists.c` (the page), `patch/artsplit.c` (split index), `patch/artistphoto.c`
+(photos), `cc_build_add_artist` in `patch/covercache.c`, the artist stage of `hc_on_start` in
+`patch/homecover.c`, `tools/pod_ui.py` `build_artists_page`. **Tests:** `test/pod/artists.py`,
+`test/pod/artistphoto.py`, `test/pod/i18n.py`. **Preview:** `tools/preview/preview_artists_photo.py
+WORKDIR OUT.png`.
 
-**Genres and Composers are the same page** (`ACT_ARTISTS` with the row's stock Home tile as its argument: `artists_open(0)` Artists, `HOME_GENRE` 7, `HOME_COMPOSER` 8; `ar.cls` is the stock class listed: `0xf004`, `0xf006` `getAllGenre` (`select id,style from songtable group by style COLLATE NOCASE`), `0xf005` `getAllComposer`). The rows, the copy and the empty line ("Update Local Music first") are shared; the title is the menu row's text (`Genres` / `Composers`, the row's own key, translated in the 13 languages), the "..." card has the Name order alone (no Search row: `search_open_in` has no genre or composer scope and a library search would not list them; no Show group) and the `ar_sort` name keys are **not** applied: A-Z is stock's own order (the query's rows, then `toolsQueryDbTable`'s in-memory title sort: `getAllGenre` and `getAllComposer` both pass sort 1, comparator `0x5e0dac`; the "Unknown Genre" / "Unknown Composer" row, id -1, last) and Z-A is that order reversed, the Unknown row still last. A row's name is `REC_TITLE` as the stock rows show (the genre row callback `0x4e9b80` stores the one string at `+0x1c` and at `+0x10`). A window that will not open, or an asset that is not ours, opens the tile's stock `localclass_page` through the Home dispatcher (`pod_home_open`), as the Songs lists do. A **genre's tap** is `songs_open_genre(name, unknown)` (`patch/songs.c`; the genre's songs on our Songs page, class `0xff09`, `docs/modules/songs.md` "A genre's songs"). A **composer's tap** is `albums_open_artist(list, row, CLASS_COMPOSERS)`: our Albums page scoped to the composer exactly as an artist's (below; Cover Flow is its navbar button), with `loadAlbumList(0xf005, row)` in place of `0xf004` and `albuminfo_page` opened with class `0xff02`; the stock evidence is in `docs/modules/addresses.md` ("a composer's albums"). The rest of this section describes Artists.
+Our Artists page, with Genres and Composers on the same code. No hook; if the window will not open
+the Home dispatcher opens the tile's stock `localclass_page`.
 
-**The page is the Songs page's structure** (`docs/modules/songs.md`; the shared furniture is `patch/azlist.c`, below). `ui/m1plus_artists.bin` (`tools/pod_ui.py` `build_artists_page`): the navbar (the glass Back disc, the small title hidden at first, the "..." `btn_more` as the capsule's left cap at x 214, Now Playing as its right cap), the "..." card (`vs_*`, appended last), a stock `artists_listview` > `artists_scrollview` (310 wide, + `scroll_bar_m`) holding **one content view, `view_grid`**, that paints the rows, the section letters and the pinned header itself in its `EVT_AFTER_PAINT` (no widget per artist: the old page made a `list_item` + `hscroll_label` + `image` per row, 6000 widgets for 2000 artists, so it stopped at 2000; **`MAX_ARTISTS` is 20,000 now**: 5 bytes of the page's own per artist, 5000 artists open in 21.3 M payload instructions, the sort most of it: the test's names differ only inside digit runs, the costly case of the by-value compare; 5000 library-like names open in 20.0 M), and in it the large title `ar_title` (32 px white, x 12, 250 wide, insensitive); beside the list the rail `sg_rail` and the bubble `sg_bubble` (Songs' widgets and names, `azlist_rail()`), the hidden style labels `label_row_title` (21 px white: the stock `srlabel_leftwhite21_style`'s look), `label_hdr`, `label_rail`, `label_rail_on` (`azlist_labels()`), `img_nb_fade` and `label_status`. **The old names `pod_listview` / `pod_scrollview` are gone** (nothing but this page and its tests used them for the Artists asset).
-- **Large title and collapse: the Songs pattern fits and is used.** The large title is the first thing in the content (`AR_TOP` = `SG_TITLE_H` 52 px, with no pills under it); the navbar's small title (`label_title`, 156 px before the "...") shows once the offset reaches `SG_COLLAPSE` (46, `m1_title_gone`), from the scroll_view's own `EVT_SCROLL`, with `img_nb_fade` shown while the list is scrolled (`ar_title_update`; without the scroll events the navbar keeps its title). Both titles are text set through `az_fit`: the mode's or the row's text cut with an ellipsis to its label (the Songs lists' rule). In the 13 languages only "Album Artists" is cut (ja, pl, ru, uk; "Album Artists" is wider than 156 px at the navbar's size); `test/pod/artists.py` measures all of them in the real font.
-- **Rows**: 52 px (`AR_ROW`), the name 21 px white in its 24 px box (`AR_TEXT_Y` 14: a row cut by the window's edge has its name cut too, by the `scroll_view`'s canvas clip, the Songs page's rule), cut with an ellipsis at x 252 (`AR_TEXT_END`: the Albums page's tile text, `grid_tile` / `grid_text`, a ring of `AR_TILES` 13), the chevron at x 262 (`AR_CHEV_X`, 10 x 16, a #8A8A8A bitmap the page makes at open: a two-segment stroke antialiased by 4 x 4 samples, because the stock `right_arrow` is 13 x 22 and `cc_decode` only makes squares), a `#222222` hairline to x 296, the pressed row filled `#333333`. **Artists and Album Artists (layout A, `ar.photo`): a 40 px circle (`AR_PHOTO` = `AP_ROW_D`) at x 16 (`AR_PHOTO_X`), centred in the row, the name from x 68 (`AR_NAME_X`) and the hairline from x 68; Genres and Composers keep the name and the hairline at x 24 and have no circle.** The circle is the ring tile's bitmap (below, "Artist photos"); a row without one, or not decoded yet, shows the one shared placeholder bitmap. There is no playing marker on this page (there never was one). A tap (down and up within `SC_DRAG_PX` on the same row, as the Songs rows) calls `ar_open(display position)`: `albums_open_artist(list, ar_stock(i), scope)` for an artist or a composer (`coverflow_artist` with the same arguments if that returns -1, the Albums window not opening), `songs_open_genre(name, unknown)` for a genre; a touch on the title block, a header (the pinned band over the scrolled rows too: `az_pin_hit`, `patch/azlist.c`) or the air under the last row opens nothing. The last 36 px (the rail's touch column, x 284) belong to the rail within its span.
-- **Sections**: `ar_sections` gives every display position the rank of `cc_name_initial(name)` (the first byte of the text the sort compares: `so_name` of `patch/covercache.c`, white space and a leading `The ` dropped, so "The Beatles" files under B; a CJK character is its pinyin initial, a kana its romaji initial and an accented Latin letter its base letter), `az_rank_of` (a letter A..Z either case; a digit, a symbol and every name in another script with no initial are "#", rank 0), and `az_sections` (`docs/modules/songs.md`, the non-decreasing labelling that puts the most rows under their own letter; the list keeps its order, a row out of place stays in the section around it, at most 27 sections, no memory = a plain list with no headers and no rail). **Artists** are sorted by `ar_sort` (below) and so are in letter order but for "Unknown Artist" and digits, symbols and other scripts with no initial (Hangul, Cyrillic, Greek, × ÷; first, under "#"); an accented Latin name (Ólafur, Éric, Ångström) files under its base letter; **Genres and Composers keep the stock order** (the in-memory title sort above; the "Unknown Genre" / "Unknown Composer" row last) and take the same labelling, so no second order is made. **Name Z-A** (`ar.rev`) mirrors all three: the sorted rows are reversed, the Unknown rows keep their stock (last) positions, and the ranks are mirrored so they still rise down the list (Z 0 .. A 25, "#" 26: digits, symbols and the scripts with no initial last), the headers and the rail read the letters back (`sec_letter`), so the rail and the headers run Z to A and "#" is last. The Name order is the only one: there are no counts to sort by (below), so the rail is always there with sections; a list with no sections (no memory) hides it, hidden and insensitive, as before. **The "Unknown ..." row (id -1) takes the rank of the row before it**: it is last in stock, would be a stray by its own letter and, as the last row of a run of one-row sections (a tie), could swallow the section of the row before it (a lone Z artist). The rail and the pinned header are `az_*`, unchanged: `sg_rail` at x 284, 36 wide, the compact A-Z plan, the grab and jump (to section i's header, clamped; the first section to the top, the large title with it), the bubble.
-- **Order and the album Artist rule**: the order is the album Artist order's name rule, applied by `ar_sort`. The stock lists are sorted in memory by `toolsQueryDbTable` (sort 1, `algo_sort_if`, comparator `0x5e0dac`; not by the SQL `group by`): digit runs as numbers, `strcasecmp`, digits and symbols before letters, a CJK name through `utf8_to_pinyin` (`0x73a5f0`, `docs/modules/songs.md` "The Initial"). `cc_name_keys` of `patch/covercache.c` makes one key per name once per sort (the name without leading white space and a leading `The `, or a copy where each CJK character is its pinyin initial, taken by calling stock's `utf8_to_pinyin` on that one character, and each kana (hiragana U+3041..U+3096, katakana U+30A1..U+30FA, lead byte E3) its Hepburn initial from `kc_kana` (86 bytes, one per hiragana; katakana is hiragana + 0x60; し S, ち C, つ T, ふ F, じ ぢ J, づ Z, を O, ヴ ヷ..ヺ V, a small kana with its row, ー and the iteration marks none), so ヨルシカ files under Y; each accented Latin letter of U+00C0..U+017F (lead bytes C3..C5) becomes its lower-case base letter from `kc_latin` (192 bytes, one per code point, space = none: × ÷ stay symbols; from the Unicode decomposition plus ß s, æ œ ø ð þ ł đ ı and the like by hand; 2 bytes become 1, so a copy never grows), so Ólafur Arnalds files under O and Beyoncé sorts as "beyonce", and Éric ties with Eric on "eric" (stock order); a block of 4 bytes per name plus the copies, one `calloc`), and `cc_key_cmp` compares keys: digit runs by value (leading zeros ignored), then per byte digits before symbols (every non-ASCII byte is one, by its UTF-8 bytes) before letters, ASCII case folded; a prefix comes first; ties by stock position (`cc_heapsort`, no libc callback). Stock's second key for equal first initials (the full pinyin, `utf8_2_pinyin`) is not reproduced: CJK and kana names compare by their initials string, other scripts by byte before the Latin names (with the symbols, "#"). `cc_name_cmp` (Radio, podcast and country lists, no initials or base letters: they have no keys pass) takes the same class rule: a non-ASCII name leads, an accented one too. `ar.order[]` (stock row at each display position, `calloc`s of 4 bytes per artist, the scratch arrays freed at once, `order` freed when the list is rebuilt and on close) is built over the copy, so no stock row moves. Every row but "Unknown Artist" (id -1) takes part as one set; the Unknown rows keep their stock positions (stock: last) and the sorted rows fill the other positions in order, so "The Beatles" reaches B wherever a fixed row sits. A failed allocation (order, row pointers or keys) leaves `order` NULL (stock order). `ar_stock` maps a display position to the stock row handed to `coverflow_artist`. The sort re-runs at every `ar_load` (open and the mode toggle). `getAlbumByArtist`, `getAlbumByAlbumArtist` (`0x4eaccc`, `0x4eb0e4`), `getAllComposer` (`0x4ebde8`), `getAllArtist`, `GetAllAlbumArtist`, `getAllAlbum` and `getAllGenre` all pass 1 as `toolsQueryDbTable`'s fourth argument (`addiu $a3, $zero, 1` before the call).
-- **Cost against stock's sort**: stock's comparator, run for real under Unicorn on the same names (its libc calls mocked, counted and given rough glibc costs), takes per compare 744 instructions of its own code + ~2,100 of libc on the test's names (`Aa00012`), 1,484 + ~2,800 on library-like names, 1,445 + ~3,100 on CJK names; `cc_key_cmp` takes 148, 128 and 177. Each stock compare clears two 1 KB buffers, `snprintf`s both names, converts them to pinyin and calls `strlen` 18-41 times (in a loop condition); ours converts once per open (`cc_name_keys`, ~0.5 M for 1000 CJK names). A 5000-row sort (~61,000 compares, n log2 n assumed for `algo_sort_if`) is ~170-265 M for stock, 8-9 M for ours. Stock's sort always runs first (`loadLocalClassList`), so the page adds its whole open (20.0 M for 5000 library-like names, 21.3 M for the test's) to well over 10x that. The compare's common prefix is a plain byte loop (folding only bytes that differ) and digit runs are in `kc_runs` (one pass back over the common part, one forward): names that differ only inside a digit run cost 12-18 % more than the old ASCII-fold compare, library-like names 11 % less (22.5 M before).
-- **The "..." card** (`btn_more`, `ar_on_more`; the shared `patch/viewsort.c`, `docs/modules/albums.md` "Design notes"; 50 px rows, tick column, one hairline between groups, glass per height). **Artists**: `Search Artists` (glyph `pod_ic_vssearch`; closes the card, then `search_open_in(SEARCH_ARTISTS)`, the library `search_open` if that returns -1), the **Show** group `Artists` / `Album Artists` (view rows 4 and 5 with the glyphs `pod_ic_vsartist` `mic-vocal` / `pod_ic_vsalbumartist` `user-star`; the tick follows `artist_type`; the ticked row only closes the card) and the **Name** sort with its grey line `A–Z` / `Z–A`; four rows, 192 px, `vs_glass4`. **Genres and Composers**: Name alone, 48 px, `vs_glass1`, no hairline. A tap on the ticked Name row reverses the order, saved first (`home_write_atomic`: a failed save changes nothing), then the list is built again from the top. The Show rows do what the stock switch handler `0x535770` does (`ar_set_type`): `artist_type` (`0xa05a14`) set, `write_int_config(v, "PLAYSET", "ARTISTTYPE")` (`0x4d6a2c`) and the byte `0xa06d20` (the stock Artists page's reload flag, read at `0x535fe8`) set to 1; then the list is queried again, rebuilt and scrolled to the top; the stock toast and style swap belong to the stock page and are skipped; Cover Flow and the album page read `artist_type` themselves. "Update Local Music first" for an empty library (the list and the rail hidden and insensitive). **Order files** (`/mnt/data/m1plus/`, one per page, in Settings Files, `docs/modules/settings.md`): `artists-sort`, `genres-sort`, `composers-sort`, one character, `a` Name Z-A, missing or anything else A-Z, read once at open (`ARTISTS_SORT_FILE`, `GENRES_SORT_FILE`, `COMPOSERS_SORT_FILE` in `patch/home.h`). **No count sorts**: the stock rows are one representative song each (`select * ... group by`), they carry no album or song counts, the payload has no sqlite import and the one stock row callback builds `stSongInfo`; a counts query would need its own statement, a callback of its own and the podcast filter, so Most Albums / Most Songs are not offered.
-- **Memory**: the copy of the stock rows (what the stock query returns, as before), `order` 4 bytes, `rank` 1 byte and (Artists) the photo state 2 bits per artist, the 13 text tiles (with 40 x 40 circles on Artists: 6.4 KB each), the placeholder (6.4 KB), the rail's 16 px disc and the 10 x 16 chevron (all freed with the window; `ar_on_destroy`). A tile ring that cannot be made closes the page (the tile's stock page opens for Genres and Composers, as an asset that is not ours).
-Statics are prefixed `ar_`. Tests: `test/pod/artists.py` (`photo_rows_tests` the circles, `scoped_head_tests` the artist page's header, `page_tests` the navbar and the Show group, `genre_composer_tests` the one-row card, `name_order_tests` the order files, Z-A, sections and rail, a failed save), `test/pod/i18n.py` (the card's texts in the 13 languages), `test/pod/glassbtn.py`.
+## Genres and Composers are the same page
 
-**Shared furniture, `patch/azlist.c` / `azlist.h`** (moved out of `patch/songs.c`, which keeps its behaviour and its tests): `az_sections` (the labelling), the geometry of a list with section headers (`az_hdr_y`, `az_row_y`, `az_row_from`, `az_at`, `az_span`, `az_max_scroll`), `az_paint_heads` (the letters and the pinned header), the rail (`az_rail_plan`, `az_rail_fit`, `az_rail_paint`, `az_rail_event`: the compact index of `docs/modules/songs.md`, its alignment from the tree's font, the grab and jump, the bubble, the disc), and `az_fit` (a title cut with an ellipsis). A page owns an `az_t` (the Songs page's `sg.al`, the Artists page's `ar.al`) and fills in the fields its comment marks `(page)`: its window, scroll_view, rail and bubble widgets, the three label styles, the top of the first header, the row height, the row count and the content height (what the offset is clamped to). `tools/pod_ui.py` shares the asset side (`azlist_labels`, `azlist_rail`); the Songs asset is byte for byte what it was. The Albums list mode (`al.az`, [albums](albums.md)) is the fourth user, with the Radio countries.
+`ACT_ARTISTS` with the row's Home tile as argument: `artists_open(0)` Artists, `HOME_GENRE` 7,
+`HOME_COMPOSER` 8. `ar.cls` is the stock class listed: `0xf004`, `0xf006` `getAllGenre`, `0xf005`
+`getAllComposer`.
 
-**The two switches** (Settings > Library, [settings](settings.md)): `az_prefs` reads `appearance-index-rail` (**Index Rail**, on by default; a missing file is on, `0` is off: `az_t.norail`, no rail and no bubble on any A-Z list, the rail widget hidden and insensitive, `az_rail_event` / `az_rail_paint` do nothing; the rows keep the full list-row width: chevron x 288, text to 278, hairline to 310) and `appearance-headers` (**Section Headers**, on by default: `az_t.hdr_h` is `SG_HDR_H` or 0). **The rail's footprint on the rows**: while the rail is shown (`az.nsec > 0` and the switch on) every A-Z row gives up `SG_RAIL_INSET` (`LIST_HAIR_END - SG_RAIL_X` = 26 px: the touch column starts at x 284, the list-row spec ends at 310) on its right: `az_inset(az)` is that or 0, `az_end(az)` is the hairline's end (`LIST_HAIR_END - az_inset`), and the hairline end, the chevron x (288 -> 262), the text end (278 -> 252 with a chevron) and the Songs "..." zone's right edge (`RM_MORE_RIGHT` 310 -> `RM_MORE_RIGHT_RAIL` 284) move left by it. One rule for Songs (`sg_paint_rows`), Artists / Genres / Composers (`ar_paint_rows`), Radio countries (`rp_paint_rows`) and the Albums list (`grid_list_paint` reads `grid_t.az`); a plain list (another sort order, the grid, a scoped page) and any page with the switch off keep the full width. Each page calls `az_prefs` once as it opens, so a change shows on the next open. With `hdr_h` 0 every geometry function (`az_hdr_y`, `az_row_y`, `az_rows_end`, `az_row_from`) has no header band, `az_paint_heads` and the pinned header draw nothing, and a rail jump to section s lands on its first row. Tests: `songs/switch_tests`, `artists/index_tests`, `radio/directory_tests`, `albums/az_tests`, `menu` (the rows).
+- Rows, copy and the empty line ("Update Local Music first") are shared. The title is the menu row's
+  text.
+- The "..." card has Name alone: no Search row (`search_open_in` has no genre or composer scope) and
+  no Show group.
+- The `ar_sort` name keys are **not** applied. A-Z is stock's own order (sort 1 with comparator
+  `0x5e0dac`; the "Unknown Genre / Composer" row, id -1, last) and Z-A is that reversed with the
+  Unknown row still last.
+- A **genre's tap** is `songs_open_genre(name, unknown)` ([songs](songs.md) "A genre's songs"). A
+  **composer's tap** is `albums_open_artist(list, row, CLASS_COMPOSERS)`: the Albums page scoped
+  exactly as an artist's, with `loadAlbumList(0xf005, row)` and `albuminfo_page` class `0xff02`.
 
-**A tap opens our Albums page scoped to the artist** (`albums_open_artist`, `patch/albums.c`, `docs/modules/albums.md` "Scoped to an artist"): the page in the grid or list mode last chosen (the shared `albums-view` file), the artist's name as its title, that artist's albums and, with two or more, the All Songs tile last (our Songs page on every song, as the All albums card below), and the album tap opening the artist's album page as below. Its Cover Flow button (`btn_coverflow`) calls `coverflow_artist(list, index, scope)` for the same artist: the Cover Flow described next (`scope` `CLASS_ARTISTS`, or `CLASS_COMPOSERS` for a composer: `cf.scope`, what `loadAlbumList` takes, and, through `cc_open_album(row, scope, index)`, whether the album page opens as `0xff01` or `0xff02`): the same page, renderer, cache and touch layer scoped to The artist's albums follow the one album order (`albums-sort`, the page's "..." card without the Artist row; Artist is shown as Title), and so does the scoped Cover Flow (`docs/modules/albums.md`, `docs/modules/coverflow.md`).
-the artist (q2-pod's `ARTIST_ALBUMS`, `cf.scoped`). Everything below holds for a composer with that substitution (`0xf005`, `0xff02`, the composer in the title and on the card):
+## The page
 
-- **Albums** `loadAlbumList(0xf004, artist)`, copied into the page's deque with the artist's row.
-- **Cards.** The stock list's last "All songs" row is kept as the **All albums** card with two albums
-  or more (caption "All albums" over the artist, placeholder art, no cache file, tracks = every song
-  of the artist), dropped with one.
-- **Covers.** Each album takes the cache key of the library album of the same name (`strcasecmp`
-  against `getAllAlbum`'s rows, grouped by name `COLLATE NOCASE`), so the page shows the main page's
-  files and builds only covers the library lacks (a compilation's library row names whichever artist
-  SQLite returned). With fewer than `IDX_MIN` 24 albums the match is that scan per album (the first library row of a
-  name wins). From 24 albums up `load_artist` first builds a temporary case-insensitive index of the library's album
-  names (open addressing, `calloc` of 8 bytes per library album rounded up to a power of two, hash = FNV-1a over the
-  ASCII-folded bytes, equality `cc_nocase`, an equal name already in the table from an earlier row is kept: the first
-  row wins) and looks every album up in it, then frees it; a refused allocation falls back to the scan. 200 albums over a
-  1000-album library: about 10.2 M payload instructions (most of it the libc compares, `strcasecmp` counted as one
-  instruction by the harness; roughly 180,000 string compares) before, 0.5 M with the index (`test/pod/artists.py`,
-  which also pins the keys of both paths against a model, with case duplicates, a non-ASCII name and a missing album).
-  Below 24 albums building the index (a pass over the whole library) costs more than the scans it saves, hence the threshold.
-- **The album** (a centre album, not the All albums card) `loadAlbumList(0xf004, artist)` (the artist goes into the browsing record, the artist's
-  albums and the stock All songs row into `*pdeq_showlist`), `albumcoverinfo_init`, `batchadd_albumcover_task(0, 0)`, then our album page, else
-  `navigator_to_with_context("albuminfo_page", 0xff01 | row << 16)`, the context the stock artist page's row
-  handler builds (`0x523d94`); the page runs `loadAlbumdetailList(0xff01, row)` itself and leaves class
-  `0xff11`. On every open, as in the main Cover Flow. The **All albums card** opens our Songs page on every song of the artist (`songs_open_artist`, the Songs button's call; the stock page on the All songs row if it will not open).
-- **Songs button.** `btn_songs` (the left cap of the Songs | Now Playing capsule at 214) opens our Songs page on the artist's songs (`songs_open_artist`: `loadAlbumList(0xf004)` + `loadAlbumdetailList(0xff01, the All songs row)`, class `0xff11`; docs/modules/coverflow.md, songs.md).
-- **Ends.** The shelf does not wrap (ring slots past either end stay empty, drag clamped, fling and
-  side taps stop at an end); the main page still wraps.
-- Title is the artist; the scope never reads or writes `/mnt/mmc/.m1plus/coverflow-position`; "No albums" when
-  empty; Back goes covers -> Albums page (when opened from its button) -> Artists -> menu; Cover Flow is never stored as the mode. The stock list always ends with "Unknown
-  Artist" (id -1), which opens to "No albums" without untagged songs. A refused second open while Cover
-  Flow is open.
+The Songs page's structure ([songs](songs.md); shared furniture below). `ui/m1plus_artists.bin`: the
+navbar (Back, small title, "..." `btn_more` as the capsule's left cap at x 214, Now Playing), the
+"..." card, a stock `artists_listview` > `artists_scrollview` (310 wide) with **one content view**
+that paints the rows, section letters and pinned header itself, the large title `ar_title`, and the
+rail `sg_rail` and bubble `sg_bubble`. No widget per artist, so `MAX_ARTISTS` is 20,000.
 
-**Row recycling: resolved by the painted content view** (it was "investigated, not done" in the V2.1nL performance review, item 6: one `list_item` + `hscroll_label` + `image` per artist, 6000 widgets and 11.5 M payload instructions for 2000 artists, the cap). The page makes no widget per row any more (the Songs page's structure above), so there is nothing to recycle: a paint walks only the rows in view (`az_span`), the text ring holds 13 tiles, a tap is a position computed from the touch (`az_at`) instead of a click context per row (blockers 1 and 4 of that note, the per-row click context and the mocked `list_item`, are gone with the rows), and no press is held by a row widget (blocker 2). 5000 artists open in 21.3 M payload instructions (`test/pod/artists.py`); the cap is `MAX_ARTISTS` 20,000.
+- **Large title and collapse**: the large title is first in the content (`AR_TOP` = `SG_TITLE_H`
+  52 px). The small title (156 px before the "...") shows from `SG_COLLAPSE` 46 (`m1_title_gone`).
+  Both are cut with an ellipsis (`az_fit`); of the 13 languages only "Album Artists" is cut (ja, pl,
+  ru, uk).
+- **Rows** (`AR_ROW` 52): name 21 px white (`AR_TEXT_Y` 14), cut at x 252 (`AR_TEXT_END`),
+  chevron at x 262 (`AR_CHEV_X`, 10 x 16, grey bitmap the page makes at open), `#222222` hairline to
+  x 296, pressed row `#333333`. No playing marker.
+  - **Artists and Album Artists** (`ar.photo`): a 40 px circle (`AR_PHOTO` = `AP_ROW_D`) at x 16, the
+    name and hairline from x 68. **Genres and Composers** have no circle and keep name and hairline
+    at x 24. The circle is the ring tile's bitmap ([Showing the photos](#showing-the-photos)).
+  - A tap (within `SC_DRAG_PX` on the same row) calls `ar_open`: `albums_open_artist(list,
+    ar_stock(i), scope)` for an artist or composer (`coverflow_artist` if that returns -1),
+    `songs_open_genre` for a genre. The title block, headers (the pinned band too, `az_pin_hit`) and
+    the air under the last row open nothing. The last 36 px (x 284) belong to the rail.
+- **Sections**: `ar_sections` gives each display position the rank of `cc_name_initial(name)` (the
+  first byte of the text the sort compares: white space and a leading "The " dropped, a CJK
+  character its pinyin initial, a kana its romaji initial, an accented Latin letter its base
+  letter), then `az_rank_of` (A..Z; digits, symbols and scripts with no initial are "#") and
+  `az_sections` ([songs](songs.md) "Sections").
+  - Artists are sorted by `ar_sort` so they are in letter order but for "Unknown Artist" and
+    "#" names. Genres and Composers keep the stock order and take the same labelling.
+  - **Name Z-A** (`ar.rev`) reverses all three. Unknown rows keep their stock (last) positions and
+    ranks are mirrored (Z 0 .. A 25, "#" 26), so headers and rail run Z to A with "#" last.
+  - **The "Unknown ..." row (id -1) takes the rank of the row before it.** As the last row of a run
+    of one-row sections it could otherwise swallow the section of the row before it.
+  - The rail is always there while there are sections; with no memory the list has none.
 
-Borrowed from q2-pod: the scope, the bounded shelf, the All albums rule; not borrowed: its hook on the
-stock artist page and its own SQL album list (here the stock page's own list and the stock All songs
-row, so no hook). Risks: the flat fallback is not bounded; renamed albums mid-rescan get their own key; the page's look (the chevron's stroke, the rows' x, the large title on Genres and
-Composers) is not seen on the device. Open: count sorts (above); the stock rows carry an index letter at `+0x54` (`docs/modules/songs.md` has its encoding; the page's sections come from the name instead, so a CJK name is "#").
+### Order and the album Artist rule
+
+The order is the album Artist order's name rule, applied by `ar_sort`. Stock sorts in memory
+(`toolsQueryDbTable`, comparator `0x5e0dac`): digit runs as numbers, `strcasecmp`, digits and symbols
+before letters, a CJK name through `utf8_to_pinyin`.
+
+`cc_name_keys` (`patch/covercache.c`) makes one key per name once per sort:
+
+- The name without leading white space and a leading "The ".
+- Each CJK character becomes its pinyin initial (stock's `utf8_to_pinyin` on that character).
+- Each kana becomes its Hepburn initial (`kc_kana`; katakana is hiragana + 0x60; し S, ち C, つ T,
+  ふ F, じ ぢ J, づ Z, を O, ヴ V; a small kana by its row; ー and the iteration marks none), so ヨルシカ
+  files under Y.
+- Each accented Latin letter U+00C0..U+017F becomes its lower-case base letter (`kc_latin`; × ÷ stay
+  symbols; ß s, æ œ ø ð þ ł đ ı by hand), so Ólafur Arnalds files under O and Éric ties with Eric on
+  "eric" (stock order).
+
+`cc_key_cmp` then compares keys: digit runs by value (leading zeros ignored), then per byte digits
+before symbols (every non-ASCII byte is one) before letters, ASCII case folded; a prefix first; ties
+by stock position (`cc_heapsort`, no libc callback). Stock's second key for equal initials (the full
+pinyin) is not reproduced. `cc_name_cmp` (Radio, podcast and country lists, which have no keys pass)
+takes the same class rule.
+
+`ar.order[]` (stock row at each display position) is built over the copy, so no stock row moves.
+Every row but "Unknown Artist" (id -1) is sorted as one set; Unknown rows keep their stock
+positions. A failed allocation leaves `order` NULL (stock order). `ar_stock` maps a display
+position to the stock row handed to `coverflow_artist`. The sort re-runs at every `ar_load`. Our
+sort is a small fraction of stock's own, which always runs first.
+
+### The "..." card
+
+`btn_more`, `ar_on_more`, the shared `patch/viewsort.c` ([albums](albums.md) "View sort card").
+
+- **Artists**: `Search Artists` (closes the card, `search_open_in(SEARCH_ARTISTS)`, the library
+  search if that returns -1), the **Show** group `Artists` / `Album Artists` (glyphs
+  `pod_ic_vsartist`, `pod_ic_vsalbumartist`; the tick follows `artist_type`) and the **Name** sort
+  with its grey line A-Z / Z-A: four rows, `vs_glass4`.
+- **Genres and Composers**: Name alone, `vs_glass1`, no hairline.
+- A tap on the ticked Name row reverses the order, saved first (`home_write_atomic`; a failed save
+  changes nothing), then the list is built again from the top.
+- The Show rows do what the stock switch handler does (`ar_set_type`): set `artist_type`, write
+  `PLAYSET/ARTISTTYPE`, set the stock page's reload flag; then the list is queried and rebuilt. The
+  stock toast and style swap are skipped.
+- **Order files** (`/mnt/data/m1plus/`): `artists-sort`, `genres-sort`, `composers-sort`; one
+  character, `a` Name Z-A, anything else A-Z; read once at open ([settings](settings.md)).
+- **No count sorts**: stock rows are one representative song each, carry no counts, and a counts
+  query would need its own statement, callback and the podcast filter.
+
+Statics are prefixed `ar_`. Memory: the copy of the stock rows, `order` 4 bytes, `rank` 1 byte and
+(Artists) the photo state 2 bits per artist, the 13 text tiles (6.4 KB each with circles), the
+placeholder, the rail disc and chevron, all freed with the window. A tile ring that cannot be made
+closes the page.
+
+## Shared furniture, `patch/azlist.c`
+
+Moved out of `patch/songs.c`. The Songs page owns the design ([songs](songs.md) "The A-Z rail").
+
+- `az_sections` (the labelling), the geometry of a list with headers (`az_hdr_y`, `az_row_y`,
+  `az_row_from`, `az_at`, `az_span`, `az_max_scroll`), `az_paint_heads`, the rail (`az_rail_*`) and
+  `az_fit` (a title cut with an ellipsis).
+- A page owns an `az_t` (`sg.al`, `ar.al`, the Albums list's `al.az`, Radio countries) and fills the
+  fields its comment marks `(page)`: widgets, the three label styles, the top of the first header,
+  row height and count, content height. `tools/pod_ui.py` shares the asset side (`azlist_labels`,
+  `azlist_rail`).
+- **The two switches** (Settings > Library): `az_prefs` reads `appearance-index-rail` (Index Rail,
+  on unless the file is `0`) and `appearance-headers` (Section Headers, on unless `0`). Rail off:
+  none drawn or touchable, rows keep the full list-row width (chevron 288, text to 278, hairline to
+  310). Headers off: `hdr_h` 0 and no header band. Each page reads them once at open.
+
+## A tap opens the Albums page scoped to the artist
+
+`albums_open_artist` (`patch/albums.c`, [albums](albums.md) "Scoped to an artist"): the page in the
+last chosen grid or list mode, the artist's name as title, their albums and, with two or more, the
+All Songs tile last (our Songs page on every song). Its Cover Flow button calls
+`coverflow_artist(list, index, scope)` for the same artist (`CLASS_ARTISTS`, or `CLASS_COMPOSERS`:
+`cf.scope`, which also decides whether the album page opens as `0xff01` or `0xff02`). The artist's
+albums follow the one album order `albums-sort` (the card without the Artist row; Artist is shown as
+Title), and so does the scoped Cover Flow. Everything below holds for a composer with `0xf005` and
+`0xff02`.
+
+- **Albums**: `loadAlbumList(0xf004, artist)`, copied into the page's deque with the artist's row.
+- **All albums card**: the stock list's last "All songs" row is kept with two albums or more
+  (caption "All albums" over the artist, placeholder art, no cache file) and dropped with one.
+- **Covers**: each album takes the cache key of the library album of the same name, so the page
+  shows the main page's files and builds only covers the library lacks. Below `IDX_MIN` 24 albums the
+  match is a scan per album (first library row of a name wins); from 24 up `load_artist` builds a
+  temporary case-insensitive hash index of the library's album names (FNV-1a over ASCII-folded
+  bytes, first row wins) and frees it after. A refused allocation falls back to the scan. Below 24
+  the index costs more than the scans it saves.
+- **The album**: `loadAlbumList(0xf004, artist)`, `albumcoverinfo_init`,
+  `batchadd_albumcover_task(0, 0)`, then our album page, else `navigator_to_with_context(
+  "albuminfo_page", 0xff01 | row << 16)`, the context stock's artist page builds. The page runs
+  `loadAlbumdetailList(0xff01, row)` itself and leaves class `0xff11`.
+- **Songs button** `btn_songs` (the left cap of Songs | Now Playing at 214) and the All albums card
+  open our Songs page on the artist's songs (`songs_open_artist`).
+- **Ends**: the scoped shelf does not wrap (the main page does). The scope never reads or writes
+  `coverflow-position`. "No albums" when empty. Back goes covers -> Albums page -> Artists -> menu.
+  The stock list always ends with "Unknown Artist" (id -1), which opens to "No albums" without
+  untagged songs. A second open while Cover Flow is open is refused.
+
+Borrowed from q2-pod: the scope, the bounded shelf, the All albums rule. Not borrowed: its hook on
+the stock artist page and its own SQL album list (here the stock page's list and All songs row, so
+no hook).
 
 ## Artist photos
 
-**Sources:** `patch/artistphoto.c` / `.h`, `cc_build_add_artist` in `patch/covercache.c`, the artist stage of `hc_on_start` in `patch/homecover.c`; tests `test/pod/artistphoto.py`.
+Photos for the local library. The source is a picture the user puts beside the music (found
+automatically), or one picked online for one artist: **Find Artist Photo** on the artist's page
+(`ap_pick`, [onlineart](onlineart.md) "Artist photos"; never automatic).
 
-Photos for the local library. The source is a picture the user puts beside the music, found automatically (below), or one the user picks online for one artist: **Find Artist Photo** on the artist's page (`ap_pick`, [onlineart](onlineart.md) "Artist photos"; never automatic, nothing is looked up online unless that row is tapped). A library source's Artists page and its artist pages (`lib_src_t`, `docs/modules/subsonic.md`) use the same rows and headers but never look for a photo file of the library: a source's picture is the file `src->cover` names for the artist's record (Subsonic: the server's artist image, fetched into its own cover folder, "Showing the photos" below). A row with it decodes it into the same 40 px circle (`ar_src_row`: the same loader, `grid_art_url`, the same circle mask; a portrait file is cut from its top third, `grid_t.person`, `cc_decode` box 2, as `pv_square` cuts the library's files); while it is being fetched the circle is the placeholder with the cover spinner and the shared cover poll asks again; with none it is the placeholder alone. The artist page has the circle header when the picture is there (or arrives while it is open) and the header without a circle otherwise.
+A library source's Artists and artist pages ([subsonic](subsonic.md)) never look for a photo file of
+the library. Their picture is the file `src->cover` names for the artist record (Subsonic: the
+server's artist image in its own cover folder). A row with it decodes into the same 40 px circle
+(`ar_src_row`; a portrait file is cut from its top third, as `pv_square` cuts the library's). While
+it is fetched the circle is the placeholder with the cover spinner; with none it is the placeholder.
 
-**Discovery** (worker, per artist). For each album of the artist (its first track's folder `D`; if `D` is a disc folder - `CD1`, `CD 2`, `Disc 1`, `Disk2`, `disc-03`, any case, 1 to 3 digits - it is stepped up once first, so `A` = the album folder and `P` = its parent), in this order:
+### Discovery (worker, per artist)
 
-1. `P/artist.jpg|jpeg|png`, 2. `A/artist.jpg|jpeg|png`, 3. `P/folder.jpg|jpeg|png` (never in `A`: that is the album cover).
+For each album of the artist, from its first track's folder `D` (a disc folder `CD1`, `Disc 1`,
+`disc-03`... is stepped up once, so `A` = the album folder, `P` = its parent), in order:
 
-Each tier is tried over all the artist's albums before the next; the first picture that decodes wins, and **every matching file of a folder is tried** (`.jpg`, then `.jpeg`, then `.png`; same rank by name) before the next folder or tier, so a corrupt `artist.jpg` does not hide a valid `artist.png` beside it. File names match in any case (`.jpg` before `.jpeg` before `.png`; regular files only; a JPEG over 6 MiB or a PNG over 1 MiB, or one that does not decode, is passed over for the next candidate). **Purity:** a folder only counts when every album the library has under it (itself and below; "Abba - Live" is not under "Abba") is by that artist. This rejects `Various Artists/`, `Rock/`, `Music/` and a flat folder of many artists. **An album with no artist** (blank name, or the library's "Unknown Artist") joins the snapshot with key 0, which conflicts with every real key: a folder that holds an untagged album is nobody's (an `artist.jpg` in an album folder of its own still works), and it gets no job. Tier 3 also needs the folder's name to give the artist's key (`The`, case). The central `/Artists/<name>.jpg` folder was rejected (name matching too fragile).
+1. `P/artist.jpg|jpeg|png`, 2. `A/artist.jpg|jpeg|png`, 3. `P/folder.jpg|jpeg|png` (never in `A`: that
+is the album cover).
 
-**Separators.** One artist field can name several artists. `m1_artist_split(field, out, max, opts)` (`patch/common.c`, `common.h`) returns them in order as spans into the caller's string (nothing is copied or allocated). The caller chooses the separators with a bitmask in `opts` (`M1_SPLIT_SEMICOLON`, `_SLASH`, `_AMPERSAND`, `_COMMA`, `_FEAT`, `_VS`, `_X`, `_PLUS`, `_WITH`, `_AND`; NULL `opts` = `M1_SPLIT_DEFAULT`: semicolon, slash, ampersand, feat) and the names that never split; a separator whose bit is off is plain text.
+Each tier is tried over all the artist's albums before the next. **Every matching file of a folder
+is tried** before the next folder or tier, so a corrupt `artist.jpg` does not hide a valid
+`artist.png`. Names match in any case; regular files only; a JPEG over 6 MiB or a PNG over 1 MiB, or
+one that does not decode, is passed over.
 
-- Symbols `;` `/` `&` `,` `+` split with or without surrounding spaces. Their full-width and CJK forms are the same separator: `；` `／` `＆` `，` and `、` (comma) `＋`; `×` belongs to `_X`.
-- Words need a space or an opening bracket `(` `[` before and a space after. `feat`, `ft`, `featuring` (`_FEAT`) and `vs`, `versus` (`_VS`) are ASCII case folded and may end in a full stop; `x` (`_X`) is lower case only, so `Malcolm X` stays whole; `with` and `and` are case folded.
-- Inside `()` and `[]` only feat/ft/featuring/vs/versus split, and a symbol splits there only after one of those in the same brackets: `A (feat. B & C)` is `A`, `B`, `C`; `A (B & C)` and `A (Live and Acoustic)` are one name each.
-- Each part is trimmed of spaces and of the brackets a cut leaves unmatched in it (a trailing opener, a leading closer, a closer or opener the part does not balance): `A (feat. B)` gives `A` and `B`. Matched brackets stay (`A (Live)`). Empty parts and repeats (ASCII case folded) are dropped; at most `max` names.
-- Exceptions (`m1_split_opts.except`, a NULL-terminated array; NULL = none) never split wherever they occur in the field, matched ASCII case-insensitively. `m1_artist_split_exceptions()` returns the built-in list: `AC/DC`, `Simon & Garfunkel`, `Earth, Wind & Fire`, `Crosby, Stills, Nash & Young`, `Hall & Oates`, `Florence + the Machine`, `Tyler, the Creator`.
+- **Purity**: a folder counts only when every album the library has under it (itself and below;
+  "Abba - Live" is not under "Abba") is by that artist. This rejects `Various Artists/`, `Rock/`,
+  `Music/` and flat many-artist folders.
+- An **album with no artist** (blank or "Unknown Artist") has key 0, which conflicts with every
+  real key: a folder holding one is nobody's (an `artist.jpg` in an album folder of its own still
+  works).
+- Tier 3 also needs the folder's name to give the artist's key.
+- A central `/Artists/<name>.jpg` folder was rejected: name matching is too fragile.
 
-`ap_lead` is the first name, through a mask of its own (semicolon, slash, ampersand, comma, feat, x) and the built-in exceptions: none for a field with one name, an exception name, or one that starts with a separator. The photo fallback and every later consumer read this one rule.
+### Separators
 
-**Split index** (`patch/artsplit.c`, `artsplit.h`; Artists mode only: not Album Artists, Genres, Composers or Navidrome; Search, Now Playing's "Look up artist" and the photo pass use it, below). Off by default, and then no line of it runs: the Artists page reads the stock `loadLocalClassList(0xf004)` and an artist's albums and songs are the stock queries, as before. The setting is the file `/mnt/data/m1plus/library-artist-split` (`AS_FILE`, read at each build; Settings > Library > Split Artists writes it, [settings](settings.md)): missing, `0` or anything unrecognised is off; `1` is on with `M1_SPLIT_DEFAULT`; `m<decimal>` is on with that `M1_SPLIT_*` mask (`m0` splits nothing); `o<decimal>` is off but keeps that mask for the page (`as_parse`; `as_mask` is 0 for it). The never-split names are the built-in `m1_artist_split_exceptions()` plus the card file `/mnt/mmc/artist-exceptions.txt` (`AS_EXCEPTIONS`; the card's own folder, next to `scrobble.ini`): one name per line, surrounding spaces and a CR trimmed, blank lines and lines starting with `#` skipped, at most 64 names and the first 4096 bytes, read once per index build / per tap.
+One artist field can name several artists. `m1_artist_split(field, out, max, opts)`
+(`patch/common.c`) returns them in order as spans into the caller's string. `opts` is a bitmask
+(`M1_SPLIT_SEMICOLON`, `_SLASH`, `_AMPERSAND`, `_COMMA`, `_FEAT`, `_VS`, `_X`, `_PLUS`, `_WITH`,
+`_AND`; NULL = `M1_SPLIT_DEFAULT`: semicolon, slash, ampersand, feat) plus names that never split;
+a separator whose bit is off is plain text.
 
-- **Rows** (`as_rows`): one pass over `cc_songs()` (the library, `getAllMusic`), each `REC_ARTIST` split by `m1_artist_split` (at most 8 names a field) and the names merged ASCII case-insensitively in an open-addressing hash table (no sort, no pairwise compare: linear in the songs); **the first spelling seen** (library order) is the row's name. A field that does not split is one name (trimmed as the splitter trims). A blank field, or one that splits to nothing, is the "Unknown Artist" row (id -1, last, as the stock list's). The rows are records the page owns (`REC_ID` 1.., `REC_TITLE` and `REC_ARTIST` the name, `REC_TYPE` 4, **`REC_CLASS` = `AS_MARK`** `0x41535031`, which stock rows leave 0: `as_is_row`), up to `MAX_ARTISTS` 20,000 names (the later names are dropped). The tables are sized for 8 names a song, capped at 20,000 names: at most a 256 KB hash table and 160 KB of name spans while the rows are built (a 2,500-song library or more pays all of it). `ar_sort`, the sections, the rail, Z-A, photos (`ap_lookup(name)`) and the Show/Name card work on them as on the stock rows. Without songs, or without memory, the page falls back to the stock query. Back on the page `ar_local_changed` builds the rows again and compares them with the page's (`ls_same_list`), as it does the stock list.
-- **An artist's albums** (`as_albums`; reached through `coverflow_artist_albums`, so the Albums page, Cover Flow and the All Songs tile all use it): the library album rows (`cc_albums`, one per album name, in that order) whose album name (ASCII case-insensitive) is the album of one of the artist's songs, then the All Songs record (`REC_ID` -2, key 0) **always last in the list**, as the stock list ends (Cover Flow's Songs button reads it); it counts as a tile only with 2+ albums, or with none at all (an artist whose songs have no album tag: the card is then the only tile and the way to his songs), else it is kept past the count. Keys by `cc_album_key`. A song with no album tag is in All Songs only. An album tap (`cc_open_album` with a split row) is the library album's own page: `as_open_album` finds the library row by album name (`cc_find_album`) and opens it as the Albums page does (class `0xf003`, the whole album, not only the artist's tracks).
-- **An artist's songs** (`as_fill`, `as_load`): copies of the library's records whose field splits to the name (a substring test first skips the fields that cannot hold it), in library order, handed over as stock hands a class query's rows (`lib_deque_swap` into `*pdeq_showlist`). `songs_artist_list` (the Albums page's pills and All Songs tile, Cover Flow's card) calls `as_load`, which first runs the two stock queries `loadAlbumList(0xf004, row)` and `loadAlbumdetailList(0xff01, a card row)` on the name so the browsing record `CLASSINFO` is what the stock artist songs page leaves (class `0xff11`, the artist, the all-songs flag), then fills the list. Our Songs page (`sg.split`, class `0xff11`) reads its list with `as_fill` in place of `loadLocalClassList(0xff11)` each time it reads (open, return to the page), so the stock query never decides which songs it shows; the title is the artist, a row's grey line the album; Select, the row sheet, Cover Flow's toggle and Back are the artist page's. **Select on this list:** Delete is `batch_delete_file(0xff11, list, vector, 0, file)` whose class `0xff11` runs the generic loop `0x4e1664` (addresses.md "Deleting by class"): per marked row `deleteMusicFromMusicDb(record)` (`0x4ede44`: `toolsDeleteDbTable` on `songtable` with the record, no query and no browsing record read) and, with the file option, `remove_file(record+0xc)`; the records are the library's own (`cc_songs`), so it works unchanged. The page then reads again through `sg_query` -> `as_fill` (a fresh `getAllMusic`), so the deleted rows go. Add to Playlist: `picker_open` copies `*pdeq_showlist` (the page's list is that deque; `sg_valid` compares it) and `batch_add_file(0xff11, ...)` takes the generic type 8 path on the records (`0x4db34c..0x4db3d0`), again no browsing record. Tests: `test/pod/songs.py` (a split artist: Delete and Add). Not run on a device.
-- **Play** (the pills, a row tap, Shuffle): `so_play_own(cls, list, at, how, open)` (`patch/songops.c`): the page's list (already in the order shown) is copied into the queue with `REC_CLASS` set to the class, no `loadSongList`; the rest is `so_play_with` (the first file checked, Play = in order, Shuffle = the stock Shuffle mode from a random song, podcasts stripped from a shuffle), then `open(queue, idx, 0xff11)` as `pod_start_player` does for any queue (Navidrome's `lib_src_t.play` builds its queue the same way). **Resume after a reboot (Memory Playback).** The queue's class is All Songs (`0xf001`, the class of Daily Mix's and Shuffle Songs' queues), not `0xff11`. Read from the binary: `save_memoryplay_info` (`0x4e3340`; nothing when Memory Playback is off and Line Out is clear) stores into `g_memory_info` (`0xa0caf8`, `0xd94` bytes) the **play type** `mclGetPlayType()` at +0, the position (play time, clamped >= 0) at +4, the playing record's name (record +8, 512 bytes) at +8 and path (record +0xc, 1024 bytes) at +0x208, then `write_memory_to_file`; the browsing record `CLASSINFO` (`0x390` bytes at +0x608) is **only** copied by `loadSongList`, which this path never runs. `memeory_startplayer` (`0x4e34dc`, the boot resume) reads the file back and gives up (returns -1, nothing resumes) when the file is unreadable or the saved name or path is empty; it then re-runs the **saved class's** list query (jump tables `0x74b824` for `0xf001..0xf00a`, `0x74b84c` for `0xff09..0xff14`; `0xf001` is `getAllMusic`, `0xff11` is `getMusicByAlbumAnd[Album]Songer` on the saved browsing record) and walks the list for the entry whose name (+8) **and** path (+0xc) equal the saved ones; no match is -1 (nothing resumes), a match must pass `access(path, R_OK)` and the saved position goes to `mclSetStartSeekTime`. So with class `0xff11` the query would run on whatever record the last stock `loadSongList` left (the artist split's name matches no `songer` of a combined field): the resume would do nothing, or by chance find the track in another artist's or album's list. With class `0xf001` no browsing record is read: the same track resumes at its position inside the library list in Songs order. `is_playing` (`0x4d9d64`) reads `g_memory_info` +0x60c only for the classes `0xff11` / `0xff12`, which this queue no longer has. The other own-queue plays: Daily Mix and Shuffle Songs call `loadSongList(..., 0xf001)` (the same resume as library order), Navidrome's stream paths fail `access` (nothing resumes, subsonic.md), Folders and Albums are stock `loadSongList` queues. Not verified on a device: that the resumed Now Playing shows the track and that the queue after it is the library list (Memory Playback set to Track and to Location: the difference between the two modes in the readers is not traced, playset.md).
-- **Design**: the split scope is a small branch in the stock path, not a `lib_src_t`. A non-NULL source means Navidrome in many places (`ar.src`, `al.src`, `sg.src`: no cover-cache worker, no Select / Cover Flow caps, synthetic ids, source covers, the large title kept over no rows, `search_open_src`), and a wrapper would have to switch each of those off again and rebuild the local covers, Select, Search and row sheet it would lose; the row marker keeps the local library's covers, workers, select, sheet and Cover Flow as they are and replaces only the four calls that were keyed on the whole field (`coverflow_artist_albums`, `songs_artist_list`, `cc_open_album`, the Songs page's read and play). Nothing is stored: every answer is computed from the library at that moment, so there is no second copy of it that could go stale.
-- **Limits**: a name that only ever appears after another has no automatic photo (see Photos below; a picture the user picks for it is kept); an Artists page already open under Settings keeps its rows until it is opened again; the artist's Next Album (Continue Playing) order and the Pod's Artists menu still use the stock queries and show no albums for a secondary name; a song with no album tag appears under All Songs only; names beyond 20,000 are not listed.
-- **Cost** (payload instructions, the harness; 20,000 songs, 6,000 names, a fifth of the fields naming two or three, 7,500 rows): the rows (`as_rows`) 64 M, the page open with the sort 111 M (stock's sort alone is 170-265 M for 5,000 names), a tap on an artist (his albums, the page) 30 M, Play (his songs, the queue) 14 M; a library of one thousand songs is a twentieth of that. Peak memory is the library's records (`cc_songs`, as the Songs page holds) and the 256 KB hash table while the rows are built, then the 7,500 row records. The splitter (`m1_artist_split`) now looks for an exception only where it found a separator (an exception only ever suppresses one), which took the 20,000-song build from ~500 M to 64 M instructions with the same output (`artistphoto/` tests). Tests: `test/pod/artists.py` `split_tests` (off in four forms = the stock rows and no scan, merged names, the mask file, the card exceptions file, an artist's songs, the Unknown row, the pills' Play and Shuffle, an album tap, `as_albums`' keys, Cover Flow on a split artist, the foreground re-read, the 20,000-song library) and `test/pod/songs.py` (the Songs page on a split artist: its list, the re-read, a row's play).
+| Kind | Rule |
+|---|---|
+| Symbols `;` `/` `&` `,` `+` | split with or without spaces; full-width and CJK forms `；` `／` `＆` `，` `、` `＋` are the same; `×` belongs to `_X` |
+| Words | need a space or an opening bracket before and a space after |
+| `feat`, `ft`, `featuring`, `vs`, `versus` | ASCII case folded, may end in a full stop |
+| `x` | lower case only, so `Malcolm X` stays whole |
+| `with`, `and` | case folded |
+| inside `()` / `[]` | only feat/ft/featuring/vs/versus split; a symbol splits there only after one of those in the same brackets: `A (feat. B & C)` is A, B, C; `A (B & C)` is one name |
+| each part | trimmed of spaces and of brackets a cut leaves unmatched; matched brackets stay (`A (Live)`); empty parts and repeats dropped; at most `max` names |
+| exceptions | `m1_split_opts.except` (NULL-terminated, ASCII case-insensitive, never split wherever they occur); `m1_artist_split_exceptions()`: `AC/DC`, `Simon & Garfunkel`, `Earth, Wind & Fire`, `Crosby, Stills, Nash & Young`, `Hall & Oates`, `Florence + the Machine`, `Tyler, the Creator` |
 
-- **Search** (`se_load`, `patch/search.c`): with the setting on (and not Album Artists mode) the artist list is `as_rows` instead of the stock Artists list, so the query matches the split names (a name that only occurs inside another's field is found, with the same folding and initials as every artist) and a tap goes through the same `albums_open_artist` / `coverflow_artist` calls on the marked row, which open that name's scoped page. Off: unchanged. Tests: `test/pod/search.py` `split_tests`.
-- **Look up artist** (`pm_on_lookup_artist`, `patch/playmore.c`): with the setting on the artist is the first name of the playing track's field (`as_first_row`: a one-row deque, `REC_TITLE` the name, id 1, `AS_MARK`) and the scoped page opens on it, never the joined name's empty page; there is no chooser (the sheet has no cheap one-row-per-name list). A field with one name behaves as before through the same row. The row menu has no artist action. Tests: `test/pod/playmore.py` (7c), `test/pod/artists.py` `split_lookup_tests`.
-- **Photos** (`cc_build_add_artist`, the artist stage of `hc_on_start`): with the setting on the Home pass opens a session (`as_session`, the options read once for the pass) and keys each album by the **first name** of its artist field (`as_lead`) instead of the whole field: its snapshot entry, its purity and its job. So `Music/A/` holding albums by `A` and `A feat. B` stays pure for A (with the whole field it was not), and a name that has albums of its own is found as before. A name that only ever appears as a later artist gets no automatic photo: a shared folder cannot be attributed to it by the purity rule, so the job would only write an empty marker; its photo is the one picked in Find Artist Photo (kept per name). No extra jobs or snapshot entries are made (the limits, pacing and `AP_LIB_MAX` are unchanged). The pass's keys change with the setting, so after turning it on or off use Settings > Library > Rebuild Artist Photos. Names that occur only on some tracks of an album (the album row has one artist) are not looked at: the pass walks albums, not songs. Tests: `test/pod/artists.py` `split_lookup_tests` (`as_session`, `as_lead`); the pass itself is not run with the setting on.
+`ap_lead` is the first name, through its own mask (semicolon, slash, ampersand, comma, feat, x) and
+the built-in exceptions. It is none for a field with one name, an exception name, or one starting
+with a separator. The photo fallback and every later consumer read this one rule.
 
-**Key** (`ap_key`): FNV (`cc_fnv`, `FNV_SEED`) of the name trimmed, ASCII case folded, without a leading "The " (a name of only "The" keeps it); no accent folding, no splitting of "feat." / "&" / ";". Blank = no key. Artists and Album Artists share by name. An album's artist is its stock album row's `REC_ARTIST` (the same name the cover key uses).
+### Split index
 
-**Cache** (`CARD_DIR "/artists"`, `AP_DIR`, made with the cover folder): `a<key>-168.jpg` (page header, a 168 px square, drawn as an 88 px circle on the artist page), `a<key>-44.jpg` (list rows, 40 px circle), `a<key>.src`, `a<key>.pick`, `a<key>.try`. Both sizes come from one decode of the source, and both files are SQUARES cut when they are built: `pv_square` (pccover.c, an artist-only entry; `pv_cover` and the album covers are untouched) crops the source to a square of its short side and area-averages it to 168, then the 44 px file is made from the 168 px one (so it is 44 x 44). Placement: a landscape source is cropped at the centre of its width; a portrait source starts a third of the extra height from the top, `y0 = (h - w) / 3`, so a head near the top stays in; a square source is unchanged. A source whose short side is below 168 is cropped the same way but not enlarged (a 100 x 168 photo gives a 100 x 100 file; the 44 px file is made from it). The pages still crop the centred square when they decode (a no-op on a square file) and mask the circle. Photos cached before this change keep their old non-square files until Settings > Library > Rebuild Artist Photos is run. **No photo = an EMPTY `-44` file** (the album cache's convention; the `-168` file and `.src` are removed). The `-44` file is published last, so a non-empty one means both files exist. `.src` is text: `m1plus artist 1`, `src: <path>`, `size: <bytes>`, `mtime: <seconds>`, `end`, for a later re-check. `.pick` marks a photo the user picked (Find Artist Photo; `ap_pick(src, key)` makes both files from the downloaded picture with `ap_make`, writes the marker, removes `.src` and `.try` and bumps `ap_epoch`; `ap_picked(key)` is the marker and a photo): while it and the `-44` file exist no automatic build touches the artist (the Home pass, a rebuild and the re-check included), so a picked photo also wins over an `artist.jpg` added later. Removing the marker file (or picking another photo) is the only way back. **Publishing** is under `ap_mutex` (ours, never held over a decode), because two threads write an artist's entry: the cover worker (automatic builds) and the network worker (a pick). `ap_make(src, key, pick)` decodes into temporary files first (`.jpg.tmp` for an automatic build, `.jpg.pk` for a pick, so the two never share one), then under the mutex: an automatic build stops if the artist is a picked one by now (`ap_owned`; `ap_empty_marker` asks the same, so a job that looked at `.pick` before the pick was saved cannot put its photo or the empty marker over it); a pick writes the marker first and stops if it cannot; the old `-168` file is read into memory (never moved, so the path always names a whole photo; one that cannot be read stops the save), the new files are renamed in, and when the `-44` file cannot be published the old `-168` file is written back (`m1_save` through `-168.jpg.old`) and a marker written by this save is removed. If that write fails too, the new header stays beside the old list file and the save still fails. A save is therefore whole (both files, and the marker for a pick) or leaves the artist as it was, and `ap_epoch` moves only for a whole one. `.try` is a strike: written before the artist's discovery and removed after; one found at the start of a job means the last attempt died or hung, so the artist gets the empty marker (a rebuild looks again) and the same file cannot hang every pass.
+`patch/artsplit.c`; Artists mode only (not Album Artists, Genres, Composers or Navidrome). **Off by
+default, and then no line of it runs**: the page reads the stock `loadLocalClassList(0xf004)` and an
+artist's albums and songs are the stock queries.
 
-**Building** (the Home job, `docs/modules/homecover.md` "Artist photos"). Not a set of its own: after the cover steps of `hc_on_start` (the last chunk of a chain only) the same album copy is walked in steps of `HC_BATCH` 64 and `cc_build_add_artist(track, artist, force)` is called for every album. It records the album's track folder and artist key in a snapshot (`ap_lib_add`, at most `AP_LIB_MAX` 8000 albums, 16 bytes and a path copy each; a larger library, or no memory, gets no artist photos: the purity of a folder could not be shown) and queues one job per artist (`ap_first`) unless its `-44` file exists (a photo or the marker) or `force`. The jobs follow the cover jobs in the set (`job_t` `sec` = `CC_ARTIST_JOB`, `size` = force); the worker sorts the snapshot once (`ap_sort`: by folder for the purity range, by artist for the albums) and runs `ap_job`. Existing results are never re-checked by a foreground pass (only the one artist whose page is opened, "Re-check on open" below): a new artist appears with a new album, which changes the library signature and so runs the pass; there is no folder-mtime scan. The **`artists` stamp line** (separate from `covers`; an upgrade has none, so the pass runs once by itself and queues the artist jobs alone) is written only when the set finished and every artist fitted the set (`hc.atrunc`: the job array is `CC_MAX_JOBS` 4000; the rest is done by the next pass, which queues the artists still without a result). It never blocks the UI thread: the snapshot adds are 64 albums a tick, and everything else runs on the cover worker (nice 10, the 10 s watchdog, orphaned as ever when it hangs; a stalled artist job writes no `.bad`, its `.try` does the job).
+The setting is `/mnt/data/m1plus/library-artist-split` (`AS_FILE`, read at each build; Settings >
+Library > Split Artists, [settings](settings.md)): missing, `0` or unrecognised off; `1` on with
+`M1_SPLIT_DEFAULT`; `m<decimal>` on with that mask (`m0` splits nothing); `o<decimal>` off but keeps
+the mask for the page. Extra never-split names come from the card file `/mnt/mmc/artist-exceptions.txt`
+(`AS_EXCEPTIONS`): one name per line, trimmed, `#` lines and blanks skipped, at most 64 names and the
+first 4096 bytes, read once per build or tap.
 
-**Rebuild** is separate from Rebuild Covers (user decision): the request file `/mnt/data/m1plus/artists-rebuild` (`AREBUILD_FILE`, written by Settings > Library > Rebuild Artist Photos, listed on Settings > Developer > Tools > Settings Files) makes `hc_expect` see work, forces every artist (found ones too; a removed picture becomes the marker) and is deleted when the set finishes, or at once when there is no artist to check. The waiting pill reads `Rebuilding artist photos…` (covers first when both requests are pending), the count `Rebuilding artist photos n/m` from the first artist job on (`Preparing artist photos n/m` without the request). Clear Cover Cache does not touch `AP_DIR`.
+- **Rows** (`as_rows`): one pass over `cc_songs()`; each `REC_ARTIST` is split (at most 8 names a
+  field) and names are merged ASCII case-insensitively in a hash table (linear in the songs).
+  **The first spelling seen** is the row's name. A blank field or one that splits to nothing is the
+  "Unknown Artist" row (id -1, last). Rows are page-owned records (`REC_ID` 1.., type 4, **`REC_CLASS`
+  = `AS_MARK`** `0x41535031`, which stock rows leave 0: `as_is_row`), up to `MAX_ARTISTS` names.
+  `ar_sort`, sections, rail, Z-A, photos and the card work on them as on stock rows. Without songs or
+  memory the page falls back to the stock query.
+- **An artist's albums** (`as_albums`, reached through `coverflow_artist_albums`, so the Albums page,
+  Cover Flow and the All Songs tile all use it): library album rows whose album name is the album of
+  one of the artist's songs, then the All Songs record (`REC_ID` -2, key 0) **always last**. It
+  counts as a tile only with 2+ albums or with none (an artist whose songs have no album tag). A
+  song with no album tag is in All Songs only. An album tap opens the library album's own page
+  (`as_open_album`, class `0xf003`, the whole album).
+- **An artist's songs** (`as_fill`, `as_load`): copies of the library records whose field splits to
+  the name, in library order, handed over as stock hands a class query's rows. `songs_artist_list`
+  calls `as_load`, which first runs the two stock queries on the name so the browsing record is what
+  the stock artist songs page leaves (class `0xff11`). Our Songs page (`sg.split`) reads with
+  `as_fill` in place of `loadLocalClassList(0xff11)`, so the stock query never decides which songs
+  show. Delete and Add to Playlist work unchanged on these records (the generic class `0xff11`
+  paths).
+- **Play** (pills, a row tap, Shuffle): `so_play_own(cls, list, at, how, open)` copies the page's
+  list into the queue with `REC_CLASS` set to the class, no `loadSongList`.
+  **The queue's class is All Songs (`0xf001`), not `0xff11`**, so Memory Playback resumes after a
+  reboot. The boot resume (`memeory_startplayer`) re-runs the saved class's list query and matches
+  the saved name and path; with `0xff11` that query would run on whatever browsing record the last
+  stock `loadSongList` left (the split name matches no `songer` of a combined field), so nothing
+  would resume. With `0xf001` no browsing record is read. Daily Mix and Shuffle Songs queues do the
+  same.
+- **Search** (`se_load`): with the setting on (and not Album Artists) the artist list is `as_rows`, so
+  a name that occurs only inside another's field is found and a tap opens that name's scoped page.
+- **Look up artist** (`pm_on_lookup_artist`): the artist is the first name of the playing track's
+  field (`as_first_row`) and the scoped page opens on it, never the joined name's empty page. There
+  is no chooser. The row menu has no artist action.
+- **Photos** (`cc_build_add_artist`, the artist stage of `hc_on_start`): the Home pass opens a
+  session (`as_session`) and keys each album by the **first name** of its artist field (`as_lead`):
+  its snapshot entry, purity and job. So `Music/A/` holding albums by `A` and `A feat. B` stays pure
+  for A. A name that only ever appears as a later artist gets no automatic photo (a shared folder
+  cannot be attributed to it by the purity rule); its photo is the one picked in Find Artist Photo.
+  The pass's keys change with the setting, so use Settings > Library > Rebuild Artist Photos after
+  turning it on or off. The pass walks albums, not songs, so names only on some tracks of an album
+  are not looked at.
+- **Design**: a small branch in the stock path, not a `lib_src_t`. A non-NULL source means Navidrome
+  in many places (`ar.src`, `al.src`, `sg.src`: no cover-cache worker, no Select / Cover Flow caps,
+  synthetic ids), and a wrapper would have to switch each of those off again. The row marker keeps
+  the local library's covers, workers, select, sheet and Cover Flow and replaces only the four calls
+  keyed on the whole field (`coverflow_artist_albums`, `songs_artist_list`, `cc_open_album`, the
+  Songs page's read and play). Nothing is stored: every answer is computed from the library when
+  asked, so there is no copy to go stale.
+- **Limits**: a name that only ever appears after another has no automatic photo; an Artists page
+  already open under Settings keeps its rows until opened again; the artist's Next Album order and
+  the Pod's Artists menu still use the stock queries and show no albums for a secondary name; names
+  beyond 20,000 are not listed.
+- **Cost**: at most a 256 KB hash table and 160 KB of name spans while rows are built; peak memory is
+  the library records (`cc_songs`) plus the row records. The splitter looks for an exception only
+  where it found a separator, which keeps a 20,000-song build cheap.
 
-**Deviations and limits.** (1) An album is located by its first track only (an album with tracks in several folders is judged by that folder). (2) An interlaced PNG cannot be cropped in one pass over its rows, so it gets no photo (as before; `pv_square` returns 0). (3) "A feat. B" with no photo of its own uses A's cached photo at lookup time (`ap_lookup`, below); the cache never holds a file under the full name for it. (4) An artist with no picture and a track path that no longer exists gets no marker (retried next pass). (5) Over 4000 distinct artists a rebuild is done as far as the job array goes; the request is then removed and the remaining artists keep their old files. (6) The set is sized `2 x albums` (at most 4000), room for a cover job and an artist job per album.
+### Key, cache and building
+
+**Key** (`ap_key`): FNV (`cc_fnv`) of the name trimmed, ASCII case folded, without a leading "The "
+(a name of only "The" keeps it); no accent folding, no splitting. Blank = no key. Artists and Album
+Artists share by name. An album's artist is its stock album row's `REC_ARTIST`. `ap_key` is the one
+entry: no other code may hash a name differently.
+
+**Cache** (`CARD_DIR "/artists"`, `AP_DIR`): `a<key>-168.jpg` (page header, drawn as an 88 px circle),
+`a<key>-44.jpg` (list rows, 40 px circle), `a<key>.src`, `a<key>.pick`, `a<key>.try`.
+
+- Both sizes come from one decode and both files are **squares** cut when built: `pv_square`
+  (`patch/pccover.c`) crops to the short side and area-averages to 168; the 44 px file is made from
+  the 168 px one. A landscape source is cropped at the centre; a portrait one starts a third of the
+  extra height from the top, so a head near the top stays in. A source with a short side under 168
+  is cropped but not enlarged. The pages still crop the centred square when they decode and mask the
+  circle.
+- **No photo = an EMPTY `-44` file** (the album cache's convention; `-168` and `.src` are removed).
+  The `-44` file is published last, so a non-empty one means both exist.
+- `.src` is text: `m1plus artist 1`, `src: <path>`, `size: <bytes>`, `mtime: <seconds>`, `end`, for
+  the re-check.
+- `.pick` marks a photo the user picked (`ap_pick(src, key)` makes both files with `ap_make`, writes
+  the marker, removes `.src` and `.try`, bumps `ap_epoch`). While `.pick` and the `-44` file exist no
+  automatic build touches the artist (Home pass, rebuild and re-check included), so a picked photo
+  also wins over an `artist.jpg` added later. Removing the marker is the only way back.
+- **Publishing** is under `ap_mutex` (never held over a decode), because the cover worker and the
+  network worker both write an artist's entry. `ap_make` decodes into temporary files first (`.tmp`
+  automatic, `.pk` pick), then under the mutex: an automatic build stops if the artist is picked by
+  now; a pick writes the marker first and stops if it cannot; the old `-168` file is read into memory
+  and written back if the `-44` file cannot be published. A save is whole or leaves the artist as it
+  was, and `ap_epoch` moves only for a whole one.
+- `.try` is a strike written before discovery and removed after. One found at the start of a job
+  means the last attempt died or hung, so the artist gets the empty marker and the same file cannot
+  hang every pass.
+
+**Building** (the Home job, [homecover](homecover.md) "Artist photos"). After the cover steps of
+`hc_on_start` the album copy is walked in steps of `HC_BATCH` 64 and `cc_build_add_artist(track,
+artist, force)` records each album's track folder and artist key in a snapshot (`ap_lib_add`, at
+most `AP_LIB_MAX` 8000 albums; a larger library or no memory gets no artist photos) and queues one
+job per artist unless its `-44` file exists or `force`. The worker sorts the snapshot once and runs
+`ap_job`. Existing results are never re-checked by a foreground pass (only the artist whose page is
+opened, below). A new artist comes with a new album, which changes the library signature and runs the
+pass. The **`artists` stamp line** (separate from `covers`) is written only when the set finished and
+every artist fitted (`CC_MAX_JOBS` 4000). Nothing blocks the UI thread.
+
+**Rebuild Artist Photos is separate from Rebuild Covers.** Settings > Library > Rebuild Artist Photos
+(`ACT_AREBUILD` 92, glyph `mic-vocal`, under Rebuild Covers): `arebuild_ask` asks in the stock
+confirm ("Rebuild all artist photos? This may take a few minutes."); Yes writes the request file
+`/mnt/data/m1plus/artists-rebuild` (`AREBUILD_FILE`, listed in Settings Files), clears `hc_off` and
+toasts "Artist photos will rebuild on Home"; a failed write toasts "Storage unavailable". The
+request makes `hc_expect` see work, forces every artist (found ones too; a removed picture becomes
+the marker) and is deleted when the set finishes, or at once when there is no artist to check. The pill reads
+`Rebuilding artist photos...`, then `Rebuilding artist photos n/m` from the first artist job on
+(`Preparing artist photos n/m` without the request); covers first when both are pending. It touches no covers. Clear Cover Cache does not touch
+`AP_DIR`.
+
+**Limits.** An album is located by its first track only. An interlaced PNG cannot be cropped in
+one pass, so it gets no photo (`pv_square` returns 0). "A feat. B" with no photo of its own uses A's
+cached photo at lookup time; the cache never holds a file under the full name. An artist with no
+picture and a track path that no longer exists gets no marker (retried next pass). Over 4000
+distinct artists a rebuild is done as far as the job array goes.
+
+### Purity map
+
+The worker cannot query the stock database, so the Home pass keeps what the purity check needs
+(`AP_DIR/purity`). While the snapshot is built, a hash table records for the album folder and every
+folder above it the one artist key under it (0 = two artists or an untagged album: conflict). When
+the walk is complete `hc_on_start` calls `ap_lib_save` (UI thread, once, before the worker starts):
+at most `12 + 8 x AP_PUR_MAX` bytes (24576 entries), written to `purity.tmp` and renamed. File: magic
+`0x31555041`, entry count, a check word, then (folder FNV, key) pairs. An unusable snapshot or a pass
+that makes none removes the old file, so a map never describes another library. It is as old as the
+last Home pass.
+
+### Re-check on open
+
+`ap_recheck(name, tracks)`: the scoped artist page ([albums](albums.md) "Artist photo re-check")
+hands over the first track of each of the artist's albums (at most 64 folders). It needs the worker
+free (`cc_build_open` refuses otherwise: skipped, the Home pass covers it) and never joins it. The
+job (`CC_RECHECK_JOB`, `ap_recheck_job`), per artist key:
+
+- `.pick` and a `-44` file: nothing. A `.try` strike: the empty marker.
+- A photo: read `.src`; one stat of the source: size and mtime as recorded means **nothing else
+  happens** (no folder is listed, no file written; a photo with no readable `.src` is left alone).
+  Changed or gone: discover again; if nothing is found but the old source is still there it is made
+  again.
+- An empty marker or no `-44` file: discover again (`ap_walk` over the page's folders, purity from
+  the saved map).
+- **Without a usable map** only the album folders themselves are looked in and nothing is concluded
+  from a miss: no marker is written and a removed source is not turned into a marker, so a later
+  full pass can still find a photo in a parent folder. With the map, a miss becomes the marker.
+- A result that made, replaced or removed a photo bumps `ap_epoch()`.
+
+The open artist page polls its own set (`al_on_build`, 500 ms) and, when it is over, switches the
+circle in place or reads a replaced photo again. The Artists page behind learns on
+`EVT_WINDOW_TO_FG` (`ar_on_fg`): when `ap_epoch` moved the tiles and 2-bit states are dropped and
+every circle decoded again. Rows still unknown are retried while a set runs (`cc_build_active`,
+every 1 s, `ar_on_retry`) and once when it ends.
 
 ### Showing the photos
 
-**Lookup** (`ap_lookup(name, size, url)`, UI thread, opens files: never from a paint). The name's own `ap_key`, then, when that file is missing or empty, the **lead artist's** key (photo only: the full name's key and its files stay as they are). `size` is `AP_LIST` (the -44 file) or `AP_HEAD` (the -168 file). Answers: `AP_PHOTO` (a non-empty file of the name's key; `url` set), `AP_LEAD` (the lead's file; `url` set), `AP_NONE` (the name's file is the empty marker and the lead has none, or has the marker too; a blank name), `AP_UNKNOWN` (a file is missing: the pass has not been there yet). The lead (`ap_lead`) is the text before the earliest of these separators, matched in ASCII case folding: `" feat. "`, `" ft. "`, `" featuring "`, `" & "`, `" x "`, `", "`, `"; "` (each with its spaces; "Adele FEAT. Jay" gives Adele, "Earth, Wind & Fire" gives Earth, "Mark;Jay" none); none when there is no separator, the lead is empty or does not fit 260 bytes, or its key equals the name's.
+**Lookup** (`ap_lookup(name, size, url)`, UI thread, opens files: never from a paint). The name's own
+`ap_key`, then, when that file is missing or empty, the **lead artist's** key (photo only). `size` is
+`AP_LIST` (-44) or `AP_HEAD` (-168). Answers: `AP_PHOTO`, `AP_LEAD` (the lead's file), `AP_NONE` (the
+marker, and the lead has none; a blank name), `AP_UNKNOWN` (a file is missing: the pass has not been
+there yet). The lead is the text before the earliest of `" feat. "`, `" ft. "`, `" featuring "`,
+`" & "`, `" x "`, `", "`, `"; "` (ASCII case folded); none when there is no separator, the lead is
+empty or over 260 bytes, or its key equals the name's.
 
-**Rows.** `ar.photo` (Artists and Album Artists) sizes the text ring's `grid_t` as 40 px circles (`grid_shape(AR_PHOTO, AR_PHOTO / 2, blend 1)`: the corners are cut in the bitmap's alpha, antialiased by `m1_corner_fill`, so the pressed row's fill shows behind them); each tile's `art` is 0 not looked at, 1 `bmp` is the circle, 2 placeholder. **State**, `ar.pst`: 2 bits per display position (`AP_UNKNOWN` 0, `AP_PHOTO` 1, `AP_NONE` 2, `AP_LEAD` 3), so a row that scrolls out of the 13-tile ring and back is not looked at again when its answer was "none" (a fresh tile of such a row starts as placeholder; the "Unknown Artist" row, id -1, is never looked up). A photo row is decoded again from its file when its tile is gone (a stat, a decode); an `AP_UNKNOWN` row (file missing) is looked for again whenever its tile is made again. Paint opens no file and decodes nothing: it draws the tile's circle or the placeholder (`grid_blit`). **Loader** (`ar_on_photo`, `ar.photo_timer`, 16 ms): one row a tick, the row of the window nearest its middle first, `ap_lookup` then `grid_art_url` (`cc_decode`: the centred square of the -44 file box-reduced to 40 px); a file that does not decode counts as none; nothing happens while the scroll_view moves (`grid_moving`: the timer polls), the scroll events and `ar_load` re-arm it, it ends when nothing in view is left. **Deviation from "off the UI thread"**: the decode is on the UI thread, one 44 px JPEG a tick like the Albums and Search pages' covers, because the stock image loader (`widget_load_image`) is not thread safe and the cover worker owns no UI objects; the cache files themselves are made on the worker, and no worker is joined or waited for from this page.
+**Rows.** `ar.photo` sizes the text ring's `grid_t` as 40 px circles (corners cut in the bitmap's
+alpha so the press fill shows behind). Each tile's `art` is 0 not looked at, 1 the circle bitmap, 2
+placeholder. `ar.pst` keeps 2 bits per display position (`AP_UNKNOWN` 0, `AP_PHOTO` 1, `AP_NONE` 2,
+`AP_LEAD` 3), so a row that scrolls out of the 13-tile ring and back is not looked at again when its
+answer was "none". The "Unknown Artist" row is never looked up. Paint opens no file and decodes
+nothing.
 
-**Placeholder** (`ap_placeholder(win, d)`, one bitmap made at open and again after every list rebuild, because `grid_drop` frees it; also 88 px for the artist page): a `#333333` circle (the album no-cover tile colour) with the Lucide `mic-vocal` glyph in `#8C8C8C` at 0.52 of the diameter, composed on the circle from the asset `pod_ic_ar_art` (`tools/mod_icons.py` `ARTIST_ART`: the glyph alone, 96 px, stroke 2 like the no-cover tiles; accent-neutral, `tools/palette.py` `ACCENT_GLYPH_NOT`) the way the Radio placeholder is (coverage from the brightest channel), the edge cut by `ap_circle` (8 x 8 samples on the edge only, alpha = coverage).
+**Loader** (`ar_on_photo`, 16 ms): one row a tick, nearest the middle first: `ap_lookup` then
+`grid_art_url` (the centred square of the -44 file box-reduced to 40 px). Nothing happens while the
+list moves. **The decode is on the UI thread**, one 44 px JPEG a tick like the Albums and Search
+covers, because the stock image loader is not thread safe and the cover worker owns no UI objects.
+The cache files themselves are made on the worker.
 
-**The artist page's header**: `docs/modules/albums.md` "Scoped to an artist". With no photo the page has the same header without the circle (no placeholder there; the placeholder is the Artists rows' only), the name and pills `PH_SHIFT` 96 higher. **Preview**: `tools/preview/preview_artists_photo.py WORKDIR OUT.png` (the Artists rows, the artist page with a photo at rest and scrolled, and without a photo at rest and scrolled; constants read from `patch/artists.c`, `patch/artistphoto.h`, `patch/offsets.inc`).
+**Placeholder** (`ap_placeholder(win, d)`, made at open and after every list rebuild; also 88 px for
+the artist page): a `#333333` circle with the Lucide `mic-vocal` glyph in `#8C8C8C` at 0.52 of the
+diameter (`pod_ic_ar_art`, `mod_icons.ARTIST_ART`), edge cut by `ap_circle`.
 
-Tests: `test/pod/artists.py` (`photo_rows_tests`, `scoped_head_tests`, `scoped_plain_tests`), `test/pod/artistphoto.py` (`lead_tests`, `circle_tests`, `lookup_tests`, `purity_tests`, `recheck_tests`, `settings_tests`, `counts_tests`). Not seen on the device: the circles' look, the decode time of a tick, the placeholder's glyph size, the page's header switching when a re-check finds a photo, the time of `ap_lib_save` and of a re-check.
+**The artist page's header**: [albums](albums.md) "Scoped to an artist". With no photo the page has
+the same header without the circle (no placeholder there), the name and pills `PH_SHIFT` 96 higher.
 
-### Rebuild Artist Photos, re-check on open, counts
-
-**Settings > Library > Rebuild Artist Photos** (`ACT_AREBUILD` 92, glyph `mic-vocal`, directly under Rebuild Covers, 13 languages): `arebuild_ask` asks in the stock confirm dialog ("Rebuild all artist photos? This may take a few minutes."); Yes writes `AREBUILD_FILE` (`home_write_atomic`), clears `hc_off` (`homecover_rebuild_asked`) and toasts "Artist photos will rebuild on Home"; a failed write toasts "Storage unavailable". It touches nothing of the covers (no `.bad` is cleared, no covers request); Clear Cover Cache still leaves the artists alone.
-
-**Purity map** (`AP_DIR/purity`). The worker cannot query the stock database, so the Home pass keeps what the purity check needs: while the snapshot is built (`ap_lib_add`) a hash table records, for the album folder and every folder above it, the one artist key under it (0 = two artists, or an untagged album: conflict). When the walk over the albums is complete `hc_on_start` calls `ap_lib_save` (UI thread, once, before the worker starts: compacts the table and writes at most `12 + 8 x AP_PUR_MAX` bytes (24576 entries, 196 KB) to `purity.tmp`, then renames). File: magic `0x31555041`, entry count, a check word, then (folder hash, key) pairs; the hash is FNV of the path (never 0). A snapshot that is unusable (over `AP_LIB_MAX`, no memory, over `AP_PUR_MAX` entries) or a pass that makes none (library over `AP_LIB_MAX`, a chunk of a longer chain) removes the old file (`ap_lib_drop`), so a map never describes another library. It is as old as the last Home pass: albums added since are not in it until Home runs again.
-
-**Re-check on open** (`ap_recheck(name, tracks)`, UI thread starts it; the worker does the work). The scoped artist page (`docs/modules/albums.md` "Artist photo re-check") hands over the first track of each of the artist's albums (one per line, at most 64 folders are looked in). It needs the worker free (`cc_build_open` refuses otherwise: skipped, the Home pass covers it) and never joins it. The job (`CC_RECHECK_JOB`, `ap_recheck_job`), per artist key: `.pick` and a -44 file: nothing. A `.try` strike: the empty marker (as `ap_job`). A photo (non-empty -44): read `.src`; one stat of the source: size and modification time as recorded: **nothing else happens** (no folder is listed, no file written; a photo with no readable `.src` is left alone). Changed or gone: discover again (below), and when nothing is found but the old source is still there it is made again (changed in place). An empty marker or no -44 file yet: discover again. Discovery is `ap_walk`, the Home pass's, over the page's folders (sorted, disc folders stepped over) with the purity judged by the saved map. **Without a usable map** (missing, cut or failing its check) only the album folders themselves are looked in (artist.* there needs no purity) and nothing is concluded from a miss: no marker is written, a removed source is not turned into a marker (the stale photo stays until a full pass or a rebuild), so a later full pass can still find a photo in a parent folder. With the map a miss becomes the marker (a removed source: the marker, -168 and `.src` removed). The attempt is bracketed by the `.try` strike like `ap_job`. A result that made, replaced or removed a photo bumps `ap_epoch()` (the worker writes a counter; no widget is touched from the worker).
-
-**Showing the result.** The open artist page polls its own set (`al_on_build`, 500 ms) and, when the set is over, compares the cache with what it shows and switches the circle in place or reads a replaced photo again. The Artists page behind it learns on `EVT_WINDOW_TO_FG` (`ar_on_fg`): when `ap_epoch` moved since it last looked, the tiles and the 2-bit states are dropped and every circle is decoded again (one a tick as ever). **Rows still unknown** (file missing) are looked for again when the Home pass that makes them is over: while a set runs (`cc_build_active`) the page asks every 1 s (`ar_on_retry`, armed by the first unknown row), then the unknown tiles are tried again, once (the Albums page's `al_retry`).
-
-**Developer > Cache > Artist Photos** card (`INFO_APHOTOS` / `INFO_ANONE`, appended after `INFO_DUR`; `homecover_stat` 7 and 8): **Photos** counts `a<8 hex>-44.jpg` with a picture, **None** the empty ones (the markers), read in the Cache page's bounded steps after the covers folder (`CP_ADIR`; the -168 files, `.src`, temporary files, the map and any other name are not counted); an ellipsis until counted. Labels "Artist Photos", "Photos", "None" in 13 languages.
-
-Possible follow-ups: a way to drop a picked photo from the device (today: delete `a<key>.pick` on the card, then Rebuild Artist Photos), a photo on the Search page's artist rows (they show the first album's cover; `ap_lookup` and `ap_key` are the entry), an artist page that is open while Home's pass makes its photo (it looks again only when the page is opened).
-
-`ap_key` is the shared entry (no other code may hash a name differently). The files are plain square JPEGs, not circles (cropped to a square when built, see Cache; photos cached before that need Rebuild Artist Photos): both pages still crop the centred square, a no-op on these, and mask when they decode.
-
-Validation: emulation (`test/pod/artistphoto.py`: key, classic / genre / flat / multi-disc / Various Artists / flat many-artist layouts, `folder.*` name match, priority, `.src`, marker, rebuild, `.pick`, `.try`, the snapshot bound, and Home's pass: pill texts, requests, stamp, the upgrade pass (artists line missing: artist jobs only), a stalled pass, a library change; corrupt files beside valid ones; untagged albums and purity; the lead, the circle mask and the lookup; the purity map's file; the re-check: unchanged source = one stat and no write, changed mtime or size, removed source, a marker and a new picture, `.pick`, `.try`, no map (album folders only, no marker), a busy worker; the Settings row, its toast and confirm in 13 languages; the Cache counts; `test/pod/artists.py`: both artist headers, the page's re-check switching the layout, the Artists page after a change and the retry of unknown rows). The cost of the 64-album snapshot steps, of `ap_lib_save` and the worker time per artist is not measured.
+**Developer > Cache > Artist Photos** card (`INFO_APHOTOS` / `INFO_ANONE`): **Photos** counts
+`a<8 hex>-44.jpg` files with a picture, **None** the empty ones, read in the Cache page's bounded
+steps (`CP_ADIR`).
 
 ## Returning to the page
 
-The local list (Artists, Album Artists, Genres, Composers) is read once at open and again when the page comes back to the foreground (`ar_on_fg`, `ar_local_changed`): the stock query is compared with the page's rows (`ls_same_list`, the capped count) and a different list, or one that is now empty, is read again with the scroll position kept (`ar_load(1)`). Songs deleted on an album page above leave an artist that has none, and a row never opens a stale one. The same list is not copied again.
+The local list (Artists, Album Artists, Genres, Composers) is read once at open and again when the
+page returns to the foreground (`ar_on_fg`, `ar_local_changed`): the stock query is compared with the
+page's rows (`ls_same_list`) and a different or now-empty list is read again with the scroll position
+kept (`ar_load(1)`). Songs deleted on an album page above leave an artist that has none, and a row
+never opens a stale one. The same list is not copied again.

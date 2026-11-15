@@ -1,38 +1,94 @@
-# Overlay screens (`tools/mod_overlays.py`, `tools/preview/preview_overlays.py`, `test/pod/overlays.py`)
+# Overlay screens
 
-Two stock-looking screens restyled with assets only (no code, no new or renamed widget): the message and confirm dialogs and the power-off splash. The step runs after `mod_polish`
-in `tools/build.py`. It copies PNGs committed in `assets/overlays/` (`mod_overlays.py --generate` redraws them: Pillow, `rsvg-convert` for the splash), refuses any file that is not
-the pinned stock one (`tools/mod_overlays_pins.txt`, SHA-256, `--pins`), keeps the file mode and the stock pixel sizes. Preview: `uv run python -I tools/preview/preview_overlays.py work/mod-release out/preview/overlays.png`
-(not tracked). The Update Library spinner, the charging bolt (`chargebg`) and the USB / Wi-Fi / Bluetooth mode pages are drawn by `tools/mod_icons.py` (`docs/modules/icons.md`), not here.
+**Sources:** `tools/mod_overlays.py`, `tools/mod_overlays_pins.txt`, `assets/overlays/`,
+`tools/coex.py`, `tools/pod_i18n.py` (`COEX_TEXT`), `patch/m1plus.c` (`pod_confirm_dialog`).
+**Tests:** `test/pod/overlays.py`, `test/pod/navbars.py`. **Preview:**
+`tools/preview/preview_overlays.py work/mod-release out/preview/overlays.png`.
 
-- **Message and confirm dialogs** (`msginfo_bg`, `confirminfo_bg`, 260 x 180). A glass card, `mod_icons.glass_image(260, 180, 12, fill=DIALOG_FILL)`
-  (the More sheet's pane, alpha 0.94: the text sits on it with the page dimmed behind by the dialogs' own `highlight` alpha 100); the confirm card also has the
-  13 % white horizontal divider at y 130 (stock y 130). The stock buttons were opaque black over the image: `confirminfo_dialog` (`btn_cancel`, `btn_enter`) and `rippercompleted_dialog` (one
-  `btn_enter`, which shares `confirminfo_bg`) get `bg_color` transparent in the non-pressed states and the pressed corner radii 11 (the card's, minus its 1 px inset); the pressed fill is
-  mod_lists' neutral row colour as before. The vertical divider is `btn_cancel`'s right border (`border=right`, `#FFFFFF22`), not in the image, because the ripper dialog has no second
-  button. Widget names and rectangles unchanged. The contrast scan (`mod_theme --scan`) passes. The card is translucent: a dialog opened over the More sheet would show it through
-  (`docs/modules/playmore.md` "Dialogs over the sheet": the sheet closes first).
-- **Message padding of the confirm dialog** (device report: the text ran to about 2 px of the card edges). The stock `dialog/confirminfo_dialog` has no message widget in its asset: its init (`0x472cec`) creates the kind-5 message (`label_create(dialog, 0, 25, 260, 80)`, `label_set_word_wrap`) with the style `label_centerwhite20_style` (`0x744084`, one reference, `0x472e5c`), which nothing else uses. So `tools/mod_overlays.py edit_confirm_label` gives that style `margin_left` and `margin_right` 12 px in the normal, disable and focused states (`styles/default.bin`); AWTK's label paints and wraps inside its margins (the code that reads `margin_left` / `margin_right` sits at `0x62e454..0x62e494`). Every kind-5 confirm gets it: Screenshot (three questions), Rebuild Covers, Clear Cover Cache, the Podcasts questions and Software Update (`pod_confirm`), and stock's Bluetooth / Wi-Fi switch-on questions (`msg_bt_open`, `msg_wifi_open`: the only stock kind-5 callers found, at `0x474d4c`, `0x474f90`, `0x4a3b18`, `0x4b0b54`); kind 1 (one scrolling line: Folders, Playlists, stock delete questions) and kind 3 (delete) use other labels and are unchanged. The label is 80 px high, three lines of 20 px: `test/pod/i18n.py` wraps every such message in 13 languages at 236 px. 20 px margins were tried first and push the stock `msg_wifi_open` ("Bluetooth is turned on.Do you want to turn off Bluetooth before using Wi-Fi?") to four lines in twelve languages; 12 px is the largest margin that keeps every message at three. Not run on the device.
-- **Dimming behind the confirm dialog.** Device finding: the stock `dialog/confirminfo_dialog` does not visibly dim the page below, although `edit_confirm` sets its highlighter to `default(alpha=130)` (`CONFIRM_DIM`, = `tools/pod_ui.py PL_DIM`); the highlighter's dim is not what the user sees on the Settings pages. So the payload adds the scrim itself: `pod_confirm_dialog` (`patch/m1plus.c`, used by every confirm of ours: `pod_confirm_code` for Settings, Screenshot and Software Update, and the Playlists, Folders and Songs helpers) puts a full-window view of `#00000082` (PL_DIM) as the top main window's last child, insensitive, before `navigator_to_with_context`, and hides, disables and destroys it when the call returns. Only pinned stock functions are used (`window_manager`, `window_manager_get_top_main_window`, `view_create`, `widget_set_style`, `value_set_uint32`, `widget_set_sensitive`, `widget_set_visible`, `widget_destroy`, `widget_count_children`, `widget_get_child`). If the page closed while the dialog was up (it is no longer a child of the window manager) the scrim is not touched; no page or a failing view means the dialog opens without one. The highlighter stays as set. Stock's own confirms (Bluetooth / Wi-Fi, stock delete questions called by stock handlers) do not go through the wrapper and are not dimmed by it. Tests: `scrim_tests` in `test/pod/overlays.py`, and the Folders delete in `test/pod/folders.py`. Not device-checked yet. `test/pod/overlays.py` also pins the highlighter value. Device finding (V2.1zANMEAAAF, AAAG): stock's install confirmation (`msg_confirmupdate`, shown by `tf_update_click`) looked wrong only because the page's pills stood out behind the translucent card (our own asks clear the page block first; a one-tick deferral did not matter). The Software Update page clears its block around stock's call too (docs/modules/update.md).
-- **Message box vs confirm box** (device report: the message screen did not look like the confirmation box). Checked statically: `msginfo_dialog.bin` and `confirminfo_dialog.bin` resolve to the same card (transparent fill and border, radius 12, one picture, the two pictures differ only by the divider), neither has a page theme that matters (`styles/confirminfo_dialog.bin` only holds check-box styles), the stock msginfo init (`0x478610`) only creates labels (`srlabel_msgwhite_style` 20 px white, `srlabel_msggray_style` 18 px, `navbar_centerlabel_white` for the A-B toast, as the confirm's labels) and a timer, and calls no resize, move or style on the dialog; so no difference was found in msginfo itself. What did differ: the other message-like 260 x 180 stock dialogs, still black with a grey `#666666` border: `cardupdate_dialog` (card update), `formatcard_dialog` (formatting) and `dialog_autoshutdown` (the sleep countdown, one full-width button). They now get the same card (`CARD_DIALOGS`: msginfo_bg for the first two, confirminfo_bg and a transparent button for the countdown); `btscan_dialog` (Bluetooth) is left. `test/pod/overlays.py` compares the dialogs' resolved card styles with the confirm box's. If the message box still looks different on the device, a screenshot is needed.
-- **Power-off splash** (`shutdown`, 320 x 480, `ui/poweroff_page.bin` `img_shutdown`; the page itself is stock): the boot splash raster (`assets/boot-logo.svg`, `docs/modules/boot.md`).
+Two stock-looking screens restyled with assets only (no new or renamed widget): the message and
+confirm dialogs and the power-off splash. The step runs after `mod_polish` in `tools/build.py`. It
+copies PNGs committed in `assets/overlays/` (`mod_overlays.py --generate` redraws them), refuses any
+file that is not the pinned stock one (SHA-256, `--pins`) and keeps the file mode and pixel sizes.
+The Update Library spinner, the charging bolt and the USB / Wi-Fi / Bluetooth mode pages are drawn by
+`tools/mod_icons.py` ([icons](icons.md)), not here.
 
-## Wi-Fi and Bluetooth together (`tools/coex.py`, `tools/pod_i18n.py` `COEX_TEXT`, `tools/mod_strings.py`)
+## Message and confirm dialogs
 
-Stock keeps the two radios exclusive in the UI only: one RTL8733BS combo chip, both drivers loaded at boot, BTCoex compiled in, and `openBluetooth` / `closeBluetooth` and `networkStart` / `networkStop` never touch the other radio. Turning one on while the other is on asks the kind-5 confirm `msg_wifi_open` (Wi-Fi) or `msg_bt_open` (Bluetooth), "turn the other off first?"; OK switched the other off (`wifi_switch(1)` / `switchBluetooth(1, 0)`), Cancel did nothing. The confirm still appears, only when the other radio is on, but it is now a warning and OK leaves the other radio on:
+`msginfo_bg` and `confirminfo_bg` are 260 x 180 glass cards (`mod_icons.glass_image`, the More
+sheet's pane at alpha 0.94, the page dimmed behind). The confirm card also has a 13 % white
+horizontal divider at y 130.
 
-| Caller | Patched word (stock -> new) | Skips after OK |
+- The stock buttons were opaque black over the image. The buttons of `confirminfo_dialog` and
+  `rippercompleted_dialog` get a transparent `bg_color` in the non-pressed states and pressed corner
+  radii 11. The vertical divider is `btn_cancel`'s right border, because the ripper dialog has no
+  second button. Widget names and rectangles are unchanged and the contrast scan passes.
+- The card is translucent, so a dialog opened over the More sheet would show it through. The sheet
+  closes first ([playmore](playmore.md)).
+- **Message padding.** The stock confirm dialog creates its kind-5 message in code, with a style
+  nothing else uses (`label_centerwhite20_style`). `edit_confirm_label` gives that style 12 px
+  `margin_left` / `margin_right`. Every kind-5 confirm gets it: ours and stock's Bluetooth / Wi-Fi
+  switch-on questions. The label is 80 px high (three lines of 20 px); `test/pod/i18n.py` wraps every
+  such message in 13 languages at 236 px. 12 px is the largest margin that keeps every message at
+  three lines (20 px pushed the Wi-Fi question to four in twelve languages).
+- **Dimming.** Stock's confirm does not visibly dim the page below, although its highlighter is set
+  to alpha 130 (`CONFIRM_DIM` = `PL_DIM`). `pod_confirm_dialog` puts a full-window `#00000082` view
+  as the top main window's last child, insensitive, before opening the dialog, and destroys it when
+  the call returns. It uses only pinned stock functions. If the page closed meanwhile, or the view
+  fails, the dialog opens without a scrim. Stock's own confirms (Bluetooth / Wi-Fi, stock delete
+  questions) do not go through the wrapper.
+- **Other message-like dialogs.** `cardupdate_dialog`, `formatcard_dialog` and `dialog_autoshutdown`
+  were black with a grey `#666666` border; they get the same card (`CARD_DIALOGS`).
+  `btscan_dialog` is left. `test/pod/overlays.py` compares the resolved card styles.
+- The Software Update page clears its block around stock's install confirmation, because the page's
+  pills stood out behind the translucent card ([update](update.md)).
+- **Power-off splash** (`ui/poweroff_page.bin` `img_shutdown`, 320 x 480; the page is stock): the
+  boot splash raster (`assets/boot-logo.svg`, [boot](boot.md)).
+
+## Confirm dialog
+
+Our yes/no questions (Rebuild Covers, Rebuild Artist Photos, Clear Cover Cache, Reset All Settings
+and others) use the stock `dialog/confirminfo_dialog`, opened with `navigator_to_with_context`.
+
+- The context is `{kind, ms, text[0x200], text2[0x200]}`; the text starts at +8.
+- **Kind 5** gives wrapped 20 px text in a 260 x 80 box at y 25. **Kind 1** scrolls one line and
+  must not be used for a long message.
+- Only `CONFIRM_YES` (`0xa`, `btn_enter`) acts; No or a failed dialog does nothing.
+- Stock's equalizer reset uses the same dialog.
+
+## Wi-Fi and Bluetooth together
+
+Stock keeps the two radios exclusive in the UI only. They are one RTL8733BS combo chip with both
+drivers loaded at boot and BTCoex compiled in, and the switch functions never touch the other radio.
+Turning one on while the other is on asked a kind-5 confirm (`msg_wifi_open` or `msg_bt_open`, "turn
+the other off first?"); OK switched the other off, Cancel did nothing.
+
+The confirm still appears, only when the other radio is on, but it is a warning now and OK leaves
+the other radio on. Four pinned words in demo (`tools/coex.py`; no code added, nothing
+boot-reachable, so no kill-switch wiring):
+
+| Caller | Change | Skips after OK |
 |---|---|---|
-| Control Center Bluetooth tile | `0x474d98` `beqz v0` `0x10400005` -> `b` `0x10000005`, to `0x474db0` | `wifi_switch(1)` (Wi-Fi stays on) |
-| Bluetooth settings switch | `0x4a3b64` `beqz v0` `0x10400004` -> `b` `0x10000004`, to `0x4a3b78` | `wifi_switch(1)` |
-| Control Center Wi-Fi tile | `0x474fd8` `lw s2, GOT bt_exit_init` `0x8f92a9a4` -> `b` `0x10000013`, to `0x475028` (`lw t9, GOT wifi_switch`) | the whole Bluetooth cancellation preamble (below) |
-| Wi-Fi settings switch (stock page, only a fallback behind our own page; row handler `0x4b0a88`) | `0x4b0b9c` `lw v0, GOT bt_exit_init` `0x8f82a9a4` -> `b` `0x10000018`, to `0x4b0c00` (`lw t9, GOT wifi_switch`) | the same preamble |
+| Control Center Bluetooth tile | `beqz` becomes `b` | `wifi_switch(1)` (Wi-Fi stays on) |
+| Bluetooth settings switch | `beqz` becomes `b` | `wifi_switch(1)` |
+| Control Center Wi-Fi tile | first word of the preamble becomes a branch to the `wifi_switch(1)` call setup | the whole Bluetooth cancellation preamble |
+| Wi-Fi settings switch (stock page, a fallback behind our own page) | same | the same preamble |
 
-The Bluetooth-side handlers test the Wi-Fi flag right after OK (`lbu`, `beqz v0`, `wifi_switch(1)`) and have no other preamble, so the one `beqz` becomes `b`. The Wi-Fi-side handlers do more before the switch: right after the confirm returns 10, stock cancels a Bluetooth start in progress: `bt_exit_init` (byte `0xa038a8`) = 1, up to 20 x `usleep(200000)` while `bt_initstatus` (`0xa038a4`) is not 0, `switchBluetooth(1, 0)` when Bluetooth is on, both words cleared, then `wifi_switch(1)`. With only the switch-off skipped, turning Wi-Fi on from the Control Center while Bluetooth was still starting set `bt_exit_init`, which aborts the startup worker, and left `bluetoothflag` 1: Bluetooth "on" but dead until an off/on cycle. So the Wi-Fi-side patch is the first word of the preamble, made a branch straight to the `wifi_switch(1)` call setup (`lw t9`, `jalr`, `addiu a0, zero, 1`): no write to `bt_exit_init`, no wait, no switch-off, no clearing (nothing was set). The branch's delay slot is the preamble's next word, a `lui` into `s5` / `s4` (the `usleep` argument), which nothing reads afterwards; after `wifi_switch` the handlers read only `s0`, `s1`, `s3`, `s6` (tile) and `s0`, `s2` (page), which the skipped preamble does not set (it uses `s2` / `s4`, `s5`, `s7`, `fp` / `s6`, `v0` for its own words). Cancel is unchanged.
+The Wi-Fi-side handlers do more before the switch: after OK they cancel a Bluetooth start in
+progress (set `bt_exit_init`, wait up to 4 s, `switchBluetooth(1, 0)`). With only the switch-off
+skipped, turning Wi-Fi on while Bluetooth was still starting aborted the startup worker and left
+`bluetoothflag` 1: Bluetooth "on" but dead until an off/on cycle. So the Wi-Fi-side patch skips the
+whole preamble. Cancel is unchanged. The words around each patch are pinned (`PINS`), so a different
+firmware fails the build.
 
-The words around each patch are pinned too (`PINS`: the Wi-Fi flag `lbu`, the confirm call and its not-OK `bne`, the delay slot, the `wifi_switch` call setup); a firmware that differs fails the build. No code is added; none of it is boot-reachable, so there is no kill-switch wiring. The text is one string under both keys, replacing the stock value in the 13 language tables (the three stub tables have neither key): "Bluetooth audio may stutter while Wi-Fi is on." (`COEX_TEXT` has the other twelve). The buttons are the stock `msg_no` ("Cancel") and `msg_yes` ("OK"), which still fit. All 13 texts wrap to at most three lines in the confirm label (`test/pod/i18n.py`). Not run on the device; audio stutter on 2.4 GHz (shared antenna and band) is the expected risk.
+The text is one string under both keys, in the 13 language tables: "Bluetooth audio may stutter while
+Wi-Fi is on." (`COEX_TEXT` has the other twelve). The buttons are stock's `msg_no` ("Cancel") and
+`msg_yes` ("OK"). All 13 texts wrap to at most three lines. Audio stutter on 2.4 GHz (shared antenna
+and band) is the expected risk.
 
-## Tests (`test/pod/overlays.py`)
+## Tests
 
-Pins cover the three names; built files are the committed assets; the charging and battery images (`charging0`, `charging18`, `charge_big`, `dac_charge`) and `poweroff_page.bin` are stock bytes; sizes;
-glass and divider; the ui edits (transparent buttons, Cancel's border, geometry unchanged); the four Wi-Fi + Bluetooth branch words and their pins, in the stock and built demo (`test/demo_diff.py` lists them as allowed changes), and `coex_tests` running the stock Control Center Wi-Fi tile (`0x474ec8`) and the stock page's row handler (`0x4b0a88`) over the build in Unicorn: Wi-Fi on with Bluetooth on and starting (`bt_initstatus` != 0) or up, OK calls only `wifi_switch(1)` (no `usleep`, no `switchBluetooth`, no write to `bt_exit_init`, `bluetoothflag` stays 1) and Cancel changes nothing, and the shared warning in all 13 tables (`test/pod/i18n.py`). `test/pod/navbars.py` exempts the replaced files (`mod_overlays.NAMES`, `OVERLAY_UI`).
+`test/pod/overlays.py` checks the pins, the committed assets, the stock bytes of the charging images
+and `poweroff_page.bin`, the glass and ui edits, the scrim, the coex branch words (also listed in
+`test/demo_diff.py`) and, in Unicorn, the stock Wi-Fi tile and page handler over the build (OK calls
+only `wifi_switch(1)`, Bluetooth stays on). `test/pod/navbars.py` exempts the replaced files
+(`mod_overlays.NAMES`, `OVERLAY_UI`).

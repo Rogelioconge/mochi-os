@@ -1,8 +1,11 @@
 # Menu and Extras layout
 
-Sources: `tools/pod_pages.py` defines rows/actions; `tools/pod_ui.py` builds assets;
-`patch/menu.c` arranges them at runtime. Tests compare the Python and C models and run stock
-layout/hit-testing. User instructions are in the [guide](../guide.md#find-your-way-around).
+**Sources:** `tools/pod_pages.py` (rows, actions), `tools/pod_ui.py` (assets), `patch/menu.c`
+(runtime arrangement). **Tests:** the menu tests under `test/pod/` compare the Python and C models
+and run stock layout and hit-testing. User instructions: the
+[guide](../guide.md#find-your-way-around).
+
+The M1+ Music Home menu and Extras: which rows exist, their order, and what the user may hide.
 
 ## Menu instances
 
@@ -16,9 +19,19 @@ stock row theme. The asset contains one row per `ITEMS` entry, then Extras. Neve
 row count: Pod, Podcasts, Search, Radio and Audiobooks are items too. Item ids are frozen (`ITEM_IDS`, asserted at build): `home-menu` stores them, so a new item is appended, never inserted, removed or reordered.
 
 Default shown IDs are `12345`: Cover Flow, Albums, Artists, Songs and Playlists. Extras is
-always visible and last. Settings (ID 18, `j`) is hidden by default and stays reachable from
-the Extras navbar. Pod is ID 19 (`k`), Podcasts ID 20 (`l`), Search ID 21 (`m`: opens the library search page, `search_open()`, else the stock `search_page`; hidden from the menu by default, in the Library group of Extras) and Radio ID 22 (`n`: the Radio page, `radio_open()`; hidden by default, in the Library group after Podcasts; [radio](radio.md)), Audiobooks ID 24 (`p`: `books_open()`, ACT_BOOKS 110, the page [audiobooks.md](audiobooks.md); hidden by default, in the Library group after Podcasts; the saved list file is read up to `MENU_FILE_MAX` 28 bytes). Their actions/pages are defined
-once in `pod_pages.py`.
+always visible and last. Later items are hidden by default and live in Extras:
+
+| ID | Char | Item |
+|---|---|---|
+| 18 | `j` | Settings (stays reachable from the Extras navbar; cannot be off) |
+| 19 | `k` | Pod |
+| 20 | `l` | Podcasts |
+| 21 | `m` | Search (the library search page, else the stock `search_page`; Library group) |
+| 22 | `n` | Radio ([radio](radio.md); Library group after Podcasts) |
+| 23 | `o` | Subsonic (Streaming group; [subsonic](subsonic.md)) |
+| 24 | `p` | Audiobooks ([audiobooks](audiobooks.md); Library group after Podcasts) |
+
+Their actions and pages are defined once in `pod_pages.py`.
 
 Hidden rows are invisible, insensitive, parked at y 0 and restacked after shown children.
 `menu_arrange` sets positions, `virtual_h` and a clamped scroll offset, preserving the user's
@@ -38,8 +51,8 @@ scroll above the floating pill. Details: [mini player](minibar.md), [Daily Mix](
 ## Saved menu
 
 `/mnt/data/m1plus/home-menu` contains `<shown IDs in order>[-<off IDs>]` with an optional final
-newline. Characters are `ID_CHARS` (`0`–`8`, then `a`–`m`); total file length must be nonzero
-and less than `MENU_FILE_MAX` (25 bytes).
+newline. Characters are `ID_CHARS` (`0`–`8`, then `a`–`p`); total file length must be nonzero
+and less than `MENU_FILE_MAX` (28 bytes: 25 item characters, the `-`, a newline and NUL).
 
 - Each ID may appear once across both parts; at most one `-` is allowed.
 - Settings cannot be off. Unknown characters, duplicates or oversized/missing data select
@@ -49,7 +62,7 @@ and less than `MENU_FILE_MAX` (25 bytes).
 
 `parse_menu_full` and `mn_load` implement the same rules; tests compare a corpus and random
 inputs. `format_menu`/`mn_save` serialize off IDs in Extras order. Saves are atomic; failures
-restore the prior state. There is no legacy-format parser.
+restore the prior state.
 
 ## Extras and its settings
 

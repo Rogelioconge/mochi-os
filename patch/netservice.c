@@ -1,4 +1,4 @@
-/* M1+ Music Settings > Network Services and Wi-Fi Transfer (docs/modules/netservice.md): the state behind our two pages.
+/* M1+ Music Settings > Network Services and Wi-Fi Transfer (docs/modules/wifi-transfer.md): the state behind our two pages.
  *
  * AirPlay and DLNA are stock's own switches, the bytes airplayflag and dlnaflag (the Control Center tiles flip the same two): the toggles call stock's airplay_switch and dlna_switch, which flip the byte and
  * write the settings ini, and nothing else, as stock's page does (its click handlers, 0x4a8a84 and 0x4a8b14, test nothing before the call). The service itself follows the byte within the network-status

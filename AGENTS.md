@@ -19,25 +19,22 @@ Read relevant ranges; avoid loading entire large files or history.
 
 ## Working rules
 
-- Follow the linked workflow and safety rules before editing. Run builds/tests in the
-  foreground. Use this checkout's uv environment and `python -I`; never execute extracted
-  firmware or reference-clone code.
-- UI fixes require a reproducer. Use the shared layout/text model and built font for previews.
-- Pin every binary edit and fail on mismatch; hooks must fall back to stock.
-- Never expand the approved global paint or main-loop scope (paint: only the palette's three hooks,
-  `docs/modules/accent.md`). Pinned boot-reachable hooks that fall back to stock and do bounded work are a paved path ([safety](docs/modules/safety.md)). Preserve the crash guard and
-  `/mnt/mmc/m1plus-off` kill switch. Never write bootloader or recovery kernel;
-  rebuilt rootfs must fit within stock size.
+- Follow the [workflow](docs/workflow.md) and [safety](docs/modules/safety.md) rules before
+  editing. Never execute extracted firmware or reference-clone code.
+- UI fixes need a reproducer. Use the shared layout/text model and the built font for previews.
+- Pin every binary edit and fail on mismatch; hooks fall back to stock.
+- Never expand the approved global paint or main-loop scope (paint: only the palette's three
+  hooks, [accent](docs/modules/accent.md)). Keep the crash guard and the `/mnt/mmc/m1plus-off`
+  kill switch. Never write the bootloader or recovery kernel. Pinned boot-reachable hooks that fall back to stock and do bounded work are a
+  paved path.
 - Preserve widget names. Hidden widgets must also be insensitive.
-- Feature branches leave `VERSION`, goldens and history unchanged; release integration owns
-  their updates. Never reset dev counters or reuse dev output directories.
-- Keep module docs factual and concise: behavior, interfaces, constraints, source references
-  and validation limits. Consolidate repeated facts; omit roadmaps and implementation phases.
-  History holds only milestones, device findings and lessons.
-- No compatibility flags or code paths solely for old packages. Bluetooth work only for
-  approved features ([Bluetooth settings page](docs/modules/bluetooth.md)); anything else needs a
-  decision first. `hciplayer` is patched for the parametric EQ and for Mono Audio / Crossfeed
-  (`tools/mod_player.py`, [peq](docs/modules/peq.md), [stereo](docs/modules/stereo.md)); any other
-  `hciplayer` change needs a decision first.
-- Preserve borrowed-code attribution, including q2-pod's README acknowledgement.
-  Clone references outside this repository.
+- Feature branches leave `VERSION`, goldens and history unchanged; release integration owns them.
+- No compatibility flags or code paths solely for old packages.
+- Bluetooth work only for approved features ([Bluetooth](docs/modules/bluetooth.md)). `hciplayer`
+  is patched only for the parametric EQ and Mono / Crossfeed ([peq](docs/modules/peq.md),
+  [stereo](docs/modules/stereo.md)). Any other Bluetooth or `hciplayer` change needs a decision
+  first.
+- Keep module docs concise: behavior, interfaces, constraints, source references. No device-test
+  status, planning, history or test inventories.
+- Preserve borrowed-code attribution, including the README acknowledgements. Clone references
+  outside this repository.

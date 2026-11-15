@@ -1,189 +1,417 @@
 # Songs
 
-The menu's Songs action opens `ui/m1plus_songs.bin`. Failure falls back through
-`pod_home_open(3)` to stock `allmusic_page` (class `0xf001`), also reachable from Shanling Home.
-The page adds no hook; the menu's kill-switch entry check prevents opening it while disabled.
+**Sources:** `patch/songs.c`, `patch/azlist.c` / `azlist.h` (sections, rail, pinned header),
+`patch/songops.c`, `patch/filetime.c`, shared grid / cache / shuffle / scroll helpers,
+`tools/pod_ui.py` (`build_songs_page`, `navbar(songs=True)`), `tools/pod_pages.py` (`SONGS`,
+`ACT_SONGS`, `ACT_LIST`), `tools/mod_icons.py` (`SONGS_IMAGES`), `SG_*` in `offsets.inc`.
+**Tests:** `test/pod/songs.py`, `test/pod/filetime.py`. **Preview:** `tools/preview/preview_songs.py`.
 
-Sources: `patch/songs.c`, shared grid/cache/shuffle/scroll helpers, `tools/pod_ui.py`
-(`build_songs_page`, `navbar(songs=True)`), `tools/pod_pages.py` (`SONGS`, `ACT_SONGS`,
-`ACT_LIST`, `SORT_MENU`), `tools/mod_icons.py` (`SONGS_IMAGES`) and `SG_*` in `offsets.inc`.
-Tests: `test/pod/songs.py`; preview: `tools/preview/preview_songs.py`.
+The menu's Songs action opens `ui/m1plus_songs.bin`. A failure falls back through `pod_home_open(3)`
+to stock `allmusic_page` (class `0xf001`). No hook; the menu's kill-switch check keeps it closed
+while disabled. The same page lists every other song list ([The other lists](#the-other-lists)).
 
-Sections, pinned headers, rail/bubble and title fitting are shared through `patch/azlist.c`
-(`az_t sg.al`). Pills and selection marks use `patch/common.c`, shared with Playlists.
-Older `sg_rail_plan`, `sg_sections` and `sg_jump` references below correspond to the shared
-`az_rail_plan`, `az_sections` and `az_jump` implementations. The rail and the bubble show only with Settings > Library > **Index Rail** on (default on), and the headers only with **Section Headers** on (default on; with it off the rows close up): [artists](artists.md) "The two switches".
+Sections, pinned headers, the rail, the bubble and title fitting are the shared `patch/azlist.c`
+(`az_t sg.al`). The Artists, Albums list and Radio countries pages use it too. Pills and selection
+marks use `patch/common.c`, shared with Playlists.
 
 ## What the user sees
 
-- **Navbar: the glass navbar of our pages** (`docs/modules/navbar.md`): the glass Back disc, the small title from x 58, and the right-hand actions as **one glass capsule, Search at 168 (`btn_search`, the left cap `pod_nav_search`, the place of Albums' Cover Flow button) | "..." at 214 (`btn_more`, the middle piece `pod_nav_moremid`, set at run time) | Now Playing at 260** (46 / 46 / 60 px, glass x 177 .. 311). Search is a navbar button again (it was the card's top row for a while; Albums and Artists keep it in the card); Sort, Select and Recently Added's view toggle are rows of the "..." card (next bullet). Search is built hidden and `sg_searches` shows it on every list but three: a genre's songs (the stock navbar had none), a playlist's songs (no Search inside a playlist) and an artist's songs, where the Cover Flow button takes the same slot (**Cover Flow 168 | "..." 214 | Now Playing 260**, as on Albums). **Where the card would hold Select alone (`sg_direct`: every list but the library and Recently Added) the "..." is replaced by a Select button** (`btn_select`, built hidden; Lucide `list-checks`, the glyph of the album page's and Folders' Select; `pod_nav_selectl` as the left cap at 214, `pod_nav_select` as the middle piece after Search / Cover Flow): it enters select mode at once, no card (`sg_on_more` serves both; an empty list does nothing), and `sg.btn_more` stands for it, so select mode hides it and leaving shows it as the "...". The small title runs from x 58 to 168 (110 px; `sg_title_end`), a genre's and a playlist's to 214 (156 px); no language's "Songs" is wider than 110 px. Select mode and the "..." / Select button: it does nothing in select mode (hidden and insensitive with Now Playing, like the old buttons). Glass is on the toolbar only: every other button of the page (the pills, the select bar, Select All) is flat.
-- **Content (one scrolling list)**: the large "Songs" title (32 px white, x 12), under it the **Play and Shuffle pills** (flat, `#1C1C1E`, pressed `#333335` (one blue level off #333333: the accent role `ROLE_PRESS_PILL`), **129** x 40 at x 10 and **149** (a 10 px gap; they end at x 278, 6 px before the rail's touch column at 284: the rail is fixed and the pills scroll under it, so a pill must never reach it), radius 20, the Lucide glyph and the 18 px label centred as a pair 8 px apart), then the songs.
-- **Title order (the stock default, `sort_flag` 0): sections.** A 28 px header over each group: **the letter alone, 20 px `#FFFFFF` at x 10 on the page's black, no band and no hairline** (the reference is the Recently Played shelf's header, `docs/modules/recent.md`: `pod_sh_head`, 20 px white, x 10, on the black page; `tools/pod_ui.py` `SH_HEAD_*`. The Extras page has no group headers at all (Library / Tools are only an order, `menu.md`), Settings pages have none, and Apple's own Songs list is the bold letter on the page too; the earlier `#141414` band with a `#222222` hairline matched nothing else in the project). Rows at a 64 px pitch below it: a 52 px cover at (10, 4) with 4 px corners (the Albums list's), the title 21 px white at y 7, the artist 18 px `#AAAAAA` at y 33, both from x 74 and **cut with an ellipsis at `az_end`** (x 310, the list-row spec's hairline end, with no rail; x 284 while the rail is shown: `SG_RAIL_INSET` 26 px, the rail's touch column starting at `SG_RAIL_X`, so a row never runs under it; [artists](artists.md) "The two switches"), a `#222222` hairline from x 74 to the same x. No stars. **Each row ends with a grey "..."** (24 px `#8C8C8C`, a 44 px tap zone) that opens the Play Next / Play After / Add to Playlist menu ([rowmenu](rowmenu.md)): the text then ends at **x 262** where there is no rail (a list, a plain order) and at **x 236** while the A-Z rail is shown (the zone, x 240..284, sits left of the rail's touch column, and moves to x 266..310 when the Index Rail switch is off); the hairline ends at `az_end` too, select mode has neither the "..." nor the narrower text, the kill switch leaves the old rows. The row under the finger is filled `#333333` (not when the press is in the "..." zone).
-- **Any other order is a plain list** (no headers, no rail): File Name, Format and Recently Added (`sort_flag` 1, 2, 3 and 4, below); Title Z-A keeps its sections, mirrored.
-- **The pinned header**: the section the window's top is in stays under the navbar; the next header pushes it up as it arrives. A header that is not wholly inside the window has no letter (`az_paint_heads`; row texts are drawn and cut by the `scroll_view`'s canvas clip), so the pushed header slides away empty. With no band in the flow, **the pinned copy is backed by an opaque fill in the page's black (`SG_HDR_BG` 0xff000000, 28 px, the width of the window)**, the only fill a header has: it hides the rows scrolling under it (a fill is clipped to the window as the next header pushes it up).
-- **The title collapses**: the navbar shows the small title once the large one has scrolled away (scroll offset reaches `SG_COLLAPSE` 46: `m1_title_gone`, the rule every large-title page shares), from the scroll_view's own `EVT_SCROLL`, with no hook. A title wider than its room (the 64 px before the capsule: Spanish "Canciones", 85 px) is cut with an ellipsis like every other title, never hidden. If the scroll events cannot be registered the navbar keeps its title.
-- **The rail: a compact index** (a widget of its own, **x 284, 36 wide** (`SG_RAIL_X`, `SG_RAIL_W`: a wide touch target), **as high as the drawn span plus `SG_RAIL_PAD` (12 px) above and below, centred on the list**, outside the `scroll_view`; `sg_rail_fit` moves and resizes it when the sections or select mode change, so the wide column takes no taps from the rows' right edge or from the pills outside the span; touch y and the painting are in the widget's own coordinates, the span starting at `SG_RAIL_PAD`; the drawn column is unchanged, centred on x 310 = `SG_RAIL_CX`). **The stock Songs page has the same thing** (evidence below): `A` then every fifth letter with two dots between, not all 27 letters. Ours is built from the sections the list has (`sg_rail_plan`, `SG_RAIL_*`): **items 13 px apart (`SG_RAIL_PITCH`), at most 20 of them (`SG_RAIL_ITEMS`, 260 px)**, the letters 12 px `#EEEEEC` drawn centred on x 310, the whole index centred vertically on the list. **When the sections' letters fit in 20 items (at most 20 sections) all are drawn, one per item. Otherwise every k-th section's letter is drawn, k the smallest from 2 up that fits the letters with one 4 px dot (`SG_RAIL_DOT`, `#8A8A8A`, a cross of two fills so its corners are cut) between each pair; the first and the last section are always there** (a k-th letter less than half a step from the last gives way to it). 27 sections (`#` A..Z) draw `# C F I L O R U X Z`: 10 letters, 9 dots, 19 items, **247 px, 76 px above and below on the 400 px list** (the first item is 76 px down the list, below the large title's row and level with the pills, which end at x 278; in select mode the list is 336 px and the margins 44); 26 sections draw `# C F I L O R U Y`; 21 draw `# C F I L O R T`; 10 or 3 sections draw every letter. **A finger maps to every section, not to the drawn letters**: the drawn span is split into the sections' equal shares (`(y - y0) * sections / span`), so a drag down the rail visits every section in order (the bubble shows the real letter, which may be one the rail does not draw); a finger above the span is the first section, below it the last. A touch on it grabs the touch (`widget_grab`, as Cover Flow's layer) and every position sets the scroll_view's `yoffset` to that section's header (the first letter to the top, so the large title is back; clamped to the content; a coasting list is stopped first with the scroll animator's destroy and the stock scroll end handler, `patch/scroll.c`'s `sc_down`). When the section is a **drawn** letter it sits on a 16 px accent disc (a bitmap, its four corners cut in the alpha) with a black letter (no disc for a section between two drawn letters: the bubble is its feedback), and a **110 x 110 bubble** (a widget: `#262626`, radius 14, a `#3A3A3A` 1 px edge, a 56 px white letter, the look `tools/mod_lists.py` gives the stock `view_letter`; insensitive) shows it centred on the list. Because the rail is not a descendant of the scroll_view, a touch on it never reaches the stock drag code (tested: demo's own `widget_find_target` gives `sg_rail` for the whole column).
-- **The rail's alignment: letters and dots share one centre line, from the font's own ink.** The old placement (the letter in a rect of the whole 24 px widget, the dot at the slot's middle) left the letters 1.5 px high in their 13 px items, the dots 1 px low (gaps 8 above, 6 below) and the letters about 2 px left of the dots, because `canvas_draw_text_in_rect` centres a text by its *measured width* (the truncated advances + 1 px per glyph, `text-width.md`), at `rect.x + (rect.w - lw) / 2` in integers, and a glyph's ink is not centred in its advance. **Vertical:** the 12 px text box of a 13 px item sits `(13 - 12) / 2 = 0` below the item's top, the baseline `int(ascender * scale)` (9) lower; the cap ink (A..Z, measured on `H`) is rows 1..8, centre 5.0, so `SG_RAIL_INK2` = 2 x that centre = 10; a dot sits where the midpoint of two letters' ink centres is, which is one item below the upper letter's centre (letters are two items apart), so its top is `(INK2 - DOT) / 2` = 3 into its item (ink gap 7 above, 7 below), and the disc's top is `floor((INK2 - DISC) / 2)` = -3 (centred on the ink). **Horizontal:** each letter gets a 24 px rect (`SG_RAIL_TEXT_W`) centred on x 310 and moved by its own `SG_RAIL_DX[letter]` (0 or +1 with this font: 11 of the 27 letters move right by one) so that the **ink**, not the advance, is centred on the dots' x (the 4 px dot's centre, x 310.0 on the pixel edge) within 0.5 px: advance centring alone is off by 0 to 1 px depending on the glyph (a half pixel from the +1 spacing, up to another half from the side bearings), and no rect width fixes both parities, hence a per-letter shift (`#`, A..Z: 27 numbers). Both numbers are derived from the tree's own `default.ttf` (an ink pixel is 25 % coverage and up, the stb rasteriser of `tools/stb_raster.py`) by `pod_ui.rail_metrics`, which `tools/pod.py` writes into the generated `stock.h` (`SG_RAIL_INK2`, `SG_RAIL_DX`) next to the offsets: a different font gives different numbers at the next build, never a stale constant. The preview (`tools/preview/preview_songs.py`) calls the same function and places the letters by the same rule (rect, `(w - lw) / 2`, box top); measured on its render with `peek.py runs`: letters 159..166, dots 174..177, next letter 185..192 (7 px of air above and below every dot), the dot x 320..323 and the letters' ink centred on it within 0.5 px (`#` 319..324, `C` 318..324).
-- **The "..." card** (`patch/viewsort.c`, `tools/pod_ui.py` `view_sort_card`, `docs/modules/albums.md` "Design notes"): the rows a list's navbar used to offer as buttons, in this order with one hairline between the groups, each list offering only what its old navbar had (`sg_offers`, passed to `vs_bind`; a row not offered is hidden and insensitive, the card packed in the glass of its row count, `vs_glass1` .. `vs_glass5`; the asset still carries the Search Songs row, never offered here, because the helper binds all its rows). **Group 1, actions**: **Select** (the stock `Select` text; a Tabler `circle-check` glyph `pod_ic_vsselect`, 20 px, made in `mod_icons.SONGS_IMAGES` like the other card glyphs; it enters select mode exactly as the button did, only with songs listed and not in Recently Added's albums view). **Group 2** (Recently Added only): **Albums / Songs** (below and [recent-albums](recent-albums.md)). **Group 3** (the library only): the sort rows. The menu per list:
+- **Navbar**: the glass navbar ([navbar](navbar.md)): Back, the small title from x 58, and one glass
+  capsule **Search 168 | "..." 214 | Now Playing 260** (46 / 46 / 60 px).
+  - Search (`btn_search`) is hidden on a genre's songs, a playlist's songs (no Search inside) and an
+    artist's songs, where **Cover Flow** takes its place (168).
+  - Where the card would hold Select alone (`sg_direct`: every list but the library and Recently
+    Added) the "..." is a **Select button** (`btn_select`, `pod_nav_selectl` left cap) that enters
+    select mode at once. Select mode hides both.
+  - The small title runs to x 168 (110 px), a genre's and a playlist's to 214 (156 px). A title
+    wider than its room is cut with an ellipsis, never hidden.
+  - Glass is on the toolbar only; every other button of the page is flat.
+- **Content** (one scrolling list): the large title (32 px white, x 12), the **Play and Shuffle
+  pills** (flat `#1C1C1E`, pressed `#333335`, 129 x 40 at x 10 and 149, ending at x 278, short of
+  the rail's touch column at 284), then the songs.
+- **Title order (`sort_flag` 0): sections.** A 28 px header over each group: the letter alone,
+  20 px white at x 10, no band and no hairline (the Recently Played shelf's header style).
+  - Rows at a 64 px pitch: 52 px cover at (10, 4) with 4 px corners, title 21 px white at y 7,
+    artist 18 px `#AAAAAA` at y 33, both from x 74, cut with an ellipsis at `az_end`, hairline x 74
+    to the same x. No stars.
+  - Each row ends with a grey "..." (24 px `#8C8C8C`, 44 px zone) that opens the Play Next / Play
+    After / Add to Playlist menu ([rowmenu](rowmenu.md)). Text ends at x 262, or x 236 while the
+    rail shows (the zone then sits left of the rail's touch column). Select mode has neither.
+  - The pressed row is filled `#333333` (not when the press is in the "..." zone).
+- **Any other order is a plain list** (no headers, no rail): File Name, Format, Recently Added.
+  Title Z-A keeps its sections, mirrored.
+- **Pinned header**: the section at the window's top stays under the navbar and the next header
+  pushes it up. A header not wholly inside the window has no letter. The pinned copy has an opaque
+  black fill (`SG_HDR_BG`, 28 px, window width), the only fill a header has.
+- **The title collapses**: the small title shows once the offset reaches `SG_COLLAPSE` 46
+  (`m1_title_gone`, from the scroll_view's `EVT_SCROLL`). Without scroll events the navbar keeps
+  its title.
+- **Z-A is the stock list reversed in place** (`sg_reverse`): after `loadLocalClassList(0xf001)` the
+  records are swapped end for end, so index, rows, Select, Delete, Add to Playlist and a row's "..."
+  all use the order shown. Title Z-A mirrors the section ranks (Z 0 .. A 25, `#` last). The play
+  queue comes from `loadSongList` in stock order, so `so_play_dir(.., rev)` reverses it the same
+  way. Shuffle is random, so order does not matter. After a restart the memory-playback record
+  resumes in stock order.
+- **Search** (`sg_on_search`): `search_open()` ([search](search.md)); the stock `search_page` when
+  that will not open. The results' queries leave their list in `*pdeq_showlist`, which makes this
+  page read it again when it is back. The button does nothing in select mode.
+- **Playing**: a tap plays as the stock row handler does (`loadSongList` of the shown list, then
+  `playing_page` at that row). **Play** starts the list from its first song in an in-order mode
+  (`pod_set_in_order`: Shuffle and Repeat one become List play; a row tap keeps the mode).
+  **Shuffle** is `shuffle_play(SHUFFLE_SONGS)` ([shuffle](shuffle.md)).
 
-  | List | Rows (top to bottom) | Glass |
-  |---|---|---|
-  | Songs (library) | Select, hairline, Title, File Name, Format, Recently Added | `vs_glass5` (250 px, `mod_icons.GLASS_VIEWSORT5`) |
-  | Favorites, Recently Played, Most Played, Hi-Res, a playlist | no card: the Select button | - |
-  | Recently Added, songs view | Select, hairline, Albums, Songs (Songs ticked) | `vs_glass3` |
-  | Recently Added, albums view | Albums (ticked), Songs (Select goes: `vs_offer` repacks the card; no hairline with nothing above it) | `vs_glass2` |
-  | A genre's songs, an artist's songs | no card: the Select button | - |
+### The "..." card
 
-  A list whose card would hold Select alone has no card, only the Select button (above); the other lists keep the "...". A stock playlist's card holds Select and **Clean Up Playlist** (slot 8, `VS_ACT2`, `pod_ic_vsclean`; `sg_cleans`, `sg_clean`, [playlists](playlists.md)). **Sort** (library only): one group of four 50 px rows: **Title, File Name, Format, Recently Added** (`pod_pages.SONGS_SORT_KEYS`; `File Name` is the one new text, translated in the 13 languages), the tick in the left column on the current one and, under its label, the grey 15 px direction line (`vs_dated` makes only Recently Added read Newest First / Oldest First; the others A–Z / Z–A). A row that is not ticked sets its order in its default direction: `sort_flag` 0, 1, 2 or 3 as the stock sort dialog's row handler does (below), the direction file cleared, the list read again from the top. **A tap on the ticked row reverses it**: Recently Added flips `sort_flag` 3 (Newest First, the stock "Time added (descending)") and 4 (Oldest First); Title, File Name and Format flip A–Z / Z–A, saved first in `songs-sort-rev` (`SONGS_SORT_FILE`, one character, `a` Z-A, missing or anything else A–Z, read at open, listed in Settings Files after the other pages' order files; a save that fails changes nothing). `sort_flag` itself stays 0..4, so the stock code and `config.ini` stay consistent; the file is ignored while `sort_flag` is 3 or 4. The scrim is the full-window dim; a tap on it closes the card. The stock sort dialog's five labels (`sort_alphabet` .. `sort_time_asc`) are no longer used; `sg_glass`, `GLASS_SORT` and the `sg_card` / `sg_item` widgets are gone (the Playlists `pl_glass` stays). The other lists have no sort rows. Texts: `Search Songs` stays translated in the 13 languages for the unused asset row; `Select` is the existing key; the card is fitted to the widest label in each language (`test/pod/songs.py` checks that every label fits the widest card).
-- **Z-A is the stock list reversed in place** (`sg_reverse`, patch/songs.c): after `loadLocalClassList(0xf001)` the records (`REC_SIZE` bytes each, swapped as the shuffle code does) are exchanged end for end, so the index, the rows, the tiles, Select, Select All, Delete, Add to Playlist and a row's "..." all use the order shown (a marked row's index is the shown row's index in the stock list the stock code is given). Title Z-A mirrors the sections as the Artists page does: ranks `26 - k` (Z 0 .. A 25, `#` 26 last), the headers and the rail read the letters back (Z to A, `#` last). A play queue is built by `loadSongList`, which asks the database again and so returns the stock order: `so_play_dir(.., rev)` (patch/songops.c) reverses that queue the same way, so a row tap starts the song shown there, Play starts at the first row shown and the queue plays in the order shown. Shuffle is random (Apple-style shuffle, `shuffle_play(0)`), so the order does not matter. Not covered: after a restart the memory-playback record (`loadSongList` keeps the class) resumes in the stock order.
-- **Search** (the navbar button `btn_search`, `sg_on_search`): our own search (`docs/modules/search.md`): `sg_search` calls `search_open()`, which opens the Search page (the Apple Music search screen: a field, chips and live results, with our keyboard embedded at its bottom). The page's queries leave their list in `*pdeq_showlist`, which makes this page read it again when it is back. The button is hidden in select mode (and does nothing there). Where ours will not open (a Search page already under this one, or no asset) the stock search page does (`navigator_to("search_page")`, no context, `0x52704c`). The other lists on this page search the whole library, as the stock search did.
-- **Select** (the card's Select row): the navbar becomes the glass x (cancel, where Back was; `ah_nav_close`), "N Selected" from x 58 and the text button "Select All" at the right (all, or none when all are marked); each row gets a 26 px mark (the stock `unselect` / `selected` images) in a 30 px column left of the cover (the cover and text move right by 30, the text width is 192), the pills dim, and a 64 px bottom bar (black, a `#222222` top hairline) holds two flat pills, **Add to Playlist** (Lucide `list-plus`) and **Delete** (Lucide `trash`, glyph `#FF6B6B`). The rail stays, centred on the 336 px the bar leaves; the content is 64 px longer so the last row scrolls clear of the bar. A tap on a row marks it (it plays nothing). Back (the x) leaves select mode.
-- **Playing**: a tap on a row plays it as the stock row handler does (`loadSongList` of the shown list, then `playing_page` at that row: `docs/modules/addresses.md` "play"); Play starts the list from its first song in an in-order mode (`pod_set_in_order`: Shuffle and Repeat one become List play, the others are kept; a row tap keeps the mode, as stock); Shuffle is `shuffle_play(SHUFFLE_SONGS)` (`docs/modules/shuffle.md`: stock Shuffle mode from a random song).
+The shared view-sort card ([albums](albums.md) "View sort card"). Each list offers only what stock's
+navbar had (`sg_offers` passed to `vs_bind`; a row not offered is hidden and the card is packed in
+the glass of its row count).
+
+| List | Rows | Glass |
+|---|---|---|
+| Songs (library) | Select, hairline, Title, File Name, Format, Recently Added | `vs_glass5` |
+| Recently Added, songs view | Select, hairline, Albums, Songs (ticked) | `vs_glass3` |
+| Recently Added, albums view | Albums (ticked), Songs; Select goes (`vs_offer` repacks) | `vs_glass2` |
+| a stock playlist | Select, Clean Up Playlist ([playlists](playlists.md) "Clean Up Playlist") | `vs_glass2` |
+| Favorites, Recently Played, Most Played, Hi-Res, a genre, an artist, a server playlist | no card: the Select button | - |
+
+**Select** is a Tabler `circle-check` glyph (`pod_ic_vsselect`); it works only with songs listed and
+not in Recently Added's albums view. Albums / Songs switch to a newest-first Albums grid
+([recent-albums](recent-albums.md)).
+
+**Sort** (library only): **Title, File Name, Format, Recently Added** (`SONGS_SORT_KEYS`), a tick on
+the current one with the direction line under it (`vs_dated`: only Recently Added reads Newest First
+/ Oldest First). A row not ticked sets `sort_flag` 0, 1, 2 or 3 as the stock sort dialog does and
+clears the direction file. **A tap on the ticked row reverses it**: Recently Added flips `sort_flag`
+3 and 4; Title, File Name and Format flip A-Z / Z-A, saved first in `songs-sort-rev`
+(`SONGS_SORT_FILE`: `a` Z-A, else A-Z; ignored while `sort_flag` is 3 or 4; a failed save changes
+nothing). `sort_flag` stays 0..4, so stock and `config.ini` stay consistent. The card is fitted to
+the widest label in each language.
+
+### Select
+
+The card's Select row: the navbar becomes the glass x (cancel), "N Selected" from x 58 and the text
+button Select All (all, or none when all are marked). Each row gets a 26 px mark in a 30 px column
+left of the cover (cover and text move right by 30, text width 192); the pills dim. A 64 px bottom
+bar holds two flat 145 px pills, **Add to Playlist** (`list-plus`) and **Delete** (`trash`, glyph
+`#FF6B6B`). The rail stays, centred on the 336 px the bar leaves; the content is 64 px longer. A tap
+marks a row. Back (the x) leaves the mode.
+
+## The A-Z rail
+
+A widget of its own: x 284, 36 wide (`SG_RAIL_X`, `SG_RAIL_W`), as high as the drawn span plus 12 px
+above and below (`SG_RAIL_PAD`), centred on the list, outside the `scroll_view`. `sg_rail_fit`
+resizes it when the sections or select mode change, so the wide column takes no taps from the rows'
+edge or from pills outside the span. The drawn column is centred on x 310 (`SG_RAIL_CX`).
+
+The rail and bubble show only with Settings > Library > **Index Rail** on, the headers only with
+**Section Headers** on (both default on, read when the page opens, `az_prefs`; [settings](settings.md)).
+
+**Drawn plan** (`az_rail_plan`): items 13 px apart (`SG_RAIL_PITCH`), at most 20 (`SG_RAIL_ITEMS`),
+letters 12 px `#EEEEEC` centred on x 310, the index centred vertically.
+
+- With at most 20 sections every letter is drawn. Otherwise every k-th section's letter is drawn, k
+  the smallest from 2 that fits, with one 4 px dot (`SG_RAIL_DOT`, `#8A8A8A`) between each pair.
+  The first and last section are always drawn.
+- 27 sections draw `# C F I L O R U X Z` (247 px, 76 px above and below on the 400 px list); 26
+  draw `# C F I L O R U Y`; 21 draw `# C F I L O R T`; 10 or fewer draw every letter.
+- Stock does the same thing: a sparse picture over a dense touch map (below). Ours uses 13 px items
+  where stock uses about 15, so 27 sections take 247 px instead of 354.
+
+**Touch.** A finger maps to every section, not only the drawn letters: the drawn span is split into
+equal shares per section, so a drag visits every section in order and the bubble shows the real
+letter. Above the span is the first section, below the last. A touch grabs (`widget_grab`) and every
+position sets the scroll_view's `yoffset` to that section's header (clamped; a coasting list is
+stopped first, `sc_down`). A section on a **drawn** letter gets a 16 px accent disc with a black
+letter, and a **110 x 110 bubble** (`#262626`, radius 14, 56 px white letter, centred on the list,
+insensitive). A section between two drawn letters has the bubble only. The rail is not a descendant
+of the scroll_view, so a touch on it never reaches the stock drag code.
+
+**The rail's footprint on the rows.** While the rail is shown every A-Z row gives up
+`SG_RAIL_INSET` 26 px on its right (`az_inset`; `az_end` is the hairline end, `LIST_HAIR_END` less
+the inset): chevron x 288 -> 262, text end 278 -> 252, the "..." zone's right edge 310 -> 284.
+Plain lists and pages with the switch off keep the full width. One rule for Songs, Artists / Genres /
+Composers, Radio countries and the Albums list. With `hdr_h` 0 there is no header band and a rail
+jump lands on the section's first row.
+
+### Alignment
+
+Letters and dots share one centre line, taken from the font's own ink.
+
+- **Vertical:** the cap ink of A..Z sits at rows 1..8 of the 12 px box, so `SG_RAIL_INK2` (twice the
+  ink centre) is 10. A dot's top is `(INK2 - DOT) / 2` = 3 into its item (7 px of air above and
+  below); the disc is centred on the ink.
+- **Horizontal:** each letter gets a 24 px rect (`SG_RAIL_TEXT_W`) centred on x 310, moved by its
+  own `SG_RAIL_DX[letter]` (0 or +1) so the **ink**, not the advance, is centred on the dots within
+  0.5 px.
+- Both are derived from the tree's own `default.ttf` by `pod_ui.rail_metrics`, which `tools/pod.py`
+  writes into the generated `stock.h`, so a different font gives new numbers at the next build.
+  The preview uses the same function.
+
+### Sections
+
+`az_sections` is the shared non-decreasing labelling ("#" 0, A..Z 1..26) that puts the most rows
+under their own letter. A stray stays in the section around it and cannot open one early (a 'Y'
+title between C and D does not swallow D..X). The list keeps its order (the play queue), there are
+at most 27 sections, and no memory means a plain list.
+
+### The Initial
+
+Stock's section letter lives in `songtable` column 15 (`stSongInfo + 0x54`, `REC_INITIAL`), computed
+at scan time from the title through `utf8_to_pinyin`: a digit gives `'*'`, a letter its upper case,
+anything else `'#'`. The page's section letter is that byte folded to `A..Z` or `#` (digits and
+symbols are one section); 0 (a database older than the column) takes the title's first character.
+
+Stock's own order is the title comparator `0x5e0dac`: digits first, then ASCII letters and CJK (by
+pinyin), then other non-ASCII, kana and CJK punctuation, Hangul, then symbol classes. So a
+symbol-led title sits after Z and `az_sections` folds that tail into the last section. The rail
+cannot reorder the list. The Albums Title order does not have this problem: it uses our name keys
+([albums](albums.md)). A name's key and initial are in [artists](artists.md) "Order and the album
+Artist rule".
+
+### Stock's own index (the evidence)
+
+The stock Songs page draws a collapsed index from the image `search_icon.png` (16 x 400): `* A . . F .
+. K . . P . . U . . Z #`, a letter every five with two dots between. It is destroyed in select mode.
+Its touch handler (only for `sort_flag` 0) maps y - 80 in 12 px bands to all 28 letters
+(`getsidebarbyoffset`), scrolls to that row and shows `view_letter`. So the shape is sparse picture,
+dense touch map, as ours.
 
 ## The other lists
 
-The stock app shows every song list in one page, `allmusic_page`, with the class as its context. Ours does the same: the Songs page also lists **Favourites, Recently Added,
-Recently Played, Most Played, Hi-Res** and **a playlist**, so leaving our own pages for a stock list no longer happens from the menu, Extras or the Playlists grid.
-Entries (no hook, as Songs):
+The stock app shows every song list in one page, `allmusic_page`, with the class as context. Ours
+does the same for Favorites, Recently Added, Recently Played, Most Played, Hi-Res, a playlist, a
+genre, an artist and a composer. No hook.
 
-| From | Call | Class (`loadLocalClassList`) | Title | Fallback (window will not open) |
+| From | Call | Class | Title | Fallback |
 |---|---|---|---|---|
-| menu / Extras row Favorites, Recently Added, Recently Played, Most Played, Hi-Res (`ACT_LIST`, arg = the Home tile) | `songs_open_list(home)` (table `SG_LISTS`) | `0xf00a`, `0xf009`, `0xf007`, `0xf008`, `0xf002` | the row's key (`Hi-Res` is the stock `hr`) | the tile's stock page (`pod_home_open`) |
-| Playlists grid / list, a tap (`patch/playlists.c` `pl_open`) | `songs_open_playlist(id, name)` | `0xff13`, the id in `classinfo[1]` | the playlist's name | the stock songs page, as before (title in `nagvation_title`, the id in `classinfo[1]`, `allmusic_page` with `0xff13`) |
-| Genres page, a tap (`patch/artists.c` `ar_open`) | `songs_open_genre(name, unknown)` | `0xff09`, the name in `classinfo + 0x30d` and the Unknown byte `classinfo + 0xc` | the genre's name; no Search (below) | the stock row tap's own sequence (the record, `allmusic_page` with `0xff09`) |
-| Cover Flow's artist page, the Songs button (`patch/coverflow.c` `on_songs`), the All albums card and the scoped Albums page's All Songs tile | `songs_open_artist(artist_row, CLASS_ARTISTS)` | `0xff11`, the artist's whole browsing record (below) | the artist's name | the stock album page on the All songs row (the All albums card's call); no Home fallback |
-| the same three on a composer (Composers) | `songs_open_artist(composer_row, CLASS_COMPOSERS)` | `0xff14`, the composer's whole browsing record (`loadAlbumList(0xf005)` + `loadAlbumdetailList(0xff02, the All songs row)`, the name at `classinfo + 0x20d`) | the composer's name; a row's grey line is its artist | the same |
+| menu / Extras rows (`ACT_LIST`, arg = Home tile) | `songs_open_list(home)` (`SG_LISTS`) | `0xf00a`, `0xf009`, `0xf007`, `0xf008`, `0xf002` | the row's key | the tile's stock page |
+| Playlists tap (`pl_open`) | `songs_open_playlist(id, name)` | `0xff13`, id in `classinfo[1]` | the name | the stock songs page |
+| Genres tap (`ar_open`) | `songs_open_genre(name, unknown)` | `0xff09`, name at `classinfo + 0x30d`, Unknown byte at `+0xc` | the genre; no Search | the stock tap's sequence |
+| Cover Flow's Songs button, the All albums card, the scoped Albums All Songs tile | `songs_open_artist(row, CLASS_ARTISTS)` | `0xff11`, the whole browsing record | the artist | the stock album page on the All songs row |
+| the same on a composer | `songs_open_artist(row, CLASS_COMPOSERS)` | `0xff14` | the composer; grey line is the artist | the same |
 
-`songs_artist_list(artist)` is the two stock queries without a page (also the artist's albums page's years, docs/modules/albums.md); `songs_play_artist(artist, SO_IN_ORDER / SO_SHUFFLE)` plays that list as this page's pills would (the albums page's Play / Shuffle).
+`songs_artist_list(artist)` is the two stock queries without a page (also used for the albums
+page's years). `songs_play_artist(artist, SO_IN_ORDER / SO_SHUFFLE)` plays that list as this page's
+pills would.
 
-Only one Songs page lives in `sg`. A playlist opened from Search over a Songs page (Search was opened from it) is the one exception, with a library source's list of a row (an artist's All Songs reached through Search from the source's Songs page, `songs_open_src_in` with a scope): `sg_stack` ends the page below's timers and cover build, moves its state to the heap (`sg_under`) and starts `sg` empty; `sg_on_destroy` puts it back (its fg handler reloads and restarts the loaders). One level only; a second refusal opens the stock page.
+Only one Songs page lives in `sg`. The exception is a playlist, or a source's row list, opened from
+Search over a Songs page: `sg_stack` ends the page below's timers and cover build, moves its state
+to the heap (`sg_under`) and starts `sg` empty; `sg_on_destroy` puts it back. One level only.
 
-What a list is (the stock page's buttons for these classes are Back, Search, multi-select and Now Playing: its navbar builder 0x526a3c adds Sort only for `0xf001` and leaves
-Search out only for a genre's songs, `0xff09`):
+What a list is:
 
-- **Navbar**: Search | "..." | Now Playing on the library and Recently Added; Search | Select | Now Playing on Favorites, Recently Played, Most Played and Hi-Res; Select | Now Playing on a genre's songs; "..." | Now Playing on a playlist's songs (its card: Select, Clean Up Playlist, [playlists](playlists.md) "Clean Up Playlist"; a server playlist keeps Select); Cover Flow | Select | Now Playing on an artist's songs (Select is the "..." place, no card); the small title from x 58 to 168 (110 px). The card holds what the stock navbar offered for the class (table above): Select, on Recently Added also the Albums / Songs group that
-  switches to a newest-first Albums grid ([recent-albums](recent-albums.md)). An artist's list has its Cover Flow button in Search's place (below).
-- **Titles**: the large title (`sg_title`, `SG_TITLE_W` 296 px, the screen less 12 px each side; a playlist has its header instead, below) and the small one carry the list's title, **cut with an ellipsis** to their width (`sg_fit`: `grid_fit`'s binary search on the
-  wide text in the label's own style, no space before the `…`, at most `SG_NAME_MAX` 128 characters looked at; the playlist's name is copied into the page, at most 255 bytes, cut
-  before a character). A list's title is set as text, not as a key: a language changed while
-  the page is open shows on the next open.
-- **Order**: the query's own (Recently Played newest first, Most Played by plays, a playlist in insertion order, ...). `sort_flag` is the library's: a list has **no sections, no
-  rail**, whatever the flag.
-- **Most Played's play count**: the grey line of a row is `N plays · Artist` (`sg_prep`; `N` = `REC_TRACK` + 1, `1 play` singular), the count first so a long artist is what is cut. Texts
-  `%d play` / `%d plays` (`tools/pod_i18n.py`, 13 languages; pl, ru, uk a label form). No other list (or the artist's songs) changes its grey line.
-- **Play, Play pill, Shuffle**: `loadSongList(queue, name, cue, class)`, `g_class_type` = class, Now Playing's context class = class (the stock row handler passes
-  `g_class_type`). For a playlist the page puts its id into `classinfo[1]` before every query and before `loadSongList` (which copies classinfo for the memory playback,
-  0x4e2d80): another page's query (the Playlists grid's scan, which stops while it is behind, `pl_on_bg`) may have left another id. **Shuffle** on a list is that list in the
-  Shuffle on (the payload's flag, [shuffle](shuffle.md)) from a random song of it (`pod_set_mode(MODE_SHUFFLE)`, `pod_rand`), as the album page's; Songs keeps Shuffle Songs.
-- **Select**: as on Songs. **Delete** is the stock dialog and `batch_delete_file(class, ...)`: the stock handler passes `g_class_type`, and `batch_delete_file` dispatches on it
-  (`docs/modules/addresses.md` "Deleting by class"): Favourites lose the song from `myfav`, Most Played from `oftenplay`, Recently Played from `recentplay`, a playlist from the
-  playlist, and Hi-Res and Recently Added from the library, as on Songs; the file goes too when the dialog's second answer is taken. **Add to Playlist** opens the picker with
-  `PICKER_ADD | class` (the stock button's `1 << 16 | g_class_type`; `batch_add_file` takes its class from it).
-- **Read again when the page is back in front** (`sg_on_fg`) only for the lists that change while it is behind another (`sg_changes`): Recently Played and Most Played (a play),
-  Favourites (Now Playing's star); the picker's return reads its list too. Every other list (the library, Recently Added, Hi-Res, a playlist, a genre, an artist) is read
-  again only when another query replaced the stock list (`sg_valid`) or the page itself changed it (delete, add, sort). `sg_on_fg` always ends with `sg_kick`: the cover loader
-  stops on a list another page replaced (Search's queries run while it is up), and a list that is valid again when the page is back is not read again, so nothing else would
-  restart it (`test/pod/search.py` `return_tests`).
-- **A list read again keeps its tiles** when it is the same rows (`sg_load`: same count, and per row the cover key, the section and 24 bits of a hash of both text lines,
-  kept in `song_t.sig`; the library's old index is not held beside the new one, so it always drops). Same: no `grid_drop`, no new placeholder (covers that had no file are
-  tried again). Anything else drops them as before, so a play does not flash the covers to placeholders.
-- **Empty**: "No songs" (ours, 13 languages); the library keeps "Update Local Music first".
+- **Navbar**: see above. Titles are the large `sg_title` (`SG_TITLE_W` 296 px) and the small one,
+  both cut with an ellipsis (`sg_fit`, at most `SG_NAME_MAX` 128 characters looked at; a playlist
+  name is copied at most 255 bytes, cut before a character). A title is set as text, so a language
+  change shows on the next open.
+- **Order**: the query's own (Recently Played newest first, Most Played by plays, a playlist in
+  insertion order). A list has no sections and no rail, whatever `sort_flag` says.
+- **Most Played**: the grey line is `N plays · Artist` (N = `REC_TRACK` + 1), the count first so a long
+  artist is what is cut. Keys `%d play` / `%d plays`.
+- **Play, Shuffle**: `loadSongList(queue, name, cue, class)` with `g_class_type` and Now Playing's
+  class = the list's class. For a playlist the page puts its id into `classinfo[1]` before every
+  query and before `loadSongList`, because another page's query may have left another id. Shuffle on
+  a list is that list in Shuffle mode from a random song (`pod_set_mode(MODE_SHUFFLE)`).
+- **Select**: as on Songs. **Delete** is the stock dialog and `batch_delete_file(class, ...)`
+  ([addresses](addresses.md) "Deleting by class"): Favorites lose the song from `myfav`, Most Played
+  from `oftenplay`, Recently Played from `recentplay`, a playlist from the playlist, Hi-Res and
+  Recently Added from the library. The file goes too when the dialog's second answer is taken.
+  **Add to Playlist** opens the picker with `PICKER_ADD | class`.
+- **Read again when back in front** (`sg_on_fg`) only for lists that change while behind another
+  (`sg_changes`): Recently Played and Most Played (a play), Favorites (Now Playing's star), and
+  after the picker. Every other list is read again only when another query replaced the stock list
+  (`sg_valid`) or the page changed it. `sg_on_fg` always ends with `sg_kick` to restart the cover
+  loader.
+- **A list read again keeps its tiles** when it is the same rows (`sg_load`: count, cover key,
+  section and a 24 bit hash of both text lines in `song_t.sig`). A play does not flash covers to
+  placeholders.
+- **Empty**: "No songs"; the library keeps "Update Local Music first".
 
-**A genre's songs** (class `0xff09`; `songs_open_genre(name, unknown)`, called by the Genres page's row tap, `docs/modules/artists.md`). The stock row tap `0x535c4c` sets
-`classinfo[0]` = `0xff09`, copies the genre's name (row `+0x1c`; the page uses the same string at `REC_TITLE`) into `classinfo + 0x30d` (`snprintf(.., 0x80, "%s")`) and the byte `classinfo + 0xc` =
-(row id == -1, the "Unknown Genre" row), then opens `allmusic_page` with `0xff09`; `loadLocalClassList(0xff09)` reads that record (`getMusicByGenre`, or every song of an unknown genre) and
-`musicNagvationTitle` makes the page's title from it. Ours is a list like the others, with the title the genre's name (the page keeps up to 255 bytes, cut before a character, as a playlist's) and
-`sg_classinfo()` puts the record back (the three fields, `sg_genre_info`) **before every `sg_query()` and before `loadSongList`**, because another page's query may have changed it (Now Playing's
-star, the picker, a stock page behind). `sg.pl_id` carries the Unknown byte. **No Search**: the stock navbar builder `0x526a3c` leaves it out for `0xff09` (`0x526cf0`), so the capsule is the Select button | Now Playing (glass 223 .. 311, no Search button, no card); the small title runs from 58 to 214 (156 px). There are no sort rows, as on any list. Play, Shuffle
-(this genre), Select, Delete (`batch_delete_file(0xff09, ...)` is the generic library delete, `addresses.md` "Deleting by class") and Add to Playlist (`PICKER_ADD | 0xff09`) follow `sg.cls` as the other lists. A window that
-will not open repeats the stock tap's own sequence (the record, then `navigator_to_with_context("allmusic_page", 0xff09)`), so the stock Songs page opens.
-**An artist's songs: the other view of Cover Flow's artist page (a toggle).** The navbar has a hidden Cover Flow button (`btn_coverflow`, x 168, `pod_nav_coverflow`, the capsule's left cap as on the Albums page) that this class shows (and the Select button becomes its middle piece `pod_nav_select`; no card, no Search there; both hidden in select mode). A tap runs `navigator_back`: the list window closes and the artist's covers page under it is the top again. Back (`sg_on_back`) closes the list and, when the top window is then the artist's covers page (`coverflow_artist_page()`), that too, so Back leaves the artist from either view; select mode's Back still only leaves select mode. Tests: `test/pod/songs.py` (open_and_paint / lists sections: one back, two backs, the covers page missing, select mode). **An artist's songs.** The state of this list is not an id but the whole 0x390 byte browsing record `CLASSINFO` (`0xa0c768`, `CLASSINFO_SIZE`). `songs_open_artist` builds it as the stock
-artist page and its All songs card do: `loadAlbumList(0xf004, artist)` (memsets the record, `classinfo[0]` = `0xff01`, the artist name at +0x10d, byte +0xa for the Unknown Artist; the albums
-go to `*pdeq_showlist`, always with the All songs row last, `REC_ID` -2; no such row: -1) then `loadAlbumdetailList(0xff01, that row)` (the argument is the record, not an index: byte +8 =
-all songs, the album text at +0xd, `classinfo[0]` = `0xff11`, then `loadLocalClassList(0xff11)`, which reads only the record and `artist_type`). The page copies the record into `sg.ci`
-when it opens and puts it back (`sg_classinfo`) before every `loadLocalClassList` (the read on each `sg_on_fg`) and every `loadSongList` (which runs the class query again from the record
-and copies it for the memory playback): any other page's query overwrites it. The title is the artist (cut like a playlist's); a row's grey line is its **album** (the artist is the title).
-Delete and Add use `0xff11` unchanged (`batch_delete_file` and `batch_add_file` take the generic songtable path for it).
-**A composer's songs** (`songs_open_artist(row, CLASS_COMPOSERS)`) are the same page on class `0xff14` (`sg_artist()` covers both): the composer queries (`loadAlbumList(0xf005)`, `loadAlbumdetailList(0xff02, the All songs row)`, `docs/modules/addresses.md`) build the record, which is snapshotted and put back the same way; the Cover Flow button, Back and select mode are the artist's. The title is the composer and a row's grey line stays its **artist** (the performer, which the title does not say). Delete and Add use `0xff14`: `batch_delete_file` lists it with the generic songtable loop, and `batch_add_file` sends every class it does not name (`0xff14` included, `0x4da97c..0x4da994`) to the generic path, as `0xff11`. Not run on a device (COMP-01).
+### A genre's songs
+
+Class `0xff09`. The stock row tap sets `classinfo[0]`, copies the genre name into
+`classinfo + 0x30d` and the Unknown byte (`+0xc`, row id -1) and opens `allmusic_page`;
+`loadLocalClassList(0xff09)` reads that record. Ours is a list like the others. `sg_classinfo()` puts
+the record back (`sg_genre_info`) **before every `sg_query()` and `loadSongList`**, because another
+page's query may have changed it. `sg.pl_id` carries the Unknown byte. Delete and Add to Playlist use `0xff09` through the generic library path. There is **no Search** (stock
+leaves it out for `0xff09`): the capsule is Select | Now Playing, the small title runs to 214. A
+window that will not open repeats the stock tap's sequence.
+
+### An artist's songs and a composer's
+
+The other view of Cover Flow's artist page, a toggle. The hidden `btn_coverflow` (x 168) is shown;
+a tap runs `navigator_back`, so the covers page under it is the top again. Back closes the list and,
+when the top window is then the artist's covers page (`coverflow_artist_page()`), that too. Select
+mode's Back only leaves select mode.
+
+The state is the whole 0x390 byte browsing record `CLASSINFO`. `songs_open_artist` builds it as the
+stock artist page does: `loadAlbumList(0xf004, artist)` (the albums go to `*pdeq_showlist`, the All
+songs row last, `REC_ID` -2), then `loadAlbumdetailList(0xff01, that row)` (class becomes `0xff11`),
+then `loadLocalClassList(0xff11)`. The page copies the record into `sg.ci` and puts it back before
+every `loadLocalClassList` and `loadSongList`. The title is the artist; a row's grey line is its
+**album**. Delete and Add use `0xff11` through the generic songtable path.
+
+A **composer's** songs are the same page on class `0xff14` (`sg_artist()` covers both): the composer
+queries (`loadAlbumList(0xf005)`, `loadAlbumdetailList(0xff02, ...)`) build the record. The title is
+the composer and the grey line stays the **artist**. `batch_add_file` sends every class it does not
+name, `0xff14` included, to the generic path.
+
+With Split Artists on, the artist's list is `as_fill` instead of the stock query
+([artists](artists.md) "Split index").
 
 ## A playlist's header (class `0xff13`, `songs_open_playlist`)
 
-A playlist's page opens on a header in the album page's and the Daily Mix page's manner instead of the large title (`docs/modules/album-page.md` "Layout", `docs/modules/dailymix.md` "The page"): the playlist's **2 x 2 mosaic** and its **name**, centred, then the album page's Shuffle disc and Play pill and the rows (only here: the library and every other list keep the two flat pills). The song count is only the footer under the last row (the header had it too until the device test: two counts on one page; Apple Music shows "Updated ..." there, which would need the time of the playlist's last change: not looked for; a song's row copies the library song, so its time added is probably the scan's). Every other list (the library, Favorites, a genre's songs ...) keeps the large title; the Daily Mix page has its own window. Numbers (`patch/offsets.inc` `PH_*`; content y, the window is 320 wide):
+A playlist opens on a header in the album page's and Daily Mix page's manner instead of the large
+title ([album-page](album-page.md) "Layout", [dailymix](dailymix.md) "The page"): the playlist's
+**2 x 2 mosaic**, its **name** centred, the album page's Shuffle disc and Play pill, then the rows.
+Only here; other lists keep the large title and the two flat pills. The song count is the footer
+only (Apple shows an "Updated" line there, which needs a change time we do not have).
 
-| part | geometry |
+| part | geometry (`patch/offsets.inc` `PH_*`) |
 |---|---|
-| mosaic | `PH_COVER` 160 px square at x `PH_COVER_X` 80 (centred), y `PH_COVER_Y` 8; corners `PH_COVER_R` 10 px blended into black (the album page's cover: 160 px, 10 px corners) |
-| name | label `sg_hname`, x `PH_NAME_X` 17, 286 wide, y `PH_NAME_Y` 182 (14 px under the cover), 22 px high, **22 px white centred** (the album page's `srlabel_ahtitle_style` size), cut with an ellipsis to its width (`az_fit`) |
-| disc and pill | the album page's Shuffle disc and white Play pill (`hd_shuffle` / `hd_play`, 44 px buttons at `AH_SHUF_X` 42 / `AH_PLAY_X` 96 drawn centred, `ah_shuffle` / `ah_pill`, accent: `docs/modules/accent.md`), drawn at y `PH_PILL_Y` 220, 16 px under the name: the buttons at `PH_BTN_Y` 218 (the payload `widget_move`s them and the glyph). The glyph is an insensitive image `sg_glyph` over the pill (taps reach `hd_play`) and the text is painted by the content view from the hidden label `sg_play_text` (18 px `#141414`; `m1_pill_place` / `m1_pill_paint` in `patch/common.c`, the pair centred for the language, `AB_PLAY_TEXT_W` where it cannot be measured) |
-| rows | from `PH_TOP` 272 = the pill's bottom + 12, as the library's start `SG_TOP` 104 under its pills |
-| collapse | the navbar's small title appears once the offset reaches `PH_COLLAPSE` 204 (the name's bottom: the name has scrolled away), instead of the large title's `SG_COLLAPSE` 46 (`sg_title_update`, `m1_title_gone(off, PH_COLLAPSE)`) |
+| mosaic | `PH_COVER` 160 px at x `PH_COVER_X` 80, y `PH_COVER_Y` 8; corners `PH_COVER_R` 10 |
+| name | `sg_hname`, x `PH_NAME_X` 17, 286 wide, y `PH_NAME_Y` 182, 22 px white centred, ellipsis (`az_fit`) |
+| disc and pill | `hd_shuffle` / `hd_play` 44 px at `AH_SHUF_X` 42 / `AH_PLAY_X` 96, drawn at y `PH_PILL_Y` 220, buttons at `PH_BTN_Y` 218; glyph `sg_glyph` is insensitive over the pill; text painted from hidden `sg_play_text` (18 px `#141414`, `m1_pill_place` / `m1_pill_paint`) |
+| rows | from `PH_TOP` 272 |
+| collapse | the small title shows from `PH_COLLAPSE` 204 (`m1_title_gone(off, PH_COLLAPSE)`) |
 
-**The mosaic is the Playlists page's code, not a second one.** `grid_mosaic_keys` (`patch/grid.c`, moved out of `patch/playlists.c`, whose scan calls it too) picks the first four distinct albums of the playlist's first `PL_SCAN` (50) songs that have a Cover Flow cache file (a song's own `cc_album_key`, else the library's album of that name, `cc_cover_key` over `cc_albums`, which this page already holds for its covers), and `grid_mosaic` composes the tile (one source decoded per call, `grid_shape` 160 px / 10 px, A B / C D, three repeat the first, two A B / B A, one is the cover full size, none is the stock placeholder disc). The header has its own `grid_t` of one tile (`sg.hg`, `grid_init(.., 1, PH_COVER, PH_COVER_R)`) and one quadrant buffer (`sg.htmp`, 80 x 80 x 4 = 25.6 KB); the page's loader (`sg_on_load`, 16 ms) makes the mosaic **first**, one cover a tick, nothing while the list moves, and only while the header is in view (`sg_head_pending`). The keys come from the list the page has just read (`sg.list`: no extra query). `sg_head_prep` (every `sg_load`) makes the tile again only when the four keys changed: a return to the front keeps the bitmap (no flicker), a changed playlist remakes it and the count. No quadrant buffer: a mosaic is its first cover (as the Playlists page); no tile ring or no `sg_hname` / `sg_hmeta` in the asset: the plain look (the large title, `SG_TOP`). A tap on the header opens and plays nothing (the rows start at `PH_TOP`; `sg_at`); the pinned header band over the scrolled rows is dead too (`az_pin_hit`, `patch/azlist.c`). An empty playlist says "No songs" and shows no header (the view is hidden).
+**The mosaic is the Playlists page's code.** `grid_mosaic_keys` (`patch/grid.c`) picks the first
+four distinct albums of the first `PL_SCAN` 50 songs that have a cache file (a song's own key, else
+the library album's); `grid_mosaic` composes the tile ([playlists](playlists.md)). The header has its
+own one-tile `grid_t` (`sg.hg`) and a quadrant buffer (`sg.htmp`, 25.6 KB). The loader (`sg_on_load`,
+16 ms) makes the mosaic **first**, one cover a tick, only while the header is in view. The keys come
+from the list just read, so no extra query. `sg_head_prep` remakes the tile only when the four keys
+changed. No tile ring or no `sg_hname` in the asset gives the plain look. A tap on the header opens
+nothing, and neither does the pinned band over scrolled rows (`az_pin_hit`). An empty playlist says
+"No songs" and shows no header.
 
-**Two sets of buttons, one shown (`sg_pills`, `patch/songs.c`).** The asset carries both: the library's flat `btn_play` / `btn_shuffle` and the header's `hd_shuffle` / `hd_play` + `sg_glyph` (built hidden AND insensitive, `play_header` in `tools/pod_ui.py`). Whatever the mode, `sg_pills` shows one set live and hides the other (visible 0 and sensitive 0: this AWTK's hit test ignores `visible`): the flat pills when there is no header and the albums view (`sg.rv`) is off, the disc and pill when the header is on and `sg.rv` is off; in select mode the shown set stays and goes insensitive (the flat pills dim, the disc and pill just stop taking taps); the glyph is only ever shown, never sensitive. Both sets are bound to the same Play / Shuffle handlers. Texts: no new key ("%d song(s)" and "Play" / "Shuffle" are the page's). The asset (`tools/pod_ui.py build_songs_page`) holds the two labels in the content view after the large title, hidden and insensitive; the payload shows them with `widget_set_visible` only (they stay insensitive). Not seen on the device: the look of the composition (the cover's 14 px gap to the name, the count's rhythm: chosen from the album page's, not measured with `tools/ah_ink.py` here), the time of the one-cover-a-tick mosaic over the first rows' covers.
-
-## The stock page's index (the evidence for the compact rail)
-
-The stock Songs page draws a **collapsed** index, not 27 letters: the image `images/xx/search_icon.png` (16 x 400 px, opaque `#333333`; `tools/stock.py images search_icon`; the file has no `ui/*.bin` referrer, and `allmusic_page.bin` has no rail widget). Its ink, measured with `peek.py runs`, is 18 items top to bottom: **`* A . . F . . K . . P . . U . . Z #`**: the letters 11-15 px tall (`*` at y 20..30, A 45..56, F 104..115, K 163..174, P 221..233, U 281..292, Z 339..351, `#` 365..379), the dots 4 px (70..73, 84..87, ...), a letter every five alphabet letters with two dots between, `*` (digits) first and `#` last. The only code that names the widget is the multi-select handler 0x527084, which looks `"search_icon"` up (string 0x750f0c at 0x5271a0) and `widget_destroy`s it: the index goes away in select mode. Touch: the handler at 0x527e34 (it runs only for `sort_flag` 0 and `alphabet_sidebarmode` 1, y from 80) calls `getsidebarbyoffset` 0x4d94a4 (**y - 80 in 12 px bands to `"*ABCDEFGHIJKLMNOPQRSTUVWXYZ#"`, all 28 letters, not only the drawn ones**), scrolls `music_table_client` to that row (`yoffset` = row x 60) and shows `view_letter` with the letter (`"%c"`, handler 0x5279b4). So stock = a sparse picture over a dense touch map; ours has the same shape (the plan draws a subset with dots; a finger maps to all the sections), with the iOS rule for the subset (the first and last letters always) and 13 px items instead of stock's ~15 px, so 27 sections take 247 px where stock takes 354.
+**Two sets of buttons, one shown (`sg_pills`).** The asset carries the library's flat `btn_play` /
+`btn_shuffle` and the header's `hd_shuffle` / `hd_play` + `sg_glyph`, built hidden and insensitive.
+`sg_pills` shows one set and hides the other (visible 0 and sensitive 0: this AWTK's hit test ignores
+`visible`): the flat pills without a header, the disc and pill with one, neither in Recently Added's
+albums view. In select mode the shown set stays and goes insensitive. Both sets use the same Play /
+Shuffle handlers.
 
 ## The data
 
-- **The stock list**: `loadLocalClassList(0xf001)` (`getAllMusic` into `*pdeq_showlist`, in the order of `sort_flag`), exactly what `allmusic_page_init` 0x528a44 runs. Records are `stSongInfo`. **The 20,000 songs of a big library are not copied**: the page keeps an 8 byte entry per song (`song_t`: the album's cover key and the section letter, 160,000 bytes for 20,000 songs) and reads the title and artist from the stock list while painting.
-- **The stock list is replaced by the next stock query** (another page's, the search page's, `shuffle_play`'s). The index is therefore tied to the list it was made from: `sg_valid` is the list pointer, its size and its first record. Nothing of a list that fails it is read: a paint draws no row and arms a one-shot timer (`sg_on_stale`, 100 ms), which reads the list again **only if the page is the top window**; a page behind another reads it when its window comes back (`EVT_WINDOW_TO_FG`, the Playlists page's rule), keeping its scroll offset. A tap on rows that are not the page's plays nothing. The library's albums (`cc_albums`, a stock query too) are read **first**, once, for the cover lookup.
-- **Sort order** (`sort_flag` 0xa059d4, 0 alphabetical, 1 file name, 2 file format, 3 newest first, 4 oldest first). The stock sort dialog's row handler (0x47d114; it does not close the dialog, set `sort_changeflag` or read the list: the page does that after the dialog) does `sort_flag = sortMenu[i]` and `write_int_config(sortMenu[i], "SYSSET", "SORTSELECT")` (the jalr's delay slot is the `sw`, 0x47d1b4..0x47d1b8), which writes `/mnt/data/config.ini` at once; `config_init` reads the key back at boot (`atoi`, anything >= 5 is 0; **the setting is persisted**, the default is 0). The page does the same two writes and `loadLocalClassList(0xf001)`. `sort_flag` affects class `0xf001` only (the other classes do not read it); the stock page shows its A-Z rail image only for `sort_flag` 0, which is why ours has sections and a rail only in that order. The Sort card's rows are 0 Title, 1 File Name, 2 Format and 3 / 4 Recently Added.
-- **The Initial** (songtable column 15, a byte at `stSongInfo + 0x54`, `REC_INITIAL`): computed at scan time (`toolsLoadAllFile` 0x5efd98 -> the insert 0x5edb18): the title (trimmed, the file name when empty) goes through `utf8_to_pinyin` (0x73a5f0: ASCII as it is, a CJK character U+4E00..U+9FA5 as its pinyin initial letter from the table at 0x9e2310, other 3 byte characters dropped), and the first surviving character gives the byte: **a digit `'*'` (0x2A), a letter its upper-case ASCII `'A'..'Z'`, anything else (an empty result too) `'#'`** (0x5edcb8). The row callback 0x4e9058 reads it (`atoi`, `sb` at +0x54, 0x4e936c), the copy function 0x5db54c copies it (`lb` / `sb` at 0x5db9ac..0x5db9b4; the older note in `docs/modules/artists.md` saying the copy does not is wrong for this function), and stock's own letter index (`getsidebarbyoffset`, the string `"*ABCDEFGHIJKLMNOPQRSTUVWXYZ#"` at 0x74ab68) finds a letter's first row by it. The page's section letter is the byte folded to `'A'..'Z'` or `'#'` (**digits and symbols are one section, "#"**); 0 (never written: a database older than the column) takes the title's first character. Stock's own sort (`sort_first_alphabet` is `select * from songtable` with no ORDER BY; `toolsQueryDbTable` then sorts the deque in memory with a title comparator, 0x5e0dac: digits as numbers, `strcasecmp`, CJK through pinyin; it never reads +0x54) orders by the title's first byte, comparator 0x5e0dac (class checks after 0x5e1104, return paths 0x5e12cc..0x5e13b0 and 0x5e1684..0x5e16c0): digits first; then ASCII letters and CJK (lead bytes E4..E9, by pinyin); then other non-ASCII (such as ÷, C3 B7); then lead byte E3 (kana, CJK punctuation); then EA..EC (Hangul); then E0; then `{|}~`; then `[\]^_` and the backquote; then `:;<=>?@`; and last 0x00..0x2F (space and ``!"#$%&'()*+,-./``); inside a class `strcasecmp` (digits: numeric prefix compare): digits come first but symbols (and non-ASCII scripts) come **after** the letters, so a symbol-led title sits after Z and `az_sections`, which only labels non-decreasingly, folds that tail into the last section (Z); the rail cannot reorder the list (the play queue is the stock list's order). The Albums Title order does not have this problem: it uses our name keys (`docs/modules/albums.md`). The order and the Initial only roughly agree (the comparator sorts the whole title, the Initial is the first surviving character: a symbol that sorts after 'z', an accented letter, a dropped kana, a CJK title placed by its whole pinyin). The first build (V2.1oGS) made one section per run of equal letters and fell back to a plain list over 28 runs: on the device that left no headers and no rail. **The sections are now the non-decreasing labelling ("#" 0, A..Z 1..26) that puts the most songs under their own letter** (`sg_sections`: one pass forward with 27 running maxima and a 27-bit word per song, one pass back; a tie starts a section late; 4 bytes per song for the call, no memory = a plain list): a stray stays in the section around it and cannot open one early (a 'Y' title between C and D does not swallow D..X), the list keeps the stock order (the play queue), and there are at most 27 sections. 20,000 songs open in 12.9 M payload instructions (4.8 M before).
-- **Covers**: per song the Cover Flow key `cc_album_key` (artist + album), computed at open. A song whose own key has no cache file takes the **library album's** (`cc_cover_key` over `cc_albums()`, as the Playlists page, Search and the Daily Mix page do), looked up when its tile is made, not at open. The ring is the Albums list's (`GRID_TILES` 12 tiles of 52 px, the loader decoding one cover per 16 ms tick for the row nearest the middle of the view, rows in view before the rows ahead, **nothing while the scroll_view drags or flings**, paint never decodes; `docs/modules/albums.md`). The **background build** (the shared worker of `patch/covercache.c`) makes the covers missing for the songs within `SG_BUILD_N` (64) of the first one in view, one job per album and nearest first, started 50 ms after the open (and after a return to the front, and when the page has scrolled `SG_BUILD_MOVE` (32) songs from where it looked) and polled every 500 ms; the tiles that showed the placeholder retry as the worker advances. It looks at 129 songs at most, not at the library (a stat per song).
+- **The stock list**: `loadLocalClassList(0xf001)` (`getAllMusic` into `*pdeq_showlist`, in the
+  order of `sort_flag`), what `allmusic_page_init` runs. **The 20,000 songs of a big library are not
+  copied**: the page keeps an 8 byte `song_t` per song (cover key and section letter) and reads title
+  and artist from the stock list while painting.
+- **The stock list is replaced by the next stock query** (another page's, Search's, `shuffle_play`'s).
+  `sg_valid` is the list pointer, its size and its first record. A paint over an invalid list draws
+  no row and arms a one-shot timer (`sg_on_stale`, 100 ms) that reads again **only if the page is on
+  top**; a page behind another reads when its window comes back (`EVT_WINDOW_TO_FG`). A tap on rows
+  that are not the page's plays nothing. The library's albums (`cc_albums`) are read first, once, for
+  the cover lookup.
+- **Sort order**: `sort_flag` (0 alphabetical, 1 file name, 2 format, 3 newest first, 4 oldest
+  first) is persisted by the stock sort row handler as `write_int_config(.., "SYSSET", "SORTSELECT")`
+  into `/mnt/data/config.ini`; the page does the same two writes. It affects class `0xf001` only,
+  which is why sections and the rail exist only in order 0.
+- **Covers**: per song the Cover Flow key `cc_album_key`, computed at open. A song whose own key has
+  no cache file takes the library album's (`cc_cover_key`), looked up when its tile is made. The
+  ring is the Albums list's (`GRID_TILES` 12 tiles of 52 px, one decode per 16 ms tick for the row
+  nearest the middle, nothing while the scroll_view moves, paint never decodes). The **background
+  build** ([covercache](covercache.md)) makes the covers missing for the songs within `SG_BUILD_N` 64
+  of the first in view, one job per album, started 50 ms after open and when the page has scrolled
+  `SG_BUILD_MOVE` 32 songs, polled every 500 ms.
 
-## Select mode on the page itself: the evidence (stock delete and add)
+## Select mode: stock delete and add
 
-The question was whether the stock multi-select's **Add to playlist** and **Delete** can be called with a selection made on OUR page. **Yes, both: implemented and tested under emulation** (`test/pod/songs.py`, section 15). The reverse engineering (V2.1 `demo`, by address; the cached disassembly labels near these functions are unreliable):
+Stock's multi-select **Add to Playlist** and **Delete** are called with a selection made on OUR page
+(pins: `SONGS_PINS` in `tools/pod.py`).
 
-- **The selection** is the global `*0xa045e0` (`SEL_VEC`): a pointer to a `vector<int>` created once at start-up, indexed by the row of `*pdeq_showlist`, 1 = selected (the batch functions test "non-zero", `select_recordempty` "== 1"). It is tied to no page. `select_recordinit(n)` 0x4da3b0 clears it and pushes n zeros (nothing for a negative n), `set_selectindex(i)` 0x4da434 **toggles** `v[i]` (an index past the end writes out of range: the page only passes rows of the list it checked), `clear_selectrecord` 0x4da394, `set_allselectflag` 0x4da520, `get_indexrecord` 0x4da5a0, `select_recordempty` 0x4da60c. The stock Songs page fills it when its multi-select button (handler 0x52823c) is tapped (`navigation_status` 1, `0xa05a20` 0, `select_recordinit(deque_size(*pdeq_showlist))`, then it rebuilds its bar 0x526a3c and rows 0x527084). Our page keeps its marks in a bitset of its own and fills the stock vector **at the moment of the action** (`select_recordinit(count)`, then `set_selectindex(i)` for each marked row, once the list is checked to be the stock one).
-- **Delete** (the stock handler 0x527f48): nothing selected shows `msg_delsongfailed` (the msginfo dialog); else `dialog/confirminfo_dialog` (kind 3, the text `msg_delsong` at +8, a checkbox "also delete the file"; returns 0xa for the library only, 0x14 with the file; anything else aborts); then **`batch_delete_file(class, *pdeq_showlist, *0xa045e0, 0, delete_file)`** (0x4e1408; for class 0xf001 the generic loop at 0x4e1664: for each marked row `deleteMusicFromMusicDb` 0x4ede44 = `toolsDeleteDbTable(rec, "songtable", "/mnt/data/database.db")`, and `remove_file` 0x4e1264 (`stat`, `remove`, `system("sync")`, and `stop_player` when the playing file has gone) when the flag is set; at the end `*0xa05a5a = 1`, the "library changed" flag other stock pages read on their next show), then `msg_delsongsuccess`. It touches **no widget** (no `widget_lookup`, no window call, `navigation_status` unread), it does not remove rows from the deque, clear the selection or touch the play queue (stock leaves them as they were). **Page: the same sequence**, then select mode ends and the list is read again. It runs on the UI thread (a database open per song and `sync`): a big multi-delete blocks for a while, as in stock.
-- **Add to playlist** (the stock handler 0x5280c0): `dialog/batchadd_dialog` (a 320 x 120 sheet that ignores its context and returns 0 playlist, 1 favourites, 4 dismissed) and then, for the playlist, `navigator_to_with_context("playlist_page", 0x10000 | class)`: **the stock playlist picker**, whose row handler 0x53d300 in that mode (`0xa00000 + 0x6f50 > 0`, `navigation_status` != 1) does `batch_add_file(class, 0xf00b, *pdeq_showlist, *0xa045e0, playlist_id)` (0x4da7dc; for class 0xf001 the generic path: only rows of type 8; `checkPlayListExist`, so duplicates are skipped, then `addPlayList`; **it writes the new id and the playlist id into the source records in place**), shows `msg_addplaylistsuccess` and closes the picker. **Page: Add to Playlist opens our own picker** (`docs/modules/picker.md`; the stock one below is its fallback and the evidence) and, where ours cannot open, **that picker** (`PICKER_ADD` | the class listed: 1 << 16 | 0xf001 on Songs) with the stock vector filled: the list of playlists, the tap and the add are the stock page's. The picker sets the browsing class `*0x97cad4` to 0xf00b and never puts it back, and the stock add handler saves the title (`nagvation_title` into 0xa06690) for the stock page to restore: the page saves `nagvation_title` and, when its window is back, restores it, sets the class back to 0xf001, ends select mode and **reads the list again** (the add changed records of the shown list). The favourites path of `batchadd_dialog` is not offered (the bar has the one Add pill; `batch_add_file(.., 0xf00a, ..)` would be the call).
-- **Pins** (`tools/pod.py` `SONGS_PINS`): the prologues of the three functions called, the class test of `batch_delete_file`, `navigator_to`, the search and sort click handlers (`navigator_to("search_page")` / `("dialog/sortselect_dialog")` with no context), and the sortselect row handler's `write_int_config` call and its delay-slot store; the data `SORT_FLAG` (named), `SEL_VEC`. A fallback (opening the stock Songs page directly in select mode) is **not needed and not possible**: there is no flag that starts the stock page in select mode (its init forces `navigation_status` 0 at 0x528a84..0x528a98), only the button handler 0x52823c, which needs the stock page's window.
+- **The selection** is the global vector `*0xa045e0` (`SEL_VEC`), indexed by the row of
+  `*pdeq_showlist`, 1 = selected, tied to no page. Our page keeps marks in its own bitset and fills
+  the stock vector **at the moment of the action** (`select_recordinit(count)`, then
+  `set_selectindex(i)` per marked row, once the list is checked to be the stock one).
+- **Delete**: nothing selected shows `msg_delsongfailed`; else `confirminfo_dialog` (kind 3, a
+  checkbox "also delete the file"; returns 0xa library only, 0x14 with the file); then
+  `batch_delete_file(class, *pdeq_showlist, vector, 0, delete_file)`: per marked row
+  `deleteMusicFromMusicDb`, and `remove_file` when flagged; the "library changed" flag is set; then
+  `msg_delsongsuccess`. It touches no widget and does not remove rows from the deque. The page then
+  ends select mode and reads again. It runs on the UI thread (a database open per song and `sync`),
+  so a big multi-delete blocks, as in stock.
+- **Add to Playlist**: our own picker ([picker](picker.md)) with `PICKER_ADD | class`; where ours
+  cannot open, the stock picker with the stock vector filled. `batch_add_file` takes the generic
+  path for the library class (rows of type 8; duplicates skipped; it writes new ids into the source
+  records in place). The picker sets the browsing class to `0xf00b` and never puts it back, so the
+  page saves `nagvation_title`, and on return restores it, sets the class back, ends select mode and
+  reads the list again. The Favorites path of the stock dialog is not offered.
+- No fallback that opens the stock Songs page in select mode exists: nothing starts it there except
+  its own button handler.
 
 ## The page (`patch/songs.c`)
 
-- Widgets (`tools/pod_ui.py`): the navbar (`label_title` hidden at first, `btn_return`, `btn_more`, the hidden `btn_coverflow`, `btn_backtoplayer`, and the hidden `btn_selall`), `songs_listview` > `songs_scrollview` (310 wide) > `view_grid` (the content view, sized by the payload to the whole list) holding `sg_title`, `btn_play`, `btn_shuffle` and, for a playlist's header, the hidden `hd_shuffle`, `hd_play`, `sg_glyph` (with the hidden label `sg_play_text` beside the list), the stock `scroll_bar_m` (required: it makes the scroll_view `yslidable`, `docs/modules/albums.md`), `img_nb_fade`, the hidden style labels (`label_row_title` 21 px, `label_row_sub` 18 px `#AAAAAA`, `label_hdr` 20 px, `label_rail` 12 px `#EEEEEC`, `label_rail_on` black) and `label_status`, then `sg_rail`, `sg_bubble` (> `sg_bubble_letter`), `sg_bar` (> `sg_bar_line`, `sg_add`, `sg_del`) and `vs_scrim` (dim) and `vs_card` (the shared card: `vs_item0..7`, `vs_label`, `vs_tick`, `vs_sub`, `vs_glyph`, `vs_hair`; the payload offers what `sg_offers` says), then, last, `rm_scrim` and `rm_card` (the rows' menu, `pod_ui.row_menu`, [rowmenu](rowmenu.md)). Everything shown later starts hidden **and** insensitive; the decorative ones (the bubble, the bar's hairline, the title) stay insensitive. No stock widget is renamed.
-- **The pills** are real buttons whose fill is the style's `bg_color` with `round_radius` 20 (the stock dialogs' buttons do the same), the glyph the style's `icon`; `sg_centre_pill` (the album page's `ah_centre_pill` rule) sets for every state `icon_at` left, `text_align_h` left, `margin_right` 0, the `spacer` (8 - (40 - 16) / 2) and the `margin_left` that centres glyph + 8 + the measured translated text, so the pair is centred in every language (`sg_centre_pill(btn, width)`: the width of the pill it centres in). **The select bar's two pills are 145 wide at x 10 and 165 (`SG_BAR_PILL_*`)**: "Add to Playlist" is 104 px at 18 px in English and does not fit beside the glyph in 129 px; the bar sits below the rail (in select mode the rail is centred on the 336 px the bar leaves, so it ends above the bar's top), so those pills cannot touch it. The pills in the content view dim (disabled style) in select mode. At 129 px the label has 93 px beside the glyph (the test checks all 13 languages with `StbText`); A label wider than that is **stepped down to `SG_PILL_PX_SMALL` (16 px)** in every state and centred from its new width, as an iOS button shrinks its title: only Russian "Перемешать" (97 px at 18, 86 at 16) needs it, so the shared `Shuffle` string (the Home menu's row too) stays the usual word; its margin clamps at 0, the pair sits about 2.5 px right of centre.
-- **Row paint** (`sg_on_paint`, the content view's own `EVT_AFTER_PAINT`; each row also gets its "..." from `rowmenu_paint`, the text room from `sg_text_end`: `sg_edge` 262 / 236, 296 in select mode, in window coordinates: the paint adds `yoffset` back to the canvas origin, `docs/modules/albums.md`): the header bands, then each row's press fill, mark, cover and hairline, the titles and artists in one text pass each (`widget_prepare_text_style` on the hidden labels, every row's texts, cut at the window's edges by the `scroll_view`'s canvas clip, cut once with an ellipsis), the header letters, and last the pinned band and its letter. Geometry helpers (`sg_hdr_y`, `sg_row_y`, `sg_row_from`) work on the at most 28 section starts, so a paint never walks the list.
-- **Size**: the content is `SG_TOP` (104) + sections x 28 + songs x 64 (+ 64 in select mode): 1,281,000 px for 20,000 songs in 26 sections; `widget_resize` and `virtual_h` get the same number (32 bit ints throughout, `docs/modules/albums.md`); the clamp is the stock layouter's.
-- **Memory**: the ring (12 x 11 KB) and the placeholder, the disc and the two 26 px marks, 8 bytes and 1 bit per song, the library's album copy (what Albums holds).
-- Texts (`tools/pod_i18n.py`): ours `Play`, `Select All`, `Add to Playlist` (short in every language: the stock text is 30 characters in German and 144 px in Japanese, wider than the pill), `Delete`, `%d Selected`; ours `Title`, `File Name`, `Format`, `Recently Added`, `A–Z`, `Z–A`, `Newest First`, `Oldest First` (the Sort card); stock `msg_delsong`, `msg_delsongfailed`, `msg_delsongsuccess`, `msg_addfailed`. The 13 languages fit the pill, card and select title (tested).
-- The payload is 124,472 bytes with `songs.c`.
+- **Widgets**: the navbar (`label_title` hidden, `btn_return`, `btn_more`, hidden `btn_coverflow`,
+  `btn_backtoplayer`, hidden `btn_selall`), `songs_listview` > `songs_scrollview` (310 wide) >
+  `view_grid` holding `sg_title`, `btn_play`, `btn_shuffle` and the playlist header's widgets, the
+  stock `scroll_bar_m` (required: it makes the scroll_view slidable, [albums](albums.md)),
+  `img_nb_fade`, hidden style labels, `label_status`, then `sg_rail`, `sg_bubble`, `sg_bar`, the
+  shared card `vs_scrim` / `vs_card`, and last the rows' menu `rm_scrim` / `rm_card`
+  ([rowmenu](rowmenu.md)). Everything shown later starts hidden and insensitive. No stock widget is
+  renamed.
+- **The pills** are buttons with the style's `bg_color`, `round_radius` 20 and the glyph as the
+  style's `icon`. `sg_centre_pill` centres glyph + 8 px + the measured translated text in every
+  language. A label wider than the 93 px beside the glyph steps down to `SG_PILL_PX_SMALL` 16 px
+  (only Russian "Перемешать"). **The select bar's pills are 145 wide** (`SG_BAR_PILL_*`): "Add to
+  Playlist" is 104 px at 18 px. The bar sits below the rail, so they cannot touch it.
+- **Row paint** (`sg_on_paint`, the content view's `EVT_AFTER_PAINT`): header bands, then each row's
+  press fill, mark, cover and hairline, titles and artists in one text pass each, header letters,
+  and last the pinned band. Geometry helpers work on at most 28 section starts, so a paint never
+  walks the list. Text room comes from `sg_text_end` (`sg_edge` 262 / 236, 296 in select mode).
+- **Size**: the content is `SG_TOP` 104 + sections x 28 + songs x 64 (+ 64 in select mode):
+  1,281,000 px for 20,000 songs; `widget_resize` and `virtual_h` get the same 32 bit number.
+- Texts are in `tools/pod_i18n.py`; all 13 languages fit the pill, card and select title.
 
 ## The song count
 
-Under the last row of every list on the page (the library, Favorites and the other lists, a playlist, a genre), as Apple Music ends a list: **"25 songs"** ("1 song"; the keys `%d song` / `%d songs`, chosen by n == 1 as the album page's track count, the number where the translation has `%d`; pl, ru, uk use the label form "Песен: 25" that needs no plural). A label of the content view (`sg_foot`, insensitive, 15 px `#9C9C9C`: the album page's meta line, `SG_FOOT_PX`, `pod_ui.SG_FOOT_RGB`), x `SG_HDR_X` (10, the covers' edge), its 20 px box `SG_FOOT_GAP` (14) below the last row; the content is `SG_FOOT_H` (52) longer for it (before the select bar's pad). `sg_foot_text` sets the text and moves the label at every read of the list, so a list read again (a delete, a return to the front) shows the new count. No duration: the song table has no duration column (`time` / `time_end` are CUE offsets, `docs/modules/addresses.md`); the durations table ([Album length](album-page.md#album-length)) could supply a total, but this line shows the count only. Not yet seen on the device.
+Under the last row of every list: **"25 songs"** ("1 song"; keys `%d song` / `%d songs`; pl, ru, uk
+use a label form). A label `sg_foot` (15 px `#9C9C9C`, x `SG_HDR_X` 10), `SG_FOOT_GAP` 14 below the
+last row; the content is `SG_FOOT_H` 52 longer. `sg_foot_text` updates it at every read. No
+duration: the song table has none.
 
 ## Recently Added dates (`patch/filetime.c`, payload hook 19)
 
-Recently Added orders by `songtable.time_create` (`order by time_create desc limit 100`), which the library scan takes from stock's `toolsGetFileCreateTime` `0x5e4ac8`.
-Stock returns `st_ctime` (the directory entry's creation time on FAT) but `st_atime` when the filesystem format byte `0xa0ac7c` says exFAT or NTFS (1 or 2), where `stat` has
-no creation time. Every read moves the access time (relatime, once a day), and Update Local Music reads every file's tags, so on an exFAT card the whole library was dated to the
-update's day and a newly added album was lost among it.
+Recently Added orders by `songtable.time_create`, which the library scan takes from stock's
+`toolsGetFileCreateTime` (`0x5e4ac8`). Stock returns `st_ctime` (the creation time on FAT) but
+`st_atime` when the filesystem byte `0xa0ac7c` says exFAT or NTFS, where `stat` has no creation
+time. Reads move the access time, so on an exFAT card a rescan dated the whole library to the update
+day.
 
-- `ft_created` replaces the function's prologue. It calls `statx(AT_FDCWD, path, 0, STATX_BTIME)` through the o32 syscall (4366; demo imports no `statx`) and returns `stx_btime.tv_sec`,
-  the creation stamp exFAT keeps, which reads never move. Windows and Linux stamp a copied file with the time of the copy; a Mac keeps the file's own creation date.
-- Stock's function runs (through `stock_file_created_trampoline`) for a null path, with `/mnt/mmc/m1plus-off`, when the call fails, when the mask lacks `STATX_BTIME` or when the stamp is 0.
-  FAT32 is unchanged in effect: its stock date is already the creation time. The cost is one `access` and one `statx` per file; 256 bytes of stack; no allocation.
-- Existing `songtable` dates change only after a library rescan: Update Local Music drops and rebuilds the table, so the first full update on this build re-dates the library by creation stamp
-  (and repairs dates already flattened).
-- Validation: the hook, its fallbacks and the pins run in Unicorn (`test/pod/filetime.py`). Not verified on the device: that the stock 5.10 kernel's exFAT driver reports `STATX_BTIME`
-  for the card (q2-pod reports it does on the Q2's kernel), and the resulting Recently Added order after a rescan.
+- `ft_created` replaces the function's prologue. It calls `statx(AT_FDCWD, path, 0, STATX_BTIME)`
+  through the o32 syscall (4366; demo imports no `statx`) and returns `stx_btime.tv_sec`, which reads
+  never move. A copy gets the time of the copy on Windows and Linux; a Mac keeps the file's date.
+- Stock's function runs (through `stock_file_created_trampoline`) for a null path, with
+  `/mnt/mmc/m1plus-off`, when the call fails, when the mask lacks `STATX_BTIME`, or when the stamp is
+  0. FAT32 is unchanged in effect. Cost: one `access` and one `statx` per file, 256 bytes of stack.
+- Existing dates change only after a rescan: Update Local Music rebuilds the table, so the first full
+  update re-dates the library by creation stamp.
 - Source: q2-pod commit 0d00826 (`ringnav_file_created`, `ringnav_statx`).
-
-## Tests (`test/pod/songs.py`)
-
-Nine sections (`SECTIONS`, each its own task in `check.py`; `--test songs/<section>` runs one; each builds its own machines): `asset_tests`, `open_and_paint_tests`, `touch_tests`, `rail_tests`, `order_search_and_stale_tests`, `collapse_and_select_tests`, `loader_tests`, `big_library_tests`, `lists_tests` (the other lists, below; also a genre's songs: the record put back before every read and play after another page changed it, the Unknown byte, a 420 byte name cut at 0x7f, Search hidden and also after select mode, Select's left-cap icon, the title's 156 px, Delete and Add with class `0xff09`, the fallback to the stock tap's sequence). Covering:
-
-The menu row and its fallback, the asset (every geometry and style above, the hidden / insensitive rules, the stock keys, the glyph images), the open (the two stock queries in order, the handlers bound, no cover decoded), the layout model against the paint (covers, texts and their rectangles, headers, bands, hairlines, the press fill), the pinned header and the push at four offsets, taps (play like the stock row, a drag, an abort, the title block and a header open nothing, a duplicate file name), Play and Shuffle, the pills' margins and geometry (129 wide, ending at x 278, none reaching the rail's touch column at 284; the bar's 145 pills below the rail), the header look (the shelf header's size and colour, no band or hairline in the flow, the pinned backing's fill at four offsets), the compact rail (an independent model of the plan: which letters and dots are drawn for 27, 26, 21, 20, 10 and 3 sections, their rects, the 4 px dots, the total height and the vertical centring; the widget's geometry (x 284, 36 wide, span + 24 high, centred; also in select mode); for 27, 21 and 10 sections the alignment on the stb mask of the tree's font with AWTK's centring rule: each letter's ink centre within 0.5 px of the dots' x, the dots centred on it, the ink gap above each dot within 1 px of the gap below, the disc centred on the touched letter's ink; demo's own `widget_find_target` on the run-time geometry: a tap from 12 px above to 12 px below the span reaches the rail, above, below or left of the column the list; a finger sweeping the 27-section span one pixel at a time visits every section in order with a growing offset; the disc only on a drawn letter), the rail (letters, the disc and its pixels, grab, jump, moves, the clamps, the bubble, the release, stray moves, a coasting list stopped first, demo's own hit test for the whole rail column), the plain list of other orders and of more than 28 runs, the Initial cases (`*`, `#`, 0, lower case, CJK), the Sort card (`vs_glass4` byte for byte, the four rows and their keys, the old glass gone; open, close, the current order, a row: flag, key, query, the plain list and no rail, ticks; the ticked row reversing: Title Z-A with the mirrored sections and rail, File Name and Format, Recently Added 3 <-> 4, a failed save, the saved direction at open; a tap, Play and Select on the reversed list with the queue as shown), Search, a stock list replaced under the page (paint, stale timer on top and not on top, tap), the collapsing title (and Spanish, and without scroll events), widths in 13 languages, select mode (hide / show, the x, "N Selected", marks and shifted text, taps, Select All twice, Delete with nothing, No, Yes and Yes with the file: the stock vector, `batch_delete_file`, the messages, the re-read; Add with nothing and with a selection: the picker, then the title and class put back), the loader (none while dragging, the library lookup, the placeholder), the background build (jobs, polls, the retry, the end, a second build after a long scroll, close), and **20,000 songs** (the content 1.28 M px, `virtual_h`, the 160 KB index, 4.8 M payload instructions to open, the rail jump to M and Z with the clamp, the overscroll, the ring bound, the end of the list, close).
-
-## Not verified on the device
-
-Everything above is checked on the emulated payload and the real stock widget code where the harness runs it; not seen on the device: the pills' `round_radius` fill and the `icon_at` / `margin_left` / `spacer` placement set at run time (the album page's pill sets only `margin_left` at run time, the rest from a style file), the rail's grab and its drag feel (a `widget_grab` from a window child, as Cover Flow's layer; and whether 13 px items with 4 px dots read well in the real font, and whether the bubble alone, with no disc on a section between two drawn letters, is enough feedback), the absence of a header band against the real rows (the pinned header is a black fill that cuts the rows under it abruptly), the bubble's `round_radius` + border on a `view`, the Sort card (the shared card in `vs_glass4`; the preview `tools/preview/preview_songs.py` draws it, the device has not) and the reversed list's Delete, Add and the resume record after a restart, the time of the stock query and of the open on a real 20,000 song library, the stock `batch_delete_file` and the playlist picker called from our page (both read from the disassembly, never run: the stock sort dialog, the confirm dialog's answers 0xa / 0x14 and the picker's close-and-return are the unverified parts), `shuffle_play` re-reading the list under this page, the search page's own use of `*pdeq_showlist`, and the glass capsule's four pieces on the real slots.
 
 ## A library source (`songs_open_src`)
 
-`songs_open_src(src, which, title)` (LS_SONGS, LS_FAVORITES, LS_DOWNLOADED; `patch/libsrc.h`) opens this page on a non-stock source: the list is `src->list(which, NULL)`, kept as the page's own copy (`sg.list`, `deque_destroy`ed when replaced and with the page), class 0xf001 with `sg.src` set so no stock-library path (sort card, `*pdeq_showlist`, cover build, delete, add) applies. Taps, Play and Shuffle go through `so_play_src`; covers through `src->cover` (0 = asked: the shared cover poll, [subsonic](subsonic.md) "Cover poll", retries the placeholder tiles and the playlist header's mosaic). A `LS_GEN_MS` (500 ms) timer reads `src->gen` and re-reads the list (scroll position kept, tiles of unchanged leading rows kept) when it moved and the page is on top and idle. `lib_src_t.complete` NULL or 1: Songs is sectioned with the rail; 0 (paged): plain rows, no rail. `LS_DOWNLOADED` with `lib_src_t.dl_rows`: the rows still to download are a named "Downloading" section with a Clear text button above the "Downloaded" one ([subsonic](subsonic.md) "Download queue on the Downloaded page"; named headers are `az_t.sec_text` / `sec_act` in patch/azlist.c). **A source's pages are the local classes (`sg_playlist`, `sg_artist_songs`, `songs_open_src_in`):** a source playlist (`LS_PLAYLISTS` of a row) gets the local playlist's header (mosaic tile from the track covers, name, album-style Shuffle disc + Play pill, the count as the footer) and has no Search; a source artist's All Songs (`LS_SONGS` of a row) is the artist's songs like `CLASS_ARTIST_SONGS`: the grey line is the album, no A-Z sections or rail (the source's global Songs paging does not touch a scoped list: `sg.part` is only for the unscoped list), no Search. A source without Select then has no piece left of Now Playing, which becomes the plain disc (`ah_nav_np`). The "N songs" footer is hidden while the paged Songs list is still growing and shown once it is complete. `src` NULL or `&lib_stock` is `songs_open()` (Songs), `songs_open_list(HOME_FAV)` (Favorites), -1 (Downloaded). **The bar and the card follow the source's controls:** `ls_caps(src)` (a NULL source has all of them) decides Search (`LS_CAP_SEARCH`) and Select (`LS_CAP_SELECT`); a source without Select has no card to open, so neither the "..." nor the Select button shows, and a source without any control has no button at all: the small title runs to Now Playing (x 260) and Now Playing becomes the plain disc (`ah_nav_np`) instead of a capsule's right cap. `lib_nd` currently has none of the three, so the Navidrome Songs, Favorites and Downloaded lists have Back, the title and Now Playing only. Left for ND-13/ND-14: row extras, the row "..." (a no-op for a source), Add/Delete in select mode (no-ops), Search (ND-15).
+`songs_open_src(src, which, title)` (`LS_SONGS`, `LS_FAVORITES`, `LS_DOWNLOADED`; `patch/libsrc.h`)
+opens this page on a non-stock source. The list is `src->list(which, NULL)`, kept as the page's own
+copy (`sg.list`); class `0xf001` with `sg.src` set, so no stock-library path (sort card,
+`*pdeq_showlist`, cover build, delete, add) applies.
+
+- Taps, Play and Shuffle go through `so_play_src`; covers through `src->cover` (0 = asked: the
+  shared cover poll, [subsonic](subsonic.md) "Shared source-page helpers").
+- A `LS_GEN_MS` 500 ms timer reads `src->gen` and re-reads the list (scroll position and tiles of
+  unchanged leading rows kept) when it moved and the page is on top and idle.
+- `lib_src_t.complete` NULL or 1: sectioned with the rail; 0 (paged): plain rows, no rail. The "N
+  songs" footer is hidden while a paged list is growing.
+- `LS_DOWNLOADED` with `dl_rows`: rows still to download form a "Downloading" section with a Clear
+  text button above "Downloaded" ([subsonic](subsonic.md) "Downloads";
+  named headers are `az_t.sec_text` / `sec_act`).
+- **A source's pages are the local classes** (`sg_playlist`, `sg_artist_songs`,
+  `songs_open_src_in`): a source playlist gets the local playlist header and no Search; a source
+  artist's All Songs is the artist's songs (grey line the album, no sections or rail, no Search).
+- `src` NULL or `&lib_stock` is `songs_open()` (Songs), `songs_open_list(HOME_FAV)` (Favorites), -1
+  (Downloaded).
+- **Controls follow the source**: `ls_caps(src)` (NULL has all) decides Search (`LS_CAP_SEARCH`) and
+  Select (`LS_CAP_SELECT`). A source without Select has no "..." or Select button; one without any
+  has no button, the title runs to Now Playing (x 260) and Now Playing becomes the plain disc
+  `ah_nav_np`. `lib_nd` has none of the three today, so its Songs, Favorites and Downloaded lists
+  have Back, the title and Now Playing only.

@@ -1,156 +1,214 @@
 # Pull-down
 
-Sources: `tools/mod_pulldown.py`, `tools/mod_icons.py` (look); `patch/pulldown.c`, `tools/pod.py` `PULLDOWN_*`, `tools/pod_pages.py` (tile order and page); tests `test/pod/pulldown.py` (look), `test/pod/pdtiles.py` (tiles, flags, swipe gates).
+**Sources:** `tools/mod_pulldown.py`, `tools/mod_icons.py` (look), `patch/pulldown.c`,
+`tools/pod.py` (`PULLDOWN_*`), `tools/pod_pages.py` (tile order and page), `PULLDOWN_PINS`,
+`PULLDOWN_FLAG_PINS`, `TSDOWN_PINS` in `tools/pod_pins.py`. **Tests:** `test/pod/pulldown.py`
+(look), `test/pod/pdtiles.py` (tiles, flags, swipe gates).
 
-## Look (`tools/mod_pulldown.py`, `mod_icons.py`)
+The stock pull-down (`dialog/dropdown_dialog`) restyled, with tiles the user can hide, show and
+reorder, six tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
+dialog's init and one on touch down ([payload](payload.md)).
 
-Runs after the font step on `ui/dialog/dropdown_dialog.bin` (no style file):
-its status bar (`view_sysbar`) is laid out from the same table as the real bar (`tools/statusbar.py`, section 4: volume number
-16 px middle, clock 18 px at x 104, left group from x 10, right group 4 px, black), so the two are identical in 12 h and 24 h mode; the tile captions (`label_wifi`, `label_bt`, `label_lock`,
-`label_gain`, `label_usbmode`, `label_outputway`, `label_playset`, `label_sysset`; word-wrapped)
-18 -> 16 px normal, 16 -> 14 disabled/focused. The caption boxes are 71 x 40 instead of 57 x 40 (same centre,
-x - 7; the tiles are 74 px apart), because `Bluetooth` is 60 px at 16 and AWTK broke it as "Bluetoot/h" and
-"Playbac/k Setting". The tool now also refuses a Latin word wider than the box in English or Chinese. Nothing else
-moves; alignment stays centred. Measured with
-the text model: `100` at 16 px fits the 30 px label; `12:59 PM` is 66-72 px of 90; every English and
-Chinese caption fits its box without a mid-word break (the tool refuses otherwise). 22 captions in other languages (long Russian, Ukrainian, Polish, Italian, Spanish, German words in
-a 57 px tile) still overflow, as clipped in stock.
-**Tile art:** every tile image is one 50x50 ring style, 2 px ring, 24 px glyph: off `#777777` ring +
-glyph (`drop_wifi`, `bt`, `keylock`, `eq`, `lowgain`, `po`, `playset`, `sysset`), on a filled white disc +
-`#141414` glyph (the `*open` images, `highgain`, `lo`, `usbaudio`, `usbdac`, `usbstorage`, the pressed
-`playsetdown`/`syssetdown`), disabled `#444444` (`lowgaindisable`, `highgaindisable`). Gain uses custom
-2-/5-bar glyphs, Output the text "PO"/"LO" in Inter Medium 17 px. White disc was chosen over a white ring
-(only a brightness step from the grey ring; the disc is what stock does with its orange fill). With an accent the ON tiles' disc is the accent and the glyph stays `#141414` ([accent](accent.md), `ACCENT_DISC`).
+## Look
 
-## Tiles: hide, show and reorder (`patch/pulldown.c`)
+`mod_pulldown.py` runs after the font step on `ui/dialog/dropdown_dialog.bin`.
 
-Settings > Appearance > **Control Center** (iOS's name and translations; a link row in its own card on the Appearance page, `m1plus_appearance`, under the Background and Accent card; our page `m1plus_pulldown`) edits the eight tiles of the stock pull-down
-(`view_switchs`) and the six of ours ([Tiles of ours](#tiles-of-ours); fourteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md) "Main Menu"): one row per tile with a switch and, on every shown row but the first, an up arrow
-(both pictures, insensitive); the row takes every tap and decides by where it landed (the arrow's rectangle moves the tile one place up, elsewhere it shows or
-hides it; a tile shown joins the end). Shown tiles come first in order, hidden ones after them in stock order. Each change is saved at once and atomically; a
-failed save is undone and the page stays as it was. The code is its own (`pg_*`, a copy of `menu.c`'s `cm_*` on fourteen rows; `menu.c` shares only `menu_plain_paint`).
-Row labels are short texts of ours (`pod_pages.PULLDOWN_TILES`): Wi-Fi, Bluetooth, Button Lock, Gain, USB Mode, Output, Playback, System. The tiles' stock
-captions ("Playback Setting", "Output Options", up to 256 px in Russian) did not fit beside the arrow, and Gain and USB Mode show the state in stock
-(High / Low, USB AUDIO / DAC / Storage). Each row has its tile's glyph, the Main Menu page's 24 px row glyph (`mod_icons.POD_ROWS`, page in `POD_UI`): wifi, bluetooth,
-lock, the gain bars, usb, headphones for Output (its tile shows the text PO / LO; stock's Output setting uses headphones), sliders for Playback, the gear for System. The label is then 135 px;
-`test/pod/i18n.py` measures every label in all 13 languages, and the one that does not fit, Russian Playback (Воспроизведение, 158 px), ends in an ellipsis and scrolls while focused
-(accepted). The Settings row's glyph is Lucide `layout-grid`.
+- The status bar (`view_sysbar`) is laid out from the same table as the real bar
+  ([theme](theme.md) "Status bar"), so the two are identical in 12 h and 24 h mode.
+- Tile captions go from 18 to 16 px (disabled and focused 14). The caption boxes are 71 x 40 instead
+  of 57 x 40 (same centre), because `Bluetooth` is 60 px at 16 and AWTK broke it mid-word. The tool
+  refuses a Latin word wider than the box in English or Chinese. A few long captions in other
+  languages still overflow, clipped as in stock.
+- **Tile art:** every tile image is one 50 x 50 ring style, 2 px ring, 24 px glyph. Off is a
+  `#777777` ring and glyph, on is a filled white disc with a `#141414` glyph, disabled is `#444444`.
+  Gain has custom 2- and 5-bar glyphs, Output the text "PO" / "LO" in Inter Medium 17 px. A white
+  disc, not a white ring: a ring is only a brightness step from the grey ring, and the disc is what
+  stock does with its orange fill. With an accent the ON disc is the accent ([accent](accent.md)).
 
-**File** `/mnt/data/m1plus/pulldown-tiles`: `<shown ids in order>[-<hidden ids>]` and an optional newline, ids `0`-`7` in stock slot order (Wi-Fi, Bluetooth, buttons
-lock, gain, USB mode, output, playback settings, system settings), then `8` Sleep Timer, `9` Settings, `a` Equalizer, `b` Power Off, `c` AirPlay and `d` DLNA (ours). A tile not in the shown part is hidden. Invalid or missing = the default, the eight stock tiles shown in stock
-order (ours hidden): an unknown character, an id twice (also across the parts), a second `-`, an empty file, 20 bytes or more (`PULLDOWN_FILE_MAX`; the longest valid file, fourteen ids, the `-` and a newline, is 16), **more than eight shown**. A bare newline or `-` hides every tile. The page writes
-`<shown>-<hidden in id order>`. Model `pod_pages.parse_pulldown` / `format_pulldown`; the Settings Files page lists the file (first 12 characters, like `home-menu`; the longest valid content is 14, so the last ids of a long one are not shown there). Files written before the ids `8`-`d` existed read as they did.
+## Tiles: hide, show and reorder
+
+Settings > Appearance > **Control Center** (`m1plus_pulldown`) edits the eight stock tiles and the
+six of ours (fourteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md)):
+one row per tile with a switch and, on every shown row but the first, an up arrow. The row takes
+every tap: the arrow moves the tile one place up, elsewhere shows or hides it, and a tile shown joins
+the end. Each change is saved at once and atomically; a failed save is undone. The code is a copy of
+`menu.c`'s (`pg_*`).
+
+- Row labels are short texts of ours: Wi-Fi, Bluetooth, Button Lock, Gain, USB Mode, Output,
+  Playback, System. Stock captions did not fit beside the arrow, and Gain and USB Mode show state in
+  stock. Each row has its tile's 24 px glyph. The one label that does not fit (Russian Playback)
+  ends in an ellipsis and scrolls while focused.
+- Turning on a ninth tile is refused with the toast "Up to 8 controls".
+
+**File** `/mnt/data/m1plus/pulldown-tiles`: `<shown ids in order>[-<hidden ids>]`, optional newline.
+Ids `0`-`7` are the stock slots in order (Wi-Fi, Bluetooth, button lock, gain, USB mode, output,
+playback settings, system settings); ours are `8` Sleep Timer, `9` Settings, `a` Equalizer,
+`b` Power Off, `c` AirPlay, `d` DLNA. A tile not in the shown part is hidden.
+
+- Invalid or missing means the default: the eight stock tiles in stock order, ours hidden. Invalid
+  is an unknown character, an id twice, a second `-`, an empty file, 20 bytes or more
+  (`PULLDOWN_FILE_MAX`) or more than eight shown. A bare newline or `-` hides every tile.
+- The page writes `<shown>-<hidden in id order>`. Model: `pod_pages.parse_pulldown` /
+  `format_pulldown`. The Settings Files page lists the file (first 12 characters, like `home-menu`).
 
 ## The hook
 
-`dialog_dropdown_dialog_init` `0x475f04`, pinned prologue `(0x3c1c0059, 0x279cdfcc, 0x0399e021)` (`$gp` checked), overwritten with `j m1plus_pulldown_init; nop`;
-the trampoline resumes at `0x475f10` (`beqz $a0`). Its only caller is the navigator's dialog-init dispatcher (`0x4d1c7c` / `0x4d1c84`, behind the `strcmp` with
-`"dialog/dropdown_dialog"`; the other reference to the name, `on_wm_tsmove_fun` `0x4cd868`, opens the dialog by name), so it runs only when the pull-down is built;
-`tools/reach.py` finds it only behind the navigator cut, never from `main` / `platform_init`. `tools/pod_pins.py` `PULLDOWN_PINS` pins the resume word, the dispatcher, the
-four pointer binds of the init and the tile visitor's `EVT_CLICK` bind. The stock init runs first and its result is returned; then the eight tile images (`img_wifiswitch`, `img_btswitch`, `img_keylockswitch`, `img_gainswitch`, `img_usbmode`, `img_outputswitch`, `img_playset`,
-`img_sysset`) and captions (`label_wifi`, `label_bt`, `label_lock`, `label_gain`, `label_usbmode`, `label_outputway`, `label_playset`, `label_sysset`) are looked up and
-their places read; **if any lookup fails nothing changes**. The file is read; shown tile k takes the place of stock tile k (images x 24 / 98 / 172 / 246, y 14 and 114,
-read from the widgets) and its caption keeps its own offset from its tile (stock: -10, +54, boxes 71 x 40); the other tiles and captions get `visible=false` **and**
-`sensitive=false`. The default file moves nothing. No widget is renamed or deleted; the dialog's size, the status bar and the brightness slider stay.
+`dialog_dropdown_dialog_init` is wrapped by `m1plus_pulldown_init` (pinned prologue, resumed by the
+trampoline). Its only caller is the navigator's dialog-init dispatcher, so it runs only when the
+pull-down is built and is never boot-reachable. `PULLDOWN_PINS` pins the resume word, the
+dispatcher, the pointer binds and the tile visitor's click bind.
 
-**Constraints.** The stock handlers find the tiles by name and set their images and captions, so a moved or hidden tile keeps working (gain, output, USB and
-Wi-Fi/Bluetooth state still update; on a hidden tile nobody sees it). The stock code never sets a tile's visibility or position (`widget_set_visible` / `widget_move`
-appear only for the status bar and the dialog's own drag). The dialog binds pointer events only (`0xff` down, `0x101` move, `0x103` up for the drag-to-close,
-`0x12e`, and `EVT_CLICK` on the tile images): no key event is bound and the tile images are plain `image` widgets with no focus handling, and `set_dialog_highlight`
-only sets the dialog's `highlight` property (the dim). Hardware keys therefore neither move a highlight across the tiles nor activate one; a hidden tile can
-only have been hit by a touch, which `sensitive=false` stops (this AWTK hit-tests hidden widgets, [UI rules](ui-rules.md)). The dialog keeps its stock height, so hiding
-tiles leaves empty room; resizing it and the slider is out of scope here. Replacement actions for the freed slots are not part of this.
+- The stock init runs first and its result is returned. Then the eight tile images and captions are
+  looked up; **if any lookup fails nothing changes**.
+- The file is read. Shown tile k takes the place of stock tile k (positions read from the widgets)
+  and its caption keeps its own offset; the other tiles and captions get `visible=false` **and**
+  `sensitive=false`. The default file moves nothing. No widget is renamed or deleted.
+- Stock handlers find tiles by name, so a moved or hidden tile keeps working. Stock code never sets
+  a tile's visibility or position. The dialog binds pointer events only, so hardware keys cannot
+  reach a hidden tile; `sensitive=false` stops a touch (this AWTK hit-tests hidden widgets,
+  [ui-rules](ui-rules.md)).
+- The dialog keeps its stock height, so hiding tiles leaves empty room.
 
-**Tests** (`test/pod/pdtiles.py`): the hook words, the manifest and the pins; the built assets' grid; the stock layout for no file, the default, thirteen
-kinds of invalid file, a failed stock init, a null dialog and each of the twenty-four widgets missing (nothing moved, hidden or re-stacked); a custom
-order, some hidden, hidden-part variants, all hidden (positions at the stock places, captions at their offset, hidden = invisible and insensitive, nothing renamed);
-600 random files against the Python parser; the Settings page (layout from a saved file, taps, arrows, atomic saves, failed save or rename undone, scroll, a page
-that is not ours, the row in the Settings page, the asset's rows) and the Settings Files row.
+## Settings tiles and the window stack
 
-## Settings tiles and the window stack (`pd_reconcile`, `pd_open_settings`)
+Stock marks "inside settings" in two flags (`syssetinto_flag`, `playsetinto_flag`). The page inits
+set them to 1, Back clears them and Home's foreground callback clears both. The tile visitor
+disables a tile and skips its click while its flag is positive. The Now Playing button opens the
+player over the page and closes nothing, so the settings window stays in the stack with its flag
+set. Both tiles then stayed disabled everywhere until Home cleared the flags.
 
-Stock marks "inside settings" in `syssetinto_flag` (`0xa05a48`, System Settings) and `playsetinto_flag` (`0xa05a4c`, Playback Settings): the page inits (`0x4ada78`, `0x4a0c88`) store 1, the Back handlers (`0x4ad550`, `0x49fec0`) clear a positive flag and
-Home's foreground callback (`0x534b88`) clears both. The tile visitor (`0x473f30`) disables a tile and skips its click bind while its flag is positive; the tile handlers (`0x4754c8` System, `0x475558` Playback) do nothing for a nonzero flag and
-otherwise (also after the USB / network-mode tests) store 2 and quit the dialog, and `on_wm_tsmove_fun` (`0x4cd7f0`) then opens the page by `navigator_to` for a flag of 2. The top-right Now Playing button (`on_backtoplayer_onclick`) calls
-`navigator_switch_to_with_context("playing_page", ctx, 0)`: the player is opened or restacked over the page and **nothing is closed**, so the settings window stays in the window stack behind the player with its flag set (Back from the player
-returns to it). Both tiles then stayed disabled on the player and everywhere else until Home cleared the flags (user report, release 1.3; System Settings -> Playback sub-page -> Now Playing leaves both).
-
-The windows are named `sysset_page` and `playset_page` (the assets' roots; `navigator_to` opens them by `systemset/sysset_page` / `playset/playset_page`, which is not their window name, so stock's open never finds a page already in the stack).
-`m1plus_pulldown_init` first makes the flags match the window stack (`pd_reconcile`, two words, before the stock init reads them): a page is **inside settings** (flag 1) when its window is in the window manager, opened, and none of
-`playing_page`, `m1plus_radionp` (Radio Now Playing) or `home_page` is above it (windows between it and the front are its sub-pages); otherwise (no window, or the player or Home above it, or a flag left at 2) the flag is 0. A page in front
-is therefore stock (its tile disabled, also when the user comes back to it from the player and the flag had been cleared), and a page behind the player has its tile enabled and bound by stock's own visitor, whose handler does what it always does.
-The two `navigator_to` calls of `on_wm_tsmove_fun` that open the chosen page are `pd_open_settings` (payload hook 22): when the page's window is still in the stack it is brought to the front with `m1_restack_window` (`patch/common.c`, shared through `m1_open_stock` with the More sheet's Sleep Timer row and the Settings Display row, [playmore.md](playmore.md): the topmost opened window of that name, `window_manager_switch_to(wm, top window, page, 0)`)
-(what stock does for the player; Back then returns to the player) and its flag set to 1 (no init runs); otherwise, or if the restack fails, stock's `navigator_to(name)` (the init sets the flag), and a failed open clears the flag instead of leaving 2.
-**The Playback tile opens our page.** For the name `playset/playset_page` the hook first looks for our Playback Settings page (window `m1plus_playset_page`, [playset](playset.md)): in the stack it is restacked, else it is opened the way the Settings row opens it (`pod_open_playset`, `patch/m1plus.c`: `open_page(POD_PLAYSET_PAGE)`) and the flag is set to 1; stock's list is asked for only when ours will not open (then exactly the paragraph above, stock's restack or `navigator_to`). `pd_reconcile` takes the Playback flag as 1 when either our window or stock's `playset_page` is in the stack, opened, with none of the player windows or Home above it; our pickers and slider pages are windows of their own (`window_open` stacks each above the page), so over them the flag stays 1 and the tile is disabled, as over stock's list. Before our page is restacked its sub-pages left in the stack are closed (`pd_close_subpages`: the opened windows right above it, up to the first of the player windows or Home; the topmost first). A page of ours keeps one window (`pod_fg` and the slider pages' widget pointers), so a sub-page left under the restacked page and opened again from it would be a second instance, and closing that one would leave the first without its refresh and with pointers into a destroyed window. Not covered: a second instance reached any other way (none is known: a sub-page opens only from the page's rows, and the tile is disabled while the page or a sub-page is in front). The System tile is unchanged (stock's sub-pages are left in the stack, as before).
-No flag is touched on a Now Playing tap, in the main loop or on paint; Home's reset is unchanged. Tests: `flags_tests` in `test/pod/pdtiles.py` (both pages and both visit orders, repeated cycles, Radio Now Playing, no window, a failed open or restack,
-the pins and call sites; there our page never opens, so they run the stock route) and `playtile_tests` (the tile with ours not open, restacked, behind a picker, failing to open; the flag with ours, a picker or slider page of ours, the player above, stock's list; the System tile).
+- **Reconcile.** `m1plus_pulldown_init` first makes the flags match the window stack
+  (`pd_reconcile`). A page is inside settings (flag 1) when its window is in the stack and none of
+  `playing_page`, `m1plus_radionp` or `home_page` is above it; otherwise 0. So a page in front is
+  stock (its tile disabled), and a page behind the player has its tile enabled.
+- **Open.** The two `navigator_to` calls in `on_wm_tsmove_fun` are `pd_open_settings` (payload hook
+  22). If the page's window is still in the stack it is brought to the front with
+  `m1_restack_window` ([playmore](playmore.md)) and its flag set to 1; otherwise, or if the restack
+  fails, stock's `navigator_to` runs, and a failed open clears the flag.
+- **The Playback tile opens our page** ([playset](playset.md)): restacked if in the stack, else
+  opened like the Settings row, and stock's list only when ours will not open. `pd_reconcile` treats
+  either window as the Playback page. Before restacking, its sub-pages left in the stack are closed
+  (`pd_close_subpages`), because a page of ours keeps one window and a second instance would leave
+  the first without its refresh. The System tile is unchanged.
+- No flag is touched on a Now Playing tap, in the main loop or on paint.
 
 ## Tiles of ours
 
-Six tiles can take any of the eight slots (ids `8`, `9`, `a`, `b`, `c`, `d`, hidden by default): four are actions (below), two are switches ([AirPlay and DLNA](#airplay-and-dlna)):
+Six tiles can take any of the eight slots (hidden by default): four are actions, two are switches.
 
-| id | tile | caption key | art (`mod_icons.PD_OWN`) | action |
-|---|---|---|---|---|
-| `8` | Sleep Timer | `Sleep Timer` (the stock `powerm_sleep`, as Now Playing's More sheet row; too long for the page's row in ja, fr, pl and ru, where it ends in an ellipsis and scrolls when focused, and for the caption box in ru: the user's choice, 2026-11-13; Spanish was shortened to "Temporizador" with the Sleep Timer page's title, `STOCK_FIX`, and fits) | `drop_sleep` (Lucide `moon`) | our Sleep Timer page (`m1plus_sleeptimer`, [sleeptimer](sleeptimer.md)), as Now Playing's More sheet row: `pd_open_own`, so a page left behind the player is restacked (`m1_restack_window`) and one in front is left alone |
-| `9` | Settings | `Settings` | `drop_settings` (`layout-grid`) | our Settings root (`pod_open_settings`, `open_page(POD_SETTINGS_PAGE)`) |
-| `a` | Equalizer | `Equalizer` | `drop_equalizer` (`sliders-vertical`) | our Equalizer page (`pod_open_peq`, the one the All Playback Settings row opens) |
-| `b` | Power Off | `Power Off` (ours) | `drop_power` (Lucide `power`) | the power key's long press: the stock shutdown confirm, then `poweroff_page` ([Power Off](#power-off)) |
-| `c` | AirPlay | brand text `AirPlay` (the stock `netservice_airplay` text, the same in every language) | `drop_airplay` / `drop_airplayopen` (Lucide `airplay`) | a switch: stock's `airplay_switch` ([AirPlay and DLNA](#airplay-and-dlna)) |
-| `d` | DLNA | brand text `DLNA` | `drop_dlna` / `drop_dlnaopen` (the Simple Icons DLNA mark, `+dlna:filled`) | a switch: stock's `dlna_switch` |
+| Id | Tile | Art (`mod_icons.PD_OWN`) | Action |
+|---|---|---|---|
+| `8` | Sleep Timer | `drop_sleep` (Lucide `moon`) | our Sleep Timer page ([sleeptimer](sleeptimer.md)) via `pd_open_own`; a page behind the player is restacked, one in front is left alone |
+| `9` | Settings | `drop_settings` (`layout-grid`) | our Settings root (`pod_open_settings`) |
+| `a` | Equalizer | `drop_equalizer` (`sliders-vertical`) | our Equalizer page (`pod_open_peq`) |
+| `b` | Power Off | `drop_power` (`power`) | the power key's long-press confirm, then `poweroff_page` ([Power Off](#power-off)) |
+| `c` | AirPlay | `drop_airplay` / `drop_airplayopen` | a switch ([AirPlay and DLNA](#airplay-and-dlna)) |
+| `d` | DLNA | `drop_dlna` / `drop_dlnaopen` (Simple Icons mark) | a switch |
 
-**Widgets are in the asset.** `tools/mod_pulldown.py` adds to `view_switchs` an image (`pod_tile_sleep`, `pod_tile_settings`, `pod_tile_eq`, `pod_tile_power`, `pod_tile_airplay`, `pod_tile_dlna`: 50 x 50, `clickable`) and a caption label (`pod_cap_*`: a copy of `label_playset`, so the same
-71 x 40 box, 16 px white, word-wrapped, and the offset -10 / +54 from its tile, with `tr_text` = the key, translated in all 13 languages) for each, **hidden and insensitive**. So the default file, a kill switch or a failed hook leaves them invisible,
-and no widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes); a shown tile of ours is moved to its slot with its caption, bound to a tap (a tile that cannot be bound stays hidden) and made visible and sensitive;
-a tile not shown is hidden again like the stock ones. The stock tile visitor (`0x473f30`) knows tiles by name and ignores ours. Art: the stock ring, **off look only** for the four actions (an action has no on state: no pressed or accent disc; the dialog closes on the tap); the two switches also have a lit picture (below, `ACCENT_DISC` has it).
-Our captions fit the 71 x 40 box in every language (the 12 stock captions that still overflow are stock's own; `mod_pulldown.py` refuses a break in English or Chinese).
+Captions are keys of ours in 13 languages; AirPlay and DLNA are brand text. Sleep Timer is too long
+for the row label in ja, fr, pl and ru (it ends in an ellipsis and scrolls when focused) and for the
+caption box in ru; both are accepted. Our other captions fit the 71 x 40 box in every language.
 
-**The Control Center page** has fourteen rows (`pod_row0..13`; row labels Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA; glyphs `pod_ic_sleep`, `pod_ic_ccsettings`, `pod_ic_eq`, `pod_ic_poweroff`, `pod_ic_airplay` and `pod_ic_dlna` from `POD_ROWS`; the Settings row has its own glyph on this page and Sleep Timer reuses the Sleep Timer row's glyph by its label, because the Pod menu's Settings row shares Playback's sliders). Turning on a ninth tile when eight are shown is refused:
-`pod_toast("Up to 8 controls")`, nothing saved or moved. Hiding one frees a place. The list scrolls like the Main Menu page's (fourteen rows of 48 px against the 398 px window; the scroll offset logic is the same code, only the row count changed).
-
-**Tap (`pd_on_tile`, `pd_open_dialog`).** Stock's Playback and System tiles never open a page from their click handler (`0x4754c8`, `0x475558`): they check three words (`DROPDOWN_BUSY` `0xa05a00`, `POWER_USBSTATE` `0xa059f4`, `airplayGetFlag()`; any equal to 2 = do nothing), call `dialog_quit(dialog, 0xd)` and set their flag to 2; `on_wm_tsmove_fun` opened the dialog **modally** with `navigator_to("dialog/dropdown_dialog")` (`0x4cd864`) and, when that returns 0xd, opens the page the flag names (hooks `0x4cd894`, `0x4cd8bc`). Ours do the same, so no page is opened from inside the modal dialog's click handler
-(the `pm_on_sleep` pattern, safe for the non-modal More sheet, is not used here): the click checks the same three words, stores the tile in a static (`pd_pending`) and calls `dialog_quit(dialog, 0xd)`; the call at `0x4cd864` is `jal pd_open_dialog` (payload hook 22, [payload](payload.md)), which does the stock call and, for the result 0xd with a pending tile, runs `pd_run(id)`
-once the dialog is gone. `pd_run` is the one place to add an action (Power Off is the case that opens no page: `pd_poweroff`). The pending id is cleared after every modal call, so a stock tile's 0xd or a drag-close never runs it. Our own pages follow `pd_open_settings`'s rule for the Playback page: when the window is already in the stack its sub-pages are closed and it is brought to the front (`m1_restack_window`; a page of ours keeps one window), a page already in front is left alone, else it is opened; Sleep Timer is an own page too (`m1plus_sleeptimer_page`, `pd_open_own`): a window left behind the player is restacked, as Now Playing's row does.
-Because the dialog is already gone when the action runs, **a page that will not open leaves nothing on screen** (as stock's own tile when `navigator_to` fails); "open first, close only on success" is not possible this way.
-
-**Verified by reading the stock code (`work/cache/demo.dis`):** the tile handlers' guards and `dialog_quit(a0 = the bound context, 0xd)` (the visitor binds with the dialog as context, `0x473f30`); `on_wm_tsmove_fun` `0x4cd788..0x4cd8d8` (the modal open, the `0xd` test `bne v0, v1` at `0x4cd870`, then the two flag tests); the visitor dispatching on the first letter of the name (`i`, `s`, `l`; any other, like our `pod_*`, returns at `0x473fd8` untouched). **Tests:** `own_tests` (asset, slots, binding, every tap path, the guards, a failed quit or open, an unexpected result, the build and pins), the file and page changes in `hook_tests`, `page_tests`. **Device only:** the pull-down closing cleanly (animation, status bar, brightness state) on a tap of ours, the Sleep Timer / Settings / Equalizer pages opening over the player and over Home, Back from each returning to where the swipe began, the look and spacing of the four tiles and their captions in the 13 languages, and a tap of ours while a stock page is under the player.
+- **Widgets are in the asset.** `mod_pulldown.py` adds to `view_switchs` an image (`pod_tile_*`,
+  50 x 50, clickable) and a caption (`pod_cap_*`, a copy of `label_playset`) for each, **hidden and
+  insensitive**. So the default file, the kill switch or a failed hook leave them invisible, and no
+  widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes),
+  moves a shown tile with its caption, binds a tap and makes it visible. Stock's tile visitor knows
+  tiles by name and ignores ours.
+- Art is the stock ring, off look only for the four actions: an action has no on state because the
+  dialog closes on the tap.
+- **The page** has fourteen rows (`pod_row0..13`) with glyphs from `POD_ROWS`.
+- **Tap** (`pd_on_tile`, `pd_open_dialog`, payload hook 22). Stock's tiles never open a page from
+  their click handler. They check three words (`DROPDOWN_BUSY`, `POWER_USBSTATE`,
+  `airplayGetFlag()`; any equal to 2 = do nothing), call `dialog_quit(dialog, 0xd)` and set a flag.
+  `on_wm_tsmove_fun` opened the dialog modally and acts on the result. Ours do the same: the click
+  checks the same three words, stores the tile in `pd_pending` and quits with `0xd`; the modal call
+  is wrapped, and for the result `0xd` with a pending tile it runs `pd_run(id)` once the dialog is
+  gone. `pd_run` is the one place to add an action. The pending id is cleared after every modal
+  call, so a stock tile's `0xd` or a drag-close never runs it.
+- Because the dialog is already gone when the action runs, **a page that will not open leaves
+  nothing on screen**.
+- **Adding a tile:** an id in `pod_pages.PULLDOWN_CHARS` and `PULLDOWN_TILES`, `PD_N` and
+  `PD_IMG` / `PD_LAB` in `patch/pulldown.c`, an image and caption in `mod_pulldown.OWN`, a `drop_*`
+  art image, a `POD_ROWS` glyph, a caption key in 13 languages and a case in `pd_run` (a switch has
+  none). `m1plus_pulldown_init` hides tiles that are not shown, so a new pair only needs to be in
+  the asset and the arrays.
 
 ## Power Off
 
-Tile `b` (caption and row label **Power Off**, a key of ours in 13 languages: the stock strings have only "Shutdown", the auto-shutdown dialog's word, and the confirm sentence "Confirm Shutdown?"; German "Strom aus" and Russian "Выкл. питание" are two words so the 71 px caption wraps instead of breaking a word; written by hand, not reviewed by a speaker). Art `drop_power` (Lucide `power`, the off ring like the other tiles of ours), row glyph `pod_ic_poweroff`. Hidden by default; the file grammar is unchanged (`b` is one more id, at most eight shown, 14 bytes at the longest).
+Tile `b`, caption **Power Off** (a key of ours: stock has only "Shutdown" and "Confirm
+Shutdown?"). The tap (`pd_poweroff`) does what the power key's long press does, minus the key-code
+test: nothing happens while `standby_mode` is nonzero (a confirm is already up) or `POWERKEY_BLOCK`
+is 2. Otherwise it wakes the screen, sets `standby_mode` 1, opens the stock confirm "Confirm
+Shutdown?" through `pod_confirm_dialog` (so our scrim dims the page below), and on Yes opens
+`poweroff_page`, which does the whole stock shutdown (resume record, stop the player, DAC off,
+network stop, splash, `poweroff`). Any other answer, or a `poweroff_page` that will not open, sets
+`standby_mode` back to 0.
 
-**Tap (`pd_poweroff`, run by `pd_run` after the dropdown returns, like the page tiles).** It does what the power key's long press does (`on_wm_keylong_fun` `0x4cdd9c`, read in `work/cache/demo.dis`), minus the key-code test and the key-only byte `0xa041b8`: nothing happens while `standby_mode` (`STANDBY_MODE` `0xa059e0`) is nonzero (a confirm is already up, or `poweroff_page` has run) or the word at `0xa059dc` (`POWERKEY_BLOCK`) is 2; else `awake_screen` (`0x4e721c`), `standby_mode = 1`, a stock confirm context (`kind` 1 at +0, the text at +8 from `getFormatString("msg_poweroff", text, 0x200)` `0x4ccc18`: "Confirm Shutdown?", the same 0x408-byte struct our other confirms use), then the modal `navigator_to_with_context("dialog/confirminfo_dialog", ctx)` through `pod_confirm_dialog` (so the page below is dimmed by our scrim, as our other confirms; the key's own call has none). Yes (`CONFIRM_YES` `0xa`) -> `navigator_to("poweroff_page")` and `standby_mode` stays 1 for the page's init, which sets 2 and does the whole stock shutdown (`into_poweroff` `0x4e7288`: resume record, stop the player, DAC off, BT / DLNA / AirPlay / network stop, the splash, `system("poweroff")` after about 2 s). Any other answer (No, Back) sets `standby_mode` back to 0, as does a `poweroff_page` that will not open (stock leaves 1 there). **Our code never calls `system()` or `device_reboot`**: every stock shutdown (key, auto-shutdown, sleep timer) goes through `poweroff_page`, and a direct call would skip the resume save. The tile's tap uses the same three guards and `dialog_quit(dialog, 0xd)` as the other tiles of ours. The words and calls are pinned in `PULLDOWN_FLAG_PINS`.
-
-**Tests** (`own_tests`): the asset and caption key, the slot and binding, the tap (quit only), Yes (call order: light, text, confirm with kind 1 and the stock text, `poweroff_page`; no `system` / reboot), No and Back (`standby_mode` 0, nothing opened), a `poweroff_page` that will not open, the gates (`standby_mode` 1 and 2, `POWERKEY_BLOCK` 2, the three tile guards), the pending tap run once and dropped on another result, the pins of the stock words, strings and call addresses. **Device only:** shutdown from the pull-down with music playing (the resume position restored after the next boot, as after the key), while charging and on USB, from Home and from Now Playing, the confirm's look over the page (scrim, the one-line text), No leaving the screen as it was and the power key still working afterwards, the key's own confirm and a second pull-down tap while the confirm is up, and the caption in the 13 languages.
+**Our code never calls `system()` or `device_reboot`:** every stock shutdown goes through
+`poweroff_page`, and a direct call would skip the resume save. Pinned in `PULLDOWN_FLAG_PINS`.
 
 ## AirPlay and DLNA
 
-Tiles `c` and `d` are **switches**: they show and flip the two service settings the Network Service page has (`netservice_airplay`, `netservice_dlna`); Settings > Network Services has the same two switches ([netservice](netservice.md): no AirPlay-playing guard there, as stock's page has none). Captions and row labels are the brand texts `AirPlay` and `DLNA` (in `pod_i18n.BRANDS`: the stock strings are these same two words in every language; 46 and 38 px at 16 px, so they fit the 71 px caption box and the 135 px row label everywhere, no overflow list).
+Tiles `c` and `d` are **switches** for the two service settings the Network Services page has
+([settings](settings.md)). Captions are the brand texts `AirPlay` and `DLNA`.
 
-**Stock facts (read in `work/cache/demo.dis`).** AirPlay setting byte `airplayflag` `0xa05abd` (`AIRPLAY_FLAG`, `[SYSSET] AIRPLAY`); `airplay_switch` `0x5076a8` takes no argument, flips the byte (`xori 1`) and tail-calls the settings-ini writer. DLNA: byte `dlnaflag` `0xa05abe` (`DLNA_FLAG`, `[SYSSET] DLNA`), `dlna_switch` `0x507674`, the same. Neither starts or stops anything: `on_wm_timer_networkstatus` (`0x4cfd94`) calls `airplay_start` (`0x5076dc`, starts or stops shairport to match the byte; `airplayGetFlag` is 0 stopped, 1 running, 2 playing) and `dmr_serverstart` (`0x508354`, `dmr_serverflag` `0xa06020`) every tick, and only while Wi-Fi is connected. All of this is pinned (`PULLDOWN_FLAG_PINS`).
+- **Stock:** `airplay_switch` and `dlna_switch` only flip a setting byte and save it
+  (`[SYSSET] AIRPLAY` / `DLNA`). Nothing starts or stops: the network-status timer starts or stops
+  the services to match the byte, every tick, only while Wi-Fi is connected.
+- **Tap** (`pd_on_tile` -> `pd_switch`): the same three guards, so **while an AirPlay session is
+  playing both tiles refuse taps**, as stock's do. Otherwise it calls the switch function, sets the
+  picture from the byte and invalidates the image. **Nothing is pending and the dialog is not
+  quit**: a page-opening tile has to close it, a switch does not. Our code starts no service.
+- If the byte is now on and Wi-Fi is not connected, the toast "Connect to Wi-Fi first" says why
+  nothing starts. The byte is still flipped: it is a stored preference. Turning off never toasts.
+- **Lit look:** when the dialog is built, a shown switch tile gets its picture from the byte. The on
+  pictures are the ring style's on look and are in `ACCENT_DISC`, so with an accent the lit disc is
+  the accent. The picture shows the setting, not whether the service is running yet.
 
-**Tap (`pd_on_tile` -> `pd_switch`).** The same three guards as every tile of ours (`DROPDOWN_BUSY` 2, `POWER_USBSTATE` 2, `airplayGetFlag()` 2): **while an AirPlay session is playing, both tiles refuse taps**, as stock's tiles do. Otherwise the tile calls `airplay_switch()` or `dlna_switch()`, sets its picture from the byte (`pd_switch_art`: `drop_airplayopen` / `drop_dlnaopen` when the byte is nonzero, `drop_airplay` / `drop_dlna` when 0) and invalidates the image. **Nothing is pending and the dialog is not quit**: it stays open like stock's Wi-Fi and Bluetooth tiles (a page-opening tile has to close it, a switch does not). Our code starts no service and calls no `system()`; the service follows the byte within the timer's second. If the byte is now on and `networkGetConnectStatus()` is not above 0, the toast "Connect to Wi-Fi first" (an existing key) says why nothing starts; the byte is still flipped, it is a stored preference, as the Network Service page's rows. Turning off never toasts.
+## Swipe gates and the window stack
 
-**Lit look.** When the dialog is built (`pd_start`) a shown switch tile gets its picture from the byte, as stock's visitor does for `img_wifiswitch` (`drop_wifiopen` / `drop_wifi`, `0x473f30`). The on pictures are the ring style's on look (`mod_icons.PD_OWN_ON`: a filled white disc with a `#141414` glyph; the off ones in `PD_OWN` are the grey ring) and are in `palette.ACCENT_DISC`, so with an accent the lit disc is the accent. Glyphs: Lucide `airplay` for AirPlay, the filled Simple Icons DLNA mark (`assets/icons/custom/dlna.svg`) for DLNA. The picture shows the setting, not whether the service is running yet (stock's Wi-Fi tile does the same for its flag).
+After locking and unlocking while plugged in, the pull-down could no longer be slid down until a
+reboot. The cause is a stale word in stock's state.
 
-**Tests** (`own_tests`): the asset (hidden, insensitive, 50 x 50, brand caption), the on and off pictures and their pixels, the picture built per byte value, a tap (the switch call, the byte, the picture, no quit, no page, nothing pending), the toast with and without Wi-Fi, the guards (including AirPlay 2), both switches together, no service call, the pins. **Device only:** the service really starting and stopping within a second of a tap (shairport, the DLNA renderer), the picture update inside the open dialog, the toast over the dialog, the lit disc beside the stock tiles, and the behaviour while a session plays.
+**Gates.** `on_wm_tsmove_fun` opens the pull-down only while `lockscreen_pageflag` is not 1 and
+`dropdown_menu_state` is 0 (and the press began high on the screen with a move of at least 11 px
+down). It stores state 1 before the open. `on_wm_tsdown_fun` stores `pressdown_y` only for state 0
+or 3. The lock flag is set by the lock page's init and cleared by its close handler; the state is
+set by the dialog's handlers and cleared only by its close handler. A window that goes away without
+its close event leaves its word set for ever.
 
-## Handover
+**A window can go without its close event** (from the disassembly): a close during an animation is
+only stored in one pending slot, which a second close replaces; a forced close of the animation's
+current window only ends the animation; `dialog_quit` does nothing unless the dialog's stage is
+opened. While charging the device never enters standby, so the lock page is opened at wake with a
+close animation.
 
-Phase 2 is done (Power Off, above); AirPlay and DLNA are the first switches (above). Facts for the next change: a new tile is one id in `pod_pages.PULLDOWN_CHARS` and `PULLDOWN_TILES`, `PD_N` and `PD_IMG` / `PD_LAB` in `patch/pulldown.c`, an image and caption in `mod_pulldown.OWN`, a `drop_*` art image (`mod_icons.PD_OWN`, `DAILY`) and a `POD_ROWS` glyph, a caption key in 13 languages, and a case in `pd_run` (a switch has none: its tap is `pd_switch`); then `test/pod/navbars.py` `NEW_IMAGES` and the ui digest in `test/navbars-stock.sha256`. `m1plus_pulldown_init` hides tiles that are not shown again, so a new widget pair only needs to be in the asset and in the arrays; the page's row count is `PD_N` (the page asset is built from `PULLDOWN_TILES`; `PULLDOWN_STOCK` is the number of tiles on by default). The dialog result `0xd` and the three guard words are in "Tap" above.
+**Rule: payload hook 30, `m1plus_tsdown`** (the prologue of `on_wm_tsdown_fun`, before stock's code
+on every touch down) clears a word whose window is gone: `lockscreen_pageflag` when there is no
+`screensaver_page`, `dropdown_menu_state` when there is no `dropdown_dialog` anywhere in the window
+stack.
 
-## Swipe gates and the window stack (`m1plus_tsdown`, payload hook 30)
+- A window under another page keeps its word: its init does not run again when the page above
+  closes, so a word cleared while it was covered would stay 0 once it is in front again (a second
+  pull-down over the first). Such a covered window still blocks the swipe above it, as in stock.
+- Words are only cleared, never set; nothing is closed, destroyed or opened.
+- Reconciling at touch down makes stock's own tsdown store `pressdown_y` for this touch, so the first
+  swipe after a stale word already works.
+- **Cost:** both words 0 (the normal case) is two loads and the stock call, with no
+  window-manager call, file, syscall or allocation. A nonzero word reads the kill switch once and
+  walks the window stack. On the kill switch the hook is stock. Pins: `TSDOWN_PINS`.
 
-**Report.** After locking and unlocking while plugged in, the pull-down can no longer be slid down until a reboot (GitHub issue 11).
+**The slide timer after the close (second cause, same symptom).** The dialog's close handler stores
+state 0 and removes only the 500 ms refresh timer. The 10 ms slide timer is not removed, and the
+dialog's destruction is only scheduled. A tick after the close stores state 3 on its last opening
+frame with no check that the dialog is closing, so state 3 is left with no dialog and every swipe is
+refused. **Repair:** `m1plus_pulldown_init` binds one more handler, `pd_on_close`, to the dialog's
+close event (no new hook). It cancels the slide timer as stock's pointer-down handler does (read
+the `timer_idex` property; unless it is `0xffffffff`, remove that timer and reset the property). It
+stores no global and returns OK. A refused bind leaves stock's behaviour. The two repairs are
+independent: the touch hook repairs a stale state, this one stops one being made.
 
-**Gates.** `on_wm_tsmove_fun` (`0x4cd788`) calls `navigator_to("dialog/dropdown_dialog")` (`0x4cd864`) only while `lockscreen_pageflag` (`0xa059fc`) is not 1 (`0x4cd7fc..0x4cd808`) and `dropdown_menu_state` (`0xa05a2c`) is 0 (`0x4cd818..0x4cd820`), with `pressdown_y` (`0xa05a30`) below 0x51 and a move of at least 11 px down. It stores state 1 before the open. `on_wm_tsdown_fun` (`0x4cd6e8`) stores `pressdown_y` only for state 0 or 3 (`0x4cd728..0x4cd748`).
-The lock flag has two writers: `screensaver_page_init` stores 1 (`0x53fdc8`), the lock page's `EVT_WINDOW_CLOSE` handler (`0x53f1a0`) stores 0. The state: 1 / 2 / 3 from the dialog's handlers and tsmove, 0 only from the dialog's `EVT_WINDOW_CLOSE` handler (`0x4750ec`, bound in `dialog_dropdown_dialog_init`). A window that goes away without its close event leaves its word set for ever (and a word whose window sits under a normal page is set while nothing the user can see needs it).
-
-**Why a window can go without the event (read from the disassembly, not reproduced).** The default `close_window` (`0x6927cc`) while an animation runs only stores the window in the one pending slot `wm + 0xc0` (`0x692960`), a second close in the same animation replaces it; `close_window_force` (`0x691cd8`) for a window that is the running animator's previous or current window only ends the animation (`0x691d84`) and does not close it, and stock uses exactly that (`navigator_close("screensaver_page")` / `("dropdown_dialog")` in `on_wm_timer_dialogresponse`, `0x4cf6d0..0x4cf73c`, before it opens `usbmode_page`, `bluetoothrecv_page` or `airplay_page`); `dialog_quit` (`0x64f378`) returns without quitting unless the dialog's stage is opened (`0x64f430`). While charging the device never enters standby, the UI keeps running with the screen off and `on_wm_keyup_fun` (`0x4cdd28`) opens the lock page at wake (close animation 200 ms); our build also gives 33 settings pages 200 ms slides.
-
-**Rule.** The hook `m1plus_tsdown` (payload hook 30, prologue of `on_wm_tsdown_fun`, runs before stock's code on every touch down) clears a word whose window is gone: `lockscreen_pageflag` when no `screensaver_page`, `dropdown_menu_state` when no `dropdown_dialog` is anywhere in the window manager's stack. A window under another page keeps its word: its init does not run again when the page above closes, so a word cleared while it was covered would stay 0 once it is in front again (the pull-down would open over the lock screen, or a second pull-down over the first). Such a covered window still blocks the swipe on the page above it, as in stock, until that page closes or Home closes the stack. Words are only ever cleared, never set; nothing is closed, destroyed or opened. Reconciling at touch down, not in tsmove, makes stock's own tsdown store `pressdown_y` for this touch, so the first swipe after a stale word already works.
-**Cost.** Both words 0 (the normal case): two loads and the stock call; no window-manager call, file, syscall, allocation or log. A nonzero word: the kill switch (`/mnt/mmc/m1plus-off` and `/mnt/data/m1plus-off`) is read once and kept, then one walk of the window stack per nonzero word. On the kill switch the hook is stock. Pins: `TSDOWN_PINS` (`tools/pod_pins.py`: the prologue, tsdown's state test and `pressdown_y` store, tsmove's two gates, the writers of the two words).
-**Tests** (`test/pod/pdtiles.py` `gate_tests`): stock's real `on_wm_tsdown_fun` / `on_wm_tsmove_fun` run under the emulator, from the stock bytes and from the built image, touch down at y 20 and move to y 60. Stale lock flag (no lock page), stale state 1 / 2 / 3 (no dialog), both words stale: stock opens nothing, the build clears the words and opens with `pressdown_y` = 20, storing only 0. Unchanged: lock page on top or under only `volume_dialog`, pull-down on top (state 1, 2, 3, above a dialog), a lock page or a `dropdown_dialog` under `usbmode_page`: blocked in both, no store. A covered window that is uncovered (the page above closes): still blocked, the word kept. One window gone and the other covered: only the word with no window is cleared. Both words 0: opens as stock, the hook makes no call (no window manager, no `access`) and no store. Kill switch (both files): stock behaviour with a stale word, read once. Hook words, trampoline, manifest, pins.
-**Slide timer after the close (second hazard, stock code, same symptom).** The dialog's `EVT_WINDOW_CLOSE` handler `0x4750ec` stores `dropdown_menu_state` 0 (`0x475118`) and removes only the 500 ms refresh timer whose id is in the global `0x97c750` (`0x475114..0x475128`). The 10 ms slide timer (callback `0x47535c`, started by `0x475228`, id in the dialog's property `"timer_idex"`, `0xffffffff` = none) is not removed, and `widget_destroy` only schedules the destruction on an idle (`0x66e5c8`; the widget's timers go in `widget_destroy_sync`, `0x67067c`). A tick after the close event stores state 3 on its last opening frame (dialog y 0 after a step of 60: `0x4754bc..0x4754c4`; it may also add a refresh timer, `0x4754a8`) with no check that the dialog is closing, so the state is 3 with no dialog and `on_wm_tsmove_fun` refuses every swipe. Closes at y -340 / -120 are one frame short of that and leave state 0.
-**Repair.** `m1plus_pulldown_init` binds one more handler, `pd_on_close`, to the dialog's `EVT_WINDOW_CLOSE` (`widget_on(dlg, 0x12e, ...)`, after stock's init has bound `0x4750ec`; no new hook or pinned prologue). It cancels the slide timer as stock's pointer-down handler `0x47514c` does (`0x475184..0x475204`): `widget_get_prop(dlg, "timer_idex")`; unless the id is `0xffffffff` or `timer_count()` is 0, `widget_remove_timer(dlg, id)` and the property is set back to `0xffffffff`. It stores no global (stock's handler clears the state; the order of the two does not matter) and returns RET_OK. A refused `widget_on` leaves stock's behaviour; the bind comes before `pd_start`'s early returns. It is independent of the touch hook: that hook repairs a stale state, this one stops one being made.
-**Tests** (`close_tests`): stock's real `0x4750ec` and `0x47535c` run for the dialog at y -60, -40, 0 (timers modelled by id; a removed timer does not fire; the build's handlers are the ones its init binds), then a touch down at y 20 and a move to y 60 with the dialog gone. Stock handlers alone: the close removes only the refresh timer, the late tick stores state 3, the swipe is refused. Built: the slide timer is removed at the close, `timer_idex` is `0xffffffff`, no tick, state 0, the swipe opens. y -340 / -120; `timer_idex` `0xffffffff` (nothing removed by ours); no timer alive; a refused bind; hook 30 without our handler (the late tick fires and the swipe still opens: independent). Pins in `TSDOWN_PINS`: the bind (`0x475f94`, `0x475fb0`), the one timer removal of `0x4750ec`, the state 3 store, stock's cancel sequence in `0x47514c`.
-**Not covered / not verified.** The trigger (which close was dropped) was not reproduced and nothing was checked on a device; no natural sequence that closes the dialog in the middle of its slide has been reproduced (only the callback order under the emulator), and the link to external power is unproven (`to_poweroptions` skips full standby while `usbdet_value` `0xa059f8` is nonzero, `0x4ce68c..0x4ce694`); the emulator has no real window manager, so the stack is a model. The fix does not depend on the trigger. A dialog that is on top of the stack but off-screen, a lock page that is on top but not shown, and a lock page or dialog left under another page (its word stays set and blocks the swipe there) are left to stock.
+**Limits.** A dialog on top of the stack but off-screen, a lock page on top but not shown, and a
+lock page or dialog left under another page (its word stays set and blocks the swipe there) are left
+to stock.

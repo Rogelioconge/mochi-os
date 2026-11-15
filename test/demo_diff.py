@@ -287,7 +287,7 @@ def main():
         good = (sw, mw) == (old, new)
         print(f'Wi-Fi + Bluetooth {a:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
         ok = ok and good
-    for a, old, new, what in autotime.EDITS:   # docs/modules/autotime.md: each slot holds the stock text in stock and the new text in the build, NUL-padded to the same length
+    for a, old, new, what in autotime.EDITS:   # docs/modules/datetime.md: each slot holds the stock text in stock and the new text in the build, NUL-padded to the same length
         o = va_to_off(s, a); good = s[o:o + len(old)] == old and m[o:o + len(new)] == new
         print(f'auto time literal {a:#x}: {old.rstrip(bytes(1))!r} -> {new.rstrip(bytes(1))!r}', 'ok' if good else 'WRONG')
         ok = ok and good

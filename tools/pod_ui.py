@@ -1276,7 +1276,7 @@ AE_LIST_Y = NAVBAR_H + 48   # the AutoEq page's list: under the bar, its rows fr
 
 
 def build_autoeq_page(page):
-    """The AutoEq download page (patch/autoeq.c, docs/modules/peq.md "The page"): Radio's search level's top, the glass navbar (Back, the title, Now Playing as the disc) over the search field
+    """The AutoEq download page (patch/autoeq.c, docs/modules/peq.md "AutoEq download"): Radio's search level's top, the glass navbar (Back, the title, Now Playing as the disc) over the search field
     (y 56, the page's width, no round X: RD_FIELD_W, RD_TEXT_W), a stock list holding one content view the payload paints from AE_LIST_Y, the state line and the keyboard's pad."""
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
     styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')

@@ -298,7 +298,7 @@ static void row_swap(void *q, unsigned i, unsigned j) {
 
 /* Stock's DLNA renderer (UPnP) service runs (dlna_service_running 0x507bec: dmr_serverflag == 1). Its callbacks on the UPnP threads (dmrActionPLGetPlayInfo, dmrActionPLReadTrack,
  * dmrActionGetPositionInfo) read the queue without a lock, so Clear and the queue insert (Play Next / Play After: it grows the deque and moves rows) are off while it runs
- * (docs/modules/queue.md "Locking, and what it does not cover"). */
+ * (docs/modules/shuffle.md "Locking"). */
 static int dlna_running(void) { return *(volatile int *)DMR_SERVERFLAG == 1; }
 
 static void rows_reverse(void *q, unsigned lo, unsigned hi) { /* [lo, hi] */
@@ -730,7 +730,7 @@ void pod_set_in_order(void) { set_in_order(0); }
 void pod_set_mode_for_queue(int mode) { set_mode(mode, 1); } /* a queue load follows: the flag only */
 void pod_set_in_order_for_queue(void) { set_in_order(1); }
 
-/* libcstl's deque_pop_back (docs/modules/queue.md "Clear engine"). Demo does not import it, but libcstl is the firmware's fixed shared library: demo's GOT slot of deque_size holds
+/* libcstl's deque_pop_back (docs/modules/queue.md "Clear"). Demo does not import it, but libcstl is the firmware's fixed shared library: demo's GOT slot of deque_size holds
  * its address once the first call has bound it (MIPS lazy binding: until then the stub inside demo's image), and pop_back lies CSTL_POP_OFF - CSTL_SIZE_OFF above it. The build pins the
  * library file (tools/pod.py check_libcstl); here the words of both functions are compared at the resolved addresses, so another library, an unbound slot or a moved function gives 0
  * (Clear refused) and nothing is called. */

@@ -1,58 +1,43 @@
 # History
 
-Selected milestones and device findings. Release-by-release changes live in git.
+Selected milestones and device findings. Release notes live in the GitHub releases.
 Current behavior belongs in the [module references](README.md), [architecture](architecture.md)
-and [UI reference](ui.md). Hardware observations below do not validate later builds.
+and [UI reference](ui.md).
 
 ## Milestones
 
-- **2026-10-19 to 2026-11-01:** established deterministic firmware repacking and stock restore,
-  the appended MIPS payload, guarded Home entry and the M1+ Music interface. Library,
-  playback, podcast and virtual-iPod features are documented by module.
-- **1.0.0, 2026-11-01:** flashed and accepted. Introduced semantic release tags, cold-build
-  verification, manual macOS CI and draft-release publishing. Included Find Cover & Lyrics,
-  the Home cover build and Rebuild Covers.
-- **1.1.0, 2026-11-03:** Software Update over Wi-Fi with release notes, album length footers,
-  artist albums on the Albums page and the RTC kept as UTC for stock auto time.
-- **1.2.0, 2026-11-05:** Internet Radio, accent colours, an Apple-style shuffled queue with
-  Play Next / Play After and Queue Clear, Control Center tiles and 43 time zones.
-- **1.2.1, 2026-11-05:** a sturdier, visible Home cover build (progress pill, stop, skip of hung
-  albums, unchanged-library stamp) and list, title and Radio fixes.
-- **1.3.0, 2026-11-06:** a 10-band EQ editor, AutoEq downloads and per-output EQ, a new Wi-Fi
-  page (WPA3, Enhanced Open), a redesigned Wi-Fi Transfer page, Podcast Discover, library "…"
-  menus, Favorite and Get Info, and the long-lyric-line reboot fix.
-- **1.3.1, 2026-11-07:** fixes for the pull-down's Settings tiles, long lyric lines opened
-  mid-song and the stock Equalizer row, which now opens the Equalizer page.
-- **1.3.2, 2026-11-08:** a steady Now Playing quality line, a sharp enlarged cover and lyric
-  lines that no longer clip their last letter.
-- **1.4.0, 2026-11-12:** Subsonic / Navidrome servers as a library source, artist photos, Continue
-  Playing, Idle Display, a Lock Screen with a mini player, own Display and Buttons & Power pages,
-  Charge Limit, Podcasts' full episode lists, search and filter, and Cassette Mode's quality tapes.
-- **1.4.1, 2026-11-12:** up to 100 podcast shows, long Wi-Fi names cut with an ellipsis, library
-  lists that refresh after deleting songs, and Cover Flow, LED and podcast description fixes.
+- **2026-10-19 to 2026-11-01:** deterministic firmware repacking and stock restore, the appended
+  MIPS payload, guarded Home entry and the M1+ Music interface.
+- **1.0.0:** semantic release tags, cold-build verification, draft-release publishing, Find Cover
+  & Lyrics and the Home cover build.
+- **1.1.0:** Software Update over Wi-Fi, album length footers, artist albums and UTC RTC.
+- **1.2.0:** Internet Radio, accent colours, Apple-style shuffle queue, Control Center tiles and
+  43 time zones.
+- **1.2.1:** a sturdier Home cover build and list, title and Radio fixes.
+- **1.3.0:** 10-band EQ, AutoEq, a new Wi-Fi page, Wi-Fi Transfer redesign and Podcast Discover.
+- **1.3.1:** pull-down Settings tile, long lyric line and stock Equalizer row fixes.
+- **1.3.2:** a steady quality line, a sharp enlarged cover and unclipped lyric lines.
+- **1.4.0:** Subsonic / Navidrome, artist photos, Continue Playing, Idle Display, Lock Screen,
+  Charge Limit and full podcast episode lists.
+- **1.4.1:** up to 100 podcast shows, Wi-Fi name ellipsis and list, Cover Flow and LED fixes.
+- **1.5.0:** Audiobooks with LibriVox, scrobbling, Lyrics Mode, new Control Center tiles and a
+  music-driven LED light.
 
 ## Device findings
 
-- **Vinyl tint:** recoloring an already-tinted anti-aliased rim retained the previous color.
-  The model reproduced the same mistake, so tests agreed with the bug. Recolor from pristine
-  rim pixels and compare successive changes against a fresh composition.
-- **Vinyl pause:** stock `play_pause_music` sleeps 150 ms on the UI thread. Full diagonal-box
-  composition then caused arm stutter. Per-row spans, layer passes, stepped sampling,
-  a late-tick cap and waiting for the record to stop reduced the work.
-  See [Vinyl](modules/vinyl.md) for current budgets.
-- **Songs sections:** independent letter runs failed on a real library. Section labels must
-  be non-decreasing while assigning as many songs as possible to their own initial.
-- **Cover-pane motion:** resizing and moving the sampled window every frame produced visible
-  jiggle. Scale once and copy at whole-pixel offsets; see [iPod](modules/ipod.md).
-- **Recently Played artwork:** an old album-row key selected a cache filename the current
-  builder never produced. A placeholder tile could coexist with correct album-page art.
-  Cache lookup and construction must use the same album identity.
+- **Vinyl tint:** recoloring an already-tinted rim kept the old color, and the model made the
+  same mistake as the code. Recolor from pristine pixels and compare against a fresh composition.
+- **Vinyl pause:** stock `play_pause_music` sleeps 150 ms on the UI thread, so full-box
+  composition stuttered the arm. Budgets are in [Vinyl](modules/vinyl.md).
+- **Songs sections:** independent letter runs failed on a real library. Labels must be
+  non-decreasing while as many songs as possible keep their own initial.
+- **Cover-pane motion:** resizing the sampled window every frame jiggled. Scale once and copy at
+  whole-pixel offsets ([iPod](modules/ipod.md)).
+- **Recently Played artwork:** an old key picked a cache name the builder never wrote. Lookup and
+  construction must share one album identity.
 - **LRCLIB:** uncached requests returned HTTP 503 under load; service errors need a retry path.
-- **Standby:** `reset_poweroptions_timer(1, 1, 0)` can keep the device awake while the
-  screen turns off. Ordinary standby stops Wi-Fi and CPU execution.
-- **Keyboard:** a 155-tap log showed misses between keys without a systematic offset,
-  supporting nearest-key selection. The stock T9 popup was 640 px wide on a 320 px screen;
-  the shipped Pinyin dictionary opened through `im_open_decoder` in 76 ms.
+- **Standby:** `reset_poweroptions_timer(1, 1, 0)` can keep the device awake with the screen off.
+- **Keyboard:** a 155-tap log showed no systematic offset, supporting nearest-key selection. The stock T9 popup was 640 px wide on a 320 px screen.
 
 ## Durable lessons
 
@@ -64,7 +49,7 @@ and [UI reference](ui.md). Hardware observations below do not validate later bui
 | Widget identity | Names are an application API; asset steps can also change child order. Find widgets by name/type rather than an assumed child index. | [UI rules](modules/ui-rules.md) |
 | Slide menus | Stock starts on item 1; set the intended value explicitly, including one-album shelves. | [Cover Flow](modules/coverflow.md) |
 | Dirty rectangles | Drawing beyond widget bounds requires invalidating the complete drawn area. Pressed artwork must fit its repaint rectangle. | [Navbars](modules/navbar.md), [Cover Flow](modules/coverflow.md) |
-| Text | Measure truncated glyph advances plus 1 px per glyph in the built font. Button alignment, spacer and icon size affect the painted result. | [Text width](modules/text-width.md), [Navbars](modules/navbar.md) |
+| Text | Measure truncated glyph advances plus 1 px per glyph in the built font. Button alignment, spacer and icon size affect the painted result. | [UI rules](modules/ui-rules.md), [Navbars](modules/navbar.md) |
 | Images | Stock uses nearest-neighbor scaling; round-radius does not clip image pixels. Pre-scale for 1:1 drawing and preserve alpha when compositing over artwork. | [Album page](modules/album-page.md), [iPod](modules/ipod.md) |
 | Large lists | Paint visible items from a bounded tile ring. Per-item widget layout can scale with the entire library on each drag. | [Albums](modules/albums.md) |
 | Touch propagation | Grabbing or consuming move events can disable the system pull-down. A child button returning RET_OK can also activate its clickable parent row. | [Gestures](modules/gestures.md), [Home guard](modules/home-guard.md) |
@@ -79,5 +64,5 @@ and [UI reference](ui.md). Hardware observations below do not validate later bui
 | Test independence | A model can duplicate implementation mistakes. Compare against independent results and retain device checks for playback, timing and panel appearance. | [Validation](modules/validation.md) |
 | Determinism | Warm caches hid build-time mtimes in rebuilt UI files and an added font. Compare cold builds after adding files; pin tools and strip incidental metadata. | [Workflow](workflow.md) |
 
-The recovery button combination remains unverified. Keep stock restore and the previous
-release available; never combine independent untested firmware changes in one device trial.
+The recovery button combination is unknown. Keep stock restore and the previous release
+available, and never combine independent untested firmware changes in one device trial.

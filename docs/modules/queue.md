@@ -1,184 +1,220 @@
 # The Queue page
 
-**Sources:** `patch/queuepage.c` (our page), `patch/upnext.c` + `upnext.h` and `pod_queue_insert` in `patch/shuffle.c` (Play Next / Play After, below), `patch/nowplaying.c` (`np_on_queue`: the queue button's handler), `tools/pod_ui.py` `build_queue_page`, `tools/pod_pages.py` `QUEUE_PAGE`,
-`patch/offsets.inc` `QP_*`, tests `test/pod/queuepage.py`, preview `tools/preview/preview_queue.py` (`uv run python -I tools/preview/preview_queue.py work/mod-release out/preview/queue.png`, not tracked).
+**Sources:** `patch/queuepage.c` (page), `patch/upnext.c` + `upnext.h` and `pod_queue_insert`,
+`pod_queue_move`, `pod_queue_remove`, `pod_clear_upnext` in `patch/shuffle.c`, `np_on_queue` in
+`patch/nowplaying.c`, `patch/rowmenu.c` (`rowmenu_bind_queue`, `rowmenu_open_queue`), `tools/pod_ui.py`
+`build_queue_page`, `tools/pod_pages.py` `QUEUE_PAGE`, `QP_*` in `patch/offsets.inc`. **Tests:**
+`test/pod/queuepage.py`, `test/pod/upnext.py`, `test/pod/rowmenu.py`, `test/pod/shuffle.py`.
+**Preview:** `tools/preview/preview_queue.py`.
+
+Now Playing's queue button opens our own page (`ui/m1plus_queue.bin`, window `m1plus_queue_page`)
+instead of stock's side drawer. It shows the playing track, Shuffle and Repeat buttons, and Up Next
+in real queue order, with Clear and a "..." sheet per row. No hook of its own: `np_on_queue` is a
+click handler bound on `btn_queue` after the stock init, from the existing Now Playing init hook.
 
 ## What the stock app does
 
-- **Now Playing's queue button** (`btn_queue`, the right end of the transport row) is bound by the page's widget binder (`0x53b3dc` looks the name up, the handler is `0x53b14c`): it
-  stores the idle countdown of the big-cover page (`0x97ccd0` = 0x14, which every button of Now Playing does) and calls `navigator_to("dialog/playqueue_dialog")` (`0x53b178`).
-  That is the **queue drawer** (`ui/dialog/playqueue_dialog.bin`, `dialog_playqueue_dialog_init` `0x47a7cc`, also named in the dialog table at `0x4d126c`), a 240 px panel that slides in
-  from the right: a play-mode header (`img_playmode`, `label_playmode`, the stock mode cycle `0x47a530`), the rows, a bottom button.
-- **`playerjumpinfo_page`** (the full-screen queue list, `playerjumpinfo_page_init` `0x5393bc`) is **not** reached from the queue button. Only the stock More sheet's *Look up album*
-  (`0x4795cc`) opened it, and our Look up album opens our album page first (`docs/modules/playmore.md`), so it remains the fallback of that fallback. Its asset and page theme are
-  untouched (`docs/modules/album-page.md` "Stock pages").
-- **The queue** is the deque `*0xa0394c` (`PLAY_QUEUE`, `stSongInfo` rows `start_player` copied) and the play position `mclGetPlayPos` (`0x5d4290`): every stock reader pairs them
-  (`get_playtimeandlength`, the lock screen, the drawer's init `0x47a8f0..0x47a93c`, which also scrolls the drawer to the playing row).
-- **A drawer row** is bound by `0x47a19c`: the text is the file name for a CUE track (`+0x48 > 0` or `+0x4c > 0`, or `mclGetPlayType() == 1`), else the title (`+0x10`); the row of the
-  play position takes `srlabel_item_gold20_style`, unless `mclGetPlayStatus() == 1` (stopped; `0x47a268..0x47a288`).
-- **A row tap** (`0x479f60`): the row's index `+0x78` of the table row; when `networkGetConnectStatus()` is non-zero, or the play type is not a stream (2, 3, 0xf0, 0xf1:
-  `0x47a014..0x47a028`), `start_playqueue(index)` (`0x4e47d0`: `airplay_stop`, `mclSetPlayPos`, `mclStartPlayer`, `notifyPlayStatus`), the drawer's rows are bound again (`0x479f0c`)
-  and `force_refreshflag` (`0xa05a63`) is set; a stream while offline shows `msg_notnetwork` instead. Nothing else reads or changes the queue: **stock cannot remove a track from it or clear
-  it** (the Delete song of the More sheet deletes the file, `delete_playqueue_file`; no `deque_pop_back` import, `deque_erase` takes a libcstl iterator by value), nor reorder it; our Clear and the edit engine shorten the deque in place with libcstl's own `deque_pop_back` (below), and the edit engine rotates rows in place ("Edit engine: move / remove"; the page's row "..." drives it, "Row edit").
-- The play mode is stock's one mode word (`mclGetPlayMode` 0 List play, 1 Repeat one, 3 Repeat all; stock's Shuffle, 2, is never set now) plus the payload's **Shuffle flag** (`pod_shuffle_on`, [shuffle](shuffle.md)): `pod_set_shuffle` / `pod_set_repeat` / `pod_set_mode` / `pod_set_in_order` (`patch/shuffle.c`).
+- The queue button opens `dialog/playqueue_dialog`, a 240 px drawer: a play-mode header, the rows,
+  a bottom button. A row tap calls `start_playqueue(index)` (offline, a stream row shows
+  `msg_notnetwork`). `playerjumpinfo_page` is not reached from the queue button.
+- The queue is the deque `PLAY_QUEUE` plus the play position `mclGetPlayPos`; every stock reader pairs them.
+- Stock cannot remove a track, clear the queue or reorder it. Delete song in the More sheet deletes
+  the file. Stock has no `deque_pop_back` import.
+- Stock's mode word is 0 List play, 1 Repeat one, 3 Repeat all. Shuffle is our own flag
+  ([shuffle](shuffle.md)), not stock's mode 2.
 
-## Our page (ui/m1plus_queue.bin, window m1plus_queue_page)
+`np_on_queue` answers `RET_OK` (the drawer opens as before) for an empty queue, no track at the play
+position, a stream play type (2, 3, `0xf0`, `0xf1`) or a window or asset that will not open.
 
-`np_on_queue` is a click handler bound on `btn_queue` after the stock init (`np_start`, from the existing Now Playing init hook; no new hook): the emitter runs it before the stock handler,
-`RET_STOP` keeps the drawer from opening. It answers `RET_OK` (the stock drawer opens as before) for an empty queue or no track at the play position, a stream play type (the drawer's
-own offline test) and a window that will not open or an asset that is not ours.
+## Our page
 
-The design (Apple Music's queue, kept simple; mock `out/preview/queue.png`): a list that is the whole 450 px window (the album page's structure: `list_view` > `scroll_view` > one content view that paints
-the rows) under **one** glass control, the Back disc (`ah_nav_back`, top left, window child; a drag beside it scrolls the list). No Now Playing disc (the page always opens from Now Playing, Back returns to it)
-and no close chevron: the Back disc is what every other page of ours uses to leave.
+A list that fills the 450 px window (the album page's structure) under one glass control, the Back
+disc. No Now Playing disc and no close chevron: the page always opens from Now Playing.
 
 ```
-y   0   (back)                                                  glass Back (band 4..48), over the rows
-   56   +------+  Chorus Complains                              cover 64 px at x 10 (8 px corners cut in the alpha, the Cover Flow cache file or the placeholder),
-        | cov  |  Driftless Pony Club                           title 20 px white (y 65, 24 high), artist 16 px #AAAAAA (y 91, 20 high), x 86, 224 wide
-  120   +------+
-  136   [   shuffle   ]  [   repeat   ]                          two equal icon-only buttons, 145 x 40 at x 10 and 165 (10 px apart, spanning 10..310), the Songs page's flat pill look
-  192   Queue                                          Clear     20 px white at x 10, 28 high; "Clear" 17 px #AAAAAA right-aligned to x 310 (button 210..310 x 186..226)
-  226   [cover] Title                                    ...      Up Next: rows 64 px as the Songs page's: 52 px cover (4 px corners) at x 10, title 21 px, artist 18 px #AAAAAA from x 74 to 262
-        [cover] Artist                                           (298 without the "..."), the row's grey "..." in the 44 px zone x 266..310, hairline from x 74 to 298
-                                                                 (or "No upcoming songs", 16 px #AAAAAA at x 10, where the first row would be)
+y   0   (back)                                  glass Back, over the rows
+   56   [cover 64] Title 20 px / Artist 16 px   header: the track at the play position
+  136   [ shuffle ]  [ repeat ]                 two equal icon-only pills, 145 x 40, x 10 and 165
+  192   Queue                         Clear     "Queue" 20 px; Clear 17 px #AAAAAA, right edge x 310
+  226   [cover 52] Title 21 / Artist 18   ...   Up Next rows 64 px, hairline x 74..298
 ```
 
-- **Up Next** is the tracks after the play position, **in queue order**, which is the real play order (Shuffle reorders the queue itself, stock plays it in order). The playing track is only in the header. A row's text rules are the stock drawer's (CUE: file name; no title: file name). A row cut by the window's edge shows its texts cut too (no "wholly inside" rule: the
-  list is the whole window, so the `scroll_view`'s canvas clip cuts them, as on the Recently Played shelf). Covers are
-  the Cover Flow cache file of the row's own artist and album (`cc_album_key`), else the file of the library album of that name (the cover map, below), one per 16 ms tick on the page's timer, none while the list moves, nearest to the middle first (the Songs page's loader, `patch/grid.c`
-  ring of `GRID_TILES`); a row with no file shows the placeholder disc. **Server tracks** (Subsonic; `sba_rec_track` knows the record's `REC_ID`, streamed or downloaded) are never looked up as albums either: the row and the header show the source's cover file (`sba_rec_cover`, the one Now Playing draws; asked for when it is not cached, the tile keeps the placeholder and the page's tick looks again, the header too), the placeholder when the server has none. A server queue is this page's, not the stock drawer's: `qp_stream` reads the class word the play set (a list's class), and the stock stream classes are 2, 3, `0xf0` and `0xf1`. **Podcast episodes** (`pc_is_path`: a file in a show folder under the Podcasts folder) are never looked up as albums (the cache has no file for them and the cover map would only cost its query): the row and the header show the show folder's picture, the best of `cover` / `folder` `.jpg` `.png` `.jpeg` as the Shows page ranks them (`pc_show_cover` in `patch/pcmodel.c`, one `readdir` of the folder), decoded by `grid_art_url` as on the Podcasts page; a picture too big to decode (`pc_cover_ok`) or none gives the placeholder. The answer of the last show asked is kept for the page's life (`qp.pshow`, `qp.purl`), so a queue of one show reads its folder once; a queue that alternates shows reads again at each change. The header's change key is the show's hash for an episode. **The cover map.** The cache is keyed by the library's album record (`cc_album_key` of the row stock lists once per album, under one track's artist), so a collab ("A; B") or a feature has no file under its own artist. A miss (own file missing, an album tag present) asks the map (`qp_key`, `cc_cmap_*` in `patch/covercache.c`): album name, ASCII case folded -> the key of the album's file.
-  - **One query, ever, per page.** The page's first miss (the loader tick or the header) runs getAllAlbum's own statement, `select id,album,songer,fileurl from songtable group by album COLLATE NOCASE`, with stock's own album row callback (`0x4e93c8`; both pinned in `QUERY_PINS`, the SQL string byte-checked at build) through `toolsQueryDbTable`, so the Library filter hook applies and every record is exactly the Albums page's row: the keys are the ones the Albums page, Cover Flow, Home and the cover builder build their files under (no sibling track is ever guessed at). `cc_albums` is not used: it replaces `*pdeq_showlist`, which the page under Now Playing draws from. The records land in `*tools_pdeq_directory` (the `dm_rows` way); they are read (hashed, sorted, the cross-cap scan) and cleared at once, before any file is looked at. `map_tried` is set before the query runs and never again: an empty library, a failed query, no memory and a full map are not retried; later misses use the map as it is (none: the placeholder). A queue with a file for every track runs no query; paint, the refresh tick, scrolling and the header's reloads ask nothing.
-  - **Layout.** An array of `{hash, key}` (two 32-bit words, 8 bytes per kept album) sorted by hash, binary search; FNV-1a of the name with ASCII `A-Z` folded and every other byte as is (SQLite's NOCASE, which the query groups by and `cc_nocase` compares: `É` and `é` differ). The names themselves are not kept, so a hash shared by two different keys (two names that collide, or one folded name under two records) cannot be told apart: **all entries of that hash are dropped** (placeholder, never either cover); the same key twice is one album. At most `CC_CMAP_MAX` 4096 albums (Cover Flow's own limit is 4000) are kept: the first 4096 rows of the query, i.e. by album name; the rest show the placeholder.
-  - **Across the cap.** Ambiguity is checked for every row of the query, not only the first 4096: after the kept entries are sorted and before the stock records are cleared, each row from index 4096 on is hashed and looked up in the sorted array, and a kept entry whose hash such a row shares under a different key is dropped like any other ambiguous hash (the first entry of the hash gets the key 0, which no album has, and the pass that drops ambiguous hashes removes the group). So an album beyond the cap never gets the cover of a kept album with the same hash; both show the placeholder. The scan allocates nothing and reads only the rows already in the scratch deque.
-  - **Lazy file checks.** The build opens no cover file. Whether an entry's cache file holds a picture (`cc_url`: an empty file is the no-art marker) is looked at the first time a row or the header asks for that album (`cc_cmap_key`) and kept in the entry's state: a side array of 2 bits an entry (unknown, picture, none), 4 to a byte, in the map's own allocation after the entries. A picture answers the key, none answers 0 (the placeholder) without another look, so several rows of one album, or a tile shown again, do not repeat the existence check, and a queue of five tracks looks at the files of its own albums, not up to 4,096. "Once" is the existence check only: a tile that comes back after its eviction still opens and decodes its image in `grid_art` as usual. `grid_art`'s own open is not reused as the check: it returns nothing and its "no picture" (`art` 2) also covers a decode failure or no memory for the bitmap, which would be remembered as "no art" for the page's life. The row's own key is still checked on every miss, as before. An answer lasts for the page's life (a cover built meanwhile shows after the page is reopened).
-  - **Memory.** What stays is bounded: 8 bytes per kept album plus 2 bits for it plus an 8 byte header, 32 KB + 1 KB + 16 B at the cap (one allocation, freed with the page). The peak during the build is not bounded by it: the stock records are about 300 bytes an album (an 88 byte record, five strings and the allocator's headers, in the scratch deque after `_deque_push_back`'s deep copy; estimated, not measured), all of the library's albums, not just the first 4096 (e.g. about 1.2 MB for 4,000 and 3 MB for 10,000 albums), freed (`deque_clear`) as soon as the map is sorted and the cross-cap scan is done, before any file is looked at. The map is freed when the page closes and built again by the next open's first miss.
-  - **Cost.** One possible pause, on the first miss of the page: the query (what building the Albums list costs: about five `malloc` and `strcpy` per album and a deep copy of the record), the hash and the sort; no file opens in it, one open per album shown after it (and the decode of its tile as before). Harness (payload instructions only: the SQL and the callback are mocked, so this says nothing of the database's latency): `test/pod/queuepage.py` `scroll_tests` prints the build's instructions for a 1,000 and a 4,000 album library. On the device the opt-in log (the empty file `/mnt/mmc/m1plus-log` on the card, the Home log, written to `/mnt/mmc/m1plus.log`) gets one line per build: `queue: cover map <ms> ms, <rows> albums, <kept> kept, <ambiguous> ambiguous, <n> queued`. The milliseconds measure the query and the map build only (no file check; those come later, one per album shown); `kept` is the entries left after ambiguous hashes are dropped, `ambiguous` the entries dropped. Not measured on the device.
-  Get Info does not use the map: it asks one targeted query at open (`cc_album_rep_key`, [songinfo.md](songinfo.md)).
-   No drag handles, no swipe, no marker, no count: a row is edited from its "..." (below, "Row edit").
-- **Header**: the track at the play position (title, artist, cover). No tint: the page is black.
-- **No Shuffle placeholder.** Up Next always shows the queue's real order, shuffled or not. Turning Shuffle on shuffles the songs after the playing one in place ([shuffle](shuffle.md)); the page reads the queue again at once (our button) or at its next tick (`qp_sync` compares the stock repeat mode and the flag: a flag change reads the rows again from the top, a repeat change only touches the buttons).
-- **Buttons**: icon only (`sg_shuffle`, `sg_repeat`, `sg_repeat1`, `tools/mod_icons.py` `SONGS_IMAGES`), equal width. **Shuffle and Repeat are independent, as on Apple.** Shuffle toggles the flag (`pod_set_shuffle`: on shuffles the songs after the playing one, off restores the original order; stock's mode is not touched); Repeat cycles off -> all -> one -> off
-  (`pod_set_repeat`: `MODE_ORDER`, `MODE_REPEAT_ALL`, `MODE_REPEAT_ONE`, whatever the flag is, so Shuffle plus Repeat all is allowed). Over `SHUFFLE_MAX` songs or no memory, Shuffle stays off and the stock message box says why. Apple's look: **on** is a light pill (`QP_PILL_ON` `#C8C8C8`, pressed `#A8A8A8`) with a near-black glyph (`sg_shuffle_on`, `sg_repeat_on`, `sg_repeat1_on`, the same
-  Lucide glyphs in `#141414`); **off** is a dark pill (`#2C2C2E`, pressed `#3A3A3D`, one blue level off #3A3A3C: the accent role `ROLE_PRESS_QPILL`, docs/modules/accent.md) with the white glyph. Glyph on pill is >= 4.5:1 in every state (about 14:1 white on #2C2C2E, 11:1 #141414 on #C8C8C8, 7.7:1 on #A8A8A8; tested). Repeat one shows the repeat-1 glyph. Neutral greys, no accent; no autoplay / infinity (stock has none).
-- **Sync with Now Playing**: this page reads stock's own mode (`mclGetPlayMode`, 0 / 1 / 3) and the flag; Now Playing's button reads the *shown* mode (`sh_display_mode`: 2 while the flag is on, so it shows Shuffle also with Repeat all; its cycle starts from that, Shuffle -> Repeat all turns the flag off), `0x539888`, `btn_imgorder` / `cycle1` / `random` / `cycle`. Stock's click handler `0x53b5fc` does `mclSetPlayMode`,
-  `write_int_config`, the picture (`0x539888`), `notifyPlayMode`, `dmrSendPlayMode`; our setters do the same calls (no cached copy) except the picture, which stock sets only there and at the page's init.
-  Bug found on the device: a mode set on this page left Now Playing's button showing the old mode. Fix: `np_on_foreground` (`patch/nowplaying.c`, the existing Now Playing hook's window event) calls the stock picture function `0x539888` (pinned, `stock_np_mode_button`) when the page is back in front. The mapping of the two buttons
-  (Shuffle = the flag; Repeat off / all / one = stock 0 / 3 / 1) is Now Playing's own cycle's modes.
-- **Tap a row**: `start_playqueue(play position + 1 + row)`, `force_refreshflag` = 1; the page reads the player again (the header is the new track, Up Next the tracks after it, at the top) and stays, as the drawer does;
-  Now Playing below follows. A drag, the header and the air play nothing.
-- **Refresh timer** (500 ms, `QP_TICK_MS`; 1 s with the screen dark, as Now Playing's): the play position moved (the next track, a key) -> the page is read again; the mode changed elsewhere -> the buttons; the queue was replaced ->
-  read again when the page is on top (`EVT_WINDOW_TO_FG` reads at once). The stock queue is checked by pointer, size and first record, like the other pages' lists (`qp_valid`).
-- **Clear** (`btn_qclear`, Apple's text button): 17 px `#AAAAAA` (pressed `#7A7A7A`, 4.5:1 on black as the contrast scan needs), flat, no fill, right-aligned to x 310; the button is `QP_CLEAR_X/Y/W/H` = 210, 186, 100 x 40, centred on the "Queue" line (the
-  whole right part of the row is the tap area), neutral, no accent. Shown (visible and sensitive) only while Up Next is non-empty, the play type is not a stream and `pod_clear_ready()` (libcstl as pinned, no DLNA service running, below) holds (`qp_load`); hidden and insensitive otherwise ("No upcoming songs").
-  A tap asks no confirmation and calls `pod_clear_upnext` (`patch/shuffle.c`, which owns the queue lock), then `qp_load(0)`: the header stays, Up Next shows "No upcoming songs", Clear hides. The playing track keeps playing (no `start_playqueue`,
-  no `mclSetPlayPos`), the play position and the tracks before it stay. "Clear" is translated in the 13 languages (`tools/pod_i18n.py`). Nothing can fail for lack of memory any more (no allocation), so there is no message box.
-  **Clear engine** (`pod_clear_upnext`, `patch/shuffle.c`): under the payload lock it re-reads the play position and the size, closes an open gapless preload, then calls libcstl's `deque_pop_back` until the size is `pos + 1`, then `drop_order`
-  (the saved Shuffle order describes a queue that is gone; the flag stays, Shuffle off afterwards restores nothing). The records `0..pos` are never moved, rewritten, copied or freed; only the tail records go, last first, through the deque's element
-  callback (the stSongInfo destructor `0x5dabfc`: `free` of the string fields `+4..+0x2c`, `memset(rec, 0, 0x58)`). No `malloc`, no `strcpy`, no temporary deque (stock's deep copy callback strcpy's unchecked `strdup` results, `0x5db6b8..0x5db6d4`, which is why nothing is copied). 1 cleared; 0 nothing after the position; -1 refused (libcstl is not the pinned one, or the DLNA service runs). Stock's mode 2 is never set, so
-  the unplayed-index pool (`0xa0aae8`) is unused and not touched. Gapless: an open preload (`MCL_PRELOAD` `0xa0abd0` == 1) already opened the old next file, so it is closed first by `cancel_preload`, the one helper shared with the shuffle reorders and the insert ([shuffle](shuffle.md) Gapless: stock's `mclSetGaplessMode` `0x5d28ac`, `(0)` sends
-  `{mcl-closegapless}` (one `send`) and stores -1, then the saved Gapless byte `MCL_GAPLESS` `0xa0ab89` is put back); the remembered target `MCL_PRELOAD_NEXT` `0xa0abcc` is reset to -1 when it pointed past the new end (the same handling as the
-  device-proven Play Next probe).
-  **libcstl and its pins.** Demo does not import `deque_pop_back`, but `libcstl.so.2` (a DT_NEEDED of demo; `/usr/lib/libcstl.so.2.2.0`, SHA-256 `91d6c02c...e615a`) is the firmware's fixed shared library and demo is bound lazily: demo's GOT slot of `deque_size`
-  (`0xa031ec`, stub `0x743590` inside demo's image until the first call) holds the library address of `deque_size` (offset `0x391f4`) once any call has bound it, and `deque_pop_back` (offset `0x3ad64`, 24 bytes: `lw t9, GOT _deque_shrink_at_end; jr t9;
-  addiu a1, zero, 1`) lies at slot - `0x391f4` + `0x3ad64`. `cstl_pop_back` refuses (0) unless the slot is above demo's image end (`STOCK_IMAGE_END` `0xa11000`, a build-time macro) and 4-aligned, the first 8 words of `deque_size` and all 6 of `deque_pop_back`
-  equal the pinned words at the resolved addresses. The build (`tools/pod.py check_libcstl`) fails unless the tree's library is the pinned file (SHA-256), `libcstl.so.2` links to it, demo still needs it, and the three symbols (`deque_size`, `deque_pop_back`,
-  `_deque_shrink_at_end` `0x3f3dc`) and the words are where they were. Hand-walked call graph of `deque_pop_back` (`tools/disasm.py sym` on the library): `_deque_shrink_at_end(q, 1)` -> `deque_end`, `deque_size`, `iterator_prev_n`, `iterator_next`,
-  `iterator_equal` (all pure iterator arithmetic over the deque's registered type), `_deque_iterator_get_pointer_auxiliary`, the element destroy callback, and `_alloc_deallocate` -> `_alloc_free` -> `free` for a block it empties; no `malloc`, no
-  `_alloc_allocate`, no copy callback, no lock. Cost (an estimate, not measured): one call is some hundreds to a thousand instructions, so 10,000 tail songs are a few tens of milliseconds under the lock.
-  **Locking, and what it does not cover.** The lock excludes our other writers (a Shuffle reorder or a queue load on the DLNA thread, `sh_clear_queue`) for the whole removal (test 52 in `test/pod/shuffle.py`: Clear paused after 3 of 8 pops vs. a Shuffle request, a reorder
-  paused mid-permutation vs. Clear, a load vs. Clear). Stock's readers take no lock, and no transition hook was added, because the transitions that matter run on the UI thread: `mclAutoChange` (auto-advance, the gapless preload decision `0x5d0ea4` -> `0x5d0bd8`) is
-  the AWTK idle handler `on_wm_idle_status` (`idle_add`, `home_page_init` `0x535048`), and `mclNextSong` / `mclPrevSong` / `mclStartPlayer` are reached from it, from `change_music` (keys and the UI) and from our pages, all on the thread that also runs the Clear tap,
-  which runs to completion without pumping the main loop. DLNA's remote commands are on that thread too: the UPnP threads only queue them (`dmrActionNext` / `Prev` / `Play` / `PLPlay` / `SetPlayURI`, ... -> `dlnaRenderAddMessage`), and `dmr_serverstart`
-  (`next_music` / `prev_music` / `play_pause_music`, `dlnaRenderStartPlay`, the `deque_clear` at `0x5089e4`) takes them from that queue in `on_wm_timer_networkstatus` (`0x4cfd94`, an AWTK `timer_add` of `home_page_init`, `0x535078`); SyncLink's
-  `handlePlayUrlResponse` (`start_playqueue`) runs from `handleInMainscheduling`, called by `on_wm_idle_status`. What was left is the UPnP threads' own readers, which take no lock: `dmrActionPLGetPlayInfo`, `dmrActionPLReadTrack` (`deque_at` over
-  the queue, the second in a loop) and `dmrActionGetPositionInfo` (`get_playtimeandlength`: `deque_size` and `deque_at(pos)`), which would see a tail record freed by `deque_pop_back` (a use-after-free). **Gate: Clear is off while stock's DLNA service
-  runs.** `dmr_serverflag` (`0xa06020`, an int; stock's `dlna_service_running` `0x507bec` tests it for 1) is 0 until `dmr_serverstart` has called `dmrStartService` (`startRenderer`, the only start of the UPnP service: its only caller) and then
-  stores 1 (`0x5084a0`), and `dlna_servicestop` (Wi-Fi switch, standby, power-off, Bluetooth receiver) stores 0 only after `dmrStopService` (`stopRenderer`, its only caller) returned, so the flag is 1 whenever a UPnP callback can run, with no
-  controller attached needed (a reporter fires on a controller's request or subscription, and the service answers any controller on the network). The flag is read by `pod_clear_ready()` (the page hides and disables Clear; `qp_clear_sync`
-  re-reads it on every tick, so it hides when the service starts under the open page) and again under the lock at the top of `pod_clear_upnext` (-1). Time of check: the service starts only in `dmr_serverstart` on the UI thread, which is also the thread
-  of the tap, so it cannot start between the check and the pops; a controller attaching to a running service is already covered (the flag is 1). The flag goes back to 0 only after the stop returned, never before.
-  The service is up only with the DLNA switch on (`dlnaflag` `0xa05abe`, Settings, `[SYSSET] DLNA`) and Wi-Fi connected (`networkGetConnectStatus` > 0), so Clear shows with DLNA off or Wi-Fi off (a Wi-Fi drop stops the service on the next timer
-  tick). Pinned: the reader (`0x507bf8..0x507c00`), the setter (`0x5084a0`) and the clearer (`0x507a78`) in `SHUFFLE_PINS`. Not checked: whether `stopRenderer` (in a library) joins its threads before returning. A hook on `mclNextSong` / `mclPrevSong` that holds the lock would need a recursive lock (`mclNextSong` at the end of an m3u queue
-  calls `autochange_updateplayqueue` `0x4df9ac` -> `refresh_playqueue` -> `mclLoadPlayList`, i.e. our `sh_load_playlist`, which takes the same lock) and would hold it across `mclStartPlayer`'s `usleep(100000)` pauses (`0x5d4fa8`, `0x5d5110`) and `mclStop`'s wait for the
-  player's reply (up to 1001 x `usleep(1500)` = 1.5 s, `0x5d2514..0x5d25f4`), so a tap or a Shuffle toggle on the UI thread would stall for that long; not done. Tests: `test/pod/queuepage.py` `clear_tests` (the harness models `deque_pop_back` from the disassembly above:
-  destroy callback on the last record, no allocation; the library's real bytes are mapped for the word checks). **Not verified on the device** (the pop, the preload close and the lazy binding of the slot are emulated only; the real `_deque_shrink_at_end` has not run).
-- **Not done**: a UI for moving and removing single tracks (the engine exists), a cover tint, the playing track's `/tmp` cover when the cache has no file, Now Playing's idle countdown reset (`0x97ccd0`: the big-cover page opens only over
-  `playing_page`, never over ours).
+- **Up Next** is the tracks after the play position in queue order, which is the real play order.
+  The playing track is only in the header. Row text follows the stock drawer (CUE track or no
+  title: file name). Empty: "No upcoming songs".
+- **Decision: no Shuffle placeholder.** Turning Shuffle on shuffles the queue in place
+  ([shuffle](shuffle.md)), so Up Next never lies. The page reads the queue again at once (its
+  own button) or at its next tick (`qp_sync`).
+- **Buttons are independent, as on Apple.** Shuffle toggles the flag (`pod_set_shuffle`). Repeat
+  cycles off, all, one (`pod_set_repeat`), whatever the flag is. Over `SHUFFLE_MAX` songs or with
+  no memory, Shuffle stays off and the stock message box says why. On is a light pill
+  (`QP_PILL_ON` `#C8C8C8`) with a near-black glyph, off is a dark pill (`#2C2C2E`, role
+  `ROLE_PRESS_QPILL`, [accent](accent.md)) with a white glyph. Repeat one shows the repeat-1 glyph.
+  Neutral greys, no accent; no autoplay or infinity button (stock has none).
+- **Sync with Now Playing.** Now Playing's button reads the shown mode (`sh_display_mode`: 2 while
+  the flag is on, so it shows Shuffle also with Repeat all; its cycle Shuffle -> Repeat all turns the
+  flag off). This page's `qp_sync` reads stock's mode and the flag: a flag change reloads the rows
+  from the top, a repeat change only touches the buttons. Our setters repeat stock's click handler calls (`mclSetPlayMode`,
+  `write_int_config`, `notifyPlayMode`, `dmrSendPlayMode`) except the button picture, so
+  `np_on_foreground` redraws it (pinned `stock_np_mode_button`) when Now Playing is back in front.
+- **Tap a row:** `start_playqueue(play position + 1 + row)`, then the page reads the player again
+  and stays. A drag, the header and the air play nothing.
+- **Refresh timer** (`QP_TICK_MS` 500 ms, 1 s with the screen dark): a moved play position reloads
+  the rows, a mode change touches the buttons, a replaced queue reloads when the page is on top.
+  The queue is checked by pointer, size and first record (`qp_valid`).
+- **Header:** the track at the play position, no tint (the page is black).
+- **Server and podcast tracks** are never looked up as albums. Subsonic rows (`sba_rec_track`) show
+  the source's cover (`sba_rec_cover`, see [subsonic](subsonic.md)), podcast episodes (`pc_is_path`)
+  the show folder's picture (`pc_show_cover`, ranked as the Shows page ranks them). Either gets the
+  placeholder when there is none. A server queue is this page's, not the stock drawer's:
+  `qp_stream` reads the class word the play set, and only stock's stream classes (2, 3, `0xf0`,
+  `0xf1`) count as streams.
 
-Pinned stock (`tools/pod.py` `SONGS_PINS`; Clear's `mclSetGaplessMode` words are in `SHUFFLE_PINS`, its libcstl pins are `LIBCSTL*` / `CSTL_*`): the queue button's handler (`0x53b178`, `0x53b17c`), the drawer's row handler (`0x47a014..0x47a028`, `0x47a0c4..0x47a0cc`), prologues of `start_playqueue` `0x4e47d0`,
-`mclGetPlayType` `0x5d3658` and `mclGetPlayPos` `0x5d4290`. Calls: `start_playqueue`, `mclGetPlayType`, `mclGetPlayPos`, `mclGetPlayMode`, `pod_set_shuffle`, `pod_set_repeat`, `pod_shuffle_on`, `pod_clear_upnext`, `pod_clear_ready`, `pod_toast`. Not verified on the device.
+### Covers
+
+A row shows the Cover Flow cache file of its own artist and album (`cc_album_key`; see
+[covercache](covercache.md)), loaded one per tick on the page timer, none while the list moves,
+nearest the middle first. A miss with an album tag asks the **cover map** (`cc_cmap_*` in
+`patch/covercache.c`), because the cache is keyed by the library's album record, so a collab
+("A; B") or a feature has no file under its own artist.
+
+- One query per page, on its first miss: getAllAlbum's own statement through `toolsQueryDbTable`
+  (pinned in `QUERY_PINS`), so the Library filter applies and the keys are the ones the Albums
+  page and Cover Flow use. `cc_albums` is not used: it replaces the list the page under Now
+  Playing draws from. A queue with a file for every track runs no query.
+- The map is an array of `{hash, key}` sorted by hash (FNV-1a of the album name, ASCII case
+  folded as SQLite NOCASE does). A hash shared by two keys is dropped (placeholder, never the wrong
+  cover). At most `CC_CMAP_MAX` 4096 albums are kept (the first by name); rows past the cap are still
+  checked for a shared hash, so an album beyond the cap never gets a kept album's cover.
+- Whether an entry's cache file holds a picture is checked lazily, once per album shown.
+- The map is freed with the page. An empty library, a failed query or no memory is not retried.
+  The query's records (about 300 bytes an album) are freed as soon as the map is built.
+- With the opt-in log (`m1plus-log` on the card) each build writes
+  `queue: cover map <ms> ms, <rows> albums, <kept> kept, <ambiguous> ambiguous, <n> queued`.
+
+Get Info does not use the map ([songinfo](songinfo.md)).
+
+### Clear
+
+**Clear** (`btn_qclear`) is Apple's text button, right-aligned on the "Queue" line
+(`QP_CLEAR_X/Y/W/H` 210, 186, 100 x 40). It is shown only while Up Next is not empty, the play
+type is not a stream and `pod_clear_ready()` holds (libcstl as pinned, no DLNA service running);
+otherwise hidden. `qp_clear_sync` re-reads this on every tick.
+
+- **Decision: no confirmation.** A tap calls `pod_clear_upnext`, then the page reloads: Up Next
+  shows "No upcoming songs". The playing track keeps playing; the play position and the tracks
+  before it stay.
+- **Decision: hidden while DLNA runs.** The UPnP threads read the queue without a lock, so a freed
+  tail record would be a use-after-free. The gate is stock's `dmr_serverflag` (1 while the
+  service runs), read again under the lock. Clear shows with the DLNA switch off or Wi-Fi off.
+- **Clear drops Shuffle's saved order**: it describes a queue that is gone. The flag stays, and
+  Shuffle off afterwards restores nothing.
+- **Engine** (`pod_clear_upnext`): under the payload lock it re-reads position and size, closes an
+  open gapless preload (`cancel_preload`), then calls libcstl's `deque_pop_back` until the size is
+  `pos + 1`. Records `0..pos` are never moved or copied; nothing is allocated, so Clear cannot fail
+  for memory. Answers 1 cleared, 0 nothing after the position, -1 refused.
+- **libcstl as pinned:** demo does not import `deque_pop_back`, so `cstl_pop_back` resolves it from
+  demo's `deque_size` GOT slot and refuses unless the library's words match the pins
+  (`LIBCSTL*` / `CSTL_*` in `tools/pod.py`; `check_libcstl` fails the build otherwise).
+- **No hook on `mclNextSong` / `mclPrevSong`:** holding the lock there would need a recursive lock
+  (`mclNextSong` can reach our `sh_load_playlist`) and would stall the UI thread across
+  `mclStartPlayer`'s sleeps and `mclStop`'s wait (up to 1.5 s).
+- **Locking:** the lock excludes our other writers ([shuffle](shuffle.md) "Locking"). Stock's
+  unlocked readers are the remaining gap, see [shuffle](shuffle.md) "Remaining gap". Transitions
+  run on the UI thread, which is also the thread of the tap.
 
 ## Up Next: Play Next / Play After
 
-**Sources:** `patch/upnext.c` + `upnext.h` (`upnext_add`: refusals, the start of a queue; called by the row menu, [rowmenu](rowmenu.md)), `pod_queue_insert` in `patch/shuffle.c` (the insert, declared in `patch/home.h`), `tools/pod.py` (`mclSetGaplessMode`, `MCL_PRELOAD`, `MCL_GAPLESS`, the pins in `SHUFFLE_PINS`), tests `test/pod/upnext.py`, `test/pod/shuffle.py`.
-Evidence tags: **[S]** static (disassembly of `bin/demo`), **[E]** emulated (Unicorn, the stock calls modelled as read), **[U]** untested on the device. A device probe proved that a row copied into `*PLAY_QUEUE` at pos+1 or at the end works in List play, Repeat and (stock) Shuffle (Next, Prev, a song ending, the Queue page and the counts behaved), and that it fails with Gapless on when the add is made in the last ~5 s of a song (the old next song plays).
-Stock never runs in Shuffle mode 2 now ([shuffle](shuffle.md)): the mode word is 0, 1 or 3 and stock plays the queue in order, so a row in the queue plays when its turn comes in every mode, with no pool, pending list or `mclNextSong` hook.
+`upnext_add` (called by the row menu, [rowmenu](rowmenu.md)) inserts rows into the playing queue.
+Stock plays the queue in order in every mode, so an inserted row plays when its turn comes, with no
+pool or `mclNextSong` hook.
 
-### What is built
-
-- **Play Next** inserts at pos+1; several Play Nexts stack newest first; the rows of one call keep their order. **Play After** appends at the end. Same in List play, Repeat all, Repeat one, and Shuffle with any repeat. `REC_CLASS` is stamped from the playing row [E]. Queued songs go into the stock queue at once: every stock reader reads it live (68 functions reference `*0xa0394c`; List play's end test in `mclNextSong` `0x5d5950..0x5d5974` is live) [S], so the Queue page, the lock screen, the counts and Previous follow without a hook.
-- **The insert** (`pod_queue_insert(rows, after)`, `shuffle.c`): under the payload lock it `_deque_push_back`-copies each row (libcstl deep-copies the strings), rotates the n new rows to `at` with row swaps (three reversals, `memcpy` through a `REC_SIZE` temporary; every string stays owned by one slot; the device-proven in-place insert of the probe, generalised to n rows), and grows the Shuffle order [E]. q2-pod rebuilds a whole deque (`playback_queue_insert`); that is O(queue) with allocation and was not taken. Answers `POD_INSERT_OK`, `_IDLE` (no rows or nothing playing), `_FULL` (size + n over `SHUFFLE_MAX` 65536), `_MEMORY` (no memory for the order); every non-OK answer changes nothing.
-- **Shuffle's order stays valid** (`sh.orig`, [shuffle](shuffle.md) "Rows inserted into the queue"): the new slots take original positions right after the playing song's (Play Next) or at the end (Play After) and every original position at or above that moves up by n, so `orig` stays a permutation of 0..size-1. Shuffle off after a Play Next restores the original order with the added songs right after the playing song; after a Play After they are at the end; the play position follows the playing song [E]. An order of another size is stale and dropped by the insert.
-- **Gapless**: an insert at `at == pos+1` with an open preload (`MCL_PRELOAD` `0xa0abd0` == 1) calls the one cancel helper (`cancel_preload`, shared with the shuffle reorders and Clear): `mclSetGaplessMode(0)` `0x5d28ac`, then `mclSetGaplessMode(old)`. [S] `0x5d28cc..0x5d2914`: with 0 and the state 1 it sends `{mcl-closegapless\null}` (when the player socket `0xa0abec` is connected) and stores -1 in the state; the second call puts the setting byte `0xa0ab89` back. **Chosen over the two `mclSetPlayMode` calls** (the old cancel) because those leave the mode word at 1 (Repeat one) for a few instructions, and `mclNextSong` reads the mode raw, so a track ending in that window repeats once; the setter's window has only the Gapless byte at 0, which `mclNextSong` `0x5d583c` and `mclAutoChange` `0x5d632c` answer exactly as they answer the closed state (queue path, no preload); the `set-gapless` send `0x5d0dd0` reads it only inside the preload decision the tick calls. The setter reaches only `send`, so it runs under the payload lock. No residual risk found: a song ending between the byte store and the state store takes the queue path, which is the right one [S], [E].
-  A Play After in the middle of the queue leaves the open preload alone (it is of pos+1); Repeat all on the last song preloads index 0, and an append at `pos+1` cancels it. **Re-preload: no** [S] `mclAutoChange` `0x5d621c`: the tick reaches the preload decision `0x5d0ea4` (`0x5d635c`) only when the Gapless byte is set, the state (`0x5d6338`) is 0 and fewer than 6 s remain; the cancel leaves -1, so the preload is not opened again in that song and the join into the inserted song **has a gap** (the song ends, `mclNextSong(1)` sees the state != 1 and takes the queue path). The state returns to 0 with the next song's start and a queue load. An add more than ~6 s before the end is gapless: no preload is open yet and the tick preloads the new pos+1. Accepted.
-- **Locking**: the insert is one critical section of the payload mutex (`sh_enter` / `sh_leave`, not recursive): it calls only `mclGetPlayPos`, `deque_size` / `deque_at`, `calloc` / `free`, `_deque_push_back` (the stSongInfo copy callback of `mclLoadPlayList`'s walk), `memcpy` and the Gapless setter, none hooked [S]. DLNA's reorder, load and clear exclude it [E] (three interleavings in `lock_tests`). The refusals that need no queue (rows, play type, files) are checked before the lock.
-- **Refused, nothing changed** (in this order; every row is checked before anything is touched): no rows (`UPNEXT_EMPTY`); Radio running (`rd_running`: a station connecting, playing or paused; `UPNEXT_STREAM`, whatever the queue holds or lacks: Radio sets no stock play type, so the play-type test below cannot see it, a retained local queue is dormant and with none the song would start and cut the station off; a stopped station on the mini bar is not running); a podcast episode (`pc_is_path`, `UPNEXT_PODCAST`); a row with no path or whose file is missing (`UPNEXT_MISSING`); then, with something playing: a stream play type 2, 3, 0xf0, 0xf1 (`UPNEXT_STREAM`: the Queue page's and the stock drawer's list), folder playback, play type 1 (`UPNEXT_FOLDER`: `change_music` / `refresh_playqueue` `0x4df4a8` rebuild the queue from the folder at its end, which drops inserted rows; Podcasts play with type 1 too), a queue that would pass 65536 songs (`UPNEXT_FULL`), no memory for the order (`UPNEXT_MEMORY`, -7, an addition to the original code list), the DLNA renderer service running (`UPNEXT_DLNA`, -8, checked under the lock: the insert grows the deque and moves rows while the UPnP threads read the queue unlocked, the gate Clear has; "nothing playing" starts a fresh queue and is not gated).
-- **Nothing playing** (no queue, an empty one, no valid position): the rows become the queue as the repo's other play paths start one: `*G_CLASS_TYPE` = the first row's class (`0xf001` when it has none), `start_player(rows, 0, class, PLAY_MODE)` (`patch/ipod.c`), `force_refreshflag` = 1, answer `UPNEXT_STARTED`; the rows deque stays the caller's. The Shuffle flag and the repeat mode are **kept** (no `pod_set_*_for_queue`: those change the flag, and an add must not): with Shuffle on `sh_load_playlist` shuffles the rows with the first row first. The play type is not looked at (a stale one would refuse). The caller may open Now Playing (`ip_push(K_NOW)`).
-- **Not persisted**: `save_memoryplay_info` `0x4e3340` writes one record (the playing row, the play type, the position and the time) [S]; after a reboot the queue is the class's own, resumed at the song that was playing. `dmrActoinPLInsertTrack` `0x4f0a70` is not an insert (the DLNA callback builds a new queue and loads it) [S]; the in-place edit is the mechanism.
-
-### The caller's contract (the row "..." menu, [rowmenu](rowmenu.md))
+- **Play Next** inserts at pos+1; several stack newest first, the rows of one call keep their
+  order. **Play After** appends. Same in List play, Repeat all, Repeat one and Shuffle. The class
+  (`REC_CLASS`) is stamped from the playing row. Stock readers read the queue live, so the Queue
+  page, lock screen, counts and Previous follow without a hook.
+- **The insert** (`pod_queue_insert(rows, after)`): under the payload lock it `_deque_push_back`-copies
+  each row, rotates the new rows into place with row swaps (no whole-deque rebuild, so no O(queue)
+  allocation) and grows Shuffle's saved order ([shuffle](shuffle.md) "Rows inserted into the
+  queue"). Answers `POD_INSERT_OK`, `_IDLE`, `_FULL` (over `SHUFFLE_MAX` 65536), `_MEMORY`; every
+  non-OK answer changes nothing.
+- **Gapless:** an insert at pos+1 with an open preload calls `cancel_preload`. The cancel leaves no
+  preload in that song, so the join into the inserted song has a gap (accepted). An add more than
+  about 6 s before the end is gapless. A Play After in the middle leaves the open preload alone.
+  Why `mclSetGaplessMode(0)` and not a `mclSetPlayMode` pair: [shuffle](shuffle.md) "Gapless".
+- **Refusals** (checked before anything is touched): no rows; Radio running (`rd_running`); a
+  podcast episode; a row with no file; a stream play type (2, 3, `0xf0`, `0xf1`); folder playback
+  (play type 1: stock rebuilds a folder queue at its end, which drops inserted rows); over 65536
+  songs; no memory for the order; the DLNA renderer service running (checked under the lock).
+- **Nothing playing:** the rows become the queue as other play paths start one (class of the first
+  row or `0xf001`, `start_player`), answer `UPNEXT_STARTED`. The Shuffle flag and repeat mode are kept
+  (with Shuffle on, `sh_load_playlist` shuffles the rows with the first row first). The caller may
+  open Now Playing.
+- Not persisted: after a reboot the queue is the class's own, resumed at the playing song.
 
 ```c
-#include "upnext.h"
-int upnext_add(void *rows, int after);   /* rows: a deque_t of stSongInfo (the caller's; copied). after 0 = Play Next, non-zero = Play After */
+int upnext_add(void *rows, int after);   /* rows: a deque_t of stSongInfo, copied; 0 = Play Next */
 ```
 
-| Status | Value | Meaning | Suggested toast |
+| Status | Value | Meaning | Toast |
 |---|---|---|---|
-| `UPNEXT_ADDED` | 1 | the rows are in the queue | "Playing Next" / "Added to Queue" |
-| `UPNEXT_STARTED` | 2 | nothing was playing: the rows are the queue and the first one plays | none, or open Now Playing |
+| `UPNEXT_ADDED` | 1 | rows are in the queue | "Playing Next" / "Added to Queue" |
+| `UPNEXT_STARTED` | 2 | nothing was playing: the rows are the queue | none |
 | `UPNEXT_EMPTY` | -1 | no rows | none |
-| `UPNEXT_STREAM` | -2 | a stream is playing, or a Radio station is running (`rd_running`) | "Not available while streaming" |
-| `UPNEXT_FOLDER` | -3 | folder playback (play type 1; also Podcasts) | "Not available for folder playback" |
+| `UPNEXT_STREAM` | -2 | stream playing, or Radio running | "Not available while streaming" |
+| `UPNEXT_FOLDER` | -3 | folder playback (play type 1, also Podcasts) | "Not available for folder playback" |
 | `UPNEXT_PODCAST` | -4 | a podcast episode among the rows | "Not available for podcasts" |
-| `UPNEXT_MISSING` | -5 | a row has no file on the card | "File not found" (the card in, `/tmp/mmc_add`), "Storage unavailable" (no card): `so_missing`, `patch/songops.c` |
-| `UPNEXT_FULL` | -6 | the queue would pass 65536 songs | "Queue is full" |
+| `UPNEXT_MISSING` | -5 | a row has no file | "File not found" / "Storage unavailable" (`so_missing`) |
+| `UPNEXT_FULL` | -6 | queue would pass 65536 songs | "Queue is full" |
 | `UPNEXT_MEMORY` | -7 | no memory for Shuffle's order | "Not enough memory" |
-| `UPNEXT_DLNA` | -8 | the DLNA renderer service runs (`dmr_serverflag` == 1), as for Clear | "Not available while DLNA is on" |
+| `UPNEXT_DLNA` | -8 | DLNA renderer service runs | "Not available while DLNA is on" |
 
-- Refusals change nothing; check the answer, never the queue. The row menu toasts every status (texts and the mapping in [rowmenu](rowmenu.md) "Actions"; `UPNEXT_STARTED` shows nothing and opens nothing). The temporary Developer rows "Test: Play Next / Play After" and `/mnt/mmc/queue-probe.log` are gone.
-- Rows: any `stSongInfo` the library lists give (`deque_at(list, i)`); an album or an artist is a deque of its tracks. One call is one Play Next: its rows keep their order and go in front of earlier Play Nexts.
-- Call from the UI thread; the insert itself is under the payload lock. Stock readers on other threads take no lock (the shuffle "Remaining gap"): a reader can see a row mid-swap for microseconds (not observed, [U]).
-- Not done: persistence across a reboot, a "Playing Next" section on the Queue page (Up Next shows the real order, so the rows are there).
-- **Continue with Next Album** also uses `upnext_add(rows, 1)`: when a List play queue started from an album ends, `na_end` (payload hook 26) appends the next album's tracks at the end and stock plays on ([nextalbum](nextalbum.md)). Only `UPNEXT_ADDED` counts; every refusal leaves stock's end.
+Refusals change nothing; check the answer, not the queue. Rows are any `stSongInfo` the library
+lists; an album or artist is a deque of its tracks. Call from the UI thread. Continue with
+Next Album also uses `upnext_add(rows, 1)` ([nextalbum](nextalbum.md)); only `UPNEXT_ADDED` counts.
 
 ### Edit engine: move / remove
 
-**Sources:** `queue_edit`, `pod_queue_move`, `pod_queue_remove` in `patch/shuffle.c` (declared with `POD_EDIT_*` in `patch/home.h`), tests `test/pod/upnext.py` `edit_tests`. The Queue page's row "..." calls it ("Row edit", below).
-
-- `int pod_queue_move(unsigned from, unsigned to)`: the row at absolute queue index `from` goes to `to`, the rows between shift by one. `int pod_queue_remove(unsigned i)`: the row at `i` is rotated to the last slot, then libcstl's `deque_pop_back` (`cstl_pop_back()`, as Clear; never `deque_erase`) destroys it. The rotation is the insert's `row_swap` (one `edit_reverse` pair of reversals, the same on `sh.orig`): no allocation, no string copy, every string stays owned by one slot, so a remove frees exactly the removed row's strings once (the stSongInfo destructor) and the records keep their addresses (the contents move).
-- **Up Next only**: every index must be greater than the play position and below the size; the playing row, the position and rows `0..pos` are never moved or rewritten, and nothing calls `mclSetPlayPos` or `start_player`. `from == to` is `POD_EDIT_OK` and changes nothing.
-- **Codes** (`POD_EDIT_*`): `OK` 1; refusals, with nothing changed (queue, `sh.orig`, preload, mode, flag): `RANGE` -1 (an index in the history, on the playing row or past the end, nothing playing, no queue), `DLNA` -2 (`dlna_running()`, checked under the lock first, as Clear and the insert: the UPnP threads read the queue without a lock), `LIBCSTL` -3 (remove only: `cstl_pop_back()` is 0, checked before any rotation; a move needs no libcstl).
-- **Locking**: one critical section of the payload lock; the queue, its size and the play position are read again inside it (a position that moved on, or a queue that shrank, while the lock was waited for, refuses by range). Only `mclGetPlayPos`, `deque_size` / `deque_at`, `memcpy`, the libcstl pop and the Gapless setter run inside, none hooked.
-- **Shuffle's saved order** (`sh.orig` with `sh.n == size`): a move applies the same rotation to `orig`, so it stays a permutation and Shuffle off puts the original order back (the manual order is dropped by Shuffle off, by design). A remove deletes the row's entry, lowers every original position above it by one in place and sets `sh.n = size - 1` (no allocation, cannot fail). An order whose size is not the queue's is stale and dropped, as the insert does; the flag itself is never touched.
-- **Gapless**: when the row at `pos + 1` changes (a move from or to `pos + 1`, a remove of `pos + 1`) the shared `cancel_preload()` runs under the lock, as the insert and Clear do; any other edit leaves an open preload alone. A remove also forgets a remembered preload target (`MCL_PRELOAD_NEXT`) at or past the new end, as Clear does.
-- **When to offer it**: `pod_clear_ready()` is the readiness test (no DLNA service, libcstl as pinned); the same function serves Clear.
-- **Not verified on the device.** The stock functions are modelled as read from the disassembly; the remaining race of the Locking note below (stock readers take no lock) applies: a reader can see a row mid-swap for microseconds.
-
-[E] `edit_tests` (all emulated): moves forward, backward, adjacent, far, first / last Up Next row and no-op in List play (records stay in their slots, rows `0..pos` byte-identical, no allocation, copy, free, restart or pop, lock once and balanced) and with Shuffle on (`orig` rotated with the rows, a permutation; Shuffle off restores the original order, position on the playing song); remove of the first / middle / last Up Next row with and without Shuffle (one `pop_back` of the last slot, its strings freed once, no other record or string freed, `orig` a permutation of size - 1, then Shuffle off); every refusal (history, playing row, past the end, -1, nothing playing, the last song playing, DLNA, unbound or altered libcstl: queue, `orig`, preload, mode and flag unchanged, lock released); the position or size changing while the lock is waited for; a stale order; the gapless cancel exactly when `pos + 1` changes, with the Gapless setting on and off, and the preload target rule; interplay with the insert (insert, remove, move, Shuffle off) and Clear (remove, move, Clear, Shuffle off; edits refused when nothing follows).
+- `pod_queue_move(from, to)`: the row at absolute index `from` goes to `to`, the rows between shift by
+  one. `pod_queue_remove(i)`: the row is rotated to the last slot and libcstl's `deque_pop_back`
+  destroys it (never `deque_erase`). Rotation is the insert's `row_swap`: no allocation, every
+  string stays owned by one slot.
+- Up Next only: every index must be above the play position and below the size; rows `0..pos`
+  and the position are never touched. `from == to` is OK
+  and changes nothing. Codes `POD_EDIT_*`: `OK` 1; `RANGE` -1, `DLNA` -2, `LIBCSTL` -3 (remove
+  only). Refusals change nothing. The queue, size and position are re-read under the lock.
+- Shuffle's saved order: a move rotates `orig` with the rows, so Shuffle off restores the original
+  order (the manual order is dropped by Shuffle off, by design). A remove deletes the entry and
+  lowers the positions above it, in place.
+- Gapless: `cancel_preload` runs when the row at pos+1 changes; a remove also resets a remembered
+  preload target at or past the new end.
+- `pod_clear_ready()` is the readiness test for both Clear and the edit actions.
 
 ### Row edit (the "..." of an Up Next row)
 
-**Sources:** `patch/queuepage.c` (`qp_clear_sync`, `qp_in_zone`, `qp_open_menu`, `qp_on_menu`), `patch/rowmenu.c` (`rowmenu_bind_queue`, `rowmenu_open_queue`), `tools/pod_ui.py` `row_menu(queue=True)`, `tools/mod_icons.py` `RM_REMOVE`, tests `test/pod/queuepage.py` `rowedit_tests` and `test/pod/rowmenu.py` `queue_tests`, preview `queue.png` (the last two panels).
+- **The dots:** each Up Next row ends with the row lists' grey "..." ([rowmenu](rowmenu.md)), in a
+  44 px zone x 266..310. The text ends at x 262. A tap on the dots opens the sheet, a tap elsewhere
+  plays the row; the press rules are the lists'.
+- **When they show** (`qp.edit_on`): Clear's condition and the play type is not folder playback.
+  Otherwise the rows have no dots and the text ends at x 298.
+- **The sheet** is the row menu's queue form ([rowmenu](rowmenu.md)): **Play Next**, **Play After**,
+  then **Remove from Queue**. No Add to Playlist, Favorite or Get Info. A scrim tap closes it and
+  changes nothing; so do a queue reload, the page going behind another and the edit condition
+  turning off.
+- **The action** (`qp_on_menu`): `pod_queue_move(at, pos + 1)`, `pod_queue_move(at, size - 1)` or
+  `pod_queue_remove(at)`, then `qp_load(1)` (scroll offset kept). No confirmation, no toast on
+  success. `POD_EDIT_DLNA` shows "Not available while DLNA is on"; any other refusal only reloads.
+- **Row identity:** the sheet remembers the row's path pointer (`qp.mid`). The action does nothing
+  unless the queue is still the page's, the play position is unchanged and the record at `at` has
+  that path pointer, so a stale sheet never edits another track.
 
-- **The dots.** Each Up Next row ends with the row lists' grey "..." ([rowmenu](rowmenu.md): the same bitmap, `rowmenu_paint` with `RM_MORE_RIGHT`, centred in the 44 px zone x 266..310, 19 px down the row). The title and the artist end `RM_TEXT_GAP` before the zone (x 262, room 188 px, was 224); the hairline keeps its length. The header has none. A tap on the dots opens the sheet, a tap anywhere else in the row plays it as before; the press rules are the lists' (DOWN in the zone remembers it and draws no row fill, UP within `SC_DRAG_PX` on the same row and still in the zone opens, a press that began elsewhere and moved into the zone plays, a drag or an abort does nothing).
-- **When they show** (`qp.edit_on`, set in `qp_clear_sync` with Clear, so it follows the tick and a DLNA service that starts under the page): Clear's condition (`qp.n && !qp_stream() && pod_clear_ready()`) and the play type is not folder playback (`mclGetPlayType() != 1`, the test `upnext_add` refuses by: stock rebuilds a folder queue at its end) and the asset has the sheet's widgets. Otherwise the rows look as they did, a tap in that corner plays the row, and the text end is the old 298. A change of the condition drops the text tiles (a cut is made in the tile's own text, as the Songs page does when its rail comes or goes) and closes an open sheet.
-- **The sheet** is the row menu's ([rowmenu](rowmenu.md)), bound in its queue form: the same scrim, glass card and row look, three rows, the asset's own card (`rm_card` 320 x 150 on `pc_sheet3`, the family's three-row glass; nothing is placed or sized at open), last in the window above the glass Back. Rows: **Play Next** (`rm_ic_next`), **Play After** (`rm_ic_after`), then the one hairline and **Remove from Queue** (`rm_ic_remove`, Lucide `list-x`, an accent glyph through the `rm_ic_` prefix). No Add to Playlist, Favorite or Get Info. A scrim tap closes it and changes nothing; so do a page that reads the queue again (a moved play position), the page going behind another and an edit condition that turns off.
-- **The action** (`qp_on_menu`, after the sheet has closed): `pod_queue_move(at, pos + 1)` (Play Next), `pod_queue_move(at, size - 1)` (Play After) or `pod_queue_remove(at)`, with `at = qp.base + row` the absolute index computed at that moment from the page's base (the play position + 1). An action that is a no-op (already next, already last) just runs. After it the page reads the queue again (`qp_load(1)`: the scroll offset stays, clamped to the shorter page; the header and the playing track do not change); no confirmation, no toast on success. `POD_EDIT_DLNA` shows "Not available while DLNA is on" (and the reload hides the dots); any other refusal only reads the queue again.
-- **Identity of the row.** When the sheet opens the page remembers the row's path string pointer (`qp.mid`, `REC_PATH`): the engine rotates whole records, so a track keeps its strings wherever it moves and a record a Play Next added has strings of its own. At the action the page does nothing and reads the queue again unless the queue is still the page's (`qp_valid`), the play position is still `base - 1` and the record at `at` has that path pointer. So a play position that moved while the sheet was open (before the tick closed it), or rows that were reordered underneath, never edits another track. The engine still checks the range under its lock.
-- **Open.** No device test. The sheet over the glass Back, and the dots' feel next to the Clear button, have only been judged on the preview.
+## Limits
 
-### What is tested
+- No drag handles, swipe, marker or count on rows.
+- No cover tint. The playing track's `/tmp` cover is not used when the cache has no file.
+- Now Playing's idle countdown is not reset (the big-cover page opens only over `playing_page`).
+- Stock's unlocked readers on other threads can see a row mid-swap ([shuffle](shuffle.md)).
 
-[E] `test/pod/queuepage.py` `rowedit_tests` (dots, text end and hairline, every case where they hide, the taps, the three actions through the real engine with the queue order and the reload, scroll kept and clamped, stale sheets, DLNA and libcstl refusals, Shuffle and a preload, the sheet closing); `test/pod/rowmenu.py` `queue_tests` (the queue asset's sheet, glass, glyph, the new text in 13 languages). [E] `test/pod/upnext.py`: the insert in List play, Repeat one / all and Shuffle with Repeat off / all / one (order, stacking, multi-row, class, copies); `sh.orig` a permutation after each add; Shuffle off after Play Next, stacked Play Nexts, Play After and their mix (original order, play position on the playing song, also after the position moved); the gapless cancel (the exact setter calls, no `mclSetPlayMode`, under the lock, not for Play After mid-queue, state 0 / -1, an off setting, Shuffle); every refusal (queue, `sh.orig`, preload, mode unchanged; allocation failure whole and exact-size; `SHUFFLE_MAX` and the cap exactly); nothing playing (Shuffle off / on, the load hook, flag and repeat kept); the lock (balanced, once, nothing hooked inside, three interleavings with a reorder, a load and a clear); insert with Clear (`clear_tests`: insert then Clear then Shuffle off, Clear then insert then Shuffle off, Play Next then Clear with a preload open, the DLNA refusal and its release); the pinned addresses. The row menu's own tests are `test/pod/rowmenu.py`. `test/pod/shuffle.py` pins the shared cancel for the reorders and the setter's words. The stock functions are modelled as read from the disassembly, so a wrong reading shows only on the device.
+Pinned stock: `tools/pod.py` `SONGS_PINS` (the queue button's handler, the drawer's row handler,
+prologues of `start_playqueue`, `mclGetPlayType`, `mclGetPlayPos`) and `SHUFFLE_PINS`
+(`mclSetGaplessMode` words, `dmr_serverflag` reader and setter).

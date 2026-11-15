@@ -22,7 +22,7 @@ static int pd_wide(unsigned *dst, int cap, const char *utf8) {
     return pd_wlen(dst);
 }
 
-/* The advance AWTK charges for each of the n chars of s in the style label st (docs/modules/text-width.md): one measure a distinct char (a 4 KB text has a few hundred), a newline is nothing. */
+/* The advance AWTK charges for each of the n chars of s in the style label st (docs/modules/ui-rules.md "Text width"): one measure a distinct char (a 4 KB text has a few hundred), a newline is nothing. */
 static void pd_adv(pd_t *d, void *st, const unsigned *s, int n, unsigned short *adv) {
     unsigned t[2];
     int i;

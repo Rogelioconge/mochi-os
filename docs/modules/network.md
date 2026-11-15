@@ -5,8 +5,8 @@ makes, sets up, runs and frees a libcurl easy handle. Podcasts and the jobs of i
 (`patch/pcnet.c`), the radio (`patch/radio.c`) and Subsonic (`patch/sbnet.c`) fill a `net_req_t`
 and call `net_perform` on their own thread.
 
-demo imports libcurl's easy interface only (no multi handle), so a request blocks its thread and
-two requests at once mean two threads.
+The firmware imports libcurl's easy interface only (no multi handle), so a request blocks its
+thread and two requests at once mean two threads.
 
 ## What the layer owns
 
@@ -29,8 +29,9 @@ two requests at once mean two threads.
 
 ## Shared rules for a file download
 
-The four downloads (a podcast episode, an audiobook part, a Subsonic track, the update package) keep their own
-way of writing and their own checks of the finished file; these parts are one copy. What a
+The downloads (a podcast episode, an audiobook part, a Subsonic track, the update package) write
+to a `.part` file and rename it when done. They keep their own way of writing and their own
+checks of the finished file; these parts are one copy. What a
 request's result means (`net_tls`, `net_http_passing`) is in `patch/net.c`; the rest, which never
 touches libcurl, is `patch/netfile.c` / `netfile.h`:
 
@@ -55,16 +56,19 @@ What each still does alone:
 - **Subsonic** writes through one open descriptor, saves the resume record `<part>.etag` (strong
   ETag and whose file it is) with the first body byte and resumes only with it; checks the first
   bytes and the length of the finished file ([subsonic](subsonic.md) "Safe resume").
-- **Audiobooks** (LibriVox, [audiobooks](audiobooks.md)) download a book's parts on a thread of their own (`patch/bkdl.c`, one book at a time, not in the episode queue) through `pnw_download`: the episode download's policy as it is (`pn_dl_core`: Range resume of the `.part`, chunks, the card's reserve, retries, the file rules above), so they use the same rows of the table as the episode download.
+- **Audiobooks** ([audiobooks](audiobooks.md)) download a book's parts on a thread of their own
+  (`patch/bkdl.c`, one book at a time, not in the episode queue) through `pnw_download`: the
+  episode download's policy (`pn_dl_core`: Range resume of the `.part`, chunks, reserve, retries).
 - **Software Update** never resumes; checks that the package is the version offered before the
   rename ([update](update.md)).
 
-The two ways of writing were not merged: that changes how long the card is held and when bytes
-are durable, and it has not been measured on the device.
+The podcast and Subsonic ways of writing stay separate: merging them would change how long the
+card is held and when bytes are durable.
 
 ## Whose job it is
 
-The job slot of `pcnet.c` (`pn.busy`, `pn.kind`) runs one job at a time for six pages. A page
+The job slot of `pcnet.c` (`pn.busy`, `pn.kind`) runs one job at a time for six pages: Find Cover & Lyrics, Software
+Update, AutoEq, the Podcasts searches, refresh and archive, and the Audiobooks catalog. A page
 stops only the kinds it starts: `pn_cancel(kinds)` sets the flag when the running job is one of
 `kinds` and does nothing otherwise.
 
@@ -77,10 +81,7 @@ stops only the kinds it starts: `pn_cancel(kinds)` sets the flag when the runnin
 | `PN_K_EQ` | AutoEq list and preset | the AutoEq page |
 | `PN_K_BOOKS` | LibriVox catalog (Popular, a search, the pictures) and a book's parts (the preview) | the Audiobooks page (leaving the LibriVox level, a new search, the page closing) |
 
-Before, `pn_cancel()` stopped whatever ran: the close handlers of Find Cover & Lyrics, AutoEq
-and Software Update called it whether or not the job was theirs, and the Podcasts page leaving
-its search level stopped any job (the code allowed it; no case was reproduced on the device). A cancel with no job running left the flag set until the next start; it is not set
-now. Downloads are not jobs (a book's download has a thread of its own and `bd_pause` stops it): `pn_dl_cancel` (pause) and `pn_dl_drop` (cancel and delete) take an episode's key (events of the queue's state table), Subsonic and the radio have
+Downloads are not jobs (a book's download has a thread of its own and `bd_pause` stops it): `pn_dl_cancel` (pause) and `pn_dl_drop` (cancel and delete) take an episode's key (events of the queue's state table), Subsonic and the radio have
 their own.
 
 ## What stays with the callers
@@ -102,60 +103,28 @@ The threads, the job slot, the download queues and each page's Cancel are the ca
 - `patch/net.c` is one HTTP request and nothing else; `patch/netfile.c` is the rules of a file on
   the card. Neither holds a queue, a thread or a page's state.
 - The episode queue's life cycle is one state table in `patch/pcnet.c` ([podcasts](podcasts.md)
-  "Downloads"); Subsonic's queue and the radio keep their own.
-- The two download queues stay two models, on purpose (decided 2026-11-13). Episodes: slots in a
+  "Network and feeds"); Subsonic's queue and the radio keep their own.
+- The two download queues stay two models, on purpose. Episodes: slots in a
   state table under one mutex, changed by the pages and the thread. Subsonic: slots the worker
   alone changes, the pages post ordered messages (`patch/m1job.h`; [subsonic](subsonic.md) "The
   queue is the worker's"). Each is held by a sweep of its own (`pcdl/sweep_tests`;
   `sbdl/sweep_tests`, `sbdl/sweep_pair_tests`), and one model for both would change nothing a
-  user sees. Moving Subsonic's queue to a state table is not planned: it would bring back the
-  races the message box rules out. Moving the episode queue to the message box is worth it only
-  when one of these holds:
-  1. a race in the episode queue turns up, on the device or in a review, that
-     `pcdl/sweep_tests` did not catch;
-  2. the episode queue gets a new page action (cancel all, reorder, a queue kept over a
-     restart): each new event means going through every interleaving of the table again, a
-     message does not.
-- The code that fetches one resumable file is still two copies (`pn_dl_attempt` in
+  user sees. Moving Subsonic's queue to a state table
+  would bring back the races the message box rules out.
+- Fetching one resumable file is two copies (`pn_dl_attempt` in
   `patch/pcnet.c`, `sbn_download` in `patch/sbnet.c`) over the shared rules of
-  `patch/netfile.c`. One layer for both waits until the resume rules have to change or the
-  copies get hard to keep alike. The differences have to be listed before that, not merged
-  silently: the stall limit is one, and `sbn_download` drops the `.part` when the connection
-  is reset (curl 56), while a timeout or a short body keeps it.
+  `patch/netfile.c`. The differences: the stall limit, and `sbn_download` drops the `.part` when the
+  connection is reset (curl 56), while a timeout or a short body keeps it.
+- AutoEq's list and the radio's logo write their small files themselves.
 - The radio has no download queue (two one-request threads over `net_perform`), so there is
   nothing to move.
 - There is no event bus, no broadcast to subscribers and no scheduler over the sources, on
-  purpose: the pages read status records on their own timers, as before.
-
-## Changed when the callers moved here
-
-- Subsonic requests carry the app's user agent (they sent none).
-- Subsonic no longer sets `SSL_VERIFYPEER` / `SSL_VERIFYHOST` to their default values.
-- A refused option fails every caller's request (only Subsonic checked before).
-- A Content-Type longer than the caller's buffer is cut; a redirect address longer than
-  `PN_UP_LOC` (256 bytes) is no release news.
-- Podcasts: a 206 for another part of the file is refused; If-Range within one run; JSON and
-  XML types are refused like text; the show's folder is synced after the rename.
-- Podcasts: with exactly `NET_RESERVE_KB` free a chunk under 1 KB is refused (it passed).
-- Software Update: the `.part` is synced before it is closed on a failure too.
-
-## Not here yet
-
-- **One way of writing a download**, and a resume record for podcast episodes (see above).
-- AutoEq's list and the radio's logo write their small files themselves.
-- **A limit on bulk transfers.** A podcast episode, an audiobook, a Subsonic track and the update package can
-  download at the same time, each on its own thread, beside one job (a book can download beside an episode). Whether the device needs a
-  limit (memory, card writes, Wi-Fi throughput during playback) is not measured; a limit also
-  needs a waiting state on three pages.
-- **One queue for every source**, and keeping the device awake for a download outside the
-  Podcasts page: changes of behaviour, not done here.
+  purpose: the pages read status records on their own timers.
+- Bulk downloads (an episode, an audiobook, a Subsonic track, the update package) run at the same
+  time, each on its own thread, beside one job. There is no limit on them.
 
 ## Tests
 
 The emulation scripts libcurl at the import level (`test/pod/harness.py`), so each caller's tests
-see the options `net_perform` set: `pcnet`, `pcdl`, `pcsearch`, `pcdiscover`, `onlineart`,
-`autoeq`, `update`, `radio`, `sbdl`. No test of them changed for the move except `sbdl`, which now
-also checks the shared options of a Subsonic request. `pcdl/resume_tests` hands header lines to
-the episode download: a 206 for another part, a fitting one, If-Range for a strong, a weak and no
-ETag, and a file that changed between two attempts. Subsonic's resume tests (`sbdl`) run
-unchanged over the shared header reader.
+see the options `net_perform` set: `test/pod/` `pcnet`, `pcdl`, `pcsearch`, `pcdiscover`,
+`onlineart`, `autoeq`, `update`, `radio`, `sbdl`.

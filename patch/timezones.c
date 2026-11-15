@@ -1,4 +1,4 @@
-/* M1+ Music time zones: the saved index -> TZ mapping and the picker's rows (docs/modules/timezones.md).
+/* M1+ Music time zones: the saved index -> TZ mapping and the picker's rows (docs/modules/datetime.md).
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE). After q2-pod's ringnav_timezone / ringnav_timezone_row (tools/build.py TIMEZONES).
  *

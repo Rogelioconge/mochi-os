@@ -506,7 +506,7 @@ void peq_process(peq_dsp *d, float *audio, unsigned frames) {
 /* Stock's genre curves, dB per band: the rows 4..11 of the 12 x 10 float table demo's reset_user_eq copies (0x4d8490: memcpy of
  * 0x1e0 bytes from 0x74b5bc, each entry then stored +6 into the user table 0xa0c588 for set_equalizer_value), in the order of the
  * name table at 0x97c7a0 (eq_pop, eq_rock, eq_dance, eq_blues, eq_metal, eq_vocal, eq_classical, eq_jazz). Rows 0..3 (None and
- * Custom 1..3) are all zero. Read from the V2.1 demo; docs/modules/peq.md "Genre table". Flat is zero, Custom is the record's. */
+ * Custom 1..3) are all zero. Read from the V2.1 demo; docs/modules/peq.md "10-Band EQ". Flat is zero, Custom is the record's. */
 static const float curves[PEQ_CURVES][PEQ_TENBAND] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, /* Flat */
     {3, 1, 0, -2, -4, -4, -2, 0, 1, 2}, /* Pop */

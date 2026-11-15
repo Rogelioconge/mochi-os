@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Side-by-side of the cover resampling: stock's today against ours (docs/modules/coverflow.md "Cover resampling").
+"""Side-by-side of the cover resampling: stock's today against ours (docs/modules/covercache.md "Cover resampling").
 
   uv run python -I tools/preview/preview_cover_resample.py [--image FILE | --m4a FILE | --card] [--out out/peek/cover-resample.png]
 

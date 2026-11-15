@@ -3,7 +3,7 @@
 **Sources:** `patch/albumpage.c`, `patch/songops.c`, `patch/covercache.c`, `patch/durations.c`,
 `tools/pod_ui.py` (`build_album_page`).
 **Tests:** `test/pod/albumpage.py`, `test/pod/durations.py`, `test/pod/shared.py`.
-Preview: `tools/ah_ink.py` measures header typography; `tools/preview/preview_albumlen.py` draws the scrolled page with its footer and the footer line in all languages.
+**Preview:** `tools/ah_ink.py` measures header typography; `tools/preview/preview_albumlen.py` draws the scrolled page with its footer and the footer line in all languages.
 
 Albums, Cover Flow, Recently Played and Look up album open `m1plus_album_page`
 (`ui/m1plus_album.bin`) through `cc_open_album`.
@@ -42,7 +42,7 @@ list so an enclosing view cannot intercept the whole navigation band.
 | Tracks | Number column (24 px, 34 from track 100) and white title at the list title size (21 px) in a 22 px line 20 px down the 64 px row (`AB_TEXT_Y`, centred over the hairline), 20% white press fill, 13% white hairline. The playing track keeps its white title; a 12 px wave (`ah_wave`, `#EEEEEC`, four round bars, the rows' `np_row_playing` scaled; static) replaces its number, right-aligned in the number column, 1 px above the centre of the title's line so it sits on the centre of the capitals (`AB_WAVE`, `AB_WAVE_Y`) |
 | Footer | `ab_foot` (`13 tracks, 49 minutes`): 15 px `#AAAAAA` left-aligned label at x 12 (`AB_NUM_X`, the number column's left edge), `AB_FOOT_GAP` 14 px under the last row, 20 px high; only when the duration is known (52 px of content), else none |
 
-Each track ends with a grey "..." (24 px `#8C8C8C`, a 44 px tap zone at x 266..310) that opens the Play Next / Play After / Add to Playlist menu ([rowmenu](rowmenu.md)); the title ends at **x 262** (was 298) so it never runs under it. Select mode has neither. The window's last two children are the menu's `rm_scrim` and `rm_card`, above the glass navbar.
+Each track ends with a grey "..." (24 px `#8C8C8C`, a 44 px tap zone at x 266..310) that opens the Play Next / Play After / Add to Playlist menu ([rowmenu](rowmenu.md)); the title ends at **x 262** so it never runs under it. Select mode has neither. The window's last two children are the menu's `rm_scrim` and `rm_card`, above the glass navbar.
 
 Year is the first track year in 1000..2999.
 Track numbers use a wider column from 100 onward. CUE titles use the file name.
@@ -83,7 +83,7 @@ lengths cache (`patch/navigation.c`, `docs/internals.md#long-songs`).
   (`13 首歌，1 小时 12 分钟`, `13曲、1時間12分`, `13곡, 1시간 12분`). Russian, Polish and Ukrainian abbreviate the units.
   With the built font the widest case (`999 tracks, 24 hours, 59 minutes`) is 226 px (Spanish) in the 298 px line.
 - **Limits:** TagLib's MP3 length is an estimate for constant-bitrate files without a Xing header, otherwise exact to the
-  second. Home measures songs ahead of the page ([Home cover build](homecover.md#track-durations)).
+  second. Home measures songs ahead of the page ([homecover](homecover.md#track-durations)).
 
 ## Artwork and shared tint
 
@@ -128,18 +128,17 @@ Library and playback windows must not have close animations that defer this stac
 
 ## Stock pages
 
-Stock artist/genre/composer rows hide their placeholder icon and use the freed width;
-the playing row reserves space for the wave marker. Stock playlist songs retain the
+Stock artist, genre and composer rows hide their placeholder icon and use the freed width, and the
+playing row reserves space for the wave marker ([rows](rows.md)). Stock playlist songs keep the
 common 64 px library rows; our Playlists entry opens [Songs](songs.md).
 
-The fallback queue drawer (`dialog/playqueue_dialog.bin`) has 44 px rows, muted 18 px
-non-playing text and white 20 px playing text, plus a mode-header hairline and left border.
-It has no added playing image or header count. The stock `playerjumpinfo_page` uses the
-shared wave marker and a 20 px navbar title. See [Queue](queue.md) and [rows](rows.md).
+The fallback queue drawer (`dialog/playqueue_dialog.bin`, see [queue](queue.md)) has 44 px rows,
+muted 18 px non-playing text and white 20 px playing text, a mode-header hairline and a left border;
+no added playing image or header count. Stock's `playerjumpinfo_page` uses the shared wave marker
+and a 20 px navbar title.
 
 ## Pins and validation
 
 `SONGS_PINS` checks `is_playing` (`0x4d9d64`) and album row-builder calls
 at `0x524c40..0x524ca4`. This page adds no hook.
-Tests cover layout, tint contrast, tone-cache bounds/LRU, playback mode changes, stack
-navigation and failures; `test/pod/durations.py` covers the table, CUE math, measuring and the line. Hardware appearance and input remain unverified by those models.
+

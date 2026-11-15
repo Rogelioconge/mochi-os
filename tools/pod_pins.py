@@ -611,7 +611,7 @@ JPEG_PINS = (   # (address, stock word, what it proves): the libjpeg 7 layout pa
     (0x5de654, 0xafb10034, 'encoder: image_width at cinfo + 0x1c'), (0x5de65c, 0xafb60038, 'encoder: image_height at cinfo + 0x20'),
     (0x5de668, 0xafb5003c, 'encoder: input_components at cinfo + 0x24'), (0x5de660, 0xafa20040, 'encoder: in_color_space at cinfo + 0x28'),
 )
-COVER_PINS = (   # (address, stock word, what it proves): stock's cover extraction as patch/covercache.c art_embedded / art_folder and patch/pccover.c pv_cover reproduce it (docs/modules/coverflow.md "Cover resampling")
+COVER_PINS = (   # (address, stock word, what it proves): stock's cover extraction as patch/covercache.c art_embedded / art_folder and patch/pccover.c pv_cover reproduce it (docs/modules/covercache.md "Cover resampling")
     (0x5de680, 0x2405005a, 'the JPEG writer 0x5de554: jpeg_set_quality(cinfo, 90, 1): CV_QUALITY'),
     (0x5eaf00, 0x3c060010, 'toolsGetAlbumCover: taglib_album_picture(track, dst, 0x100000, 0x600000): a2'), (0x5eaf0c, 0x3c070060, 'toolsGetAlbumCover: a3 = 0x600000'),
     (0x5eaf24, 0x24030002, 'toolsGetAlbumCover: the result 2 (a JPEG) goes to the JPEG resize 0x5e03cc'), (0x5eafa8, 0x24030001, 'toolsGetAlbumCover: the result 1 (a PNG) goes to the PNG resize 0x5dfe98'),
@@ -1203,7 +1203,7 @@ SLEEPTIMER_PINS = (   # (address, stock word, what it proves)
     (0x4ce7a0, 0x2442ffff, 'countdown: addiu v0, v0, -1 (one per tick)'), (0x4ce7a4, 0x14400006, 'countdown: bnez: not yet 0'), (0x4ce7a8, 0xac820000, 'countdown: sw v0, (a0)'),
     (0x4ce7b4, 0xa0600000, 'countdown: sb zero, (v1): at 0 the byte is cleared'), (0x4ce7b8, 0x04110d71, 'countdown: bal navigator_to("poweroff_page")'),
 )
-# Network Services and Wi-Fi Transfer (patch/netservice.c, docs/modules/netservice.md): systemset/netservice_page and systemset/wifitransport_page as stock's code does them. The three rows' handlers
+# Network Services and Wi-Fi Transfer (patch/netservice.c, docs/modules/wifi-transfer.md): systemset/netservice_page and systemset/wifitransport_page as stock's code does them. The three rows' handlers
 # (listitem0 DLNA 0x4a8b14, listitem1 AirPlay 0x4a8a84, listitem2 Wi-Fi transfer 0x4a8c2c, bound at 0x4a8920 / 0x4a8954 / 0x4a8980): the two switches look up their image, call dlna_switch / airplay_switch with no
 # test in between (only the lookup's null check) and show the byte; the third asks networkGetConnectStatus (nonzero: navigator_to the transfer page). The transfer page's init (0x4b1664) asks networkGetIPAddr,
 # stop_player and switch_wifitransport(1) (0x5075e4: toolsSystemd "thttpd -C /etc/thttpd.conf", the byte wifitransport_flag 0xa05abc = 1; with 0: "killall -9 thttpd", remove the log and the pid file, the byte 0),

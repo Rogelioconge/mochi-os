@@ -1,86 +1,176 @@
 # The Folders page
 
-**Sources:** `patch/folders.c` (the page), `patch/viewsort.c` (the card), `patch/songops.c` (`so_play_with`, `so_selection`, `so_add`), `tools/pod_ui.py` `build_folders_page`, `tools/pod_pages.py` (`FOLDERS`,
-`ACT_FOLDERS`), `tools/pod.py` (the pinned stock functions), `tools/pod_pins.py` (`FOLDER_PINS`), tests `test/pod/folders.py`, preview `tools/preview/preview_folders.py` (`out/preview/folders.png`; `--covers` draws the rows with stock's Folder cover switch on).
+**Sources:** `patch/folders.c` (the page), `patch/viewsort.c` (the card), `patch/songops.c`
+(`so_play_with`, `so_selection`, `so_add`), `tools/pod_ui.py` `build_folders_page`,
+`tools/pod_pages.py` (`FOLDERS`, `ACT_FOLDERS`), `tools/pod_pins.py` (`FOLDER_PINS`).
+**Tests:** `test/pod/folders.py`. **Preview:** `tools/preview/preview_folders.py`
+(`--covers` draws the rows with stock's Folder cover switch on).
 
-The Extras menu's Folders row (`ACT_FOLDERS`, arg `HOME_FOLDER`) opens `ui/m1plus_folders.bin` in place of the stock `folder_page`. The stock page, with its restyled navbar
-(`navbar.md`, `rows.md`), is only the fallback: a window or asset that will not open (`folders_open` returns through `pod_home_open(HOME_FOLDER)`).
-No hook; everything runs from the page's widgets and timers.
+The Extras Folders row (`ACT_FOLDERS`, arg `HOME_FOLDER`) opens `ui/m1plus_folders.bin` in place of
+stock's `folder_page`. The stock page ([navbar](navbar.md), [rows](rows.md) restyle it) is only the
+fallback when the window or asset will not open (`folders_open` returns through
+`pod_home_open(HOME_FOLDER)`). No hook; everything runs from the page's widgets and timers.
 
-## How the stock page lists, enters and plays (read from the binary)
+## What stock does (read from the binary)
 
-- **A filesystem walk, not the database.** `toolsLoadDirectory(path)` (`0x5e85c8`) `opendir`/`readdir`s one directory into `stSongInfo` records in the deque `*pdeq_showlist`
-  (`0xa045d8`, the same list the Songs pages use; also kept in `0xa03964`, the source of the folder queue). Folders first, then the files it recognises as audio by extension (and
-  `.m3u8`); `.`, `..` and the stock's junk names (`lost+found`, `System Volume Information` ...) are skipped, **every other dot name is listed** (ours hides them).
-- **The root** (`load_rootfolder` `0x4db51c`) is three fixed records: `SD` (`/mnt/mmc`, type 2), `OTG` (`/mnt/usb`, type 3), `CD Library` (`/mnt/mmc/Ripper`, type 2).
-  Record fields: `+8` name, `+0xc` full path (a pointer), `+0x34` type: 2 SD, 3 OTG, 4 folder, 1 playlist file (`.m3u8`), 8 audio file; `+0x48` cue start.
-  No tags are read: a file shows its file name.
-- **State**, all globals: the layer `0xa0554c` (0 before the first enter, 1 the root list, 2.. the folders), the path `0xa05550`, the title buffer `0xa0533c` (`"folder"`, singular,
-  at the root, else the folder's name), the stack of scroll offsets `0xa045dc`, the m3u path `0xa0483c`, the select flags `0xa05a24` / `0xa05a20` (ours never sets them).
-- **`folder_enter(index, yoffset)`** `0x4db978`: index below 0 resets to the root list (layer 1); at layer 1 a tap goes into the storage (`access` / `toolsCheckMount`: -2 "No TF Card
-  Found", -3 "No OTG Found", -1 "File Not Found"); a type 4 record appends `/name` to the path and loads it; a type 1 record parses the playlist file (`toolsParseM3u8Format`) into
-  the list; a type 8 record returns 8 and changes nothing. The offset is pushed on the stack.
-  **Return -1 ("File Not Found" in stock) is mostly an empty load:** for a type 4 record and for a storage, `toolsLoadDirectory` returned <= 0 (`0x4dbcbc`, storage `0x4dbb40`) because
-  the directory held nothing it lists (no sub-folder, no audio file, no `.m3u8`; a folder of other files only, a really empty one), so the path is cut back to the last `/` (`0x4dbcc4..0x4dbcf8`,
-  storage `0x4dbcf4`) and the layer, the offset stack, the title and the shown list stay as they were. The same -1 also comes from a folder that is gone (`access(path, R_OK)` at `0x4dbc5c`,
-  path cut back, `0x4dbca8`) and, for a type 1 record, from a missing or unparsable playlist file (`0x4dbe48`). A path too long for the buffer is -4 (`0x4dbc2c`; ignored by our page).
-  `toolsLoadDirectory` never touches `*pdeq_showlist` (`0xa045d8`; it does not reference it): it clears (`0x5e86f0` for the two `Android/data` paths, `0x5e8858` otherwise) and then fills only
-  the queue deque `*0xa03964`; `folder_enter` copies it into the shown list (`deque_clear` + `deque_assign`) only after a load that returned > 0. So a failed enter leaves the page's list valid
-  and only `0xa03964` empty. `batch_delete_file`'s class 1 path reads that deque (0x4e1464), and the stock page runs `folder_reload` when the message closes, so ours calls `folder_reload` (and `fo_load`, keeping the offset) after every -1.
-- **`folder_back(&yoffset)`** `0x4dbecc`: layer - 1; at 0 `clear_foldervariate` and 0 is returned (the stock page then calls `navigator_back`); else the parent list is loaded and the
-  offset of the level is popped into `*yoffset` (the root list pops nothing). **`folder_reload()`** `0x4db7ec` loads the current level again (the stock page does it whenever it comes back).
-- **A file's tap** (`0x531de0..0x531e9c`): `loadSongList(queue, name, cue, 1)` on the folder's files, then `navigator_to_with_context("playing_page", {queue, index, 1, 2})`, with
-  no `songerinfoflag` pop loop. `folder_page_init` leaves `g_class_type` = 1.
-- **Playing marker:** types 2..4 ask `is_folderplaying(url)` `0x5329d8` (the folder holds the playing file of a folder queue), type 8 `is_playing(1, cue, name, url)`, type 1 `is_m3ulistplaying`.
-- **Select mode** (stock): marks on any row; Delete (`0x5324d0`): confirm dialog kind 1 "Delete File?", "Can't be removed" while `0xa0483c` is set (a playlist file is open),
-  `batch_delete_file(1, list, vector, 0, 1)` (the files too), "File Deleted"; Add (`0x5326a8`): the `dialog/batchadd_dialog` (Favourites or a playlist), then `playlist_page` with
-  `0x10001`, or `batch_add_file(1, ..., 0xf00a)` for Favourites.
+- **A filesystem walk, not the database.** `toolsLoadDirectory(path)` lists one directory into the
+  queue deque `*0xa03964`: folders first, then files with an audio extension (and `.m3u8`). `.`,
+  `..` and junk names (`lost+found`, `System Volume Information`) are skipped; every other dot name
+  is listed (ours hides them). It never touches `*pdeq_showlist`; `folder_enter` copies the queue
+  into it only after a load that returned > 0.
+- **The root** (`load_rootfolder`) is three fixed records: `SD` (`/mnt/mmc`), `OTG` (`/mnt/usb`),
+  `CD Library` (`/mnt/mmc/Ripper`). Record type (`+0x34`): 1 playlist file, 2 SD, 3 OTG, 4 folder,
+  8 audio file; cue start at `+0x48`. No tags are read: a file shows its file name.
+- **State** is global: the layer (0 before the first enter, 1 the root, 2.. folders), the path, the
+  title buffer (`"folder"` at the root), the stack of scroll offsets, the m3u path.
+- **`folder_enter(index, yoffset)`**: index < 0 resets to the root; a tap on a storage checks the
+  mount (-2 "No TF Card Found", -3 "No OTG Found"); a type 4 record appends `/name` and loads it; a
+  type 1 record parses the playlist file; a type 8 record returns 8 and changes nothing.
+- **Return -1 ("File Not Found") is mostly an empty load**: the directory held nothing stock lists.
+  The path is cut back and the layer, offset stack, title and shown list stay as they were. It also
+  comes from a folder that is gone or an unparsable playlist file. So a failed enter leaves the
+  shown list valid and only the queue deque empty; ours calls `folder_reload` (and `fo_load`,
+  keeping the offset) after every -1.
+- **`folder_back(&yoffset)`**: layer - 1, pops the offset; at the root it clears state and returns 0
+  (the stock page then calls `navigator_back`). `folder_reload()` loads the current level again.
+- **A file's tap**: `loadSongList(queue, name, cue, 1)` on the folder's files, then
+  `navigator_to_with_context("playing_page", {queue, index, 1, 2})`. `g_class_type` is 1.
+- **Select mode and its calls** (class 1 for both; pinned in `FOLDER_PINS`):
+  - Delete: `batch_delete_file(1, ...)`. A folder is read with `toolsLoadDirectory` and each audio
+    file in it leaves the library (direct children only; sub-folder files stay in the table until
+    the next scan), then `remove_file` runs `rm -rf` on a directory, so **a folder goes
+    recursively**.
+  - Add: `batch_add_file(1, ...)` on a folder adds its **direct** audio files only. Playlist files
+    and storages add nothing.
+
+Both work on folder records, so our page passes them through `so_selection` unchanged.
 
 ## Our page
 
-One window for every level, the Songs page's structure (`songs.md`): the glass navbar (Back disc; the small title, the folder's name, hidden until the large title has scrolled away;
-the capsule **"..." | Now Playing** as on Songs and Artists, the "..." the left cap at x 214 (on a playlist file's tracks the button there is Select, `btn_select`: see Select below); at the root list of storages the "..." is hidden (`visible=false`, `sensitive=false`: its card would hold nothing) and Now Playing alone is the glass disc `ah_nav_np`, as on every page without a left cap; the small title runs to the "..." (x 214), to Now Playing's disc (260) at the root, to Select All in select mode) over a stock list whose one content view holds the large title (32 px) and, when the folder holds an
-audio file, the Play / Shuffle pills, and paints the rows itself. Mock: `out/preview/folders.png` (the Extras rows beside it for comparison).
+One window for every level, the Songs page's structure ([songs](songs.md)): the glass navbar
+(Back, the small title, the capsule **"..." | Now Playing**), over a stock list whose one content
+view holds the large title and, when the folder holds an audio file, the Play / Shuffle pills. The
+page paints the rows itself.
 
-- **Rows** are the menu / Extras rows' (`tools/mod_icons.py` `POD_ICON_X` 16, `POD_ICON` 24, `POD_TEXT_X` 56; `pod_ui.ROW_H` 52): the bare white 24 px Lucide glyph at x 16 (the menu rows' own
-  images `pod_ic_folders`, `pod_ic_playlists` for a playlist file, `pod_ic_cdripper` for the CD Library, and three of ours, `fo_ic_file` file-music, `fo_ic_sd` memory-stick, `pod_ic_usbmode` usb:
-  `mod_icons.FOLDER_ROWS`), the name at x 56 (21 px white, cut at x 256), one line, a hairline from x 56, press fill 20 %. A folder, a storage and a playlist file end in the grey chevron at the
-  shared list chevron (`FO_CHEV_X` = `LIST_CHEV_X` 288, centred above the hairline); the wave (`pod_ic_nowplaying`, 24 px) marks what plays: x 262 on a file row, x 254 (`FO_MARK_X_CHEV`) on a row with a chevron (folder, storage), 8 px before it, and then the name ends at 248 (`FO_TEXT_END_CHEV`) instead of 256 (cut per row, only while it plays). A file shows its file name with its extension (as stock;
-  one line each, so the 52 px pitch of the menu rows and no second text style). The large title and the pills are the Songs page's (x 12 and 10: `SG_TITLE_X`, `SG_PILL_X0` / `X1`); the first row is
-  at `SG_TOP` under the pills, or at `FO_TOP_PLAIN` 60 under the title alone. Values not shared: the text end 256, the wave x 262 (to 286; 254 on a chevron row) is this page's (the menu rows have no wave); the chevron is the shared one at 288. The select mark column is the Songs page's (`SG_SEL_COL` 30: glyph and text move right by it).
-  The root says "Folders" (the stock title is the singular), a folder its name from the stock title buffer. Records whose name starts with `.` are not shown (the library scan skips them
-  too; `docs/modules/podcasts.md`). A folder with only such names shows "Empty folder" (one with nothing at all never opens: see the next point).
-- **Covers** (stock's Folder cover switch, `foldercover_flag` byte `0xa05a67`, `FOLDER_COVER`, pinned at `0x532b60`, the load in the stock folder row): read as each level is read and when the window comes back to front (a change elsewhere re-makes the rows). Off: the rows above, unchanged, and the library is never asked. On: the rows are the rows above (52 px pitch, name at x 56, hairline from 56, chevron and wave as above) and only a row that has a cover differs: a `FO_COVER` 40 px cover (the size of stock's own folder-row icon, `img_icon` of `folder_create_tablerow` 0x5331fc) at x `FO_COVER_X` 8, y `FO_COVER_Y` 6 (centred), with `LIST_R` 4 corners cut in the bitmap's alpha (`grid_shape(&fo.g, FO_COVER, LIST_R, 1)`, so the press fill shows behind them), in place of the glyph; a row without a cover (storage, playlist file, a path the library lacks, an album with no cache file) keeps its 24 px glyph at x 16 exactly as with the switch off; select mode moves cover, glyph, text and hairline right by `SG_SEL_COL` as before. The cover of a **file** is its library track's album's cache file, of a **folder** the album of the first library track under it in path order (so a folder holding only sub-folders has one); storages and playlist files have none. Our cover cache is used (`covercache.h`: `cc_cmap_build` / `cc_cmap_key` for the album name's cache key, `cc_url`, `grid_art_url`); nothing is queued for stock's cover workers, written to the card or built from this page. **Lookup cost:** no library list is copied and no index is kept. The covers are asked for **one row per 16 ms tick, the rows in view only, the one nearest the middle first, never while the list moves and never from a paint** (`fo_on_load`, the Songs page's loader). A row's lookup is one `toolsQueryDbTable` of the song row callback, the record landing in `*tools_pdeq_directory` (cleared at once; `*pdeq_showlist` is not touched): for a file `select * from songtable where fileurl='<path>' limit 1`, for a folder `select * from songtable where fileurl>='<path>/' and fileurl<'<path>0' order by fileurl limit 1` (one record, a scan of the table with no sort and no list kept; a path over 300 bytes is not asked). So a tick costs one scan of the library table plus one 40 px decode, however big the level (a 2000 entry level looks up only the rows in view: tested), and memory is one record. The album cover map (`cc_cmap_build`, one `getAllAlbum` query, 8 bytes an album, at most `CC_CMAP_MAX`) is made on the first lookup of the page and freed with it; no map (no library, no memory, a failed query) leaves every glyph. A tile that scrolls out of the ring is looked up again when it returns.
-- **Levels** are one window swapping its list over the stock state: a tap on a folder is `folder_enter(record, offset)` (the stock messages for a card that is not there; a folder or storage with nothing to list, folder_enter -1, toasts the new "No music in this folder" and stays on the level, the list untouched; a playlist file that fails keeps `msg_notfile`), Back is
-  `folder_back(&offset)` (the level's offset comes back, clamped), at the root `folder_back` returns 0 (state cleared) and the window closes. This keeps Back and Now Playing exactly
-  as stock: Now Playing and the dialogs open over the window, and it needs no window stack bookkeeping. When the window comes to the front the list is read again (`folder_reload`)
-  **only** if another query replaced it (pointer, size and first record checked, as the Songs page does; a dialog closing keeps the select marks); a paint over a replaced list reads nothing and
-  a 100 ms timer reads it again when the page is on top.
-- **Play / Shuffle:** Play is the first audio file in order (`SO_IN_ORDER`), Shuffle a random audio file with Shuffle on (`SO_SHUFFLE`, the payload's flag: [shuffle](shuffle.md); the queue is the folder's files);
-  both through `so_play(class 1)`. A file's tap is `SO_KEEP` and the stock open (`navigator_to_with_context`, as the stock folder row; not `pod_open_player`).
-- **Order** (the "..." card, `patch/viewsort.c`, `vs_glass4`): **Select** above one group of sorts, **Name, Date Modified, Type**, one hairline between; ticked row = the order, its second line A–Z / Z–A (Date Modified: Newest First / Oldest First, `vs_dated`); a row not ticked starts in its default direction, a tap on the ticked row reverses it. Saved first in `folders-sort` (`FOLDERS_SORT_FILE`, one character: `0` Name, `1` Date Modified, `2` Type, `a` `b` `c` the same reversed; missing or anything else Name A–Z; a failed save changes nothing), one order for every level, read at open and listed in Settings Files after `songs-sort-rev`; the level is read again from the top. **Folders come before files in every order and direction** (the stock listing is folders first too). The stock list is never reordered: `vis` (the records shown) is sorted in place (`cc_heapsort`, ties by record), so the rows, the taps, Play / Shuffle's first file and Select All all follow the rows shown, and marks stay by stock record. Name is `cc_key_cmp` (digit runs by value, case folded, no pinyin), Z–A reversing each group; Type is the text after the last dot (case folded) then the name, Z–A reversing the extension only (folders have no type and stay by name); Date Modified is the mtime from one `statx` per entry (`ft_statx`, STATX_MTIME) taken when the level is read, newest first, ties by name. The stock records carry no mtime (the library's `REC_TIME_CREATE` is a creation stamp and is not read for folders), so the cost is one syscall per entry: Date Modified is offered only on levels of at most `FO_STAT_MAX` (2000) entries; a bigger level shows by Name and the card has no Date Modified row there (three rows, `vs_glass3`). The storages list is not sorted and has no card; a playlist file's tracks (`*FOLDER_M3U` set) keep the file's order; the card would hold Select only (`vs_glass1`), so it is not opened there: Select is the navbar's button instead (below). **Play order:** the queue `loadSongList` builds (the folder's audio files in listing order) is put in the order shown by `fo_reorder` (`so_play_with`: each queue record takes the rank of the row with its path, a binary search over the rows sorted by path, then the permutation is applied in place by cycles; files the page does not show, dot names, go last; out of memory leaves the stock order), and the row played is found by path in it. **CUE images:** stock's parser (`0x5e6f00`, called by `toolsLoadDirectory`) lists one record per TRACK of a `.cue`: the name and title are the TITLE, the path is the image file's for **every** track, `+0x48` / `+0x4c` the start and end. A path alone therefore never names a track: everything here that matches a record uses the path **and the CUE start** (`fo_reorder`'s ranks and its search for the row played, `so_play_with`'s own-index check and its twins in `ipod.c`, `search.c`, `shuffle.c`). In every order the tracks of one image stay together in the CUE's order (by start; Z–A and Oldest First do not turn them round) and are placed as the image file would be: Name by the image's file name (`fo_key`), Type by its extension, Date Modified by its mtime. Stock's comparator does the same (`0x5deb5c`: two CUE records of one path are never exchanged, `0x5dec88`). `test/pod/folders.py` `cue_tests` covers each order and direction with two images, a plain file and a sub-folder (the folder shifts the record numbers, which is what started the wrong track before). **Add to Playlist** appends in the folder's listing order, not the order shown (the stock vector holds record numbers).
-- **Select** on a playlist file's tracks (`fo_direct`): a one-row "..." menu is a direct button, so `btn_select` (Lucide list-checks, `pod_nav_selectl`, the left cap at x 214, hidden and insensitive on every other level) takes the "..." place and enters select mode at once, no card; `btn_more` is hidden there, and both are hidden in select mode. Elsewhere, the `Select` row of the card, not at the root; a list that becomes the root while the mode is on ends it): the page's own marks in a bitset by record, on **folders and audio files** (as stock,
-  which marks any row; not the storages, which only the root lists, and not playlist `.m3u8` files, which Add ignores). In select mode a tap on a folder row toggles its mark instead of entering; the marks of a level are dropped when it is reloaded,
-  "N Selected", Select All (every folder and audio file, or none), the Songs page's bar. Delete is the stock folder handler's sequence (own confirm dialog of kind 1 with `msg_delfile`, or, when any marked record is a folder (stock removes it with `rm -rf`), the new text "Delete folder and everything in it?" (one string for one or several folders, wrapped by the dialog: checked to at most three lines in all 13 languages); the
-  m3u check, `batch_delete_file(1, list, vector, 0, 1)` on the stock selection vector filled from the bitset by `so_selection`, `msg_delfilesuccess`), Add is `so_add(1, ...)`: the stock playlist
-  picker with `0x10001` (the stock handler's Favourites question is not asked, as on the Songs page).
-- **What stock does with a folder record** (read from the binary; the class is 1 for both, the pins in `FOLDER_PINS`):
-  - *Delete*: `batch_delete_file(1, ...)` (`0x4e1408`) takes the class-1 loop `0x4e150c`: per marked row, with `delete_file` set, a type 4 record is read with `toolsLoadDirectory(url)` (`0x4e157c`; it fills the separate deque
-    `0xa03964`, not the shown list) and each type 8 file in it leaves the library (`deleteMusicFromMusicDb`, direct children only; the files of sub-folders stay in the library table until the next scan), then
-    `remove_file(url)` (`0x4e1264`): a directory goes through `system("rm -rf \"%s\"")` (`0x4e1368`, string `0x74b294`), so a folder is removed **recursively** with everything in it. Any other row: `deleteMusicFromMusicDb` then `remove_file`.
-  - *Add*: `batch_add_file(1, ...)` (`0x4da7dc`) on a type 4 record (`0x4db00c`) reads the folder with `toolsLoadDirectory(url)` (`0x4db0cc`) and adds each type 8 file of it (the tags read by `get_songid3_info`, as for a marked file):
-    the folder's **direct** audio files, not those of its sub-folders. Types 1 (playlist file), 2 and 3 add nothing. For Favourites (`0xf00a`) the stock code does the same through `checkFavExist` / `addMyFav`; we only open the playlist picker.
-  So both work on folder records and our page passes them through `so_selection` unchanged. The test (`test/pod/folders.py`; `order_tests` for the card: each order and direction, the saved file, the play queue and the row taps in each order, Select by shown row, the 2001-entry level, the storages and a playlist file) checks that the records reach the vector; the stock loops themselves are pinned, not executed.
-- **Pinned stock** (`FOLDER_PINS` in `tools/pod_pins.py`): `folder_enter`, `folder_back`, `folder_reload`, `is_folderplaying` (prologues and the words that give their results), the layer,
-  title and m3u globals, the type test and the `is_playing` call of the stock row, and the type-4 tests of the stock Delete and Add. The same functions the stock page calls, in the same order.
-- Neutral white / grey; no accent. Translated: "Date Modified" and "Type" (the card; `Name`, `Select`, A–Z, Z–A, Newest First and Oldest First are the existing keys), "Empty folder", "No music in this folder" and "Delete folder and everything in it?" (new), the stock `msg_delfile`, `msg_delfilefailed`, `msg_delfilesuccess`, `msg_notsupportdel`, `msg_nottf`, `msg_nototg`,
-  `msg_notfile`.
+- The small title shows once the large one scrolls away and runs to the "..." (x 214), to the Now
+  Playing disc at the root, to Select All in select mode.
+- At the root the "..." is hidden (its card would hold nothing) and Now Playing is the plain disc
+  `ah_nav_np`. On a playlist file's tracks the button at 214 is Select (below).
+- The root title says "Folders" (stock's is singular); a folder shows its name.
 
-## Not done / open
+### Rows
 
-- Covers come from our cache (below), never from stock's `.downpic/fd_<md5>.jpg` pipeline: a folder's `cover.jpg` / `folder.png` and an audio file's embedded art that are not in the library's album covers do not show, and nothing is made for a path the library does not hold (SD / USB files outside the scan, playlist files, storages).
-- No tags: a file shows its file name (the stock records carry none).
-- A marked folder: Add takes only its direct audio files (stock's `batch_add_file`), and Delete leaves the library rows of files in its sub-folders until the next scan (stock's loop reads one level). Neither is run on the device yet; the stock loops are only pinned.
-- Not verified on the device. The hardware Back key, if it calls `navigator_back` directly, would close the window at any level (the stock state would stay at that layer until the
-  next open resets it with `folder_enter(-1)`).
-- The stock state's offset stack grows by one per open when the window is left by anything but Back at the root (the stock page does the same).
+The menu rows' style (`POD_ICON_X` 16, `POD_ICON` 24, `POD_TEXT_X` 56, `ROW_H` 52):
+
+- A white 24 px Lucide glyph at x 16: `pod_ic_folders`, `pod_ic_playlists` (playlist file),
+  `pod_ic_cdripper`, and ours `fo_ic_file`, `fo_ic_sd`, `pod_ic_usbmode` (`mod_icons.FOLDER_ROWS`).
+- The name at x 56 (21 px white, one line, cut at x 256), hairline from x 56, press fill 20 %. A
+  file shows its file name with the extension.
+- Folder, storage and playlist file end in the shared grey chevron (`FO_CHEV_X` = `LIST_CHEV_X`
+  288). The now-playing wave (`pod_ic_nowplaying`) marks what plays (the playing file, a folder or
+  storage holding the playing file of a folder queue, the playing playlist file; stock's
+  `is_folderplaying` / `is_playing` / `is_m3ulistplaying`). It is at x 262 on a file row, x 254
+  (`FO_MARK_X_CHEV`) on a chevron row, where the name then ends at 248 (`FO_TEXT_END_CHEV`).
+- The large title and pills are the Songs page's; the first row is at `SG_TOP` under the pills or
+  `FO_TOP_PLAIN` 60 under the title alone. Select moves glyph, text and hairline right by
+  `SG_SEL_COL` 30.
+- Names starting with `.` are not shown. A folder with only such names shows "Empty folder".
+- Neutral white and grey; no accent.
+
+### Covers
+
+Stock's Folder cover switch (`foldercover_flag`, `FOLDER_COVER`) is read as each level is read and
+when the window comes back. Off: the rows above, and the library is never asked.
+
+- On: a row with a cover shows a 40 px picture (`FO_COVER`) at x `FO_COVER_X` 8 with 4 px corners in
+  place of the glyph. A row without one (storage, playlist file, a path the library lacks, an album
+  with no cache file) keeps its glyph.
+- A file's cover is its library track's album cache file; a folder's is the album of the first
+  library track under it in path order. Our cache only: nothing is queued for stock's workers or
+  built from this page.
+- **Lookup cost.** No library list is copied. One row per 16 ms tick, rows in view only, nearest
+  the middle first, never while the list moves or from a paint (`fo_on_load`). One lookup is one
+  `toolsQueryDbTable` (file: `fileurl='<path>' limit 1`; folder: `fileurl>='<path>/' and
+  fileurl<'<path>0' order by fileurl limit 1`; a path over 300 bytes is not asked). So cost does not
+  grow with the level's size.
+- The album cover map (`cc_cmap_build`, one `getAllAlbum` query) is made on the first lookup and
+  freed with the page. No map leaves every glyph.
+
+### Levels and play
+
+- A tap on a folder is `folder_enter`; a folder or storage with nothing to list toasts "No music in
+  this folder" and stays; a failed playlist file keeps `msg_notfile`. Back is `folder_back`; at the
+  root the window closes. So Back and Now Playing behave as stock and no window stack is kept.
+- On return to the front the list is read again only if another query replaced it (pointer, size,
+  first record, as on Songs). A paint over a replaced list reads nothing; a 100 ms timer reads it
+  when the page is on top.
+- **Play** is the first audio file in order (`SO_IN_ORDER`); **Shuffle** a random file with Shuffle
+  on (`SO_SHUFFLE`, [shuffle](shuffle.md)). Both use `so_play(class 1)`. A file's tap is `SO_KEEP`
+  and the stock open (`navigator_to_with_context`).
+
+### Order
+
+The "..." card (`vs_glass4`): **Select** above one group **Name, Date Modified, Type**, one hairline
+between. The ticked row is the order, its second line A-Z / Z-A (Date Modified: Newest First /
+Oldest First, `vs_dated`). A row not ticked starts in its default direction; a tap on the ticked row
+reverses it.
+
+- Saved first in `folders-sort` (`FOLDERS_SORT_FILE`): `0` Name, `1` Date Modified, `2` Type, `a`
+  `b` `c` the same reversed; missing or anything else is Name A-Z; a failed save changes nothing.
+  One order for every level, read at open; the level is read again from the top.
+- **Folders come before files in every order and direction.** The stock list is never reordered:
+  `vis` is sorted in place (`cc_heapsort`, ties by record), so rows, taps, Play / Shuffle's first
+  file and Select All follow the rows shown. Marks stay by stock record.
+- Name is `cc_key_cmp` (digit runs by value, case folded, no pinyin); Type is the text after the
+  last dot (case folded), then the name (Z-A reverses the extension only; folders have no type and
+  stay by name); Date Modified is the mtime from one
+  `statx` per entry (`ft_statx`) taken when the level is read, newest first, ties by name.
+- Stock records carry no mtime, so Date Modified costs one syscall per entry. It is offered only on
+  levels of at most `FO_STAT_MAX` (2000) entries; a bigger level shows by Name and the card has
+  three rows (`vs_glass3`).
+- The storages list has no card and is not sorted. A playlist file's tracks keep the file's order
+  and have no card (Select is a navbar button instead).
+- **Play order.** The queue `loadSongList` builds is put in the order shown by `fo_reorder`
+  (`so_play_with`: each queue record takes the rank of the row with its path, then the permutation
+  is applied in place). Files the page does not show go last. **Add to Playlist** appends in the
+  folder's listing order, not the order shown.
+- **CUE images.** Stock lists one record per TRACK of a `.cue`, all with the image file's path
+  (`+0x48` / `+0x4c` hold the start and end). So anything matching a record uses the path **and the
+  CUE start** (`fo_reorder`, `so_play_with`, and the twins in `ipod.c`, `search.c`, `shuffle.c`).
+  In every order the tracks of one image stay together in the CUE's order and are placed as the
+  image file would be. Stock's comparator does the same.
+
+### Select
+
+- Elsewhere the card's `Select` row; on a playlist file's tracks (`fo_direct`) `btn_select` takes
+  the "..." place and enters select mode at once. Not at the root. A list that becomes the root
+  ends the mode.
+- Marks are a bitset by record on folders and audio files (not storages, not `.m3u8` files). A tap
+  on a folder row toggles its mark instead of entering. Marks drop when the level is reloaded.
+  "N Selected", Select All, the Songs page's bar.
+- **Delete** follows the stock handler: a kind 1 confirm with `msg_delfile`, or, when any marked
+  record is a folder (stock removes it with `rm -rf`), "Delete folder and everything in it?"; the
+  m3u check; `batch_delete_file(1, list, vector, 0, 1)` on the stock vector filled by
+  `so_selection`; `msg_delfilesuccess`.
+- **Add** is `so_add(1, ...)`: the stock playlist picker with `0x10001`. The stock Favourites
+  question is not asked, as on the Songs page.
+
+### Texts
+
+Translated: "Date Modified", "Type", "Empty folder", "No music in this folder", "Delete folder and
+everything in it?" (that one wraps to at most three lines in all 13 languages). Stock keys:
+`msg_delfile`, `msg_delfilefailed`, `msg_delfilesuccess`, `msg_notsupportdel`, `msg_nottf`,
+`msg_nototg`, `msg_notfile`.
+
+## Limits
+
+- Covers come from our cache only, never stock's `.downpic` pipeline: a `cover.jpg` or embedded art
+  that the library's album covers lack does not show, and nothing is made for a path the library
+  does not hold (SD / USB files outside the scan, playlist files, storages).
+- No tags: a file shows its file name.
+- A marked folder: Add takes only its direct audio files and Delete leaves library rows of
+  sub-folder files until the next scan (stock's loops read one level).
+- If the hardware Back key calls `navigator_back` directly it closes the window at any level; the
+  stock state stays at that layer until the next open resets it.
+- The stock offset stack grows by one per open when the window is left by anything but Back at the
+  root (stock does the same).

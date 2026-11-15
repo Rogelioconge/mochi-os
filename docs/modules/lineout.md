@@ -1,4 +1,6 @@
-# The Line Out pill, the EQ mark and the sync icon (`patch/lineout.c`, `patch/lineout.h`, `test/pod/lineout.py`; hook 20 in [payload](payload.md))
+# The Line Out pill, the EQ mark and the sync icon
+
+**Sources:** `patch/lineout.c`, `patch/lineout.h`, `tools/statusbar.py`, `LINEOUT_PINS` in `tools/pod_pins.py`; hook 20 in [payload](payload.md). **Tests:** `test/pod/lineout.py`. **Preview:** `tools/preview/preview.py`.
 
 **Behaviour.** While Line Out is on (stock's byte `0xa05aa7`), the status bar shows an amber pill with a black "LO" in place of stock's white "LO" text, and the same in the
 pull-down's own bar copy. Always on: no setting. Everything else is stock: the volume glyph beside it, the volume number in PO mode, the pull-down's Output tile, and the "Line Out sets max volume" confirm.
@@ -33,7 +35,7 @@ so the mark gives way to the glyph. Stock sets the glyph later in the same tick,
 
 `tools/preview/preview.py` writes `eqmark.png` (off, on, on with Line Out, the pull-down's bar).
 
-**Limits.** Not device-tested. The mark is the default white: the Accent does not tint it.
+**Limits.** The mark is the default white: the Accent does not tint it.
 
 ## Sync icon
 
@@ -48,6 +50,5 @@ The widget is added by `tools/statusbar.py` `apply` to both copies (`test/pod/as
 **Placement.** Right group, between the Bluetooth glyph and Wi-Fi (the layouter skips it while hidden, so nothing moves otherwise). Left of the Bluetooth glyph itself is not possible: the stock `img_btclass` box is 47 px wide with its glyph at the right
 end (ink x 35..47), so the slot left of the box lies over the clock text. Shown, the icon moves Bluetooth's glyph 22 px left: with Bluetooth and Wi-Fi lit the ink starts clear of the 12 h and 24 h clock (`test/pod/lineout.py`); with the Battery Percentage at 4 characters and the Screenshot camera counting down as well it would not (rare, accepted).
 
-**Priority.** The worker runs at nice 10, see [Home cover build](homecover.md).
+**Priority.** The worker runs at nice 10, see [cover cache](covercache.md).
 
-**Limits.** Hardware behaviour is not covered by emulation.

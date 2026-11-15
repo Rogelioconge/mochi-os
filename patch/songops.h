@@ -1,7 +1,7 @@
 /* What a page that lists stock songs does with them, shared by the Songs page (patch/songs.c) and the album page (patch/albumpage.c).
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
- * Moved from patch/songs.c (docs/modules/songs.md "Select mode on the page itself: the evidence" has the stock code read): the page keeps its marks in a bitset of its
+ * Moved from patch/songs.c (docs/modules/songs.md "Select mode: stock delete and add" has the stock code read): the page keeps its marks in a bitset of its
  * own; the stock Delete and Add run on the stock selection vector, which is filled from that bitset at the moment of the action. A page owns its state (its list, its
  * browsing record, its select mode); these functions take what they need and touch no widget.
  */

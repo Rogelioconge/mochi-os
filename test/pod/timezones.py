@@ -1,4 +1,4 @@
-"""Time zones (patch/timezones.c, tools/timezones.py, docs/modules/timezones.md): the select_timezone hook, the saved-index clamp, the picker's row count, order and labels.
+"""Time zones (patch/timezones.c, tools/timezones.py, docs/modules/datetime.md): the select_timezone hook, the saved-index clamp, the picker's row count, order and labels.
 
 The payload functions run in Unicorn against the built demo; stock's setenv("TZ") wrapper, the row builder and select_timezone's body are mocked. Stock's words are checked
 against the stock demo, and a changed pinned word must refuse the build."""

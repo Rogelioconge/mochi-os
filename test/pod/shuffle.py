@@ -679,7 +679,7 @@ def apple_tests(ctx):
     expect(ui['done'] and dl['done'] and m.owner is None and order(m) == N12 and not flag_on(m) and ('mclSetPlayPos',) not in m.calls, 'clear B: after the clear the restore finds no saved order and leaves the queue as it is')
 
     # 52. The Queue page's Clear (pod_clear_upnext: libcstl's deque_pop_back under the same lock) against the other threads' reorders and loads: whole-operation exclusion both ways.
-    #     Stock's readers take no lock and are not hooked (docs/modules/queue.md "Clear engine"); this is what the lock does cover.
+    #     Stock's readers take no lock and are not hooked (docs/modules/queue.md "Clear"); this is what the lock does cover.
     def clear_machine(n=12, pos=3, **kw):
         m = apple_machine(n=n, pos=pos, **kw); m.install_libcstl(); return m
     freed_of = lambda m: sorted(c[1] for c in m.calls if c[0] == 'free' and c[1])

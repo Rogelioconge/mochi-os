@@ -98,42 +98,213 @@ A Subsonic server's artists show the server's own artist picture instead, fetche
 
 ## Settings
 
-Grey values show the current setting.
+Grey values on the right show the current setting. The pages, top to bottom: Wi-Fi, Bluetooth,
+Home Screen, Library, Now Playing, Playback; then one card with General, Display, Appearance,
+Buttons & Power and Battery; All System Settings and Developer last.
 
-To show, hide or reorder menu items, open **Settings → Home Screen → Main Menu**.
-Use **Home Screen → Extras** to hide items from Extras. Settings stays accessible.
+**All System Settings** is the player's own full list of system settings, as a fallback. It also
+holds the rarely used stock pages: Firmware Update (update from a card), Regulatory, Format Storage
+and Reset.
 
-Under Playback, one card holds **General** (About and Software Update; Date & Time, Keyboards and Language), **Display**, **Appearance**, **Buttons & Power** and **Battery**; **All System Settings** (the player's own full list of system settings, with Firmware Update, Regulatory, Format Storage and Reset) and Developer are last. The table lists each page's options; the rows that live on General are in the General row below (Keyboards has its own row).
+### Wi-Fi
 
-To show, hide or reorder the tiles of the pull-down, open **Settings → Appearance → Control Center**. Besides the stock tiles it offers six of ours, hidden until you turn them on: **Sleep Timer** (opens the Sleep Timer page, the same as Now Playing's More page), **Settings** (opens the M1+ Music Settings), **Equalizer** and **Power Off** (asks "Confirm Shutdown?", the same question as holding the power key, and shuts the player down as the key does), and two switches, **AirPlay** and **DLNA**: a tap turns the service on or off (the same setting as Settings → Network Service), the tile lights while it is on, and the pull-down stays open. The services run only while Wi-Fi is connected; turning one on without Wi-Fi keeps the setting and shows "Connect to Wi-Fi first", and the tiles do nothing while an AirPlay session is playing. The pull-down holds eight tiles, and turning on a ninth shows "Up to 8 controls". The pull-down's Playback Settings tile opens the Playback Settings page below (and is dimmed while you are on it).
+- The Wi-Fi switch, the connected network, **My Networks** and nearby networks with their
+  security, and **Other…** for a hidden network. WPA3 and Enhanced Open networks join.
+- A network's info glyph opens its page: the full name under the title, and for a saved network
+  **Forget This Network** and **Auto-Join**. Long names end in an ellipsis in the list.
+- Settings → All System Settings → Wi-Fi opens the same page. With `/mnt/mmc/m1plus-off`
+  it opens the stock page, the only way to join a WEP network.
 
-| Page | Options |
-|---|---|
-| Wi-Fi / Bluetooth | Wi-Fi: the Wi-Fi switch, the connected network, My Networks and nearby networks with their security, and Other… for a hidden network; a long network name ends in an ellipsis in the list, and the network's page (the info glyph) shows the whole name under the title; a saved network's page has Forget This Network and Auto-Join. WPA3 and Enhanced Open networks join. Settings > All System Settings > Wi-Fi opens the same page (the stock page with `/mnt/mmc/m1plus-off`, the only route for WEP). Bluetooth: the Bluetooth switch, **Audio Codec** (LDAC HQ, Standard or Connection, aptX HD, aptX, AAC, SBC HQ or SBC; a connected device is asked before it reconnects), a note with this player's name, **My Devices** (the paired ones: a tap connects or disconnects, a check marks the connected one) and **Other Devices** (found ones: a tap pairs and connects; **Search Again** after the search); the device's page (the info glyph of a paired device) has Connect or Disconnect, **Headset Volume** keys while it is connected, and Forget This Device, and a long device name is shown whole under the title. Developer > Tools > All System Settings > Bluetooth opens the same page (the stock page with `/mnt/mmc/m1plus-off`). Wi-Fi and Bluetooth can be on together: turning one on warns that Bluetooth audio may stutter while Wi-Fi is on and leaves the other on (also from the Control Center tiles). Values show On/Off |
-| Home Screen | Recent Albums, Daily Mix, menu items; Regenerate Daily Mix takes effect next Home visit |
-| Library | Update Library, Rebuild Covers, Rebuild Artist Photos, **Split Artists** (opens a page: list a song under each of its artists, with the separators to split on), under **List Navigation** (the Songs, Artists, Albums and Radio lists) **Index Rail** (on by default: the A–Z rail on Songs, Artists, Radio countries and the Albums list in Title order, decades in Year order) and **Section Headers** (on by default: the section letters and the pinned header; off closes the rows up), **Folder Album Cover** (on by default: Folders rows show a cover where the folder has one), landscape Cover Flow, Volume Buttons (the volume buttons move between albums in Cover Flow; off by default), **Podcasts** (opens a page: **Podcast Discover**; **Directory**, Apple Podcasts, the default, or Podcast Index, where podcast searches and show look-ups go, never both, Discover's charts always come from Apple; and **Podcast Region**; Directory and Region are dimmed while Podcast Discover is off) and **Scrobbling** (see below); a card of its own at the bottom holds **CD Ripping** (opens the player's own ripping page) |
-| Now Playing | Cassette Theme: Normal, Chrome, Metal or Auto (the default), applies next time Cassette Mode opens. Auto picks the tape by the track: Normal for MP3 and other lossy files, Chrome for CD-quality lossless, Metal for hi-res and DSD (those two also get a gold sticker in every theme); Vinyl Record and Base; Lyrics Text Size (its own card): Small, Medium or Large (the default) for the lines of the lyrics page, 22, 26 or 30 px (an open Now Playing takes a change when you return to it); Idle Display (last card): what Now Playing shows after 10 seconds, Off, Album Cover, Cassette, Vinyl or Lyrics (Off is the same switch as Playback Settings > Cover mode) |
-| Playback | **EQ** opens the [Equalizer](#equalizer). **Playback Settings** is one page of three cards (the settings stock keeps in its Playback Settings list, now in our style): Playback has **Play Mode** (List Play, Repeat Track, Shuffle, Repeat All), **Gapless**, **Resume** (Off, Track, Location: where playback resumes after a restart), **Folder Skip** and **Continue Playing**: Off (the default) or Next Albums: when an album you started from Albums, an artist's albums or Cover Flow ends, the next album in that page's order plays on (with a short gap between albums; not with Repeat or Shuffle on, and not from Songs or Search); Volume has **Gain** (Low or High; dimmed while Line Out is on, as in stock), **Max Volume** (a page showing the number with a slider, 0 to 100, and - and + buttons: the volume keys stop there, and a volume above it is lowered to it at once; 0 is allowed), **Default Volume** (the volume at the next start: a Volume Memory switch, on keeps the last volume, and a slider 0 to 100 that is dimmed while the switch is on; the row says Memory or the number), **Channel Balance** (a slider from L to R, the centre in the middle, with L and R buttons; the row says L3, 0 or R2; it does nothing on Line Out or USB audio, as in stock), **Mono Audio** (a switch: both channels play the same mix, on every output, also with the Equalizer off), **Crossfeed** (Off, Low, Medium or High: for headphones and Bluetooth, each ear hears a little of the other channel, so stereo recordings sound less extreme; it is not applied to Line Out, a USB DAC or DSD, and the row keeps your choice) and **ReplayGain** (Off, Track, Album); Output has **Digital Filter** (the DAC's eight filters), **DSD Output Mode** (D2P, DOP, Native; on a USB DAC the song restarts where it was), **USB Mode** (opens the player's own USB page), **USB Volume** (Fixed or Variable) and **Digital Output**. Every setting is the same one stock's pages show and takes effect at once (Default Volume at the next start); the three volume pages use stock's own slider code, so a drag saves as often as stock's did |
-| General, Display, Appearance, Buttons & Power, Battery | **General** has About, Software Update, Date & Time, Keyboards and Language (the rows that open the player's own pages, Firmware Update, Regulatory, Format Storage and Reset, are in All System Settings, last on Settings above Developer); **Display** (the brightness slider; Screen Timeout: Never, 15s, 30s, 1min or 5min; **Lock Screen**, below; **Screen Rotation**: a switch, on turns the screen upside down (180 degrees; at once, and kept after a restart); LED Light: Off, Green, Blue or Dynamic, with Follow Screen under the choices: the light goes dark with the screen, as its note says). **Dynamic** makes the light follow the music; while it is chosen, a Theme row appears under the choices and opens Theme, with six themes under Ambient and Sample Rate (a note at the top describes the chosen theme's colours and changes when you pick another): Reference shows the playing track's sample rate as a colour, from red-pink at 44.1 kHz through blue around 96 kHz to green at the highest rates; Gentle Breathe, Heartbeat and Lighthouse move that colour's brightness; Candle and Wave are mood lights with colours of their own. The light fades when playback pauses, and while a track plays it replaces the red charging light), **Buttons & Power** (**Button Lock**: Off, Lock Volume Only, Lock Buttons Only or Lock Volume & Buttons, only while the screen is off, the same setting as the Control Center key-lock tile and Developer > Tools > All System Settings; **Tap to Wake**: touch the screen to wake it, the touch panel decides whether one or two taps; **Auto-Standby**, off after 5 minutes with nothing playing, and **Auto-Shutdown**: Off, 1, 3, 5 or 10 minutes with nothing playing; only one of the two is on at a time, turning one on turns the other off; **Car Mode**, for use in a car: the last track resumes at start, Auto-Standby and Auto-Shutdown do not run and USB connections are ignored), **Language** (the current language's own name at the right; the list names each of the 13 languages in its own writing, the same as Developer > Tools > All System Settings > Language, and a choice switches the whole player at once and returns to the Home screen), **Date & Time** (**Set Automatically**: the clock syncs over Wi-Fi; **Time Zone**, among 43 zones, can always be changed; **Date** and **Time**, each with Year, Month, Day or Hour, Minute pickers and a Set row, change only while it is off; **24-Hour Time**), **Appearance** > **Background** (Black, or Tinted: with an accent chosen, the dark greys of every page, card and sheet take a 12 % wash of it; covers and cover-coloured pages keep their look) and **Accent** (the main menu's icons show in the accent; Neutral, Red, Orange, Green, Teal, Purple or Champagne: tints pressed rows and their icons, switches that are on, the lit pull-down tiles, sliders, progress bars (including the Home cache pill and the refresh and update download dialogs), the pressed rows of the menu sheets and cards, the picker check, the selected marks when you select songs, the index rail's selected letter, the EQ pages' sliders and curve and the download progress rings; applies at once), Display > **Lock Screen** (Enable; the lock screen shows a short date in your language over the clock, such as Wed, Nov 11; Wallpaper: the default or one of up to five pictures you copy to `lockscreenimage` on the card, JPG or PNG, 320 x 480, under 1 MB, the chosen one framed in the accent; Show Time; Player Style: Large Cover or Mini Player, a bar like Home's at the bottom; Custom Wallpaper explains the pictures. All System Settings > Display > Lock Screen opens the same page) and **Control Center** (show, hide and reorder the tiles of the status bar swipe-down panel, up to eight, the stock ones and six of ours; see above), Language (under All System Settings; texts the original firmware showed in English in other languages, such as Look up Artist, Look up Album, the sort orders and the digital filters, are translated), Keyboards, **Battery** (**Battery Percentage**, off by default, shows the exact charge beside the battery icon, in the status bar and on the lock screen; **Charge Limit** stops charging at 80, 85, 90 or 95 % while the player is on and resumes about 5 % lower, 100 % (the default) is no limit, and a switched-off player charges fully) and About (firmware, device, network and storage details; **Software Update** is the row under the version) |
-| Keyboards | English always enabled; Chinese (Pinyin) adds a language key and candidates above the keys. Swipe candidates sideways; space selects the first. Tidal > Search uses this keyboard too: it sits at the bottom of Tidal's own page, Search hides it and a tap on the search bar brings it back |
-| Developer → Startup | Boot to M1+ Music; Open Shanling Home |
-| Developer → Tools | Screenshot, Cache (Covers, Artist Photos: how many artists have a photo and how many have none, then Track Durations: its last row is Clear Track Durations), Settings Files (tap a file to delete it; Unsupported Files removes leftovers of older builds) |
-| Developer → Reset | Reset All Settings |
+### Bluetooth
 
-Home builds missing album covers (and measures track lengths) in the background. A pill at the top
-of Home shows the progress, and a sync icon in the status bar shows while it runs; the pill's **×**
-stops it until the next restart. Nothing is scanned when the library has not changed, and an
-album whose cover hangs the build is skipped. **Rebuild Covers** asks for confirmation, then
-Home rebuilds every cover the same way. **Cache**
-shows cached/missing/stale counts, current work, the artist photo counts and the measured tracks; **Clear Cover Cache** asks before deleting,
-then Home regenerates covers (artist photos are kept).
+- The Bluetooth switch and **Audio Codec**: LDAC HQ, Standard or Connection, aptX HD, aptX, AAC,
+  SBC HQ or SBC. A connected device is asked before it reconnects.
+- A note with this player's name.
+- **My Devices**: paired devices. A tap connects or disconnects; a check marks the connected one.
+- **Other Devices**: devices found nearby. A tap pairs and connects; **Search Again** after the
+  search ends.
+- A paired device's info glyph opens its page: **Connect** or **Disconnect**, **Headset Volume**
+  while it is connected, **Forget This Device**, and the full name under the title.
+- Wi-Fi and Bluetooth can be on together. Turning one on while the other is on warns that
+  Bluetooth audio may stutter, and leaves both on (also from the Control Center tiles).
+- Settings → All System Settings → Bluetooth opens the same page (the stock page with
+  `/mnt/mmc/m1plus-off`).
 
-**Software Update** (Settings → General → Software Update, the row under About; needs Wi-Fi) checks GitHub for a newer release: **Check for Update**, then **Download and Install**; **Release Notes** shows what changed.
-A dialog asks first (about 55 MB, replaces the card's `update.bin`; 110 MB of free card space needed); a popup shows the progress and **Cancel** (Back is Cancel too; the card's old `update.bin` stays). When the download
-is complete the firmware's own TF card update takes over with its confirmation, battery check and checksums; the flashing is unchanged. If you say No there, the page offers **Install** again and **Check Again**.
+### Home Screen
 
-**Screenshot** asks first: leave the page within five seconds to capture another screen.
-Cancel during the countdown if needed. Pictures are saved in the card's `screenshots` folder.
+- **Recent Albums** and **Daily Mix** on Home. **Regenerate Daily Mix** takes effect at the next
+  Home visit.
+- **Main Menu**: show, hide or reorder the menu items.
+- **Extras**: hide items from Extras. Settings always stays reachable.
+
+### Library
+
+- **Update Library**, **Rebuild Covers**, **Rebuild Artist Photos**.
+- **Split Artists**: list a song under each of its artists, with the separators to split on.
+- **List Navigation** (Songs, Artists, Albums and Radio lists):
+  - **Index Rail**, on by default: the A–Z rail on Songs, Artists, Radio countries and the Albums
+    list in Title order; decades in Year order.
+  - **Section Headers**, on by default: section letters and the pinned header. Off closes the rows
+    up.
+- **Folder Album Cover**, on by default: Folders rows show a cover where the folder has one.
+- Landscape Cover Flow, and **Volume Buttons** (off by default): the volume buttons move between
+  albums in Cover Flow.
+- **Podcasts**: **Podcast Discover**; **Directory** (Apple Podcasts, the default, or Podcast
+  Index), where podcast searches and show look-ups go; **Podcast Region**. Discover's charts
+  always come from Apple. Directory and Region are dimmed while Podcast Discover is off.
+- **Scrobbling**: see Scrobbling under [Extras](#extras).
+- **CD Ripping**, in its own card at the bottom, opens the player's ripping page.
+
+### Now Playing
+
+- **Cassette Theme**: Normal, Chrome, Metal or Auto (the default); applies the next time Cassette
+  Mode opens. Auto picks the tape by the track: Normal for MP3 and other lossy files, Chrome for
+  CD-quality lossless, Metal for hi-res and DSD. Hi-res and DSD also get a gold sticker in every
+  theme.
+- **Vinyl Record** and **Base** colours.
+- **Lyrics Text Size**: Small, Medium or Large (the default), 22, 26 or 30 px. An open Now Playing
+  picks up a change when you return to it.
+- **Idle Display**: what Now Playing shows after 10 seconds: Off, Album Cover, Cassette, Vinyl or
+  Lyrics. Off is the same switch as Playback Settings → Cover mode.
+
+### Playback
+
+**EQ** opens the [Equalizer](#equalizer). **Playback Settings** is one page of three cards, the
+settings stock keeps in its Playback Settings list. Every setting is the same one stock's pages
+use and takes effect at once (Default Volume at the next start).
+
+- **Playback**
+  - **Play Mode**: List Play, Repeat Track, Shuffle, Repeat All.
+  - **Gapless**; **Resume**: Off, Track or Location, where playback resumes after a restart.
+  - **Folder Skip**.
+  - **Continue Playing**: Off (the default) or Next Albums. When an album started from Albums, an
+    artist's albums or Cover Flow ends, the next album in that page's order plays, after a short
+    gap. Not with Repeat or Shuffle on, and not from Songs or Search.
+- **Volume**
+  - **Gain**: Low or High; dimmed while Line Out is on, as in stock.
+  - **Max Volume**: 0 to 100, with a slider and − / + buttons. The volume keys stop there, and a
+    higher volume is lowered at once.
+  - **Default Volume**: the volume at the next start. **Volume Memory** on keeps the last volume;
+    off uses the slider. The row says Memory or the number.
+  - **Channel Balance**: a slider from L to R with L and R buttons; the row says e.g. L3, 0 or R2.
+    No effect on Line Out or USB audio, as in stock.
+  - **Mono Audio**: both channels play the same mix, on every output, also with the Equalizer off.
+  - **Crossfeed**: Off, Low, Medium or High. Each ear hears a little of the other channel, so
+    stereo recordings sound less extreme. For headphones and Bluetooth only, not Line Out, a USB
+    DAC or DSD; the row keeps your choice.
+  - **ReplayGain**: Off, Track or Album.
+  - The three volume pages use stock's slider code, so a drag saves as often as stock's did.
+- **Output**
+  - **Digital Filter**: the DAC's eight filters.
+  - **DSD Output Mode**: D2P, DOP or Native. On a USB DAC the song restarts where it was.
+  - **USB Mode** (opens the player's USB page), **USB Volume** (Fixed or Variable) and **Digital
+    Output**.
+
+### General
+
+- **About**: firmware, device, network and storage details.
+- **Software Update**, the row under About: see [Software Update](#software-update).
+- **Date & Time**: **Set Automatically** syncs the clock over Wi-Fi. **Time Zone** (43 zones) can
+  always be changed. **Date** and **Time** have Year / Month / Day and Hour / Minute pickers and a
+  Set row, and change only while Set Automatically is off. **24-Hour Time**.
+- **Keyboards**: English is always on. **Chinese (Pinyin)** adds a language key and candidates
+  above the keys; swipe the candidates sideways, and Space picks the first. Tidal's Search uses
+  this keyboard too, at the bottom of Tidal's own page: Search hides it, and a tap on the search
+  bar brings it back.
+- **Language**: the current language's own name at the right. The list names each of the 13
+  languages in its own writing; a choice switches the whole player at once and returns to Home.
+  Texts the original firmware left in English in other languages (Look up Artist, Look up Album,
+  the sort orders, the digital filters) are translated.
+
+### Display
+
+- Brightness slider; **Screen Timeout**: Never, 15 s, 30 s, 1 min or 5 min.
+- **Lock Screen**: **Enable**; **Show Time**; **Player Style**: Large Cover or Mini Player (a bar
+  like Home's at the bottom); **Wallpaper**: the default or one of up to five pictures you copy to
+  the card's `lockscreenimage` folder (JPG or PNG, 320 × 480, under 1 MB), the chosen one framed in
+  the accent. **Custom Wallpaper** explains the pictures. The lock screen shows a short date in
+  your language over the clock, such as Wed, Nov 11. All System Settings → Display → Lock Screen
+  opens the same page.
+- **Screen Rotation**: on turns the screen upside down (180°), at once and kept after a restart.
+- **LED Light**: Off, Green, Blue or Dynamic. **Follow Screen** turns the light off with the
+  screen.
+  - **Dynamic** makes the light follow the music, and adds a **Theme** row. A note at the top of
+    the Theme page describes the chosen theme; the six themes are under Ambient and Sample Rate.
+    **Reference** shows the playing track's sample rate
+    as a colour, from red-pink at 44.1 kHz through blue around 96 kHz to green at the highest
+    rates. **Gentle Breathe**, **Heartbeat** and **Lighthouse** pulse that colour; **Candle** and
+    **Wave** are mood lights with colours of their own.
+  - The light fades when playback pauses, and replaces the red charging light while a track plays.
+
+### Appearance
+
+- **Background**: Black, or Tinted: with an accent chosen, the dark greys of every page, card and
+  sheet take a 12 % wash of it. Covers and cover-coloured pages keep their look.
+- **Accent**: Neutral (the default), Red, Orange, Green, Teal, Purple or Champagne. Tints the main
+  menu's icons, pressed rows, switches that are on, lit pull-down tiles, sliders and progress
+  bars, the picker check, selection marks, the index rail's selected letter, the EQ curve and the
+  download rings. Applies at once.
+- **Control Center**: show, hide and reorder the pull-down's tiles, up to eight ("Up to 8
+  controls"). Besides the stock tiles there are six of ours, hidden until you turn them on:
+  - **Sleep Timer** (the same page as Now Playing's More page), **Settings**, **Equalizer**;
+  - **Power Off**: asks "Confirm Shutdown?", as holding the power key does;
+  - **AirPlay** and **DLNA**: a tap turns the service on or off (the same setting as Network
+    Service), the tile lights while it is on, and the pull-down stays open. The services run only
+    on Wi-Fi: without it the setting is kept and "Connect to Wi-Fi first" shows. The tiles do
+    nothing while an AirPlay session plays.
+  - The stock Playback Settings tile opens the Playback Settings page above, and is dimmed while
+    you are on it.
+
+### Buttons & Power
+
+- **Button Lock**: Off, Lock Volume Only, Lock Buttons Only or Lock Volume & Buttons, only while
+  the screen is off. The same setting as the Control Center key-lock tile.
+- **Tap to Wake**: touch the screen to wake it; the touch panel decides whether one or two taps.
+- **Auto-Standby** (after 5 minutes with nothing playing) and **Auto-Shutdown** (Off, 1, 3, 5 or
+  10 minutes with nothing playing). Only one of the two can be on.
+- **Car Mode**: the last track resumes at start, Auto-Standby and Auto-Shutdown do not run, and USB
+  connections are ignored.
+
+### Battery
+
+- **Battery Percentage**, off by default: the exact charge beside the battery icon, in the status
+  bar and on the lock screen.
+- **Charge Limit**: stop charging at 80, 85, 90 or 95 % while the player is on, and resume about
+  5 % lower. 100 % (the default) is no limit. A switched-off player charges fully.
+
+### Developer
+
+- **Startup**: Boot to M1+ Music, or Open Shanling Home.
+- **Tools**:
+  - **Screenshot**: see [Screenshot](#screenshot).
+  - **Cache**: cover counts (cached, missing, stale) and current work, artist photo counts (with
+    and without a photo), and Track Durations with **Clear Track Durations**. **Clear Cover
+    Cache** asks first, then Home rebuilds the covers; artist photos are kept.
+  - **Settings Files**: tap a file to delete it. **Unsupported Files** removes leftovers of older
+    builds.
+- **Reset**: Reset All Settings.
+
+### Covers
+
+Home builds missing album covers, and measures track lengths, in the background. A pill at the top
+of Home shows the progress and a sync icon shows in the status bar; the pill's **×** stops it
+until the next restart. Nothing is scanned when the library has not changed, and an album whose
+cover hangs the build is skipped. **Rebuild Covers** asks first, then rebuilds every cover the same
+way.
+
+### Software Update
+
+Settings → General → Software Update, the row under About; needs Wi-Fi. **Check for Update**, then
+**Download and Install**; **Release Notes** shows what changed. A dialog asks first: about 55 MB,
+replacing the card's `update.bin`, with 110 MB of free card space needed. A popup shows the
+progress and **Cancel** (Back cancels too, and the card's old `update.bin` stays). When the download
+is complete, the firmware's own TF card update takes over with its confirmation, battery check and
+checksums. If you say No there, the page offers **Install** again and **Check Again**.
+
+### Screenshot
+
+Asks first, with a 5 s or 10 s delay on its buttons. Leave the page during the countdown to capture
+another screen, or cancel. Pictures are saved in the card's `screenshots` folder.
 
 ## Equalizer
 

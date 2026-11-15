@@ -1,4 +1,4 @@
-"""Settings > Network Services and Wi-Fi Transfer (patch/netservice.c, docs/modules/netservice.md): our pages for stock's Network Service page and its Wi-Fi file transfer page. The state is stock's own (the bytes airplayflag,
+"""Settings > Network Services and Wi-Fi Transfer (patch/netservice.c, docs/modules/wifi-transfer.md): our pages for stock's Network Service page and its Wi-Fi file transfer page. The state is stock's own (the bytes airplayflag,
 dlnaflag, wifitransport_flag); the tests run stock's own click handlers (0x4a8a84 AirPlay, 0x4a8b14 DLNA), key filter (0x4b14d0) and close handler (0x4b14ec) under the emulator beside ours and compare the bytes and the calls.
 The page opens (a tap on the Wi-Fi Transfer row with and without a network, then the calls of the open) and every way it goes are driven through the handlers the payload bound."""
 import os

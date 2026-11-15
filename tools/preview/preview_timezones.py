@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The time zone picker's rows, stock 64 px / 21 px text beside the build's 48 px / 18 px (docs/modules/timezones.md). PIL mock-up of the
+"""The time zone picker's rows, stock 64 px / 21 px text beside the build's 48 px / 18 px (docs/modules/datetime.md). PIL mock-up of the
 auto-time-off page from a tree's own styles/default.bin; approximate, not AWTK.
 
 Usage: preview_timezones.py WORKDIR OUT.png

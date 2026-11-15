@@ -1,4 +1,4 @@
-"""Automatic time over Wi-Fi: the pinned string-literal edits in demo (docs/modules/autotime.md).
+"""Automatic time over Wi-Fi: the pinned string-literal edits in demo (docs/modules/datetime.md).
 
 Stock already syncs the clock (AUTOSYNCTIME, networktime_adjust_thd 0x4d92bc). As in q2-pod
 (RTC_WRITE, `hwclock -wu`) the RTC is kept as UTC; the boot read is changed to match. Two NUL-padded

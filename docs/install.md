@@ -3,9 +3,9 @@
 You need a Shanling M1 Plus, a working TF/microSD card and the `update.bin` from the latest
 [M1+ Music release](https://github.com/imfing/m1plus-music/releases/latest).
 
-Only kernel and rootfs are updated. The bootloader and recovery kernel stay unchanged, but the
-M1 Plus recovery button combination remains unverified. Keep the battery charged and leave
-the card inserted until the update finishes.
+Only kernel and rootfs are updated. The bootloader and recovery kernel stay unchanged. The M1 Plus
+recovery button combination is unknown, so try `m1plus-off` (below) first if something fails.
+Keep the battery charged and leave the card inserted until the update finishes.
 
 ## Install
 
@@ -20,7 +20,7 @@ Music stays on the card. Overwrite the retained `update.bin` for the next update
 
 ## Update
 
-From 1.1.0, open **Settings → General → About → Software Update** with Wi-Fi on: it downloads the
+From 1.1.0, open **Settings → General → Software Update** with Wi-Fi on: it downloads the
 newest release to the card and starts the TF card update (see the [user guide](guide.md#settings)).
 Without Wi-Fi, or from 1.0.0, repeat the installation steps with the newer release's `update.bin`.
 
@@ -34,8 +34,5 @@ The boot guard also falls back to stock Home after a failed custom startup.
 
 Download the official M1 Plus firmware from [Shanling](https://en.shanling.com/download/118),
 unzip it, copy its `update.bin` to the card root and install it through the same TF-card menu.
-
-If M1+ Music fails to open, try disabling it with `m1plus-off` first. A recovery button
-combination for the M1 Plus is not known.
 
 Package builders: see [build and restore instructions](workflow.md#integration-and-restore).

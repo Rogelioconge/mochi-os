@@ -1339,7 +1339,7 @@ static unsigned jpeg_long_side(const char *path) {
 
 /* ---- The extraction: stock's two art calls, with the resize replaced. Stock's calls run under parse_cover_mutex (the whole call, as stock's do: /tmp/.tmp_picture is shared with the
  * stock threads); of ours only taglib_album_picture does, and our resize runs outside it on a private copy. Any failure of ours hands the same album to the stock call, so a cover is never lost; a picture smaller than the size (stock copies it, or encodes it again as it is)
- * and an interlaced PNG are stock's too. docs/modules/coverflow.md "Cover resampling". */
+ * and an interlaced PNG are stock's too. docs/modules/covercache.md "Cover resampling". */
 #define TAG_TMP \
     "/tmp/.tmp_picture" /* where libtag_c's save_picturefile writes the embedded picture; toolsGetAlbumCover reads and removes it (the string at 0x757838, pinned) */
 #define TAG_LIMIT_A \

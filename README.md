@@ -17,22 +17,23 @@
 
 ## Features
 
-- **Browse:** Cover Flow, album grids/lists, Artists with photos (from the card or found online), A–Z indexes on Songs, Artists and Albums, Playlists and Folders with covers, and playlist clean-up.
-- **Search:** find music and podcasts with an on-screen QWERTY keyboard, also in Tidal's search.
+- **Browse:** Cover Flow, album grids and lists, artist photos, A–Z indexes, playlists and folders.
+- **Search:** music and podcasts with an on-screen QWERTY keyboard, also in Tidal.
 - **Home:** Daily Mix, Recently Played and a floating mini player.
-- **Now Playing:** cover-colour backgrounds, rounded artwork, remaining time, three lyrics sizes, an idle display (cover, Cassette, Vinyl or full-screen lyrics) and Continue Playing into the next album.
-- **Podcasts:** local episodes, top shows and episodes for your region, directory search (Apple Podcasts or Podcast Index), feed subscriptions with every episode, search, filters and episode order within a show, and episode downloads.
-- **Audiobooks:** books on the card by folder, and public-domain audiobooks from LibriVox to search and download.
-- **Extras:** album/folder shuffle, internet radio, a virtual iPod, Cassette Mode, Vinyl Mode, Lyrics Mode and an online cover and lyrics lookup.
-- **Scrobbling:** listens are logged on the card and uploaded to ListenBrainz and Last.fm.
-- **Subsonic:** browse a Subsonic server (Navidrome, Gonic, Airsonic) in the player's own Albums, Artists, Playlists and Songs pages, search it, stream over Wi-Fi, and download songs to the card for offline play. Based on a pull request by Gaurav Mishra and the work of shivaluma.
-- **Appearance:** an accent colour, a lock screen with a mini player, minimal theme, Lucide icons and Inter + Source Han Sans fonts.
-- **Equalizer:** a 10-band EQ editor, AutoEq headphone corrections downloaded over Wi-Fi, parametric presets from the card and a separate EQ for headphones, line out and USB DACs.
-- **Wi-Fi:** a new Wi-Fi page with WPA3 and Enhanced Open, and a redesigned Wi-Fi Transfer page to browse, upload, download and organise the card from a browser.
-- **Settings:** choose menu items, pull-down tiles (with Sleep Timer, Settings, Equalizer, Power Off, AirPlay and DLNA tiles), startup behaviour, Cover Flow orientation, playback settings, display, buttons and power, a charge limit and an LED that follows the music. The Dynamic LED is based on a pull request by Gaurav Mishra.
-- **Languages:** the added UI follows the player's language setting, with 13 translations.
+- **Now Playing:** cover-colour backgrounds, rounded artwork, three lyrics sizes, an idle display, Continue Playing into the next album, Cassette, Vinyl and Lyrics Mode.
+- **Extras:** album and folder shuffle, a virtual iPod and online cover and lyrics lookup.
+- **Podcasts:** feeds, directory search, episode downloads, filters and per-show order.
+- **Audiobooks:** books from the card, plus LibriVox search and download.
+- **Radio:** internet radio with a station browser.
+- **Scrobbling:** ListenBrainz and Last.fm, logged offline on the card.
+- **Subsonic:** browse, search, stream and download from Navidrome, Gonic or Airsonic.
+- **Equalizer:** 10-band editor, AutoEq downloads and a separate EQ per output.
+- **Wi-Fi:** WPA3 and Enhanced Open, plus a browser page to manage the card.
+- **Settings:** menu and pull-down tiles, playback, display, charge limit and a music-driven LED.
+- **Appearance:** accent colours, a lock screen with mini player, Inter and Source Han Sans.
+- **Languages:** 13 translations following the player's language setting.
 
-Stock settings and Tidal remain accessible. See the [user guide](docs/guide.md) for controls and options.
+Stock settings and Tidal remain accessible. See the [user guide](docs/guide.md) for controls.
 
 ## Screenshots
 
@@ -58,14 +59,14 @@ Still early in development and tested only on my own M1 Plus.
 
 Download `update.bin` and `SHA256SUMS` from the [latest release](https://github.com/imfing/m1plus-music/releases/latest).
 Verify the checksum, then install `update.bin` from the TF card using the player's System Update menu.
-Once installed, later releases can be installed over Wi-Fi from **Settings → General → About → Software Update**.
+Once installed, later releases can be installed over Wi-Fi from **Settings → General → Software Update**.
 Follow the [installation guide](docs/install.md) for preparation, updates and restoring stock.
 
 ## Documentation
 
-Start with [installation](docs/install.md), then the [user guide](docs/guide.md).
-For building or contributing, see the [development workflow](docs/workflow.md).
-The [documentation index](docs/README.md) lists technical references.
+Start with [installation](docs/install.md) and the [user guide](docs/guide.md). For building or
+contributing, see the [development workflow](docs/workflow.md) and the
+[documentation index](docs/README.md).
 
 ## Support
 
@@ -77,7 +78,12 @@ If M1+ Music is useful to you, you can support its development on [Ko-fi](https:
 
 ## Acknowledgements
 
-Inspired by Diamond Bond's [q2-pod](https://github.com/DiamondBond/q2-pod) for the Shanling Q2.
-The headphone crossfeed uses the algorithm and settings of Boris Mikhaylov's [bs2b](https://bs2b.sourceforge.net) (libbs2b, MIT).
-The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
-The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.
+- Inspired by Diamond Bond's [q2-pod](https://github.com/DiamondBond/q2-pod) for the Shanling Q2.
+  It also supplied the parametric EQ design, the UTC RTC fix and the charge-limit idea; borrowed
+  files carry their own notices. The Q2 and M1 Plus differ, so no address or patch word is reused
+  unchecked.
+- Subsonic is based on a pull request by Gaurav Mishra and the work of shivaluma. The Dynamic LED
+  is based on a pull request by Gaurav Mishra.
+- Crossfeed uses the algorithm and settings of Boris Mikhaylov's [bs2b](https://bs2b.sourceforge.net) (libbs2b, MIT).
+- The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
+- The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.

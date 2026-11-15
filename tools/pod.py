@@ -227,7 +227,7 @@ FUNCTIONS = {
     'airplayGetFlag':          ('int', 'void', 0x5cfc4c),
     'airplay_switch':          ('int', 'void', 0x5076a8),   # the AirPlay / DLNA tiles' tap: stock's own switch flips the setting byte (AIRPLAY_FLAG / DLNA_FLAG) and writes [SYSSET] AIRPLAY / DLNA to the settings ini; the network-status timer (on_wm_timer_networkstatus 0x4cfd94) starts or stops the service to match
     'dlna_switch':             ('int', 'void', 0x507674),
-    'switch_wifitransport':    ('int', 'int', 0x5075e4),   # Wi-Fi Transfer's server (docs/modules/netservice.md): 1 runs "thttpd -C /etc/thttpd.conf" and sets WIFITRANSPORT_FLAG, 0 runs "killall -9 thttpd", removes /tmp/thttpd.log and .pid and clears it
+    'switch_wifitransport':    ('int', 'int', 0x5075e4),   # Wi-Fi Transfer's server (docs/modules/wifi-transfer.md): 1 runs "thttpd -C /etc/thttpd.conf" and sets WIFITRANSPORT_FLAG, 0 runs "killall -9 thttpd", removes /tmp/thttpd.log and .pid and clears it
     'awake_screen':            ('int', 'void', 0x4e721c),   # the power key's long press lights the screen first (on_wm_keylong_fun 0x4cdd9c); the Power Off tile does the same
     'getFormatString':         ('int', 'const char *, char *, int', 0x4ccc18),   # key, buffer, size: the app's-language text of a stock string key
     'window_close':            ('int', 'void *', 0x675b70),   # "Shanling Home" closes the menu under the Settings page
@@ -298,7 +298,7 @@ FUNCTIONS.update({
 })
 # Now Playing opens the way a track row does (the row handler @0x52569c, loop @0x525904..0x5259d8; patch/songops.c
 # pod_open_player): the window stack calls
-# Time zones (patch/timezones.c, docs/modules/timezones.md): setenv("TZ") and the picker's row builder, both stock's own, called by the hooks
+# Time zones (patch/timezones.c, docs/modules/datetime.md): setenv("TZ") and the picker's row builder, both stock's own, called by the hooks
 FUNCTIONS.update({
     'toolsSetTimeZone':           ('int', 'const char *', 0x5e3288),
     'timezone_listitem_layout':   ('void *', 'void *, int', 0x4a21c8),
@@ -498,7 +498,7 @@ FUNCTIONS.update({   # the album page's own lists and tracks, called without loa
     'getMusicByAlbum':         ('int', 'const char *', 0x4ecb5c), 'getMusicByAlbumAndAlbumSonger': ('int', 'const char *, const char *, int', 0x4ed008),
     'getMusicByAlbumAndSonger': ('int', 'const char *, const char *, int', 0x4ecd3c), 'getMusicByAlbumAndComposer': ('int', 'const char *, const char *, int', 0x4ed2d4),
 })
-# Queue page Clear (patch/shuffle.c pod_clear_upnext, docs/modules/queue.md "Clear engine"): the tracks after the play position are removed in place with libcstl's deque_pop_back, which demo does
+# Queue page Clear (patch/shuffle.c pod_clear_upnext, docs/modules/queue.md "Clear"): the tracks after the play position are removed in place with libcstl's deque_pop_back, which demo does
 # not import. libcstl is a fixed shared library of the firmware (a DT_NEEDED of demo): the payload finds it from demo's resolved GOT slot of deque_size (an import it calls anyway), pop_back =
 # slot - CSTL_SIZE + CSTL_POP. The build pins the library file (SHA-256, the symbols' offsets, the words of both functions); at run time the same words are compared at the resolved addresses, and a
 # mismatch or an unresolved slot (still the stub inside demo's image) refuses Clear. deque_pop_back is `lw t9, GOT _deque_shrink_at_end; jr t9; addiu a1, zero, 1` (0x3f3dc): destroy callback of the
@@ -872,7 +872,7 @@ FUNCTIONS.update({
 # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): stock's own functions and words behind the Date & Time pages
 FUNCTIONS.update({
     'get_systime':         ('void', 'int *, int *, int *, int *, int *', 0x4d76e4),   # (&minute, &hour, &day, &month, &year): the local time, as stock's manual time page reads it
-    'set_systime':         ('int', 'int, int, int, int, int', 0x4d7770),   # (year, month, day, hour, minute): date -s, then hwclock -wu (docs/modules/autotime.md)
+    'set_systime':         ('int', 'int, int, int, int, int', 0x4d7770),   # (year, month, day, hour, minute): date -s, then hwclock -wu (docs/modules/datetime.md)
     'select_timezone':     ('int', 'void', 0x4d6b2c),   # reads time_zone: setenv("TZ") (hooked: patch/timezones.c tz_select)
     'change_time24h_12h':  ('int', 'int', 0x544ab0),   # (flag): the status bar clock's format
 })
@@ -1346,7 +1346,7 @@ def patch_scroll(image, ps, payload_len, demo_path):
 
 
 def patch_timezones(image, ps, payload_len):
-    """Time zones (docs/modules/timezones.md): check every pinned word, then the select_timezone hook, the saved-index clamp, the row count and limit, and the picker's two call sites."""
+    """Time zones (docs/modules/datetime.md): check every pinned word, then the select_timezone hook, the saved-index clamp, the row count and limit, and the picker's two call sites."""
     for name in ('tz_select', 'tz_row', 'tz_label'):
         check(BASE <= ps[name] < BASE + payload_len, f'{name} outside payload')
     check(timezones.COUNT < 0x8000 - 3 and timezones.COUNT == len(timezones.ORDER) and sorted(timezones.ORDER) == list(range(timezones.COUNT)), 'bad zone table')
@@ -1436,7 +1436,7 @@ def patch_demo(raw, payload, ps, demo_path):
     for a, _ in MODE_SITES:   # the pins above checked each site's jalr and the lw t9 of mclGetPlayMode before it
         struct.pack_into('<I', patched, fileoff(patched, a), jal(ps['sh_display_mode'], a))
     struct.pack_into('<I', patched, fileoff(patched, UPDATE_SITE), UPDATE_NEW)   # (the pins above checked the site's word and its neighbours)
-    autotime.apply(patched, fileoff)   # two pinned string literals: hwclock -su / -wu, the RTC as UTC (docs/modules/autotime.md)
+    autotime.apply(patched, fileoff)   # two pinned string literals: hwclock -su / -wu, the RTC as UTC (docs/modules/datetime.md)
     coex.apply(patched, fileoff)   # Wi-Fi and Bluetooth together: four pinned beqz -> b (docs/modules/overlays.md)
     themeoff.apply(patched, fileoff)   # stock theme1 off: the config_init clamp and the System page's row table and count (docs/modules/theme.md)
     # Light Mode (the pins above checked the words after each prologue, the gradient call and image_manager_add's callers): the two PIC prologue hooks and the gradient leaf
