@@ -1020,6 +1020,8 @@ class Machine:
             self.calls.append(('notifyPlayMode',))
         elif name == 'dmrSendPlayMode':
             self.calls.append(('dmrSendPlayMode', a0))
+        elif name == 'mclGetSavePlayStatus':   # stock's getter (a word the player keeps); the machine's callers that pass through it see 0 unless a test sets save_status
+            ret = getattr(self, 'save_status', 0)
         elif name == 'mclGetOutputWay':
             ret = getattr(self, 'out_way', 0)   # 0 the jacks, 1 Bluetooth, 2 USB audio (a test sets m.out_way)
         elif name in ('mclGetGaplessMode', 'mclGetJumpFolder', 'mclSetJumpFolder', 'mclGetGainMode', 'mclSetGainMode', 'mclGetReplayGain', 'mclSetReplayGain', 'mclGetfilter', 'mclSetFilter', 'mclGetDsdMode', 'mclSetDsdMode',

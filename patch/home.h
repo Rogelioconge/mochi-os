@@ -237,6 +237,7 @@ extern int pod_confirm_dialog(
 extern int homecover_clear(
     void); /* Settings > Developer > Clear Cover Cache, after its confirm: 1 under way, 0 the cover worker is busy */
 extern void pod_toast(const char *text); /* patch/shuffle.c */
+extern void pod_toast_ms(const char *text, int ms); /* patch/shuffle.c: the same message box for ms milliseconds */
 extern unsigned pod_rand(unsigned n); /* patch/shuffle.c: 0 .. n - 1, the shuffle generator (seeded once) */
 extern void pod_set_mode(
     int mode); /* patch/shuffle.c: the stock play mode, set as the Play settings page does (the queue is reordered now) */
@@ -247,6 +248,8 @@ extern int pod_open_lock(void); /* patch/m1plus.c */
 extern int pod_open_settings(void); /* patch/m1plus.c: open_page(POD_SETTINGS_PAGE); 0 once its window is up */
 extern int pod_open_peq(void); /* patch/m1plus.c: open_page(POD_PEQ_PAGE) */
 extern int pod_open_sleeptimer(void); /* patch/m1plus.c: open_page(POD_SLEEPTIMER_PAGE); 0 once its window is up */
+extern int pod_open_btcodec(
+    void); /* patch/m1plus.c: open_page(POD_BTCODEC_PAGE), the Audio Codec picker; 0 once its window is up */
 extern int pod_open_playset(void); /* patch/m1plus.c: open_page(POD_PLAYSET_PAGE); 0 once its window is up */
 extern int pod_open_peqlib(void); /* patch/m1plus.c: open_page(POD_PEQLIB_PAGE) */
 extern int pod_open_peqpage(void); /* patch/m1plus.c: open_page(POD_PEQP_PAGE) */

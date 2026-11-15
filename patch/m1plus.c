@@ -186,7 +186,9 @@ enum {
     ACT_DT24 = 162, /* 24-Hour Time, a switch row, stock's own switch */
     ACT_DTFIELD = 163, /* the Date and Time pages' Year, Month, Day, Hour, Minute: value rows opening their picker */
     ACT_DTSET = 164, /* the field pickers' rows (arg = field * 4096 + value) */
-    ACT_DTAPPLY = 165 /* Set Date (arg 0) and Set Time (arg 1): stock's set_systime, then back */
+    ACT_DTAPPLY = 165, /* Set Date (arg 0) and Set Time (arg 1): stock's set_systime, then back */
+    ACT_BTCODECSET =
+        184 /* the Bluetooth page's Audio Codec picker's rows (arg = stock's btcoding 0 .. 7; patch/btpage.c) */
 };
 
 struct pod_row {
@@ -535,6 +537,8 @@ static const struct pick_def {
     {ACT_XFEED, VK_XFEED, ACT_XFEEDSET, stereo_crossfeed, stereo_crossfeed_set},
     {ACT_LANG, VK_LANG, ACT_LANGSET, lang_get, lang_set},
     {ACT_DTZONE, VK_DTZONE, ACT_DTZONESET, dt_zone, dt_zone_set}, /* Date & Time (patch/datetime.c) */
+    {-1, VK_NONE, ACT_BTCODECSET, bp_codec,
+     bp_codec_set}, /* the Bluetooth page's Audio Codec picker: a plain page of check rows, opened by the page's codec row (patch/btpage.c) */
     {ACT_DTDATE, VK_DTDATE, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_DTTIME, VK_DTTIME, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_DTFIELD, VK_DTF0, ACT_DTSET, (int (*)(void))0,
@@ -648,6 +652,8 @@ static int on_row(void *ctx, void *e) {
     else if (row->action == ACT_STOCK) {
         if (row->arg == 0 /* STOCK_WIFI */ && wifipage_open() == 0)
             return RET_OK; /* patch/wifipage.c: our Wi-Fi page; the stock page where it will not open */
+        if (row->arg == 1 /* STOCK_BLUETOOTH */ && btpage_open() == 0)
+            return RET_OK; /* patch/btpage.c: our Bluetooth page; the stock page where it will not open */
         {
             void *wm = window_manager(), *top = wm ? window_manager_get_top_main_window(wm) : (void *)0;
             if (top && top == stock_front)
@@ -1321,6 +1327,9 @@ int pod_open_peq(void) { return open_page(POD_PEQ_PAGE, 0); }
 
 /* The Sleep Timer page, for Now Playing's More sheet row and the pull-down's Sleep Timer tile (patch/playmore.c, patch/pulldown.c): the normal instance, with Back. */
 int pod_open_sleeptimer(void) { return open_page(POD_SLEEPTIMER_PAGE, 0); }
+
+/* The Audio Codec picker, for the Bluetooth page's codec row (patch/btpage.c): the normal instance, with Back. */
+int pod_open_btcodec(void) { return open_page(POD_BTCODEC_PAGE, 0); }
 
 /* The 10-Band editor and its Curve and Preamp pages (patch/tenband.c): the normal instance, with Back. */
 int pod_open_tenband(void) { return open_page(POD_TENBAND_PAGE, 0); }

@@ -47,6 +47,7 @@ SAME_AS_ENGLISH |= {'D2P', 'DOP', 'ReplayGain', 'Variable'}    # Playback Settin
 SAME_AS_ENGLISH |= {'Photos'}    # the Cache page's Artist Photos count: Photos in French
 SAME_AS_ENGLISH |= {'Codec', 'Bitrate', 'Source'}    # Station Info: Codec in French, German and Italian, Bitrate in German and Italian, Source in French
 
+SAME_AS_ENGLISH |= {'LDAC HQ', 'LDAC Standard'}    # the Audio Codec picker's LDAC choices: LDAC HQ in nine tables, LDAC Standard in French, German, Italian and Polish
 SAME_AS_ENGLISH |= {'ListenBrainz', 'Last.fm', 'Account'}    # the services' names; Account in Italian
 SAME_AS_ENGLISH |= {'%d dB', 'Pop', 'Rock', 'Dance', 'Blues', 'Jazz'}    # the 10-Band EQ: the unit; the genre names that most languages write as English
 

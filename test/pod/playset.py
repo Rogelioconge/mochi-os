@@ -265,7 +265,7 @@ def settings_tests(ctx):
     for loc in pod_i18n.LOCALES:
         expect(all(pod_i18n.TEXT[k][loc] for k in keys), f'the page texts have a translation in {loc}')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Playback Settings', 'Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'ReplayGain', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output', 'Folder Album Cover', 'Volume Memory')]
-           == ['headphones', 'repeat', 'infinity', 'history', 'folder', 'skip-forward', 'gauge', 'volume-2', 'volume-1', 'sliders-horizontal', 'scale', 'waves', 'audio-lines', 'usb', 'cable', 'image', 'memory-stick'], 'the glyphs')
+           == ['headphones', 'repeat', 'infinity', 'history', 'folder', 'skip-forward', 'gauge', 'volume-2', 'volume-1', 'sliders-horizontal', 'scale', 'waves', 'audio-lines', 'monitor-speaker', 'cable', 'image', 'memory-stick'], 'the glyphs')
 
     def page(index, nrows, kinds=('pod_check', 'pod_label'), **state):
         m = PM(**state)
@@ -367,7 +367,7 @@ def settings_tests(ctx):
     trees = {k: awtk_ui.parse(open(os.path.join(raw, k + '.bin'), 'rb').read()) for k in ['m1plus_playset', 'm1plus_settings', 'm1plus_library'] + [p.key for p in pickers]}
     pt = trees['m1plus_playset']
     expect([pt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(rows)] == ['pod_ci_repeat', 'pod_ci_infinity', 'pod_ci_history', 'pod_ci_folder', 'pod_ci_skip_forward', 'pod_ci_gauge', 'pod_ci_volume_2', 'pod_ci_volume_1', 'pod_ci_sliders_horizontal', 'pod_ci_volume', 'pod_ci_headphones', 'pod_ci_scale', 'pod_ci_waves',
-                                                                                              'pod_ci_audio_lines', 'pod_ci_usb', 'pod_ci_usb', 'pod_ci_cable'] and pt.find('label_title').get('tr_text') == 'Playback',
+                                                                                              'pod_ci_audio_lines', 'pod_ci_usb', 'pod_ci_monitor_speaker', 'pod_ci_cable'] and pt.find('label_title').get('tr_text') == 'Playback',
            'the page asset: seventeen glyphs and the title')
     expect([pt.find(f'pod_label{i}').get('tr_text') for i in range(rows)] == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'Mono Audio', 'Crossfeed', 'ReplayGain', 'Digital Filter', 'DSD Output Mode', 'USB Mode', 'USB Volume', 'Digital Output'],
            'the row labels')

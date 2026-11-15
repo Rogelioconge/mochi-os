@@ -138,7 +138,7 @@ static int wp_save(void);
 static int wp_wifi_on(void) { return *(volatile unsigned char *)WIFI_FLAG != 0; }
 
 /* A shown row or header at *y (headers stay insensitive: never a touch target). */
-static void wp_put(void *row, int *y, int h, int touch) {
+void wp_put(void *row, int *y, int h, int touch) {
     widget_move(row, 0, *y);
     if (touch)
         m1_show(row, 1);
@@ -148,13 +148,12 @@ static void wp_put(void *row, int *y, int h, int touch) {
 }
 
 /* A child of a row: its visibility alone (it is insensitive in the asset: the row takes the tap). */
-static void wp_vis(void *w, int on) {
+void wp_vis(void *w, int on) {
     if (w) widget_set_visible(w, on, 0);
 }
 
 /* The picture piece of a card row (pod_cd_<piece>, the pressed twin _down); the style is set only when it changed. */
-enum { WP_P_NONE, WP_P_SINGLE, WP_P_TOP, WP_P_MID, WP_P_BOT };
-static void wp_piece(void *row, unsigned char *have, int p) {
+void wp_piece(void *row, unsigned char *have, int p) {
     static const char *const up[] = {"", "pod_cd_single", "pod_cd_top", "pod_cd_mid", "pod_cd_bot"};
     static const char *const dn[] = {"", "pod_cd_single_down", "pod_cd_top_down", "pod_cd_mid_down", "pod_cd_bot_down"};
     static const char *const st[] = {"style:normal:bg_image", "style:over:bg_image", "style:focused:bg_image",
@@ -167,7 +166,7 @@ static void wp_piece(void *row, unsigned char *have, int p) {
 }
 
 /* The piece of the i-th of n rows of a card. */
-static int wp_pos(int i, int n) { return n == 1 ? WP_P_SINGLE : i == 0 ? WP_P_TOP : i == n - 1 ? WP_P_BOT : WP_P_MID; }
+int wp_pos(int i, int n) { return n == 1 ? WP_P_SINGLE : i == 0 ? WP_P_TOP : i == n - 1 ? WP_P_BOT : WP_P_MID; }
 
 /* A reply that is a number (ADD_NETWORK), -1 when it is not. */
 static int wp_num(const char *cmd) {
@@ -208,7 +207,7 @@ static unsigned wp_sig(void) {
 }
 
 /* The scroll_view's offset moves back into [0, content - the view's height] after the content shrank. */
-static void wp_clamp(void *sv, int content) {
+void wp_clamp(void *sv, int content) {
     int h = widget_get_prop_int(sv, "h", 400), off = I(sv, SC_YOFF), max = content - h, at;
     if (max < 0) max = 0;
     at = off < 0 ? 0 : off > max ? max : off;
@@ -655,6 +654,7 @@ static int wp_on_other(void *ctx, void *e) {
 #define WI_GAP_H 20 /* tools/pod_settings.py GAP_H: the space between two cards */
 #define WI_NAME_H 20 /* a line of the whole name (tools/pod_ui.py WI_NAME_H) */
 #define WI_NAME_GAP 8 /* under the name's lines, before the first card */
+#define WF_NAME_CHARS 128 /* the characters of a name wf_name_lines lays out (a longer one is cut with an ellipsis) */
 #define WI_ROUTE "/proc/net/route"
 
 static struct {
@@ -698,24 +698,24 @@ static void wi_field(int i, const char *label, const char *val) {
     widget_set_text_utf8(wi.f[i].val, val);
 }
 
-/* The whole name above the cards, for a title that could not hold it: one line, or two when one is too short (the first ends at a space when its second half has one, else at the last character
- * that fits; the second is cut with an ellipsis, which 32 bytes at 15 px do not need). */
-static void wi_name(const char *u) {
-    unsigned s[WF_SSID_MAX + 1], len = 0, lo, hi, i, k, o = 0;
-    char out[4 * WF_SSID_MAX + 1];
+/* The whole name above the cards, for a title that could not hold it (the Wi-Fi info page's and the Bluetooth device page's): one line in l0, or two when one is too short (the first ends at a space when its
+ * second half has one, else at the last character that fits; the second goes to l1 and is cut with an ellipsis). A name of more than WF_NAME_CHARS characters is cut and gets one. Returns the lines used. */
+int wf_name_lines(void *l0, void *l1, const char *u) {
+    unsigned s[WF_NAME_CHARS + 1], len = 0, lo, hi, i, k, o = 0, cut = 0;
+    char out[4 * WF_NAME_CHARS + 4];
     const unsigned *t;
-    int room = I(wi.name[0], W_W);
-    wi.lines = 1;
-    widget_set_text_utf8(wi.name[0], u);
-    t = widget_get_text(wi.name[0]);
-    if (!t || m1_text_w(wi.name[0], t) <= room) return;
-    while (t[len] && len < WF_SSID_MAX) s[len] = t[len], ++len;
+    int room = I(l0, W_W);
+    widget_set_text_utf8(l0, u);
+    t = widget_get_text(l0);
+    if (!t || m1_text_w(l0, t) <= room) return 1;
+    while (t[len] && len < WF_NAME_CHARS) s[len] = t[len], ++len;
+    cut = t[len] != 0;
     s[len] = 0;
     lo = 1, hi = len - 1; /* the first line's characters */
     while (lo < hi) {
         unsigned mid = (lo + hi + 1) / 2, k0 = s[mid];
         s[mid] = 0;
-        if (m1_text_w(wi.name[0], s) <= room)
+        if (m1_text_w(l0, s) <= room)
             lo = mid;
         else
             hi = mid - 1;
@@ -729,25 +729,31 @@ static void wi_name(const char *u) {
         k = lo;
     for (i = 0; i < lo; ++i) o += m1_utf8_put(out + o, s[i]);
     out[o] = 0;
-    widget_set_text_utf8(wi.name[0], out);
+    widget_set_text_utf8(l0, out);
     for (o = 0, i = k; s[i]; ++i) o += m1_utf8_put(out + o, s[i]);
+    if (cut) o += m1_utf8_put(out + o, 0x2026);
     out[o] = 0;
-    az_fit(wi.name[1], out);
-    wi.lines = 2;
+    az_fit(l1, out);
+    return 2;
+}
+
+/* The name's lines at *y (nm: the two views, lines: 0, 1 or 2 shown): the last holds the gap to the first card in its height, as the stock layouter stacks the shown children by their heights. */
+void wf_name_put(void *nm[2], int lines, int *y) {
+    int i;
+    for (i = 0; i < 2; i++) {
+        if (i < lines) {
+            int h = WI_NAME_H + (i == lines - 1 ? WI_NAME_GAP : 0);
+            widget_resize(nm[i], I(nm[i], W_W), h);
+            wp_put(nm[i], y, h, 0);
+        } else
+            wp_vis(nm[i], 0);
+    }
 }
 
 /* The rows as the network's state says: the name's lines when the title is cut; a saved network has Forget, the info card and Auto-Join; any other the info card and Join. */
 static void wi_layout(void) {
     int y = WP_TOP, n = 0, i, saved = wi.net.known;
-    for (i = 0; i < 2; i++) {
-        if (i <
-            wi.lines) { /* the last line holds the gap in its height: the stock layouter stacks the shown children by their heights */
-            int h = WI_NAME_H + (i == wi.lines - 1 ? WI_NAME_GAP : 0);
-            widget_resize(wi.nm[i], I(wi.nm[i], W_W), h);
-            wp_put(wi.nm[i], &y, h, 0);
-        } else
-            wp_vis(wi.nm[i], 0);
-    }
+    wf_name_put(wi.nm, wi.lines, &y);
     if (saved) {
         wp_piece(wi.forget, &wi.piece[WI_FIELDS], WP_P_SINGLE);
         wp_put(wi.forget, &y, WP_ROW_H, 1);
@@ -849,7 +855,7 @@ static int wi_on_join(void *ctx, void *e) {
 }
 
 /* The top fade of a page's scroll view; ctx is the page's struct (wi, ws or wp), which starts with win, sv, fade. */
-static int wf_on_scroll(void *ctx, void *e) {
+int wf_on_scroll(void *ctx, void *e) {
     void **pg = ctx;
     (void)e;
     if (!pg[2]) return RET_OK;
@@ -915,7 +921,7 @@ static void wi_open(const wf_net *w) {
         return;
     }
     wf_utf8(wi.net.ssid, wi.net.len, u, sizeof u);
-    if (az_fit(wi.title, u)) wi_name(u);
+    if (az_fit(wi.title, u)) wi.lines = wf_name_lines(wi.name[0], wi.name[1], u);
     widget_on(wi.sv, EVT_SCROLL, wf_on_scroll, &wi);
     widget_on(wi.sv, EVT_SCROLL_END, wf_on_scroll, &wi);
     wi.sig = 0;
@@ -928,7 +934,7 @@ static void wi_open(const wf_net *w) {
  */
 
 /* tpl with its %s replaced by name (a template of the translation table, never a printf format). */
-static void wk_subst(char *out, unsigned size, const char *tpl, const char *name) {
+void wk_subst(char *out, unsigned size, const char *tpl, const char *name) {
     unsigned o = 0;
     for (; *tpl && o + 1 < size; tpl++) {
         if (tpl[0] == '%' && tpl[1] == 's') {

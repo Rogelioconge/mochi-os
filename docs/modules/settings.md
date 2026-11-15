@@ -9,7 +9,7 @@ Settings is main-menu item 18 (`j`), hidden by default. The Extras navbar always
 | Group | Row | Opens | Doc |
 |---|---|---|---|
 | (top card) | Wi-Fi | our Wi-Fi page (`m1plus_wifi`) | [wifi](wifi.md) |
-| | Bluetooth | stock Bluetooth page | [stock pages](#stock-pages-and-state) |
+| | Bluetooth | our Bluetooth page (`m1plus_bluetooth`) | [bluetooth](bluetooth.md) |
 | | Network Services | our page `m1plus_netservice`: AirPlay and DLNA switches, Wi-Fi Transfer (our page `m1plus_wifitransfer`: a hero, the address and the file server); stock's Network Service page stays under All System Settings | [netservice](netservice.md) |
 | (top card) | Home Screen | our page: Recent Albums, Daily Mix, Main Menu / Extras, Regenerate Daily Mix | [dailymix](dailymix.md), [menu](menu.md) |
 | | Library | our page: Update Library, Rebuild rows, List Navigation, Folders (Folder Album Cover), Cover Flow, Podcasts, Scrobbling, CD Ripping | [albums](albums.md), [podcasts](podcasts.md) |
@@ -188,7 +188,7 @@ Every stock row is `ACT_STOCK` (`pod_pages.STOCK_PAGES`, `POD_STOCK` in `pages.h
 | Row | Page | Stock caller |
 |---|---|---|
 | Wi-Fi | `m1plus_wifi` (ours, [wifi](wifi.md)); `systemset/wifi_page` where ours will not open | the Wi-Fi hub's row thunk `0x4b1440` (the hub `systemset/wifiset_page` is the stock Settings' row 1; its Wi-Fi row goes straight to the list, so did ours). Our row is `ACT_STOCK` with `wifipage_open()` first; the stock hub's row has its `jalr navigator_to` at `0x4b1460` hooked (`wifi_hub_open`, [payload](payload.md) hook 21): our page, the stock page with `/mnt/mmc/m1plus-off` or where ours will not open |
-| Bluetooth | `systemset/bluetooth_page` | the hub's row thunk `0x4b1410` |
+| Bluetooth | `m1plus_bluetooth` (ours, [bluetooth](bluetooth.md) "The page"); `systemset/bluetooth_page` where ours will not open | the hub's row thunk `0x4b1408`. Our row is `ACT_STOCK` with `btpage_open()` first (its value is stock's On / Off); the hub's row has its `jalr navigator_to` at `0x4b1428` hooked (`bt_hub_open`, [payload](payload.md) hook 32): our page, the stock page with `/mnt/mmc/m1plus-off` or where ours will not open |
 | Display | `m1plus_display` ([display](display.md)); stock's `systemset/display_page` is not linked and stays under All System Settings | Settings row 3, string at `0x4ada74` (shared call `0x4ad830`) |
 | Lock Screen | `m1plus_lockscreen` (ours, [lockscreen](lockscreen.md)); `systemset/screensaver_page` with the kill switch or where ours will not open | the Display page's row 2, the click handler `0x4a5c10` (case 2 at `0x4a5ca8`, redirected: [payload](payload.md) "Display page Lock Screen row"). Our Lock Screen page's last row opens our own `m1plus_lockinfo` page (stock's instructions text, `ACT_PAGE`) |
 | (Language) | `systemset/language_page` | not linked from our page: Settings > General > Language is our own picker ([language](language.md)); stock's page stays under All System Settings and shows the same word |

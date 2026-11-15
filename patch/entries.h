@@ -118,6 +118,29 @@ int update_open(void); /* Software Update, our page; -1 when it did not open */
 
 /* patch/wifipage.c */
 int wifipage_open(void); /* Settings > Wi-Fi, our page; -1 when it did not open (the stock page then opens) */
+/* The card list helpers of the Wi-Fi page, which the Bluetooth page (patch/btpage.c) uses as well. */
+enum { WP_P_NONE, WP_P_SINGLE, WP_P_TOP, WP_P_MID, WP_P_BOT }; /* the picture piece of a card row */
+void wp_put(void *row, int *y, int h,
+            int touch); /* a shown row or header at *y, then *y += h (a header is never a touch target) */
+void wp_vis(void *w, int on); /* a row child's visibility alone (it is insensitive in the asset) */
+void wp_piece(void *row, unsigned char *have, int p); /* the row's picture piece WP_P_*, set only when it changed */
+int wp_pos(int i, int n); /* the piece of the i-th of n rows of a card */
+void wp_clamp(void *sv, int content); /* the scroll offset back into range after the content shrank */
+int wf_on_scroll(
+    void *ctx,
+    void *e); /* the top fade of a page's scroll view; ctx is the page's struct, which starts with win, sv, fade */
+void wk_subst(char *out, unsigned size, const char *tpl,
+              const char *name); /* tpl with its %s replaced by name (a template of the translation table) */
+int wf_name_lines(void *l0, void *l1,
+                  const char *u); /* the whole name above the cards for a title that was cut: the lines used (1 or 2) */
+void wf_name_put(void *nm[2], int lines,
+                 int *y); /* those lines' views at *y (the unused one hidden), then *y past them */
+
+/* patch/btpage.c */
+int btpage_open(void); /* Settings > Bluetooth, our page; -1 when it did not open (the stock page then opens) */
+int bp_codec(void); /* the Audio Codec page's chosen row: stock's btcoding 0 .. 7 */
+int bp_codec_set(
+    int c); /* a row of the Audio Codec page: the init guard, stock's Quality choice; 0 when the choice is c afterwards, else -1 */
 
 /* patch/ndroot.c */
 int nd_root_open(void); /* the Navidrome root page; -1 when it did not open */

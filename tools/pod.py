@@ -46,10 +46,13 @@ LD = os.path.join(LLD, 'ld.lld')
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'artsplit.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'recent.c', 'dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
            'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'charging.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c',
-           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c']
+           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'btset.c', 'btpage.c']
 
 # LibriVox (patch/bknet.c, patch/bkdl.c): kept by the linker until the Audiobooks pages that call them exist; the Book level's download row (phase 3b) takes the rest; test/pod/bkdl.py calls these
 BN_KEEP = ['bd_fat', 'bd_present']
+
+# Settings > Bluetooth control layer (patch/btset.c): the entry point the page (patch/btpage.c) does not call, kept by the linker; test/pod/btset.py calls these
+BS_KEEP = ['bs_codec_key']
 
 # Navidrome data layer (patch/sbapi.c): kept by the linker until the pages that call it exist; the integration drops names as callers appear
 ND_KEEP = ['sba_free_tracks', 'sba_free_albums', 'sba_free_artists', 'sba_free_playlists', 'sba_user', 'sba_conf_url_set', 'sba_conf_user_set', 'sba_conf_password_set', 'sba_conf_clear', 'sba_cancel', 'sba_sync_due', 'sba_sync', 'sba_fetch_album', 'sba_fetch_artist', 'sba_fetch_playlist', 'sba_fetch_songs', 'sba_search', 'sba_star', 'sba_cover', 'sba_cover_path', 'sba_cover_have', 'sba_cover_get', 'sba_track_cover', 'sba_rec_cover', 'sba_albums', 'sba_artists', 'sba_playlists', 'sba_starred_tracks', 'sba_album_tracks', 'sba_artist_albums', 'sba_playlist_tracks', 'sba_songs', 'sba_songs_more', 'sba_search_tracks', 'sba_search_albums', 'sba_search_artists', 'sba_songs_cached', 'sba_stream_url', 'sba_track_filename', 'sba_is_dsd', 'sba_now_cover', 'sba_rec_track', 'sba_queue_note', 'sba_net_open']
@@ -424,6 +427,25 @@ FUNCTIONS.update({
     # The Wi-Fi page (patch/wifipage.c, docs/modules/wifi.md): stock's own switch (wifi_switch(1) toggles Wi-Fi: on starts wifi_connect.sh, off kills the supplicant)
     'wifi_switch':             ('int', 'int', 0x507a8c),
 })
+# Settings > Bluetooth (patch/btset.c, docs/modules/bluetooth.md "Control layer"): the backend and the output restore the stock page's handlers call, UI thread
+FUNCTIONS.update({
+    'switchBluetooth':         ('int', 'int, int', 0x4d516c),   # (on_now, scan): the page passes (bluetoothflag, 1)
+    'btStartSearch':           ('int', 'void', 0x4d3d50),
+    'btStopSearch':            ('int', 'void', 0x4d3840),
+    'getSearchResult':         ('int', 'void', 0x4d3b94),   # refills the show and pair lists
+    'checkPairDev':            ('int', 'const char *', 0x4d38f8),
+    'getBtLinkSize':           ('int', 'void', 0x4d4364),
+    'getBtLinkItem':           ('int', 'int, int *, char *', 0x4d4938),   # (index, status, mac); an index out of range leaves both alone
+    'getLocalBtName':          ('int', 'char *, char *', 0x4d31c4),
+    'switchBtPriority':        ('int', 'int', 0x4d3024),
+    'bluetoothLink':           ('int', 'int', 0x4d2778),
+    'adjustA2dpVolume':        ('int', 'int', 0x4d28ac),   # always answers 1, acting or not
+    'get_bluetoothcoding_text': ('int', 'int, char *', 0x4da15c),   # copies the tr key of codec i into the buffer, 1; -1 for i >= 8
+    'handleBluetoothLink':     ('int', 'int', 0x4d5308),   # (show list index): -1 SyncLink, 1 disconnected, 0 / 2 started
+    'handleBluetoothPair':     ('int', 'int', 0x4d66e4),   # (show list index): the unpair; 2 when it was the connected one
+    'judge_outputdevice':      ('int', 'int, int', 0x4d70ac),
+    'mclGetSavePlayStatus':    ('int', 'void', 0x5d4574),
+})
 TIDALKB_SEARCH = 0x4c4740
 # Regional CJK forms (patch/fontregion.c, docs/modules/fonts.md "Regional forms"): the font manager, the live "default" font
 # (one stb font object for every size: match compares the name only), its glyph cache, and the locale's change event
@@ -589,6 +611,25 @@ DATA = {
     # equalizer_mode (the preset, 1..11) and language (the language menu's index, 0 zh_CN .. 12 uk_UK, as switch_language numbers them)
     'WIFI_FLAG':          (0x97caf8, 'wififlag'),
     'BT_FLAG':            (0xa05ac0, 'bluetoothflag'),
+    # Settings > Bluetooth (patch/btset.c, docs/modules/bluetooth.md "Control layer"): the words stock's page and its handlers read and write
+    'BT_CODING':          (0x97caf4, 'btcoding'),   # int 0 .. 7: the preferred codec ([SYSSET] BTCODING)
+    'BT_INITSTATUS':      (0xa038a4, 'bt_initstatus'),   # int: 0 idle, else the init thread runs or has just finished
+    'BT_INITTIME':        (0xa038a0, 'bt_inittime'),   # i8: the page's spinner count-down while the init runs
+    'BT_CONNECTSTATUS':   (0xa038b4, 'bt_connectstatus'),   # int: 0 none, 1 the connect thread runs, 2 it has finished
+    'BT_LINKSTATUS':      (0xa03894, 'bt_linkstatus'),   # byte: an A2DP link is up
+    'BT_SHOWCODING':      (0xa03898, 'bt_showcoding'),   # int: the codec in use, 0 none
+    'BT_SEARCHTIME':      (0xa038b1, 'bt_searchtime'),   # i8: the scan's count-down in 200 ms ticks (0 idle)
+    'BT_START_SCAN':      (0xa0388c, 'bt_start_scan'),   # byte: the page's timer starts a scan
+    'BT_LOCALNAME':       (0xa0c258, 'localBtName'),   # char[256]: the controller's name
+    'BT_LOCALMAC':        (0xa0c358, 'localBtMac'),   # char[32]
+    'BT_SHOWLIST':        (0xa041c8, 'pdeq_btshowlist'),
+    'BT_PAIRLIST':        (0xa041c0, 'pdeq_btpairlist'),   # deque_t *: the paired devices (the tests build it; the payload asks checkPairDev)
+    'BT_LINKLIST':        (0xa041c4, 'pdeq_btlinklist'),   # deque_t *: connection attempts and links (the payload asks getBtLinkSize / getBtLinkItem)   # deque_t *: the devices as the page shows them (0x124 bytes each: status, MAC at +4, name at +0x24)
+    'BT_A2DP_DIRECTION':  (0xa038ac, 'bt_a2dp_direction'),   # int: the connected device's role
+    'BT_RECV_VOLUME':     (0xa0389c, 'bt_recv_volume'),   # int: -1 none
+    'BT_A2DP_EVENT':      (0xa03890, 'a2dp_eventstate'),   # int
+    'BT_RECV_PAGE':       (0xa05a00, 'btrecv_pageflag'),   # int: the receiver page is up / due (adjustA2dpVolume refuses while it is set)
+    'BT_REFRESH':         (0xa05a64, 'wifiset_refreshflag'),   # byte: "redraw the list" (shared with the Wi-Fi page)
     'EQ_FLAG':            (0xa05ac2, 'equalizer_flag'),
     'EQ_MODE':            (0x97cb00, 'equalizer_mode'),
     # About: the serial number (a string of 16 bytes) and the Wi-Fi MAC (32), and the stock literals the model and firmware rows show
@@ -1069,7 +1110,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define POD_ENTRY_ID {pod_pages.HOME_ENTRY}')
     h.append('#define POD_ENTRY_PAGE 0')
     h.append('#define POD_MENU_PAGE 0')
-    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
+    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER', 'BTCODEC'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
         h.append(f'#define POD_{macro}_PAGE {getattr(pod_pages, macro + "_PAGE_INDEX")}')
     (out / 'pages.h').write_text('\n'.join(h) + '\n')
     return slots
@@ -1177,8 +1218,9 @@ def compile_payload(out, demo_path, tag=TAG):
             '--undefined=m1plus_playmore_init', '--undefined=stock_playmore_init_trampoline', '--undefined=m1plus_pulldown_init', '--undefined=pd_open_settings', '--undefined=pd_open_dialog', '--undefined=m1plus_tsdown', '--undefined=stock_tsdown_trampoline', '--undefined=stock_pulldown_init_trampoline', '--undefined=rd_start_player', '--undefined=rd_step', '--undefined=stock_start_player_trampoline', '--undefined=rd_save_stop', '--undefined=rd_save_start', '--undefined=stock_save_stop_trampoline', '--undefined=stock_save_start_trampoline', '--undefined=rn_backtoplayer', '--undefined=stock_backtoplayer_trampoline', '--undefined=pc_id3_path', '--undefined=pc_library_query', '--undefined=pc_sorted_query', '--undefined=stock_dbquery_trampoline', '--undefined=stock_sorted_query_trampoline',
             '--undefined=sba_parse_tracks', '--undefined=sba_parse_albums', '--undefined=sba_parse_artists', '--undefined=sba_parse_playlists', '--undefined=sba_parse_ping',   # (sbparse.c until sbapi.c calls them)
             '--undefined=m1plus_style_color', '--undefined=m1plus_style_gradient', '--undefined=m1plus_image_add', '--undefined=stock_style_color_trampoline', '--undefined=stock_image_add_trampoline', '--undefined=pal_map', '--undefined=pal_active', '--undefined=pal_background', '--undefined=pal_accent', '--undefined=pal_accent_saved', '--undefined=pal_accent_set', '--undefined=pal_accent_color', '--undefined=pal_fill',
-            '--undefined=bc_timed_open', '--undefined=m1_scan_dir', '--undefined=sh_set_mode', '--undefined=sbs_play_record', '--undefined=sh_load_playlist', '--undefined=sh_display_mode', '--undefined=sh_clear_queue', '--undefined=pod_na_site', '--undefined=na_next_key', '--undefined=na_set_cur', '--undefined=na_cur', '--undefined=na_active', '--undefined=stock_setmode_trampoline', '--undefined=stock_loadplaylist_trampoline', '--undefined=ft_created', '--undefined=stock_file_created_trampoline', '--undefined=ll_load', '--undefined=ll_assign', '--undefined=stock_loadclass_trampoline', '--undefined=tz_select', '--undefined=tz_row', '--undefined=tz_label', '--undefined=stock_timezone_trampoline', '--undefined=bp_capacity', '--undefined=lo_set_text', '--undefined=wifi_hub_open', '--undefined=tidal_kb_focus', '--undefined=pod_eq_site', '--undefined=pod_lock_site', '--undefined=pf_items', '--undefined=pf_seen', '--undefined=so_play_src', '--undefined=lib_navidrome', '--undefined=sba_songs_window', '--undefined=sbs_playing', '--undefined=sbs_track']   # (pf_items, pf_seen: accessors of the parser the tests read; so_play_src, albums_open_src: the library seam, no caller yet)
+            '--undefined=bc_timed_open', '--undefined=m1_scan_dir', '--undefined=sh_set_mode', '--undefined=sbs_play_record', '--undefined=sh_load_playlist', '--undefined=sh_display_mode', '--undefined=sh_clear_queue', '--undefined=pod_na_site', '--undefined=na_next_key', '--undefined=na_set_cur', '--undefined=na_cur', '--undefined=na_active', '--undefined=stock_setmode_trampoline', '--undefined=stock_loadplaylist_trampoline', '--undefined=ft_created', '--undefined=stock_file_created_trampoline', '--undefined=ll_load', '--undefined=ll_assign', '--undefined=stock_loadclass_trampoline', '--undefined=tz_select', '--undefined=tz_row', '--undefined=tz_label', '--undefined=stock_timezone_trampoline', '--undefined=bp_capacity', '--undefined=lo_set_text', '--undefined=wifi_hub_open', '--undefined=bt_hub_open', '--undefined=tidal_kb_focus', '--undefined=pod_eq_site', '--undefined=pod_lock_site', '--undefined=pf_items', '--undefined=pf_seen', '--undefined=so_play_src', '--undefined=lib_navidrome', '--undefined=sba_songs_window', '--undefined=sbs_playing', '--undefined=sbs_track']   # (pf_items, pf_seen: accessors of the parser the tests read; so_play_src, albums_open_src: the library seam, no caller yet)
     keep += ['--undefined=' + n for n in ND_KEEP]   # (the Navidrome data layer has no caller until the pages land: patch/sbapi.h; the tests call these)
+    keep += ['--undefined=' + n for n in BS_KEEP]   # (the Bluetooth control layer has no caller until the page lands: patch/btset.h; test/pod/btset.py calls these)
     keep += ['--undefined=' + n for n in BN_KEEP]   # (the LibriVox catalog has no caller until the pages land: patch/bknet.h; test/pod/bknet.py calls these)
     keep += ['--undefined=bk_mp4_index_kb', '--undefined=bk_parse_meminfo', '--undefined=bk_natcmp']   # (helpers of the Audiobooks model, patch/bkmodel.c, that test/pod/bkmodel.py calls on their own: the page reaches them through bk_load_parts and bk_mp4_fits)
     keep.append('--undefined=tl_play_status')
@@ -1345,7 +1387,7 @@ def patch_demo(raw, payload, ps, demo_path):
     check_pins(patched, RADIO_PINS)
     check_pins(patched, LANGUAGE_PINS)
     patch_radio(patched, ps, len(payload))
-    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS + DATETIME_PINS + SLEEPTIMER_PINS + NETSERVICE_PINS + STOCKROWS_PINS)   # stock code the Playlists and Songs pages call: checked, not written
+    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS + DATETIME_PINS + SLEEPTIMER_PINS + NETSERVICE_PINS + STOCKROWS_PINS + BLUETOOTH_PINS)   # stock code the Playlists and Songs pages call: checked, not written
     for at, text in ((0x74bad8, ALBUM_SQL.replace('songtable', '%s')), (0x74ba4c, 'songtable')):   # the strings getAllAlbum fills: the payload's STOCK_ALBUM_SQL is their sprintf
         want = text.encode() + b'\0'
         check(bytes(patched[fileoff(patched, at):fileoff(patched, at) + len(want)]) == want, f'{at:#x}: not the string "{text}" the album cover map reproduces')
@@ -1361,6 +1403,8 @@ def patch_demo(raw, payload, ps, demo_path):
     target8 = ps['bp_capacity']
     check(BASE <= ps['wifi_hub_open'] < BASE + len(payload), 'Wi-Fi hub hook symbol outside payload')
     struct.pack_into('<I', patched, fileoff(patched, WIFIHUB_SITE), jal(ps['wifi_hub_open'], WIFIHUB_SITE))   # (SETTINGS_PINS checked the site's word, its delay slot and the thunk around it)
+    check(BASE <= ps['bt_hub_open'] < BASE + len(payload), 'Bluetooth hub hook symbol outside payload')
+    struct.pack_into('<I', patched, fileoff(patched, BTHUB_SITE), jal(ps['bt_hub_open'], BTHUB_SITE))   # (the same for the hub's Bluetooth row)
     check(BASE <= ps['tidal_kb_focus'] < BASE + len(payload), 'Tidal keyboard hook symbol outside payload')
     struct.pack_into('<I', patched, fileoff(patched, TIDALKB_SITE), jal(ps['tidal_kb_focus'], TIDALKB_SITE))   # (TIDALKB_PINS checked the site's word, its delay slot and the bind callback around it)
     check(BASE <= ps['sbs_play_record'] < BASE + len(payload), 'play history hook symbol outside payload')
@@ -1410,7 +1454,7 @@ def patch_demo(raw, payload, ps, demo_path):
     check(dynsym(demo_path).get('playsong_id3info') == 0xa0d88c, 'playsong_id3info moved')
     edits = patch_rows(patched, ps)
     # no row edit may touch a PIC prologue (the hooks are the only ones) or a hook site
-    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, TSDOWN, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and int(a, 16) != PULLDOWN_DIALOG_SITE and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8
+    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, TSDOWN, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != BTHUB_SITE and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and int(a, 16) != PULLDOWN_DIALOG_SITE and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8
               for a, *_ in edits), 'row edit on a hook')
     check(all(not (SCROLL_SLOT <= int(a, 16) < SCROLL_SLOT + 4 or a in {hex(p[0]) for p in SCROLL_PINS}) for a, *_ in edits),
           'row edit on a list gesture word')
@@ -1461,6 +1505,7 @@ def main():
         'hook_battery': {'addr': BATTERY_SITE, 'target': ps['bp_capacity']},
         'hook_format_lamp': {'addr': FORMAT_LAMP_SITE, 'target': ps['tl_play_status']},
         'hook_wifihub': {'addr': WIFIHUB_SITE, 'target': ps['wifi_hub_open']},
+        'hook_bthub': {'addr': BTHUB_SITE, 'target': ps['bt_hub_open']},
         'hook_idle': {'addr': IDLE_SITE, 'target': ps['bc_timed_open']},
         'hook_tidalkb': {'addr': TIDALKB_SITE, 'target': ps['tidal_kb_focus']},
         'hook_playrecord': {'addr': PLAYREC_SITE, 'target': ps['sbs_play_record']},

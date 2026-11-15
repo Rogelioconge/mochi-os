@@ -64,7 +64,7 @@ static const char *str(void *r, int field) {
 }
 
 /* The stock one-line message box, as the Songs page shows "file not found" (@0x5259dc). */
-static void toast(const char *text) {
+static void toast_ms(const char *text, int ms) {
     struct {
         int kind, ms;
         char text[MSGINFO_TEXT], text2[MSGINFO_TEXT];
@@ -72,10 +72,11 @@ static void toast(const char *text) {
     unsigned i;
     memset(&info, 0, sizeof info);
     info.kind = MSGINFO_KIND;
-    info.ms = MSGINFO_MS;
+    info.ms = ms;
     for (i = 0; text[i] && i < sizeof info.text - 1; ++i) info.text[i] = text[i];
     navigator_to_with_context("dialog/msginfo_dialog", &info);
 }
+static void toast(const char *text) { toast_ms(text, MSGINFO_MS); }
 
 /* ---------------------------------------------------------------------------
  * Apple-style Shuffle: the flag, the queue's reorder and the two hooks.
@@ -723,6 +724,7 @@ int shuffle_play(int kind) {
  * flag on, Play turns it off (and Repeat one into List play), so Now Playing plays what was asked for. */
 unsigned pod_rand(unsigned n) { return rand_below(n); }
 void pod_toast(const char *text) { toast(text); }
+void pod_toast_ms(const char *text, int ms) { toast_ms(text, ms); }
 void pod_set_mode(int mode) { set_mode(mode, 0); } /* the current queue is reordered now (no queue load follows) */
 void pod_set_in_order(void) { set_in_order(0); }
 void pod_set_mode_for_queue(int mode) { set_mode(mode, 1); } /* a queue load follows: the flag only */

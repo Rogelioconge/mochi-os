@@ -53,6 +53,8 @@ STOCK = {
     # the Wi-Fi page's three confirmations: stock's own texts (patch/wifipage.c); msg_wifi_open holds the coex warning (COEX_TEXT)
     'msg_wifidisconnect': 'Disconnect Now?',
     'msg_wificancelsave': 'Delete Record?',
+    # the Audio Codec page's five stock rows (the same brand text in every table; the three LDAC rows are ours)
+    'btcode_aptxhd': 'aptX HD', 'btcode_aptx': 'aptX', 'btcode_aac': 'AAC', 'btcode_sbchq': 'SBC HQ', 'btcode_sbc': 'SBC',
     'msg_wifi_open': 'Bluetooth audio may stutter while Wi-Fi is on.',
     'system_rippingset': 'CD Ripping',   # Settings > Library's CD Ripping row (stock's own title of its page, translated in every table)
     'wifiset_synclink': 'SyncLink',      # ... Network Services' SyncLink (the same word in every table)
@@ -237,6 +239,33 @@ TEXT = dict([
        'Conexión automática', 'Connessione automatica', 'เชื่อมต่ออัตโนมัติ', 'Połącz automatycznie', 'Автоподключение', 'Автопідключення'),
     _t('Join', '加入', '加入', '接続', '연결', 'Rejoindre', 'Verbinden',
        'Conectar', 'Connetti', 'เชื่อมต่อ', 'Połącz', 'Войти', 'Увійти'),   # (short: it is also the keyboard's action key on the password page, 66 px)
+    # The Bluetooth page (patch/btpage.c, docs/modules/bluetooth.md "The page"): the codec row and its page, the note with this player's name (%s is put in by the payload), the two device headers, the search row.
+    # The three LDAC choices are ours: stock's Thai LDAC HQ reads "SyncLink" and its Spanish, Polish, Russian and Ukrainian ones do not fit a row. The five others are stock's own keys (STOCK).
+    _t('Audio Codec', '音频编码', '音訊編碼', 'コーデック', '오디오 코덱', 'Codec audio', 'Codec',
+       'Códec', 'Codec', 'โคเดกเสียง', 'Kodek audio', 'Кодек', 'Кодек'),   # (short where the longest value, LDAC Connection, would leave the label no room beside it: the value row has 254 px for both)
+    _t('LDAC HQ', 'LDAC 音质优先', 'LDAC 音質優先', 'LDAC 音質優先', 'LDAC HQ', 'LDAC HQ', 'LDAC HQ',
+       'LDAC HQ', 'LDAC HQ', 'LDAC HQ', 'LDAC HQ', 'LDAC HQ', 'LDAC HQ'),
+    _t('LDAC Standard', 'LDAC 标准', 'LDAC 標準', 'LDAC 標準', 'LDAC 표준', 'LDAC Standard', 'LDAC Standard',
+       'LDAC estándar', 'LDAC Standard', 'LDAC มาตรฐาน', 'LDAC Standard', 'LDAC Стандарт', 'LDAC Стандарт'),
+    _t('LDAC Connection', 'LDAC 连接优先', 'LDAC 連接優先', 'LDAC 接続優先', 'LDAC 연결 우선', 'LDAC Connexion', 'LDAC Verbindung',
+       'LDAC Conexión', 'LDAC Connessione', 'LDAC การเชื่อมต่อ', 'LDAC Połączenie', 'LDAC Соединение', "LDAC З'єднання"),
+    _t('My Devices', '我的设备', '我的裝置', 'マイデバイス', '내 기기', 'Mes appareils', 'Meine Geräte',
+       'Mis dispositivos', 'I miei dispositivi', 'อุปกรณ์ของฉัน', 'Moje urządzenia', 'Мои устройства', 'Мої пристрої'),
+    _t('Other Devices', '其他设备', '其他裝置', 'その他のデバイス', '다른 기기', 'Autres appareils', 'Andere Geräte',
+       'Otros dispositivos', 'Altri dispositivi', 'อุปกรณ์อื่น ๆ', 'Inne urządzenia', 'Другие устройства', 'Інші пристрої'),
+    _t('Search Again', '重新搜索', '重新搜尋', '再検索', '다시 검색', 'Rechercher à nouveau', 'Erneut suchen',
+       'Buscar de nuevo', 'Cerca di nuovo', 'ค้นหาอีกครั้ง', 'Szukaj ponownie', 'Искать снова', 'Шукати знову'),
+    _t('This player is shown as “%s”', '此播放器显示为“%s”', '此播放器顯示為「%s」', '“%s”として表示されます', '“%s”(으)로 표시됩니다', 'Visible sous le nom « %s »', 'Sichtbar als „%s“',
+       'Se muestra como “%s”', 'Visibile come “%s”', 'เครื่องเล่นนี้แสดงเป็น “%s”', 'Widoczny jako „%s”', 'Отображается как «%s»', 'Відображається як «%s»'),
+    # The Bluetooth device page (patch/btpage.c, docs/modules/bluetooth.md "The device page"): Connect / Disconnect, the Headset Volume row beside its two keys (178 px), Forget This Device (modelled on the Wi-Fi page's Forget This Network)
+    _t('Connect', '连接', '連線', '接続', '연결', 'Connecter', 'Verbinden',
+       'Conectar', 'Connetti', 'เชื่อมต่อ', 'Połącz', 'Подключить', 'Підключити'),
+    _t('Disconnect', '断开连接', '中斷連線', '接続解除', '연결 해제', 'Déconnecter', 'Trennen',
+       'Desconectar', 'Disconnetti', 'ยกเลิกการเชื่อมต่อ', 'Rozłącz', 'Отключить', 'Відключити'),
+    _t('Headset Volume', '耳机音量', '耳機音量', 'ヘッドセットの音量', '헤드셋 볼륨', 'Volume du casque', 'Headset-Lautstärke',
+       'Volumen auricular', 'Volume cuffie', 'ระดับเสียงหูฟัง', 'Głośność zestawu', 'Громкость', 'Гучність гарнітури'),   # (Russian without "headset": Громкость гарнитуры is 193 px, the room 174)
+    _t('Forget This Device', '忘记此设备', '忘記此裝置', 'このデバイスの登録を解除', '이 기기 지우기', 'Oublier cet appareil', 'Dieses Gerät ignorieren',
+       'Olvidar este dispositivo', 'Dimentica questo dispositivo', 'ลืมอุปกรณ์นี้', 'Zapomnij to urządzenie', 'Забыть это устройство', 'Забути цей пристрій'),
     # The Wi-Fi password page (patch/wifipage.c, docs/modules/wifi.md "The password page"): the title, the field's label, the line under the title (%s is the network's name, put in by the payload) and the wrong-password line
     _t('Enter Password', '输入密码', '輸入密碼', 'パスワードを入力', '비밀번호 입력', 'Saisir le mot de passe', 'Passwort eingeben',
        'Introducir contraseña', 'Inserisci password', 'ป้อนรหัสผ่าน', 'Wpisz hasło', 'Введите пароль', 'Введіть пароль'),

@@ -193,6 +193,7 @@ ACT_NETTRANS = 168     # link row (Network Services): Wi-Fi Transfer, our page (
 ACT_FORMAT = 169      # action row (Settings > General): Format Storage, stock's own Format handler of the system list (the confirm, then the format dialog; patch/m1plus.c stock_format_card, STOCKROWS_PINS)
 ACT_SLEEPSET = 170    # picker row (the Sleep Timer page, opened by Now Playing's More sheet and the Control Center tile): choose the time (arg = an index of SLEEP_VALUES, 0 off; stock's sleepflag byte and sleep_time word; patch/sleeptimer.c st_set)
 ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own under the choices, shown only while a timer runs): Time Left, H:MM rounded up to the minute (patch/sleeptimer.c st_left_text); no chevron, no touch
+ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page): choose the preferred codec (arg = stock's btcoding 0 .. 7; patch/btpage.c bp_codec_set: the init guard, stock's confirm while a device is connected, then stock's Quality choice)
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
 SWITCH_ACTIONS = (ACT_ASPLIT,) + ASSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO)
@@ -203,7 +204,7 @@ CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, 
 ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron (Update Library, an ACT_HOME row, is one too: row_kind)
 VALUE_INIT = {ACT_ASPAGE: 'Off', ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
 VALUE_ACTIONS += (ACT_LANG,)
-CHECK_ACTIONS += (ACT_LANGSET,)
+CHECK_ACTIONS += (ACT_LANGSET, ACT_BTCODECSET)
 VALUE_INIT[ACT_LANG] = ''   # the language's own name: the payload sets it as the page opens
 SWITCH_ACTIONS += (ACT_DTAUTO, ACT_DT24)   # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md)
 VALUE_ACTIONS += (ACT_DTZONE, ACT_DTDATE, ACT_DTTIME, ACT_DTFIELD)
@@ -432,6 +433,9 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_general',
     'm1plus_netservice',
     'm1plus_wifitransfer',
+    'm1plus_bluetooth',
+    'm1plus_btcodec',
+    'm1plus_btdevice',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -1210,6 +1214,10 @@ WIFIPASS_PAGE = Page('m1plus_wifipass', 'm1plus_wifipass_page', 'Enter Password'
 # The Other Network flow (patch/wifipage.c wo_open, ws_open): one page for a hidden network (name, security, password; the keyboard embedded, KB_*) and the Security picker it opens.
 WIFIOTHER_PAGE = Page('m1plus_wifiother', 'm1plus_wifiother_page', 'Join Wi-Fi Network', kind='wifiother')
 WIFISEC_PAGE = Page('m1plus_wifisec', 'm1plus_wifisec_page', 'Security', kind='wifisec')
+# The Bluetooth page (patch/btpage.c, docs/modules/bluetooth.md "The page"): Settings > Bluetooth and the All System Settings hub's Bluetooth row open it, stock's page where it will not open. The Wi-Fi page's cards, rows and glyphs.
+BLUETOOTH_PAGE = Page('m1plus_bluetooth', 'm1plus_bluetooth_page', 'Bluetooth', kind='bluetooth')
+# One paired device's page (patch/btpage.c bd_open): opened by the info glyph of a device row; the navbar's title is the device's name (the payload sets it). Connect / Disconnect, Headset Volume, Forget This Device.
+BTDEVICE_PAGE = Page('m1plus_btdevice', 'm1plus_btdevice_page', 'Bluetooth', kind='btdevice')
 
 # The search inside one show (patch/pcfind.c, docs/modules/podcasts.md "Search inside a show"): the Search page's field and keyboard over a list of one show's episodes; opened by the Show page's search button, no menu row.
 PCFIND_PAGE = Page('m1plus_pcfind', 'm1plus_pcfind_page', 'Search Episodes', kind='pcfind')
@@ -1359,6 +1367,12 @@ class StockText(str):
 
 
 LANGUAGE_PAGE = Page('m1plus_language', 'm1plus_language_page', 'Language', layout=[Row(StockText(n, k), ACT_LANGSET, i) for i, (k, n) in enumerate(zip(LANGUAGE_KEYS, LANGUAGE_NAMES))])
+# Its Audio Codec picker (the generic check rows of patch/m1plus.c): stock's eight choices in stock's order (btcoding 0 .. 7). Texts: the three LDAC ones are ours (stock's Thai LDAC HQ reads "SyncLink" and its Spanish, Polish,
+# Russian and Ukrainian ones are too long for a row), the others are stock's own keys (btcode_aptxhd .. btcode_sbc: the same brand text in every table).
+BT_CODECS = ('LDAC HQ', 'LDAC Standard', 'LDAC Connection', 'aptX HD', 'aptX', 'AAC', 'SBC HQ', 'SBC')
+BT_CODEC_KEYS = ('', '', '', 'btcode_aptxhd', 'btcode_aptx', 'btcode_aac', 'btcode_sbchq', 'btcode_sbc')   # the stock key of the codecs that use one ('' = our own key, the English text)
+BTCODEC_PAGE = Page('m1plus_btcodec', 'm1plus_btcodec_page', 'Audio Codec', layout=[Row(StockText(t, k) if k else t, ACT_BTCODECSET, i) for i, (t, k) in enumerate(zip(BT_CODECS, BT_CODEC_KEYS))])
+BTCODEC_PAGE_INDEX = page_index('m1plus_btcodec')
 # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): stock's three date and time pages as cards, every state stock's own. Set Automatically (stock's switch) and Time Zone (a value row
 # and its picker of our 43 zones, west to east, patch/timezones.c), Date and Time (value rows opening the two entry pages, each with its Set row: stock's set_systime), 24-Hour Time (stock's switch).
 import timezones as _tz

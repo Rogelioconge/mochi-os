@@ -2878,6 +2878,68 @@ def build_wifi_page(page):
     return root
 
 
+# The Bluetooth page (patch/btpage.c, docs/modules/bluetooth.md "The page"): the Wi-Fi page's cards, rows, glyphs and numbers. Card 1 holds the Bluetooth switch row and, while it is on, the Audio Codec value row; under it a grey
+# note (this player's name); My Devices (the paired devices) and Other Devices (the found ones, a small spinner after the header's text while the search runs) are cards of pooled device rows; the last row of the
+# second card is Search Again. A device row is the Wi-Fi network row without the lock and the signal: the check or the connecting spinner at the left, the name, and (a paired device) the info glyph at the right.
+# Children are in display order (the stock layouter stacks the visible ones; the payload moves them to the same places). Pools: patch/btpage.c BP_MY paired, BP_OTH found devices (stock's lists are unbounded).
+BT_MY, BT_OTH = 8, 16
+BT_ROWS = BT_MY + BT_OTH
+BT_NAME_W_PAIRED, BT_NAME_W_OTHER = WF_INFO_X - 10 - WF_NAME_X, 296 - WF_NAME_X   # the name's box: up to the info glyph (less 10), or to the card's right ink edge
+
+
+def bt_dev_row(k):
+    import pod_settings as ST
+    paired = k < BT_MY
+    row = hidden(wf_row(f'bt_row{k}', 'mid'))
+    mid = lambda h: (ST.ROW_H - h) // 2
+    row.children = [hidden(wf_image(f'bt_chk{k}', WF_CHK_X, mid(WF_CHK_PX), WF_CHK_PX, WF_CHK_PX, 'pod_check')), wf_label(f'bt_name{k}', WF_NAME_X, BT_NAME_W_PAIRED if paired else BT_NAME_W_OTHER, '')]
+    if paired: row.children.append(wf_image(f'bt_info{k}', WF_INFO_X, mid(WF_INFO_PX), WF_INFO_PX, WF_INFO_PX, 'wf_info'))
+    row.children.append(wf_hair(f'bt_hair{k}', WF_HDR_X))
+    return row
+
+
+def build_bluetooth_page(page):
+    import pod_settings as ST
+    from mod_icons import CARD_CHEVRON
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
+    root.children.append(navbar(page.title))
+    lv = stock_list([], True)
+    lv.set('name', 'bluetooth_listview')   # (stock's own names for the page's two lists)
+    sv = lv.children[0]
+    sv.set('name', 'bluetooth_scrollview')
+    sw = wf_row('bt_row_sw', 'single')
+    x, w = ST.label_box('switch', False)
+    ax, ay, aw, ah = ST.accessory('switch')
+    sw.children = [wf_label('bt_sw_label', x, w, 'Bluetooth'), wf_image('bt_sw_img', ax, ay, aw, ah, 'sset_off', 'default'), wf_hair('bt_hair_sw', WF_HDR_X)]
+    codec = hidden(wf_row('bt_row_codec', 'bot'))   # a value row: the label, the codec's name (right aligned, grey, the payload gives it the room its text needs) and the Settings chevron
+    cx, cw = ST.label_box('value', False)
+    vx, vw = ST.value_box()
+    val = Widget('hscroll_label', vx, 0, vw, ST.ROW_H, [('name', 'bt_codec_val'), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
+    for st in ('normal', 'disable', 'focused'):
+        styled(val, (st,), 'font_size', str(ST.VALUE_PX))
+        styled(val, (st,), 'text_color', ST.GREY)
+        styled(val, (st,), 'text_align_h', 'right')
+        styled(val, (st,), 'text_align_v', 'middle')
+    chx, chy, chw, chh = ST.accessory('chevron')
+    codec.children = [wf_label('bt_codec_label', cx, cw, 'Audio Codec'), val, wf_image('bt_codec_chev', chx, chy, chw, chh, CARD_CHEVRON[0])]
+    sv.children.append(cards_spacer('pod_top', ST.CM))
+    sv.children.append(sw)
+    sv.children.append(codec)
+    sv.children.append(hidden(cards_text('bt_note', ST.NOTE_LABEL_Y, ST.NOTE_LABEL_H, 'This player is shown as “%s”', ST.NOTE_PX, ST.NOTE_H)))
+    sv.children.append(wf_header('bt_hdr_my', 'My Devices'))
+    sv.children += [bt_dev_row(k) for k in range(BT_MY)]
+    sv.children.append(wf_header('bt_hdr_oth', 'Other Devices', True))
+    sv.children += [bt_dev_row(k) for k in range(BT_MY, BT_ROWS)]
+    search = hidden(wf_row('bt_row_search', 'bot'))
+    search.children = [wf_label('bt_search_label', WF_NAME_X, WF_NAME_W + 40, 'Search Again')]
+    sv.children.append(search)
+    sv.children.append(cards_spacer('pod_end', ST.END_H))
+    root.children.append(lv)
+    root.children.append(nav_fade(shown=False))   # patch/btpage.c shows it while the list is scrolled
+    return root
+
+
 # One network's info page (patch/wifipage.c wi_open, docs/modules/wifi.md "The info page"): the same cards and pieces as the Wi-Fi page; the payload shows, hides and moves the rows (display order again, so the
 # stock layouter's stacking agrees): Forget This Network (a saved network), the info card (WI_FIELDS label / value rows, room for the enterprise rows of a later stage), Auto-Join (saved) or Join (not saved),
 # with the card gaps between them. The navbar's title is the network's name (set by the payload).
@@ -2928,6 +2990,55 @@ def build_wifiinfo_page(page):
     sv.children.append(cards_spacer('pod_end', ST.END_H))
     root.children.append(lv)
     root.children.append(nav_fade(shown=False))   # patch/wifipage.c shows it while the list is scrolled
+    return root
+
+
+# One paired device's page (patch/btpage.c bd_open, docs/modules/bluetooth.md "The device page"): the info page's cards, pieces and gaps. Connect / Disconnect (one centred row), Headset Volume with its two round keys
+# (only while the device is the connected one and the volume can be set), Forget This Device (one centred row), the card gaps between them; the payload shows, hides and moves them (display order again). The navbar's
+# title is the device's name, and the whole name goes above the cards when the title is cut (the same two lines as the Wi-Fi info page).
+BD_KEY_PX, BD_KEY_GAP, BD_KEY_PAD = (38, 34), 10, 4   # a key's pill (the images pod_ic_btvol_*), the gap between the two, the touch area's room around the pill's width
+
+
+def bd_key(name, x, icon):
+    """A Headset Volume key: a button with its own images (normal, pressed), its touch area the row's height by the pill's width + 2 x BD_KEY_PAD, the pill centred in it."""
+    import pod_settings as ST
+    return Widget('button', x - BD_KEY_PAD, 0, BD_KEY_PX[0] + 2 * BD_KEY_PAD, ST.ROW_H, [('name', name), ('enable', 'true'), ('style', 'img_btn_style'),
+                  ('style:pressed:icon', icon + '_down'), ('style:normal:icon', icon), ('style:over:icon', icon)])
+
+
+def build_btdevice_page(page):
+    import pod_settings as ST
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
+    root.children.append(navbar(page.title))
+    lv = stock_list([], True)
+    lv.set('name', 'btdevice_listview')
+    sv = lv.children[0]
+    sv.set('name', 'btdevice_scrollview')
+    x = ST.CM + ST.PAD
+    centred = lambda name, english: wi_text(name, x, ST.CARD_W - 2 * ST.PAD, english, 21, INK_RGB, 'center')
+    link = hidden(wf_row('bd_row_link', 'single'))
+    link.children = [centred('bd_link_t', 'Connect')]
+    vol = hidden(wf_row('bd_row_vol', 'single'))   # not a tap target itself: the keys are; its pressed picture is its normal one
+    for st in ('over', 'pressed', 'focused'): styled(vol, (st,), 'bg_image', ST.piece_images('single')[0])
+    up_x = ST.RIGHT - BD_KEY_PX[0]
+    dn_x = up_x - BD_KEY_GAP - BD_KEY_PX[0]
+    vol.children = [wf_label('bd_vol_t', x, dn_x - BD_KEY_PAD - 4 - x, 'Headset Volume'), hidden(bd_key('bd_vol_dn', dn_x, 'pod_ic_btvol_dn')), hidden(bd_key('bd_vol_up', up_x, 'pod_ic_btvol_up'))]
+    forget = hidden(wf_row('bd_row_forget', 'single'))
+    forget.children = [centred('bd_forget_t', 'Forget This Device')]
+    sv.children.append(cards_spacer('pod_top', ST.CM))
+    for k in range(2):   # the whole name's lines (patch/wifipage.c wf_name_lines)
+        nm = hidden(cards_spacer(f'bd_nm{k}', WI_NAME_H))
+        nm.children = [label(f'bd_name{k}', ST.CM, 0, ST.CARD_W, WI_NAME_H, '', WK_LINE_PX, ST.GREY, 'center')]
+        sv.children.append(nm)
+    sv.children.append(link)
+    sv.children.append(hidden(cards_spacer('bd_gap0', ST.GAP_H)))
+    sv.children.append(vol)
+    sv.children.append(hidden(cards_spacer('bd_gap1', ST.GAP_H)))
+    sv.children.append(forget)
+    sv.children.append(cards_spacer('pod_end', ST.END_H))
+    root.children.append(lv)
+    root.children.append(nav_fade(shown=False))   # patch/btpage.c shows it while the list is scrolled
     return root
 
 
@@ -3077,6 +3188,10 @@ def build_wifisec_page(page):
 
 
 def build_page(page):
+    if page.kind == 'bluetooth':
+        return build_bluetooth_page(page)
+    if page.kind == 'btdevice':
+        return build_btdevice_page(page)
     if page.kind == 'wifiother':
         return build_wifiother_page(page)
     if page.kind == 'wifisec':

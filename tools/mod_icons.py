@@ -138,7 +138,7 @@ DAILY = DAILY + VINYL
 # chevron (Lucide chevron-right fitted to 9 x 15, #777777, stroke 2) and the picker's check (20 px, white).
 CARD_GLYPH_PX, CARD_CHEVRON, CARD_CHECK = 20, ('pod_chev', 10, 16, (0x8A,) * 3), ('pod_check', 20)
 CARD_GLYPHS = {'Wi-Fi': 'wifi', 'Bluetooth': 'bluetooth', 'Home Screen': 'house', 'Library': 'disc-3', 'Now Playing': 'audio-lines',
-               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': 'gauge', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'usb', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'volume-2', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'General': 'settings', 'Accent': 'palette', 'Background': '+contrast',
+               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': 'gauge', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'monitor-speaker', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'volume-2', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'General': 'settings', 'Accent': 'palette', 'Background': '+contrast',
                'Control Center': 'layout-grid', 'Lock Screen': 'lock', 'Wallpaper': 'image', 'Enable': 'lock', 'Show Time': 'clock', 'Player Style': 'square-play', 'Custom Wallpaper': 'info',
                'Keyboards': '+keyboard', 'About': 'info', 'All System Settings': 'settings', 'Developer': 'code', 'Main Menu': 'list-checks', 'Extras': 'ellipsis',
                'Recent Albums': 'history', 'Daily Mix': 'shuffle', 'Regenerate Daily Mix': 'refresh-cw', 'Update Library': 'refresh-cw',
@@ -204,7 +204,10 @@ def wifi_spinner(i, px=WIFI_SPIN_PX, ss=8):
     im = Image.new('RGBA', (px,) * 2, WIFI_GREY + (0,)); im.putalpha(big.resize((px,) * 2, Image.LANCZOS)); return im
 
 
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + ['drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
+# The device page's Headset Volume keys (patch/btpage.c, docs/modules/bluetooth.md "The device page"): a 38 x 34 dark pill with a white minus or plus (16 px), the pressed twin lighter; neutral greys, no accent.
+BT_VOL_PX, BT_VOL_GLYPH, BT_VOL_FILL, BT_VOL_DOWN = (38, 34), 16, (0x3A, 0x3A, 0x3C), (0x55, 0x55, 0x58)
+BT_VOL_IMAGES = ['pod_ic_btvol_dn', 'pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + ['drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -819,6 +822,10 @@ def generate_all(sizes):
     for n, (g, px, rgb) in WIFI_GLYPHS.items(): f[n] = glyph_fit(g, px, px, rgb, 1, 2.0 if px >= 22 else 1.5)
     for n in range(4): f[f'wf_sig{n}'] = wifi_signal(n)
     for i in range(8): f[f'wf_spin{i}'] = wifi_spinner(i); f[f'wf_spinL{i}'] = wifi_spinner(i, WIFI_SPIN_L_PX)
+    for n, g in (('dn', 'minus'), ('up', 'plus')):
+        ink = glyph_fit(g, BT_VOL_GLYPH, BT_VOL_GLYPH, WHITE, 0)
+        for suffix, rgb in (('', BT_VOL_FILL), ('_down', BT_VOL_DOWN)):
+            d = solid_pill(*BT_VOL_PX, rgb); d.alpha_composite(ink, ((BT_VOL_PX[0] - ink.width) // 2, (BT_VOL_PX[1] - ink.height) // 2)); f[f'pod_ic_btvol_{n}{suffix}'] = d
     for p in CARD_PIECES:
         f[f'pod_cd_{p}'] = card_piece(p); f[f'pod_cd_{p}_down'] = card_piece(p, True)
         f[f'pod_cdl_{p}'] = card_piece(p, tall=True); f[f'pod_cdl_{p}_down'] = card_piece(p, True, tall=True)
