@@ -21,7 +21,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Library | Update Library, Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling, CD Ripping | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
 | | Now Playing | Cassette Theme, Lyrics Text Size, Idle Display | [tape](tape.md), [bigcover](bigcover.md) |
 | **Playback** | EQ | our Equalizer page | [peq](peq.md) |
-| | Playback Settings | our page `m1plus_playset` (modes, gain, volumes, filters, outputs) | [playset](playset.md), [nextalbum](nextalbum.md) |
+| | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [nextalbum](nextalbum.md) |
 | (card) | General | About, Software Update; Date & Time, Keyboards, Language | [General](#general) |
 | | Display | our page | [display](display.md) |
 | | Buttons & Power | our page | [keyspower](keyspower.md) |

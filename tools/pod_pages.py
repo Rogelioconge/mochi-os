@@ -434,6 +434,8 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_bluetooth',
     'm1plus_btcodec',
     'm1plus_btdevice',
+    'm1plus_psvolume',
+    'm1plus_psoutput',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -529,7 +531,9 @@ LB_PAGE_INDEX = page_index('m1plus_listenbrainz')   # Settings > Library > Scrob
 LF_PAGE_INDEX = page_index('m1plus_lastfm')   # Settings > Library > Scrobbling > Last.fm
 SCROBBLING_PAGE_INDEX = page_index('m1plus_scrobbling')   # Settings > Library > Scrobbling
 ASPLIT_PAGE_INDEX = page_index('m1plus_artistsplit')   # Settings > Library > Split Artists
-PLAYSET_PAGE_INDEX = page_index('m1plus_playset')   # Settings > Playback Settings, then its seven pickers (Play Mode, Memory Playback, Gain, ReplayGain, Digital Filter, DSD Output Mode, USB Volume)
+PLAYSET_PAGE_INDEX = page_index('m1plus_playset')   # Settings > Playback Settings (the hub), then its Play Mode, Resume and Continue Playing pickers and the two sub-pages below
+PSVOLUME_PAGE_INDEX = page_index('m1plus_psvolume')   # Playback Settings > Volume & Sound (the last two in PAGE_ORDER: no other page's number moved), with the Gain, ReplayGain and Crossfeed pickers and the three loudness pages
+PSOUTPUT_PAGE_INDEX = page_index('m1plus_psoutput')   # Playback Settings > Output, with the Digital Filter, DSD Output Mode and USB Volume pickers and stock's USB Mode page
 PSMODE_PAGE_INDEX = page_index('m1plus_psmode')
 PSMEM_PAGE_INDEX = page_index('m1plus_psmem')
 PSGAIN_PAGE_INDEX = page_index('m1plus_psgain')
@@ -1117,9 +1121,10 @@ KEYLOCK_PAGE = Page('m1plus_keylock', 'm1plus_keylock_page', 'Button Lock', layo
     Note('Only effective when the screen is off'),
 ])
 SHUTDOWN_PAGE = Page('m1plus_shutdown', 'm1plus_shutdown_page', 'Auto-Shutdown', layout=[Row(v, ACT_SHUTDOWNSET, i) for i, v in enumerate(SHUTDOWN_VALUES)])
-# Settings > Playback Settings (patch/playset.c, docs/modules/playset.md): stock's All Playback Settings list as three cards, every state stock's own. Playback holds Play Mode (a value row and its picker), Gapless and Folder Skip
-# (stock's switches), Memory Playback (a value row and its picker) and Continue Playing (ours, patch/nextalbum.c); Volume holds Gain and ReplayGain (a value row and a picker each); Output holds Digital Filter (a link row: its eight names
-# do not fit a value), DSD Output Mode and USB Volume (value rows and pickers) and Digital Output (stock's switch); Volume also holds Max Volume, Default Volume and Channel Balance (value rows opening the three loudness pages below).
+# Settings > Playback Settings (patch/playset.c, docs/modules/playset.md): stock's All Playback Settings list as a hub and two sub-pages, every state stock's own. The hub's first card holds Play Mode (a value row and its picker),
+# Gapless and Folder Skip (stock's switches), Resume (a value row and its picker) and Continue Playing (ours, patch/nextalbum.c); its second card links Volume & Sound and Output. Volume & Sound holds, under Volume, Gain, Max Volume,
+# Default Volume (value rows opening the three loudness pages below) and ReplayGain, and under Stereo Channel Balance, Mono Audio and Crossfeed (ours, patch/stereoset.c); Output holds Digital Filter (a link row: its eight names do not
+# fit a value) and DSD Output Mode (a value row and a picker), then under USB & Digital USB Mode (stock's page), USB Volume (a value row and a picker) and Digital Output (stock's switch).
 PLAYMODE_VALUES = ('List Play', 'Repeat Track', 'Shuffle', 'Repeat All')   # the mode as shown (patch/shuffle.c pod_play_mode): stock's 0 and 1, our Shuffle request (stock's own mode 2 never runs) and stock's 3
 MEMPLAY_VALUES = ('Off', 'Track', 'Location')       # stock's memory_play 0 .. 2
 GAIN_VALUES = ('Low', 'High')                       # stock's gain mode 0, 1
@@ -1134,17 +1139,25 @@ PLAYSET_PAGE = Page('m1plus_playset', 'm1plus_playset_page', 'Playback', layout=
     Row('Resume', ACT_MEMPLAY, PSMEM_PAGE_INDEX),
     Row('Folder Skip', ACT_FOLDERSKIP),
     Row('Continue Playing', ACT_NEXTALBUM, NEXTALBUM_PAGE_INDEX),
+    GAP,
+    Row('Volume & Sound', ACT_PAGE, PSVOLUME_PAGE_INDEX),
+    Row('Output', ACT_PAGE, PSOUTPUT_PAGE_INDEX),
+])
+PSVOLUME_PAGE = Page('m1plus_psvolume', 'm1plus_psvolume_page', 'Volume & Sound', layout=[
     Hdr('Volume'),
     Row('Gain', ACT_GAIN, PSGAIN_PAGE_INDEX),
     Row('Max Volume', ACT_MAXVOL, PSMAXVOL_PAGE_INDEX),
     Row('Default Volume', ACT_BOOTVOL, PSBOOTVOL_PAGE_INDEX),
+    Row('ReplayGain', ACT_REPLAYGAIN, PSRG_PAGE_INDEX),
+    Hdr('Stereo'),
     Row('Channel Balance', ACT_BALANCE, PSBAL_PAGE_INDEX),
     Row('Mono Audio', ACT_MONO),
     Row('Crossfeed', ACT_XFEED, PSXFEED_PAGE_INDEX),
-    Row('ReplayGain', ACT_REPLAYGAIN, PSRG_PAGE_INDEX),
-    Hdr('Output'),
+])
+PSOUTPUT_PAGE = Page('m1plus_psoutput', 'm1plus_psoutput_page', 'Output', layout=[
     Row('Digital Filter', ACT_PAGE, PSFILTER_PAGE_INDEX),
     Row('DSD Output Mode', ACT_DSD, PSDSD_PAGE_INDEX),
+    Hdr('USB & Digital'),
     Row('USB Mode', ACT_STOCK, STOCK_USB),   # stock's usbset page (no widget of ours on it); Back returns here
     Row('USB Volume', ACT_USBVOL, PSUSB_PAGE_INDEX),
     Row('Digital Output', ACT_DIGITAL),

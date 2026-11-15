@@ -87,7 +87,7 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
   fails, stock's `navigator_to` runs, and a failed open clears the flag.
 - **The Playback tile opens our page** ([playset](playset.md)): restacked if in the stack, else
   opened like the Settings row, and stock's list only when ours will not open. `pd_reconcile` treats
-  either window as the Playback page. Before restacking, its sub-pages left in the stack are closed
+  either window as the Playback page; the hub's sub-pages (Volume & Sound, Output) and their pickers are windows above it, so the tile is disabled over them too. Before restacking, its sub-pages left in the stack are closed
   (`pd_close_subpages`), because a page of ours keeps one window and a second instance would leave
   the first without its refresh. The System tile is unchanged.
 - No flag is touched on a Now Playing tap, in the main loop or on paint.

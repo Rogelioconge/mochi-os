@@ -765,6 +765,13 @@ TEXT = dict([
        'Volumen inicial', 'Volume iniziale', 'ระดับเสียงเริ่มต้น', 'Głośn. startowa', 'Громк. старта', 'Гучність старту'),
     _t('Channel Balance', '声道平衡', '聲道平衡', 'チャンネルバランス', '채널 밸런스', 'Balance', 'Balance',
        'Balance', 'Bilanciamento', 'บาลานซ์ช่องเสียง', 'Balans kanałów', 'Баланс каналов', 'Баланс каналів'),
+    # Playback Settings' two sub-pages (tools/pod_pages.py VOLSOUND_PAGE, OUTPUT_PAGE): the link row and page title, and the headers
+    _t('Volume & Sound', '音量与音效', '音量與音效', 'ボリュームとサウンド', '볼륨 및 사운드', 'Volume et son', 'Lautstärke & Klang',
+       'Volumen y sonido', 'Volume e suono', 'ระดับเสียงและเสียง', 'Głośność i dźwięk', 'Громкость и звук', 'Гучність і звук'),
+    _t('Stereo', '立体声', '立體聲', 'ステレオ', '스테레오', 'Stéréo', 'Stereo',
+       'Estéreo', 'Stereo', 'สเตอริโอ', 'Stereo', 'Стерео', 'Стерео'),
+    _t('USB & Digital', 'USB 与数字', 'USB 與數位', 'USBとデジタル', 'USB 및 디지털', 'USB et numérique', 'USB & Digital',
+       'USB y digital', 'USB e digitale', 'USB และดิจิทัล', 'USB i cyfrowe', 'USB и цифровой', 'USB і цифровий'),
     # Mono Audio and Crossfeed (patch/stereoset.c, docs/modules/stereo.md): two rows after Channel Balance, the Crossfeed picker's note (its levels are Off, Low, Medium and High above)
     _t('Mono Audio', '单声道', '單聲道', 'モノラル', '모노', 'Audio mono', 'Mono-Audio',
        'Audio mono', 'Audio mono', 'เสียงโมโน', 'Dźwięk mono', 'Моно', 'Моно'),

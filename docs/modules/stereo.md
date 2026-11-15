@@ -76,7 +76,7 @@ only libc addition.
 
 ## The UI
 
-Settings > Playback Settings (`m1plus_playset`), Volume card, directly after Channel Balance
+Settings > Playback Settings > Volume & Sound (`m1plus_psvolume`), under the Stereo header, directly after Channel Balance
 ([playset](playset.md)):
 
 - **Mono Audio**: a switch row (`ACT_MONO` 145, glyph `volume`).

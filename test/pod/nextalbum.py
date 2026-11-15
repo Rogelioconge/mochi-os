@@ -268,14 +268,14 @@ def next_tests(ctx):
 
 
 def row_tests(ctx):
-    """Settings > Playback Settings: the Continue Playing value row after Folder Skip, its picker (Off, Next Albums, a check on the chosen one, the hint), the setting file in Settings Files, the
+    """Settings > Playback Settings: the Continue Playing value row after Folder Skip on the hub, its picker (Off, Next Albums, a check on the chosen one, the hint), the setting file in Settings Files, the
     action ids, the texts in 13 languages."""
     expect = ctx.expect
     P = pod_pages
     S, N = P.PLAYSET_PAGE, P.NEXTALBUM_PAGE
     labels = [r.label for r in S.rows]
     i = labels.index('Continue Playing')
-    expect(labels[i - 1:i + 2] == ['Folder Skip', 'Continue Playing', 'Gain'] and 'Play Next Album' not in labels,
+    expect(labels[i - 1:i + 2] == ['Folder Skip', 'Continue Playing', 'Volume & Sound'] and 'Play Next Album' not in labels,
            'the Playback card of Playback Settings: Play Mode, Gapless, Memory Playback, Folder Skip, Continue Playing')
     expect((P.ACT_NEXTALBUM, P.ACT_NASET) == (90, 91) and S.rows[i].action == 90 and S.rows[i].arg == P.NEXTALBUM_PAGE_INDEX and P.PAGES[P.NEXTALBUM_PAGE_INDEX] is P.NEXTALBUM_PAGE and 90 in P.VALUE_ACTIONS and 90 not in P.SWITCH_ACTIONS
            and P.row_kind(S.rows[i]) == 'value' and P.VALUE_INIT[90] == 'Off', 'ACT_NEXTALBUM 90, a value row opening the Continue Playing picker; ACT_NASET 91')

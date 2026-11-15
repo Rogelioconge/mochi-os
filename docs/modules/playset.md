@@ -1,39 +1,45 @@
 # Playback settings
 
-**Sources:** `patch/playset.c`, `tools/pod_pages.py` (`PLAYSET_PAGE`, `PSMAXVOL_PAGE` ..),
+**Sources:** `patch/playset.c`, `tools/pod_pages.py` (`PLAYSET_PAGE`, `PSVOLUME_PAGE`, `PSOUTPUT_PAGE`, `PSMAXVOL_PAGE` ..),
 `tools/pod_ui.py` `cards_volcard`, `tools/pod_pins.py` `PLAYSET_PINS`, `tools/pod.py` (`FUNCTIONS`,
 `DATA`). **Tests:** `test/pod/playset.py`, `test/pod/pdtiles.py` (`playtile_tests`),
 `test/pod/i18n.py`. **Preview:** `tools/preview/preview_settings.py`.
 
-Settings > Playback Settings is one own cards page (`m1plus_playset`) that replaces stock's
+Settings > Playback Settings is an own hub page (`m1plus_playset`) with two own sub-pages, Volume & Sound
+(`m1plus_psvolume`) and Output (`m1plus_psoutput`), that replace stock's
 `playset/playset_page` ("All Playback Settings") and its sub-pages, as [Buttons & Power](keyspower.md)
 and [Display](display.md) replaced theirs. Every row shows stock's own state word and calls setters
 that repeat stock's click handler stores in order, store for store and call for call. Nothing of ours
-is saved (except Mono and Crossfeed). No hook, nothing boot-reachable. Values are read again when the
-page opens and on `EVT_WINDOW_TO_FG`.
+is saved (except Mono and Crossfeed). No hook, nothing boot-reachable. Values are read again when each
+page opens and on `EVT_WINDOW_TO_FG`; a picker or slider page returns to the sub-page that opened it
+(the window stack, no parent is recorded), and the Gain row's dim is applied wherever the row sits.
 
-## The page
+## The pages
 
 The Settings row **Playback Settings** (Settings > Playback, after EQ; `ACT_PAGE`, `PLAYSET_PAGE`)
-replaces **All Playback Settings** and takes **Continue Playing** with it. Rows, in order:
+replaces **All Playback Settings** and takes **Continue Playing** with it. The hub holds the Playback
+card, then a card (after a GAP, no header) of two link rows, **Volume & Sound** (`ACT_PAGE`,
+`PSVOLUME_PAGE`) and **Output** (`ACT_PAGE`, `PSOUTPUT_PAGE`). **Volume & Sound** has a Volume header
+and a Stereo header; **Output** starts with a card without a header, then a USB & Digital header.
+The two pages come last in `PAGE_ORDER` so no other page's number moved. Rows, in order:
 
-| Card | Row | Control | State (stock's own) | Setter = stock's click, in its order |
+| Section | Row | Control | State (stock's own) | Setter = stock's click, in its order |
 |---|---|---|---|---|
-| Playback | Play Mode | value row, picker: List Play, Repeat Track, Shuffle, Repeat All | `pod_play_mode()` ([shuffle](shuffle.md)) | `pod_set_mode(m)`: `mclSetPlayMode`, `notifyPlayMode`, `dmrSendPlayMode`, `write_int_config(m, "PLAYSET", "PLAYMODE")`; nothing when `m` is shown already |
+| Hub | Play Mode | value row, picker: List Play, Repeat Track, Shuffle, Repeat All | `pod_play_mode()` ([shuffle](shuffle.md)) | `pod_set_mode(m)`: `mclSetPlayMode`, `notifyPlayMode`, `dmrSendPlayMode`, `write_int_config(m, "PLAYSET", "PLAYMODE")`; nothing when `m` is shown already |
 | | Gapless | switch | `mclGetGaplessMode()` | `write_int_config(new, "PLAYSET", "GAPLESS")`, `mclSetGaplessMode(new)` |
 | | Resume | value row, picker: Off, Track, Location | word `memory_play` | the word, `write_int_config(i, "PLAYSET", "MEMORYPLAY")` |
 | | Folder Skip | switch | `mclGetJumpFolder()` | `write_int_config(new, "PLAYSET", "JUMPFOLDER")`, `mclSetJumpFolder(new)` |
 | | Continue Playing | value row | ours ([nextalbum](nextalbum.md)), moved here unchanged | |
-| Volume | Gain | value row, picker: Low, High | `mclGetGainMode()` | `write_int_config(new, "PLAYSET", "GAIN")`, `mclSetGainMode(new, 1)`; dimmed and refused while Line Out is on |
+| Volume & Sound > Volume | Gain | value row, picker: Low, High | `mclGetGainMode()` | `write_int_config(new, "PLAYSET", "GAIN")`, `mclSetGainMode(new, 1)`; dimmed and refused while Line Out is on |
 | | Max Volume | value row (number), slider page | word `max_volume` | stock's slider, `btn_dec`, `btn_add` handlers ("Loudness pages") |
 | | Default Volume | value row (`Memory` while the byte is 1, else the number), page with Volume Memory switch and slider | byte `boot_volflag`, word `boot_volume` | switch: byte xor 1, `write_int_config(byte, "PLAYSET", "BOOTVOLFLAG")`; slider: stock's handlers |
-| | Channel Balance | value row (stock's label text), slider page | word `balance` | stock's handlers |
+| | ReplayGain | value row, picker: Off, Track, Album | `mclGetReplayGain()` | `mclSetReplayGain(i)`, `write_int_config(i, "PLAYSET", "REPLAYGAIN")` |
+| Volume & Sound > Stereo | Channel Balance | value row (stock's label text), slider page | word `balance` | stock's handlers |
 | | Mono Audio | switch | ours: file `playback-mono` ([stereo](stereo.md)) | `stereo_mono_toggle` |
 | | Crossfeed | value row, picker Off / Low / Medium / High; note "For headphones and Bluetooth. Not applied to Line Out, USB DAC or DSD." | ours: file `playback-crossfeed` | `stereo_crossfeed_set` |
-| | ReplayGain | value row, picker: Off, Track, Album | `mclGetReplayGain()` | `mclSetReplayGain(i)`, `write_int_config(i, "PLAYSET", "REPLAYGAIN")` |
 | Output | Digital Filter | link row, picker of eight filters | `mclGetfilter()` | `mclSetFilter(i)`, `write_int_config(i, "PLAYSET", "FILTER")` |
 | | DSD Output Mode | value row, picker: D2P, DOP, Native | `mclGetDsdMode()` | `write_int_config(i, "SYSSET", "DSDMODE")`; on USB audio (`mclGetOutputWay() == 2`) `save_stop_player()`; `mclSetDsdMode(i)`; if still USB `save_start_player(0)` |
-| | USB Mode | link to stock's usbset page | - | stock's page, no code of ours ([settings](settings.md)) |
+| Output > USB & Digital | USB Mode | link to stock's usbset page (Back returns to Output) | - | stock's page, no code of ours ([settings](settings.md)) |
 | | USB Volume | value row, picker: Fixed, Variable | word `usbvol_mode` | the word, `set_devicevolume(volume)`, `write_int_config(i, "SYSSET", "USBVOLMODE")` |
 | | Digital Output | switch | byte `digital_flag` | byte xor 1, `write_int_config(byte, "PLAYSET", "DIGITALMODE")`, `mclSetLineOut(byte)` |
 
@@ -52,20 +58,21 @@ Rules shared by the rows:
 - `save_stop_player` / `save_start_player` are called at stock's addresses, so [Internet Radio](radio.md)'s
   hooks over them see the DSD change as they see stock's.
 - **Gain at Line Out:** Bluetooth and USB do not disable the row. It follows the Line Out byte, dimmed (60 % opacity) and insensitive on
-  open and on return to front, so the pull-down's Output tile (which forces gain high in the
+  open and on return to front (Volume & Sound), so the pull-down's Output tile (which forces gain high in the
   hardware with `mclSetGainMode(1, 0)`) is reflected. The shown value is the stored word.
-- **Pull-down:** the Playback Settings tile opens our page (`pd_open_settings`,
+- **Pull-down:** the Playback Settings tile opens the hub (`pd_open_settings`,
   [pulldown](pulldown.md)), restacked if already in the stack; stock's list opens only if ours
-  will not. Our page never sets `playsetinto_flag`,
-  so `pd_reconcile` reads it from either window: the tile is disabled over our page and its
-  pickers, live behind the player.
+  will not. Our pages never set `playsetinto_flag`,
+  so `pd_reconcile` reads it from the hub's window: the tile is disabled over the hub and every
+  window above it up to the player (Volume & Sound, Output, their pickers and slider pages), live
+  behind the player. `pd_close_subpages` closes those windows before the hub is restacked.
 - **Not on the page:** EQ (own row on the Settings root, [peq](peq.md)), Enlarged album art (it is
   Idle Display, [bigcover](bigcover.md)) and **Single Dual DAC**. Stock never lists the last: the
   builder omits the row, so it is not part of the product.
 
 ### Loudness pages
 
-Max Volume, Default Volume and Channel Balance open slider pages (`m1plus_psmaxvol`,
+Max Volume, Default Volume and Channel Balance (Volume & Sound) open slider pages (`m1plus_psmaxvol`,
 `m1plus_psbootvol`, `m1plus_psbal`). Each is a value card holding stock's label by stock's name
 (`label_vol`, `label_balance`) over a control card holding stock's `btn_dec` and `btn_add` (`-` and
 `+`, on balance `L` and `R`) either side of stock's slider (`vol_slider` 0..100, `slider_balance`
@@ -97,7 +104,7 @@ Max Volume, Default Volume and Channel Balance open slider pages (`m1plus_psmaxv
 Our own short English keys (stock's translations are partly wrong: French "avoir ralenti" for
 ReplayGain, Italian "Modalità di gioco" for Play Mode), all in the 13 languages ([i18n](i18n.md)),
 fit-checked by `test/pod/i18n.py`. Names differing from stock: **Max Volume**, **Default Volume**
-(stock "Boot volume"), **Channel Balance**, **Volume Memory**, **Resume** (stock "Memory playback":
+(stock "Boot volume"), **Channel Balance**, **Volume & Sound**, **Stereo** and **USB & Digital** (the new page title and headers; `Output` and `Volume` already existed), **Volume Memory**, **Resume** (stock "Memory playback":
 the full word does not fit beside "Location"), **USB Volume** (stock "USB Audio Output": it sets
 the DAC's volume mode), **Digital Filter**, **Track** (ReplayGain; stock "Audio"), **Fixed / Variable**.
 The eight filters are shortened: Minimum Phase, Linear Fast Apodizing, Linear Fast, Linear Fast Low

@@ -44,6 +44,7 @@ SAME_AS_ENGLISH |= {'Password'}    # the password page's label: Password in Ital
 SAME_AS_ENGLISH |= {'Name'}    # the Other Network page's label: Name in German
 SAME_AS_ENGLISH |= {'NetEase'}    # the service's name outside Chinese (Find Artist Photo's services line and source)
 SAME_AS_ENGLISH |= {'D2P', 'DOP', 'ReplayGain', 'Variable'}    # Playback Settings: the DSD output modes and the ReplayGain name read the same in every language that does not write them in its script
+SAME_AS_ENGLISH |= {'Stereo', 'USB & Digital'}    # Volume & Sound's Stereo header (German, Italian, Polish) and Output's USB & Digital (German)
 SAME_AS_ENGLISH |= {'Photos'}    # the Cache page's Artist Photos count: Photos in French
 SAME_AS_ENGLISH |= {'Codec', 'Bitrate', 'Source'}    # Station Info: Codec in French, German and Italian, Bitrate in German and Italian, Source in French
 

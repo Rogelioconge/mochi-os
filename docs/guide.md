@@ -169,36 +169,37 @@ and Reset.
 
 ### Playback
 
-**EQ** opens the [Equalizer](#equalizer). **Playback Settings** is one page of three cards, the
-settings stock keeps in its Playback Settings list. Every setting is the same one stock's pages
-use and takes effect at once (Default Volume at the next start).
+**EQ** opens the [Equalizer](#equalizer). **Playback Settings** is a page with two sub-pages, Volume & Sound
+and Output, together the settings stock keeps in its Playback Settings list. Every setting is the same one stock's pages use and takes effect at once (Default Volume at
+the next start).
 
-- **Playback**
+- **Playback Settings**
   - **Play Mode**: List Play, Repeat Track, Shuffle, Repeat All.
   - **Gapless**; **Resume**: Off, Track or Location, where playback resumes after a restart.
   - **Folder Skip**.
   - **Continue Playing**: Off (the default) or Next Albums. When an album started from Albums, an
     artist's albums or Cover Flow ends, the next album in that page's order plays, after a short
     gap. Not with Repeat or Shuffle on, and not from Songs or Search.
-- **Volume**
+  - **Volume & Sound** and **Output** open the two sub-pages below.
+- **Volume & Sound**, with a **Volume** header
   - **Gain**: Low or High; dimmed while Line Out is on, as in stock.
   - **Max Volume**: 0 to 100, with a slider and − / + buttons. The volume keys stop there, and a
     higher volume is lowered at once.
   - **Default Volume**: the volume at the next start. **Volume Memory** on keeps the last volume;
     off uses the slider. The row says Memory or the number.
-  - **Channel Balance**: a slider from L to R with L and R buttons; the row says e.g. L3, 0 or R2.
+  - **ReplayGain**: Off, Track or Album.
+  - The three volume pages use stock's slider code, so a drag saves as often as stock's did.
+  - Under a **Stereo** header: **Channel Balance**: a slider from L to R with L and R buttons; the row says e.g. L3, 0 or R2.
     No effect on Line Out or USB audio, as in stock.
   - **Mono Audio**: both channels play the same mix, on every output, also with the Equalizer off.
   - **Crossfeed**: Off, Low, Medium or High. Each ear hears a little of the other channel, so
     stereo recordings sound less extreme. For headphones and Bluetooth only, not Line Out, a USB
     DAC or DSD; the row keeps your choice.
-  - **ReplayGain**: Off, Track or Album.
-  - The three volume pages use stock's slider code, so a drag saves as often as stock's did.
 - **Output**
   - **Digital Filter**: the DAC's eight filters.
   - **DSD Output Mode**: D2P, DOP or Native. On a USB DAC the song restarts where it was.
-  - **USB Mode** (opens the player's USB page), **USB Volume** (Fixed or Variable) and **Digital
-    Output**.
+  - Under a **USB & Digital** header: **USB Mode** (opens the player's USB page), **USB Volume**
+    (Fixed or Variable) and **Digital Output**.
 
 ### General
 
@@ -253,7 +254,7 @@ use and takes effect at once (Default Volume at the next start).
     on Wi-Fi: without it the setting is kept and "Connect to Wi-Fi first" shows. The tiles do
     nothing while an AirPlay session plays.
   - The stock Playback Settings tile opens the Playback Settings page above, and is dimmed while
-    you are on it.
+    you are on it or on its Volume & Sound and Output pages.
 
 ### Buttons & Power
 

@@ -34,7 +34,9 @@ STATE = {
     'm1plus_datetime': {'values': {'pod_value1': 'Auckland', 'pod_value2': '2026-11-15', 'pod_value3': '14:05'}, 'switches': {'pod_switch0': False, 'pod_switch4': True}},
     'm1plus_lighttime': {'shown': {'pod_check2'}},
     'm1plus_keyspower': {'values': {'pod_value0': 'Both', 'pod_value3': '5min'}, 'switches': {'pod_switch1': True, 'pod_switch2': False, 'pod_switch4': True}},
-    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off', 'pod_value5': 'Low', 'pod_value6': '80', 'pod_value7': 'Memory', 'pod_value8': 'L3', 'pod_value10': 'Medium', 'pod_value11': 'Off', 'pod_value13': 'D2P', 'pod_value15': 'Variable'}, 'switches': {'pod_switch1': False, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch16': False}},
+    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off'}, 'switches': {'pod_switch1': False, 'pod_switch3': True}},
+    'm1plus_psvolume': {'values': {'pod_value0': 'Low', 'pod_value1': '80', 'pod_value2': 'Memory', 'pod_value3': 'Off', 'pod_value4': 'L3', 'pod_value6': 'Medium'}, 'switches': {'pod_switch5': True}},
+    'm1plus_psoutput': {'values': {'pod_value1': 'D2P', 'pod_value3': 'Variable'}, 'switches': {'pod_switch4': False}},
     'm1plus_psxfeed': {'shown': {'pod_check2'}},
     'm1plus_psmaxvol': {'vol_text': '80', 'vol': 80},
     'm1plus_psbootvol': {'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}},
@@ -496,8 +498,9 @@ def main():
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
         tr = lambda k: t.strings.get(k, k)
         sheet([('Settings, whole list', draw_page(t, 'm1plus_settings', full=True, state={'values': {'pod_value0': tr('Off'), 'pod_value1': tr('Off'), 'pod_value5': tr('Rock')}})),
-               ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value2': tr('Location'), 'pod_value4': tr('Off'), 'pod_value5': tr('Low'), 'pod_value6': '80', 'pod_value7': tr('Memory'), 'pod_value8': 'L3',
-                                                                                          'pod_value10': tr('Medium'), 'pod_value11': tr('Off'), 'pod_value13': tr('D2P'), 'pod_value15': tr('Variable')}, 'switches': {'pod_switch1': True, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch16': False}})),
+               ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value2': tr('Location'), 'pod_value4': tr('Off')}, 'switches': {'pod_switch1': True, 'pod_switch3': True}})),
+               ('Volume & Sound', draw_page(t, 'm1plus_psvolume', full=True, state={'values': {'pod_value0': tr('Low'), 'pod_value1': '80', 'pod_value2': tr('Memory'), 'pod_value3': tr('Off'), 'pod_value4': 'L3', 'pod_value6': tr('Medium')}, 'switches': {'pod_switch5': True}})),
+               ('Output', draw_page(t, 'm1plus_psoutput', full=True, state={'values': {'pod_value1': tr('D2P'), 'pod_value3': tr('Variable')}, 'switches': {'pod_switch4': False}})),
                ('Max Volume', draw_page(t, 'm1plus_psmaxvol', state={'vol_text': '80', 'vol': 80})),
                ('Default Volume (Volume Memory off)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}})),
                ('Default Volume (Volume Memory on)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'vol_dim': True, 'switches': {'pod_switch0': True}})),
@@ -524,7 +527,7 @@ def main():
                      ('datetime-manual', draw_page(s, 'm1plus_datetime')), ('datetime-auto', draw_page(s, 'm1plus_datetime', state=on)), ('timezone', draw_page(s, 'm1plus_timezone', state={'shown': {'pod_check0'}})),
                      ('dtdate', draw_page(s, 'm1plus_dtdate', state={'values': {'pod_value0': '2026', 'pod_value1': '11', 'pod_value2': '15'}})),
                      ('dttime', draw_page(s, 'm1plus_dttime', state={'values': {'pod_value0': '14', 'pod_value1': '05'}})), ('dtyear', draw_page(s, 'm1plus_dtyear', state={'shown': {'pod_check4'}})),
-                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
+                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('psvolume', draw_page(s, 'm1plus_psvolume', full=True)), ('psoutput', draw_page(s, 'm1plus_psoutput', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
         os.makedirs(s2, exist_ok=True); im.save(os.path.join(s2, name + '.png')); print('wrote', os.path.join(s2, name + '.png'))
     for loc, tag in (('ge_DE', 'de'), ('ru_RU', 'ru'), ('zh_CN', 'zh'), ('th_TH', 'th'), ('fr_FR', 'fr')):   # the Wi-Fi Transfer page in the long languages (out/preview/stock2/wifitransfer-<tag>.png)
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
