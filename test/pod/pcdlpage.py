@@ -140,11 +140,11 @@ def page_tests(ctx):
     expect(subs_x[1] == O['LIST_TEXT_X'] + O['PS_BADGE_CHECK_W'] and set(subs_x[:1] + subs_x[2:]) == {O['LIST_TEXT_X']}, f'its grey line starts after the check; the others do not ({subs_x})')
 
 
-def big_card(m):
-    """40 shows of 300 episode files each (.episodes with titles and dates), the files' dates interleaved so that the newest 300 of the whole card are seven or eight of each show."""
+def big_card(m, shows=40):
+    """40 shows (or `shows`) of 300 episode files each (.episodes with titles and dates), the files' dates interleaved so that the newest 300 of the whole card are seven or eight of each show."""
     m.free_mb = 18 * 1024
     m.images['p_default'] = (16, 16, bytes((90, 90, 90, 255)) * 256); m.load_image = 0
-    for i in range(40):
+    for i in range(shows):
         d = f'S{i:02d}'
         m.put(f'{RP}/{d}/.show', f'M1PLUS-SHOW 1\ntitle={d} Show\nfeed=https://f.example/{d}\nchecked=0\n'.encode())
         lines = ''.join(f'g={d}-{k}\tp={NOW - 100 * k}\td=600\tl=1000\tf=e{k:03d}.mp3\tt=S{i:02d} E{k:03d}\tu=https://e.example/{d}/{k}\n' for k in range(300))
@@ -422,8 +422,8 @@ def open_tests(ctx):
     expect(title(m) == 'Downloaded' and [t for t, _ in rows(m)[1:]] == TITLES and m.props.get((m.sv, 'virtual_h')) == L['h'], 'Back: the Downloads page with the same rows')
     expect(m.props.get((m.sv, 'yoffset')) == max(0, L['rows'][3] - 150), f'at the offset the tap left ({m.props.get((m.sv, "yoffset"))} against {max(0, L["rows"][3] - 150)})')
     expect(not [c for c in m.calls if c[0] == 'opendir'] and not [c for c in m.calls if c[0] == 'open' and c[1].endswith('/.episodes')], 'no show was read again')
-    # a deeper row, scrolled: the same place comes back
-    m = page(lambda mm: setattr(mm, 'reuse_heap', True), cardf=big_card)
+    # a deeper row, scrolled: the same place comes back (one show of 300 fills the page; the 40 show card is PERF's stress scale)
+    m = page(lambda mm: setattr(mm, 'reuse_heap', True), cardf=big_card if PERF else lambda mm: big_card(mm, 1))
     PCS.tap_row(m, 'Downloaded')
     settle(m, 120)
     tap_row(m, 200, 0, 300)

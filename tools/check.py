@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Test features, produce a tested dev package, or validate integration.
 
-  make test [TEST=albums]     tree + tests; no package or goldens; cost/stress checks only with PERF=1
+  make test [TEST=albums]     tree + tests; no package or goldens
   make dev                    one dev tree + full tests + verified package
   make check                  release + restore + full tests vs goldens
   make accept                 accept goldens after complete integration validation
 
+make test and make dev run the cost/stress checks only with PERF=1; make check and make accept always do.
 Logs and failed trees are retained. --list lists tests. --jobs and --timeout control
 concurrency and the per-test wall limit. Native crashes include their signal.
 """
@@ -44,7 +45,7 @@ def counts(text):
 
 def test_ok(t): return t['rc'] == 0 and (t['counts'] is None or t['counts'][1] == 0)
 def outcome(bad, changed, update): return bad or (changed and not update), update and not bad
-def perf_enabled(a): return a.perf or not a.tests_only   # receipts and goldens need the full suite, cost checks included
+def perf_enabled(a): return a.perf or not (a.tests_only or a.dev)   # goldens need the cost checks; a dev receipt gets them at integration
 def timing_file(perf): return CACHE / ('test-times.json' if perf else 'test-times-quick.json')
 def tree_key(): return workflow.input_key()
 
@@ -81,8 +82,9 @@ def test_cmd(name, stock, tree=None):
 
 
 def run_test(name, cmd, logdir, timeout):
-    start = time.monotonic(); logfile = Path(logdir) / (name.replace(':', '-').replace('/', '-') + '.log')
-    rc, log = workflow.run_logged(cmd, logfile, timeout)
+    logfile = Path(logdir) / (name.replace(':', '-').replace('/', '-') + '.log')
+    with workflow.test_slot():   # the wait is not the test's cost
+        start = time.monotonic(); rc, log = workflow.run_logged(cmd, logfile, timeout)
     return {'test': name, 'rc': rc, 'counts': counts(log), 'log': log[-2500:],
             'logfile': str(logfile), 'cmd': cmd, 'secs': time.monotonic() - start}
 
@@ -149,7 +151,7 @@ def main():
     ap.add_argument('--dev', action='store_true', help='build, fully test and package one development artifact')
     ap.add_argument('--clean', action='store_true', help='remove retained integration/test scratch files')
     ap.add_argument('--no-cache', action='store_true')
-    ap.add_argument('--perf', action='store_true', help='also run the cost and stress-scale checks (always on for --dev, integration and --update)')
+    ap.add_argument('--perf', action='store_true', help='also run the cost and stress-scale checks (always on for integration and --update)')
     ap.add_argument('--verbose', action='store_true', help='print every passing test, not only failures')
     ap.add_argument('--jobs', type=int, default=min(16, os.cpu_count() or 4))
     ap.add_argument('--timeout', type=int, default=300, help='seconds per test (default 300)')

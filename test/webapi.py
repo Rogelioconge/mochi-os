@@ -626,6 +626,8 @@ def mips_tests(td, host):
         if h['status'] != m['status'] or h['headers'] != m['headers'] or canon(op, h['body']) != canon(op, m['body']):
             expect(f'mips session {i} {op} matches the host build', False, f'host={h["status"]} {h["body"][:80]!r} mips={m["status"]} {m["body"][:80]!r} {m["headers"]}')
         else: same += 1
+        for root in (hostc.root, md):   # the two builds run at different moments: a step's new times must not differ in a later list
+            for f in Path(root).rglob('*'): os.utime(f, (1700000000, 1700000000))
     # a case-only rename goes through a hidden temporary name (exFAT keeps the old case otherwise)
     Path(md, 'Music', 'Small.bin').write_bytes(b's')
     env = hostc.env('rename', 'POST', [('path', '/Music/Small.bin'), ('name', 'small.bin')], 'application/octet-stream', 0)

@@ -366,6 +366,7 @@ def run(ctx):
                 if pod_pages.row_kind(r) == 'info':   # an About row: the label and a realistic value (the longest each can be) share the room from the label to the right ink edge
                     sample = {pod_pages.INFO_TAG: build.about(build.TAG), pod_pages.INFO_FW: 'V2.1', pod_pages.INFO_MODEL: 'Shanling M1 Plus', pod_pages.INFO_SN: '888888888888', pod_pages.INFO_MAC: '88:88:88:88:88:88',
                               pod_pages.INFO_IP: '192.168.188.188', pod_pages.INFO_CAP: '188.88 GB', pod_pages.INFO_FREE: '188.88 GB', pod_pages.INFO_DUR: '200000 · 2.3 MB'}.get(r.arg, '99999')   # (the Cache counts: five digits; Measured Tracks: the table's largest count and size)
+                    if r.action == pod_pages.ACT_SLEEPLEFT: sample = '88:88'   # Time Left is H:MM (patch/sleeptimer.c st_left_text), not the row argument's About value
                     samples = [sample]
                     if r.arg == pod_pages.INFO_CC_STATUS:   # every Status word, with a count after the three that have one
                         samples = [tr_text(loc, k) + (' 4000/4000' if k in ('Preparing', 'Rebuilding', 'Building', 'Measuring tracks') else '') for k in ('Idle', 'Preparing', 'Rebuilding', 'Rebuild requested', 'Clearing', 'Building', 'Measuring tracks')]

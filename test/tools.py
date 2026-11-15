@@ -4,7 +4,7 @@ update files and check.py's pass/fail/--update decisions.
 
   uv run python -I test/tools.py
 """
-import argparse, contextlib, hashlib, io, os, shutil, signal, subprocess, sys, tarfile, tempfile, time
+import argparse, contextlib, hashlib, io, os, shutil, signal, subprocess, sys, tarfile, tempfile, threading, time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -75,8 +75,18 @@ def workflow_tests():
         r = subprocess.run([sys.executable, '-I', os.path.join(ROOT, 'tools/check.py'), *args], capture_output=True)
         expect('invalid validation scope rejected: ' + ' '.join(args), r.returncode == 2)
     ns = lambda **k: type('A', (), {'perf': False, 'tests_only': False, **k})
-    expect('cost/stress checks run unless a tests-only run omits --perf',
-           check.perf_enabled(ns()) and check.perf_enabled(ns(tests_only=True, perf=True)) and not check.perf_enabled(ns(tests_only=True)))
+    expect('cost/stress checks run for integration; tests-only and dev runs need --perf',
+           check.perf_enabled(ns(dev=False)) and check.perf_enabled(ns(tests_only=True, dev=False, perf=True)) and check.perf_enabled(ns(dev=True, perf=True))
+           and not check.perf_enabled(ns(tests_only=True, dev=False)) and not check.perf_enabled(ns(dev=True)))
+    with tempfile.TemporaryDirectory() as td:
+        order = []
+        def second():
+            with workflow.test_slot(td, 1): order.append('second')
+        with workflow.test_slot(td, 1):
+            t = threading.Thread(target=second); t.start(); time.sleep(0.3); order.append('first')
+        t.join(5)
+        expect('a test waits for a free machine slot', order == ['first', 'second'])
+        with workflow.test_slot(td, 2), workflow.test_slot(td, 2): expect('free slots are taken at once', True)
     with tempfile.TemporaryDirectory() as td, patch.object(check, 'CACHE', Path(td)):
         workflow.write(check.timing_file(True), {'patch:pcpng': 60})
         workflow.write(check.timing_file(False), {'patch:pcpng': 2})

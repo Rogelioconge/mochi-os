@@ -10,8 +10,9 @@ C_SOURCES := $(shell git ls-files 'patch/*.c' 'patch/*.h')
 help:
 	@echo 'make setup                  Sync the uv environment (Python 3.15)'
 	@echo 'make doctor                 Check inputs, toolchain and native emulator'
-	@echo 'make test [TEST=albums]      Feature tests; no package or goldens; PERF=1 adds cost/stress checks'
+	@echo 'make test [TEST=albums]      Feature tests; no package or goldens'
 	@echo 'make dev                    Build, test and package a fresh dev version'
+	@echo '                            PERF=1 adds the cost/stress checks to make test and make dev'
 	@echo 'make preview [BUILD=latest] Preview that dev build'
 	@echo 'make flash [BUILD=latest]   Copy the tested dev package to the card'
 	@echo 'make ota-serve [PORT=8765] Run the local Software Update server (the card file m1plus-update-url names it)'
@@ -31,7 +32,7 @@ doctor:
 test: lint
 	$(RUN) tools/check.py $(if $(TEST),--test "$(TEST)",--tests-only) $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
 dev: lint format-check
-	$(RUN) tools/check.py --dev $(if $(JOBS),--jobs "$(JOBS)")
+	$(RUN) tools/check.py --dev $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
 preview:
 	$(RUN) tools/preview/preview.py --build "$(BUILD)"
 flash:

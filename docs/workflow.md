@@ -40,8 +40,8 @@ make doctor
 ```sh
 make test TEST=albums           # selected tests; comma-separated modules or module/section
 make test                      # feature-branch done criterion; no package or goldens
-make test PERF=1               # the same plus instruction budgets and stress-scale inputs
 make dev                       # fresh dev tag, one tree, full tests and verified package
+make dev PERF=1                # make test or make dev plus instruction budgets and stress-scale inputs
 make preview                   # approximate render of that dev tree
 make flash                     # verified SD copy, then eject
 make ota                       # push that build to the local update server (make ota-serve; see update)
@@ -59,7 +59,10 @@ use the same tree; About, the preview and the package use its tag.
   gitignored `.dev-number.json`; never reset the counter or reuse an output directory.
   Collisions, moved worktrees and exhausted counters fail explicitly.
 - Release tags are `V2.1-<VERSION>`.
-- `JOBS=4` limits workers (default one per CPU, at most 16).
+- `make test` and `make dev` skip the instruction budgets and stress-scale inputs unless `PERF=1`;
+  `make check` always runs them. Run `PERF=1` after touching code they cover.
+- `JOBS=4` limits workers (default one per CPU, at most 16). Runs in several worktrees share one
+  set of machine-wide test slots, so they queue for the CPUs.
 - `make clean` removes `work/check` only.
 
 ```sh

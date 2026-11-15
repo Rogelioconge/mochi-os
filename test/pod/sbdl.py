@@ -279,8 +279,9 @@ def queue_tests(ctx):
 
 
 def cap_tests(ctx):
-    """A full queue (1024) with messages in the box: what the UI thread answers by itself and what it leaves to the worker (patch/sbdl.c sbd_room). Slow: a queue file of 1024 rows is rewritten twice."""
+    """A full queue (1024) with messages in the box: what the UI thread answers by itself and what it leaves to the worker (patch/sbdl.c sbd_room). PERF only (stress scale): a queue file of 1024 rows is rewritten twice."""
     expect = ctx.expect
+    if not PERF: return
     # a track that has its slot and a message in the box at once (asked twice; or the worker is at its row) is one track, not two
     m = machine(); m.curl_site = server(m)
     m.dirs.add('/mnt/mmc/.m1plus/subsonic')

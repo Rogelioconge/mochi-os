@@ -12,7 +12,7 @@ from unicorn.mips_const import (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, 
                                 UC_MIPS_REG_V0, UC_MIPS_REG_SP, UC_MIPS_REG_RA, UC_MIPS_REG_T9, UC_MIPS_REG_PC, UC_MIPS_REG_GP, UC_MIPS_REG_F0, UC_MIPS_REG_F12, UC_MIPS_REG_F14,
                                 UC_MIPS_REG_CP0_STATUS as _STATUS, UC_MIPS_REG_0 as UC_MIPS_REG_0)
 
-PERF = os.environ.get('M1_PERF') == '1'   # cost measurement and stress-scale checks; off by default (make test PERF=1; dev/check/accept always set it)
+PERF = os.environ.get('M1_PERF') == '1'   # cost measurement and stress-scale checks; off by default (make test PERF=1, make dev PERF=1; check/accept always set it)
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TOOLS = os.path.join(ROOT, 'tools')
 sys.path.insert(0, TOOLS)

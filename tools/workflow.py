@@ -1,8 +1,8 @@
 """Build identities and receipts shared by build, check, preview and SD installation.
 
-All mutable state stays in this checkout. Nothing here changes firmware bytes.
+All mutable state stays in this checkout, except the machine's test slots. Nothing here changes firmware bytes.
 """
-import contextlib, fcntl, hashlib, importlib.metadata, json, os, signal, subprocess, sys, tempfile
+import contextlib, fcntl, hashlib, importlib.metadata, json, os, signal, subprocess, sys, tempfile, time
 from pathlib import Path
 
 import paths
@@ -47,6 +47,23 @@ def lock(name):
         except BlockingIOError: raise SystemExit(f'{name}: another command is using this checkout; retry when it finishes')
         try: yield
         finally: fcntl.flock(f, fcntl.LOCK_UN)
+
+
+SLOTS = min(16, os.cpu_count() or 4)
+
+
+@contextlib.contextmanager
+def test_slot(directory=None, count=SLOTS):
+    """Hold one of the machine's test slots. Every checkout shares them, so runs in several
+    worktrees queue for the CPUs instead of each starting a full set of workers."""
+    d = Path(directory or Path(tempfile.gettempdir()) / 'm1plus-test-slots'); d.mkdir(parents=True, exist_ok=True)
+    while True:
+        for i in range(count):
+            with (d / str(i)).open('a') as f:
+                try: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError: continue
+                yield; return
+        time.sleep(0.1)
 
 
 def source_key():
