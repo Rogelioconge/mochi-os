@@ -161,6 +161,18 @@ enum {
     ACT_LF =
         113, /* Settings > Library > Scrobbling > Last.fm: a value row (the account's user name) opening the Last.fm page */
     ACT_SCROBPAGE = 139, /* Settings > Library > Scrobbling: a value row (On or Off) opening the Scrobbling page */
+    ACT_ASPAGE = 172, /* Settings > Library > Split Artists: a value row (On or Off) opening the Split Artists page */
+    ACT_ASPLIT = 173, /* Split Artists page: the switch, off by default (patch/artsplit.c as_toggle) */
+    ACT_ASSEP0 = 174, /* ... and the separator switches, one per M1_SPLIT_* bit (as_sep_toggle) */
+    ACT_ASSEP1 = 175,
+    ACT_ASSEP2 = 176,
+    ACT_ASSEP3 = 177,
+    ACT_ASSEP4 = 178,
+    ACT_ASSEP5 = 179,
+    ACT_ASSEP6 = 180,
+    ACT_ASSEP7 = 181,
+    ACT_ASSEP8 = 182,
+    ACT_ASSEP9 = 183,
     ACT_RGBROW =
         143, /* Settings > Display > LED Light: Theme, a value row shown while Dynamic is chosen, opening the Theme page */
     ACT_LANG = 150, /* Settings > General: Language, a value row (the language's own name) opening its picker */
@@ -210,8 +222,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 52 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 52, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 53 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 53, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -253,6 +265,7 @@ enum {
     VK_PSBOOTVOL,
     VK_PSBAL,
     VK_PCDIR,
+    VK_ASPLIT, /* the Library page's Split Artists row: On or Off */
     VK_RGBTHEME, /* the LED Light page's Theme row: the Dynamic lamp's theme's name */
     VK_XFEED, /* the Playback Settings Crossfeed row: Off, Low, Medium or High */
     VK_LANG, /* the Language row: the loaded language's own name (stock's key lan_*) */
@@ -306,6 +319,7 @@ static const char HOME_NAMES[18][3] = {"0", "1",  "2",  "3",  "4",  "5",  "6",  
 #include "tenband.h"
 #include "tracklamp.h"
 #include "scrobble.h"
+#include "artsplit.h" /* Split Artists */
 #include "scrobpage.h"
 static int pod_off(void) { return home_off(); } /* the SD file and the flash one */
 
@@ -504,6 +518,7 @@ static const struct pick_def {
     {ACT_LB, VK_LB, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_LF, VK_LF, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_SCROBPAGE, VK_SCROB, 0, (int (*)(void))0, (int (*)(int))0},
+    {ACT_ASPAGE, VK_ASPLIT, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_PLAYMODE, VK_PSMODE, ACT_PLAYMODESET, ps_playmode, ps_playmode_set},
     {ACT_MEMPLAY, VK_PSMEM, ACT_MEMPLAYSET, ps_memplay, ps_memplay_set},
     {ACT_GAIN, VK_PSGAIN, ACT_GAINSET, ps_gain, ps_gain_set},
@@ -680,6 +695,19 @@ static void regen_show(void) {
 
 /* The switch rows, the one list of them (tools/pod_pages.py SWITCH_ACTIONS but the Equalizer's, which its own page binds): the action, its state (1 on) and its toggle (the new
  * state, -1: not saved, unchanged). A new switch is one line here. */
+#define AS_SEP_FN(k) \
+    static int sw_as##k(void) { return as_sep(k); } \
+    static int sw_as##k##_t(void) { return as_sep_toggle(k); }
+AS_SEP_FN(0)
+AS_SEP_FN(1)
+AS_SEP_FN(2)
+AS_SEP_FN(3)
+AS_SEP_FN(4)
+AS_SEP_FN(5)
+AS_SEP_FN(6)
+AS_SEP_FN(7)
+AS_SEP_FN(8)
+AS_SEP_FN(9)
 static int sw_always(void) { return 1; } /* Keyboards > English: always on, and its row takes no tap */
 
 static const struct pod_switch {
@@ -708,6 +736,17 @@ static const struct pod_switch {
     {ACT_NETDLNA, ns_dlna, ns_dlna_toggle},
 
     {ACT_SCROBBLE, scrobble_setting, scrobble_toggle},
+    {ACT_ASPLIT, as_setting, as_toggle},
+    {ACT_ASSEP0, sw_as0, sw_as0_t},
+    {ACT_ASSEP1, sw_as1, sw_as1_t},
+    {ACT_ASSEP2, sw_as2, sw_as2_t},
+    {ACT_ASSEP3, sw_as3, sw_as3_t},
+    {ACT_ASSEP4, sw_as4, sw_as4_t},
+    {ACT_ASSEP5, sw_as5, sw_as5_t},
+    {ACT_ASSEP6, sw_as6, sw_as6_t},
+    {ACT_ASSEP7, sw_as7, sw_as7_t},
+    {ACT_ASSEP8, sw_as8, sw_as8_t},
+    {ACT_ASSEP9, sw_as9, sw_as9_t},
     {ACT_LBAUTO, scrobble_auto_setting, scrobble_auto_toggle},
     {ACT_GAPLESS, ps_gapless, ps_gapless_toggle},
     {ACT_FOLDERSKIP, ps_folderskip, ps_folderskip_toggle},
@@ -744,6 +783,8 @@ static int on_switch(void *ctx, void *e) {
     if (on >= 0) switch_show(s->img, on);
     if (s->sw->action == ACT_DAILY) regen_show();
     if (s->sw->action == ACT_PCSEARCH) pcdir_show();
+    if (s->sw->action == ACT_ASPLIT)
+        pod_page_refresh(POD_ASPLIT_PAGE); /* the separators dim and wake with the switch */
     if (s->sw->action == ACT_STANDBY) pod_page_refresh(POD_KEYSPOWER_PAGE); /* turning it on turned Auto-Shutdown off */
     if (s->sw->action == ACT_BOOTMEM) pod_page_refresh(POD_PSBOOTVOL_PAGE); /* the slider's cards follow the switch */
     if (s->sw->action == ACT_DTAUTO || s->sw->action == ACT_DT24)
@@ -853,6 +894,8 @@ static void value_text(void *label, int kind) {
         return;
     } else if (kind == VK_SCROB) {
         key = scrobble_setting() ? "On" : "Off";
+    } else if (kind == VK_ASPLIT) {
+        key = as_setting() ? "On" : "Off";
     } else if (kind == VK_LB ||
                kind == VK_LF) { /* a scrobble account (patch/scrobpage.c): already translated, or a user name */
         if (kind == VK_LB)
@@ -998,6 +1041,13 @@ static void page_refresh(void *win, const struct pod_page *page) {
         int kind = row_value(row);
         if (row->action == ACT_PCDIR)
             pcdir_show(); /* Podcast Discover's state, each time the Podcasts page is back in front */
+        if (row->action >= ACT_ASSEP0 &&
+            row->action <=
+                ACT_ASSEP9) { /* Split Artists: the separators are dimmed and inert while the switch is off */
+            void *item = widget_lookup(win, row->name, 1);
+            int on = as_setting();
+            if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);
+        }
         if (row->action ==
             ACT_GAIN) { /* stock greys the Gain row and ignores its click while Line Out is on (the Line Out byte) */
             void *item = widget_lookup(win, row->name, 1);

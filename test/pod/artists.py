@@ -2380,4 +2380,241 @@ def reread_tests(ctx):
     expect('file://' + other in loaded(m), 'the same albums with a new cover key (the compilation\'s representative changed): the tile loads the new cover')
 
 
-SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests]
+SPLIT_FILE, SPLIT_EXC = '/mnt/data/m1plus/library-artist-split', '/mnt/mmc/artist-exceptions.txt'
+SPLIT_SONGS = [   # (artist field, album, title)
+    ('Miles Davis feat. John Coltrane', 'Kind of Blue', 'So What'),
+    ('Miles Davis', 'Bitches Brew', 'Pharaoh'),
+    ('john coltrane', 'Blue Train', 'Moment'),
+    ('John Coltrane', 'Blue Train', 'Locomotion'),
+    ('Simon & Garfunkel', 'Bookends', 'America'),
+    ('周杰伦/蔡依林', 'Duet', 'One'),
+    ('Jay-Z; Beyoncé', 'Everything Is Love', 'Apeshit'),
+    ('Custom & Band', 'Own', 'Song'),
+    ('', 'Lost', 'Nameless'),
+    ('Miles Davis; John Coltrane & Cannonball Adderley', 'Kind of Blue', 'Blue in Green'),
+]
+
+
+class SplitMachine(ListMachine):
+    """The stock deque's copy: _deque_push_back copies the 0x58 byte record and strdups the strings at +4..+0x2c (docs/modules/addresses.md), as the device does."""
+    def _hook(self, u, address, size, _):
+        if self.handlers.get(address, '') == '_deque_push_back':
+            a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+            rec = bytearray(bytes(u.mem_read(a1, 0x58)))
+            for off in range(4, 0x30, 4):
+                p = struct.unpack_from('<I', rec, off)[0]
+                if p:
+                    t = self.read_cstr(p).encode('latin-1'); a = self.malloc(len(t) + 1)
+                    u.mem_write(a, t + b'\0'); struct.pack_into('<I', rec, off, a)
+            c = self.malloc(0x58); u.mem_write(c, bytes(rec))
+            self.deques.setdefault(a0, []).append(c); self.calls.append(('_deque_push_back', a0, c))
+            u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+            return
+        return super()._hook(u, address, size, _)
+
+
+def split_machine(setting=b'1\n', exceptions=None, songs=SPLIT_SONGS, view=b'0\n', albums_page=True):
+    """The Artists page over a library whose artist fields name several artists, the split setting as given (None: no file)."""
+    m = artists_machine(albums_page=albums_page, artists=('Miles Davis', 'Nina Simone', 'Unknown Artist'), cls=SplitMachine)
+    if len(songs) > 2000: m.next = m.malloc(12 << 20)   # (the records and their texts: more than the small data area holds)
+    recs, albums, seen = [], [], set()
+    for n, (artist, album, title) in enumerate(songs):
+        path = f'/mnt/mmc/Lib/{n}.flac'
+        recs.append(m.record(album=album, artist=artist, title=title, path=path, name=f'{n}.flac', rid=500 + n)); m.present.add(path)
+        if album.lower() not in seen:
+            seen.add(album.lower()); albums.append(m.record(album=album, artist=artist, path=path, rid=700 + len(albums)))
+    m.class_lists[0xf001] = recs
+    m.class_lists[O['CLASS_ALBUMS']] = albums
+    m.fs['/mnt/data/m1plus/albums-view'] = view
+    if setting is not None: m.fs[SPLIT_FILE] = setting
+    if exceptions is not None: m.fs[SPLIT_EXC] = exceptions
+    for n, t in (('btn_play', 'Play'), ('btn_shuffle', 'Shuffle')):
+        if n in m.widgets: m.wtext[m.widgets[n]] = t
+    m.calls = []
+    if PERF: m.count()
+    m.call(PSYMS['artists_open'], a0=0, count=2000000000)
+    m.open_icount = m.icount if PERF else 0
+    return m
+
+
+def split_names(m):
+    """Every row's name in display order (the page painted down its whole length)."""
+    got = []
+    for off in range(0, 1500, 200):
+        blits, texts, styles, fills = ar_paint(m, off)
+        got += [t[0] for t, sty in zip(texts, styles) if sty == 'label_row_title' and t[0] not in got]
+    return got
+
+
+def split_tests(ctx):
+    """The artist split (docs/modules/artists.md "Split index"): off = the stock rows; on = one row per name from the songs, merged ASCII case-insensitively, exceptions, the artist's albums and songs."""
+    expect = ctx.expect
+    for off in (None, b'0\n', b'm0\n', b'x\n'):   # off: today's code path, no library scan
+        m = split_machine(off)
+        expect(split_names(m) == ['Miles Davis', 'Nina Simone', 'Unknown Artist'] and not [c for c in m.calls if c[0] == 'loadLocalClassList' and c[1] == 0xf001], f'setting {off!r}: the stock rows, no scan of the songs ({split_names(m)})')
+    m = split_machine()
+    names = split_names(m)
+    want = ['Beyoncé', 'Cannonball Adderley', 'Jay-Z', 'John Coltrane', 'Miles Davis', 'Simon & Garfunkel', 'Custom', 'Band', '周杰伦', '蔡依林', 'Unknown Artist']
+    expect(sorted(names) == sorted(want), f'one row per name, merged ({names})')
+    expect(names.count('John Coltrane') == 1 and 'john coltrane' not in names, 'the first spelling seen is the row (John Coltrane, case-merged)')
+    expect(names[-1] == 'Unknown Artist', 'Unknown Artist stays last')
+    # the mask from the file: "m1" is semicolons alone, so feat. and & stay inside the name
+    m = split_machine(b'm1\n')
+    names = split_names(m)
+    expect('Jay-Z' in names and 'Beyoncé' in names and any(n.startswith('Miles Davis feat.') for n in names) and any(n.startswith('John Coltrane &') for n in names), f'm1: semicolons only ({names})')
+    # exceptions: the built-in Simon & Garfunkel stays whole (above); the card's file adds a name
+    m = split_machine(exceptions=b'# mine\n  Custom & Band \r\n\n')
+    names = split_names(m)
+    expect('Custom & Band' in names and 'Custom' not in names and 'Band' not in names, f'the card file keeps Custom & Band whole ({names})')
+    m = split_machine()
+    names = split_names(m)
+    expect('Custom' in names and 'Band' in names and 'Custom & Band' not in names, f'without the file it splits ({names})')
+    # an artist's albums, songs, Play and an album's tap
+    def row_of(m, name, unknown=False):
+        r = artist_rec(m, name, -1 if unknown else 3); m.setword(r + O['REC_CLASS'], 0x41535031); return r
+    def paths(m, recs): return [m.read_cstr(m.word(r + O['REC_PATH'])) for r in recs]
+    lib = lambda *ix: [f'/mnt/mmc/Lib/{i}.flac' for i in ix]
+    m = split_machine()
+    row = row_of(m, 'John Coltrane')
+    m.calls = []
+    m.call(PSYMS['songs_artist_list'], a0=row, a1=O['CLASS_ARTISTS'], count=400000000)
+    show = m.word(pod.DATA['PDEQ_SHOWLIST'][0])
+    expect(paths(m, m.deques[show]) == lib(0, 2, 3, 9), f"Coltrane's songs, in library order, under every spelling and as a featured name ({paths(m, m.deques[show])})")
+    expect([c for c in m.calls if c[0] == 'loadAlbumList'][0][3] == 'John Coltrane' and m.word(pod.DATA['CLASSINFO'][0]) == O['CLASS_ARTIST_SONGS'], 'the browsing record is set as the stock artist songs page leaves it (class 0xff11, the artist)')
+    row = row_of(m, 'Unknown Artist', True)
+    m.call(PSYMS['songs_artist_list'], a0=row, a1=O['CLASS_ARTIST_ALBUMS'], count=400000000)
+    expect(paths(m, m.deques[m.word(pod.DATA['PDEQ_SHOWLIST'][0])]) == lib(8), 'the Unknown Artist row lists the songs with no artist')
+    # the artist page: albums (library rows holding one of his songs) and the All Songs tile; Play queues exactly the artist's songs
+    m = split_machine()
+    pos = split_names(m).index('John Coltrane')
+    m.calls = []
+    m.call(PSYMS['ar_open'], a0=pos, count=400000000)
+    al_paint(m, 0)
+    tx = [t for t, r in m.texts]
+    expect('Kind of Blue' in tx and 'Blue Train' in tx and 'Bitches Brew' not in tx and 'Bookends' not in tx, f"Coltrane's page lists the albums that hold his songs ({tx})")
+    expect(not [c for c in m.calls if c[0] == 'loadAlbumList' and c[1] == O['CLASS_ARTISTS']], "the albums are not the stock artist query's")
+    m.mode = 0
+    m.calls = []
+    m.click('btn_play', count=900000000)
+    expect(m.played and paths(m, m.played[0]) == lib(0, 2, 3, 9) and m.played[1] == 0 and not [c for c in m.calls if c[0] == 'loadSongList']
+           and all(m.word(r + O['REC_CLASS']) == O['CLASS_ALL_SONGS'] for r in m.played[0]), f'Play: exactly his songs, class All Songs (so a restart resumes the track), no stock query of the queue ({m.played and paths(m, m.played[0])})')
+    m.mode = 0
+    m.calls = []
+    m.click('btn_shuffle', count=900000000)
+    expect(m.played and sorted(paths(m, m.played[0])) == lib(0, 2, 3, 9) and ('mclSetPlayMode', 2) in m.calls, 'Shuffle: the same songs in Shuffle mode')
+    # an album tap: the library album's own page (class 0xf003 and its row), not a browsing record keyed on the name
+    m = split_machine()
+    row = row_of(m, 'John Coltrane')
+    dq = m.new_deque([row])
+    m.calls = []
+    m.call(PSYMS['cc_open_album'], a0=dq, a1=O['CLASS_ARTISTS'], a2=1, count=400000000)
+    nav = [c for c in m.calls if c[0] == 'navigator_to_with_context' and c[1] == 'albuminfo_page']
+    expect(nav and nav[0][2:] == (0xf003, 2), f"the second of Coltrane's albums (Blue Train) opens as library album 2 ({nav})")
+
+    # Cover Flow's and the Albums page's list (coverflow_artist_albums asks as_albums): the library album rows holding his songs, the All Songs card last with their cache keys
+    m = split_machine()
+    row = row_of(m, 'John Coltrane')
+    out, outk = m.alloc(4), m.alloc(4); m.setword(out, 0); m.setword(outk, 0)
+    n = m.call(PSYMS['as_albums'], a0=row, a1=1, a2=out, a3=outk, count=400000000)
+    albs, keys = m.deques[m.word(out)], m.word(outk)
+    expect(n == 3 and [m.read_cstr(m.word(r + O['REC_ALBUM'])) for r in albs[:2]] == ['Kind of Blue', 'Blue Train'] and m.word(albs[2] + O['REC_ID']) == O['ID_ALL_SONGS'] & 0xffffffff
+           and keys and m.word(keys + 8) == 0 and m.word(keys) and m.word(keys + 4), f'Cover Flow: two albums and the All Songs card, keyed ({n})')
+    m = split_machine(albums_page=False)
+    m.call(PSYMS['ar_open'], a0=split_names(m).index('John Coltrane'), count=400000000)
+    expect(('window_open', 'm1plus_cover') in m.calls and ('widget_set_text_utf8', m.widgets['label_title'], 'John Coltrane') in m.calls, 'Cover Flow on a split artist (the Albums window will not open) opens on his albums')
+    # back on the page the rows are built again and compared: the same library keeps the rows, a library without Custom & Band loses both names
+    m = split_machine(); n0 = split_names(m)
+    fired(m, 'ar_on_fg')
+    expect(split_names(m) == n0, 'foreground: the same library, the same rows')
+    m.class_lists[0xf001] = [r for r in m.class_lists[0xf001] if m.read_cstr(m.word(r + O['REC_ARTIST'])) != 'Custom & Band']
+    fired(m, 'ar_on_fg')
+    names = split_names(m)
+    expect('Custom' not in names and 'Band' not in names and 'Beyoncé' in names, f'foreground: a name with no songs left is gone ({names})')
+
+    # one field naming four artists lists all four (the index holds up to eight names a song)
+    m = split_machine(songs=[('Alpha; Beta; Gamma; Delta', 'Quartet', 'One')])
+    names = split_names(m)
+    expect(sorted(names) == ['Alpha', 'Beta', 'Delta', 'Gamma'], f'a four-name tag: every name is a row ({names})')
+    # an artist whose songs have no album tag: no albums, but the All Songs record is kept (as the stock list), so his songs open and play
+    m = split_machine(songs=[('Solo', '', 'Loose 1'), ('Solo', '', 'Loose 2')])
+    row = row_of(m, 'Solo')
+    out, outk = m.alloc(4), m.alloc(4); m.setword(out, 0); m.setword(outk, 0)
+    n = m.call(PSYMS['as_albums'], a0=row, a1=1, a2=out, a3=outk, count=400000000)
+    albs = m.deques.get(m.word(out), [])
+    expect(n == 1 and len(albs) == 1 and m.word(albs[0] + O['REC_ID']) == O['ID_ALL_SONGS'] & 0xffffffff, f'no album tags: the All Songs card alone is the list ({n}, {len(albs)})')
+    m = split_machine(songs=[('Solo', '', 'Loose 1'), ('Solo', '', 'Loose 2')])
+    m.call(PSYMS['ar_open'], a0=split_names(m).index('Solo'), count=400000000)
+    m.mode = 0
+    m.calls = []
+    m.click('btn_play', count=900000000)
+    expect(m.played and len(m.played[0]) == 2, 'no album tags: Play queues his songs')
+    m = split_machine(songs=[('Solo', '', 'Loose 1')], albums_page=False)
+    m.props[(m.widgets['label_title'], 'x')] = 58; m.props[(m.widgets['label_title'], 'h')] = 22
+    m.call(PSYMS['ar_open'], a0=split_names(m).index('Solo'), count=400000000)
+    expect(m.props.get((m.widgets['btn_songs'], 'visible')) == 1, 'no album tags: Cover Flow shows the Songs button')
+    # a single-album artist: the card is kept in the list but not counted, so Cover Flow's Songs button stays
+    m = split_machine(songs=[('Solo', 'Only Album', 'One'), ('Solo', 'Only Album', 'Two')])
+    row = row_of(m, 'Solo')
+    out, outk = m.alloc(4), m.alloc(4); m.setword(out, 0); m.setword(outk, 0)
+    n = m.call(PSYMS['as_albums'], a0=row, a1=1, a2=out, a3=outk, count=400000000)
+    albs = m.deques.get(m.word(out), [])
+    expect(n == 1 and len(albs) == 2 and m.word(albs[1] + O['REC_ID']) == O['ID_ALL_SONGS'] & 0xffffffff, f'one album: counted once, the All Songs record kept after it ({n}, {len(albs)})')
+    m = split_machine(songs=[('Solo', 'Only Album', 'One')], albums_page=False)
+    m.present.add(art_file(fnv(fnv(O['FNV_SEED'], 'Solo'), 'Only Album')))   # (the cover is cached: the shelf shows at once, as the stock artist's)
+    m.props[(m.widgets['label_title'], 'x')] = 58; m.props[(m.widgets['label_title'], 'h')] = 22
+    m.call(PSYMS['ar_open'], a0=split_names(m).index('Solo'), count=400000000)
+    expect(m.props.get((m.widgets['btn_songs'], 'visible')) == 1, 'one album: Cover Flow shows the Songs button')
+
+    # a larger library: 20,000 songs by 6,000 names, a fifth of the fields naming two or three (the cost the doc reports; the instruction counts need PERF=1)
+    songs = []
+    for i in range(20000):
+        a = f'Artist {i % 6000:04d}'
+        if i % 5 == 0: a += f' feat. Guest {i % 1500:04d}'
+        elif i % 7 == 0: a += f'; Artist {(i * 7) % 6000:04d} & Artist {(i * 13) % 6000:04d}'
+        songs.append((a, f'Album {i % 2500:04d}', f'Title {i}'))
+    m = split_machine(songs=songs)
+    expect(split_names(m)[:2] == ['Artist 0000', 'Artist 0001'], 'the big library: the rows are in name order')
+    if PERF:
+        m.count(); m.call(PSYMS['as_rows'], count=2000000000); print(f'artist split: as_rows alone (split, merge, rows): {m.icount:,}')
+    if PERF: print(f'artist split: 20,000 songs, 7,500 rows: open {m.open_icount:,} payload instructions (index and sort)')
+    pos = 42   # ('Artist 0042': the names sort Artist 0000 .. 5999 then the guests)
+    if PERF: m.count()
+    m.call(PSYMS['ar_open'], a0=pos, count=2000000000)
+    if PERF: print(f'artist split: one artist tap (its albums, the page): {m.icount:,}')
+    m.mode = 0
+    if PERF: m.count()
+    m.click('btn_play', count=2000000000)
+    if PERF: print(f'artist split: Play (its songs, the queue): {m.icount:,}')
+    expect(m.played and all(m.read_cstr(m.word(r + O['REC_ARTIST'])).startswith('Artist 0042') or 'Artist 0042' in m.read_cstr(m.word(r + O['REC_ARTIST'])) for r in m.played[0]) and len(m.played[0]) >= 3, 'the big library: Play queues only his songs')
+
+
+def split_lookup_tests(ctx):
+    """The split's other entry points (docs/modules/artists.md "Split index"): Now Playing's Look up artist gets the first name's row (as_first_row), the Home photo pass keys an album by its first name (as_session, as_lead)."""
+    expect = ctx.expect
+    def u8(t): return t.encode('latin-1').decode('utf-8')
+    def first(m, field):
+        d = m.call(PSYMS['as_first_row'], a0=m.cstr(field), count=4000000)
+        if not d: return None
+        r = m.deques[d][0]
+        return (u8(m.read_cstr(m.word(r + O['REC_TITLE']))), u8(m.read_cstr(m.word(r + O['REC_ARTIST']))), m.word(r + O['REC_ID']), m.word(r + O['REC_CLASS']), len(m.deques[d]))
+    m = split_machine()
+    expect(first(m, 'Miles Davis feat. John Coltrane') == ('Miles Davis', 'Miles Davis', 1, 0x41535031, 1) and first(m, '周杰伦/蔡依林')[0] == '周杰伦' and first(m, 'Simon & Garfunkel')[0] == 'Simon & Garfunkel'
+           and first(m, 'Beyoncé')[0] == 'Beyoncé' and first(m, '') is None, 'Look up artist: the first name as a marked one-row deque (a name that is one stays; an exception stays whole; no name: none)')
+    expect(first(split_machine(b'm1\n'), 'A & B; C') [0] == 'A & B' and first(split_machine(b'm4\n'), 'A & B; C')[0] == 'A', 'the mask decides what the first name is')
+    for off in (None, b'0\n', b'o23\n', b'm0\n'):
+        expect(first(split_machine(off), 'A feat. B') is None, f'setting {off!r}: Look up artist keeps the stock lookup (no row)')
+    m = split_machine(exceptions=b'Custom & Band\n')
+    buf = m.malloc(256)
+    expect(m.call(PSYMS['as_lead'], a0=m.cstr('A feat. B'), a1=buf, a2=256, count=4000000) == 0, 'no session: no lead name')
+    expect(m.call(PSYMS['as_session'], a0=1, count=4000000) == 1, 'a session opens while the setting is on')
+    got = []
+    for f in ('A feat. B', 'Custom & Band', 'Solo', '周杰伦/蔡依林', ''):
+        got.append(u8(m.read_cstr(buf)) if m.call(PSYMS['as_lead'], a0=m.cstr(f), a1=buf, a2=256, count=4000000) else None)
+    expect(got == ['A', 'Custom & Band', 'Solo', '周杰伦', None], f'the pass keys an album by its first name, the card exceptions kept whole ({got})')
+    expect(m.call(PSYMS['as_lead'], a0=m.cstr('A feat. B'), a1=buf, a2=1, count=4000000) == 0, 'a name that does not fit gives none')
+    m.call(PSYMS['as_session'], a0=0, count=4000000)
+    expect(m.call(PSYMS['as_lead'], a0=m.cstr('A feat. B'), a1=buf, a2=256, count=4000000) == 0, 'the session ended: no lead name')
+    expect(split_machine(None).call(PSYMS['as_session'], a0=1, count=4000000) == 0, 'setting off: no session')
+
+
+SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests, split_tests, split_lookup_tests]

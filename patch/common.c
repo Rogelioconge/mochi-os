@@ -20,37 +20,171 @@ __attribute__((noinline)) int m1_scan_dir(const char *name, const char *dot) {
 
 static int m1_lower(int c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
 
-/* An artist field's names (docs/modules/artists.md "Separators"): the separators carry their own spaces, so a name that only looks
- * like a list ("Tom;Jerry") is left whole, and the earliest separator in the field wins over any later one. Parts are slices of the
- * caller's string: nothing is copied, nothing is allocated, and the empty part a trailing separator leaves is dropped by the trim. */
-static const char *const m1_artist_seps[] = {" feat. ", " ft. ", " featuring ", " & ", " x ", ", ", "; "};
+/* An artist field's names (docs/modules/artists.md "Separators"). One pass over the field finds each separator the caller's mask allows; the parts are slices of the
+ * caller's string (nothing is copied or allocated), trimmed, and a part that is empty or repeats an earlier one (ASCII case folded) is dropped. */
+static const char *const m1_artist_exceptions[] = {
+    "AC/DC",        "Simon & Garfunkel",      "Earth, Wind & Fire", "Crosby, Stills, Nash & Young",
+    "Hall & Oates", "Florence + the Machine", "Tyler, the Creator", 0};
 
-int m1_artist_split(const char *field, m1_artist_span *out, int max) {
-    unsigned len, start = 0, n = 0;
+const char *const *m1_artist_split_exceptions(void) { return m1_artist_exceptions; }
+
+/* The symbol separator at s: its length (0: none) and bit. ASCII and the full-width / CJK forms. */
+static unsigned m1_split_symbol(const unsigned char *s, unsigned *bit) {
+    switch (s[0]) {
+    case ';':
+        *bit = M1_SPLIT_SEMICOLON;
+        return 1;
+    case '/':
+        *bit = M1_SPLIT_SLASH;
+        return 1;
+    case '&':
+        *bit = M1_SPLIT_AMPERSAND;
+        return 1;
+    case ',':
+        *bit = M1_SPLIT_COMMA;
+        return 1;
+    case '+':
+        *bit = M1_SPLIT_PLUS;
+        return 1;
+    case 0xc3:
+        if (s[1] != 0x97) return 0;
+        *bit = M1_SPLIT_X; /* x with the multiplication sign */
+        return 2;
+    case 0xe3:
+        if (s[1] != 0x80 || s[2] != 0x81) return 0;
+        *bit = M1_SPLIT_COMMA; /* the ideographic comma */
+        return 3;
+    case 0xef:
+        if (s[1] != 0xbc) return 0;
+        switch (s[2]) {
+        case 0x9b:
+            *bit = M1_SPLIT_SEMICOLON;
+            return 3;
+        case 0x8f:
+            *bit = M1_SPLIT_SLASH;
+            return 3;
+        case 0x86:
+            *bit = M1_SPLIT_AMPERSAND;
+            return 3;
+        case 0x8c:
+            *bit = M1_SPLIT_COMMA;
+            return 3;
+        case 0x8b:
+            *bit = M1_SPLIT_PLUS;
+            return 3;
+        }
+    }
+    return 0;
+}
+
+/* word, bit, flags: 1 = a full stop may follow, 2 = ASCII case matters, 4 = also splits inside brackets (it opens the list there) */
+static const struct {
+    const char *w;
+    unsigned char len, flags;
+    unsigned short bit;
+} m1_split_words[] = {{"featuring", 9, 5, M1_SPLIT_FEAT}, {"feat", 4, 5, M1_SPLIT_FEAT}, {"ft", 2, 5, M1_SPLIT_FEAT},
+                      {"versus", 6, 5, M1_SPLIT_VS},      {"vs", 2, 5, M1_SPLIT_VS},     {"x", 1, 2, M1_SPLIT_X},
+                      {"with", 4, 0, M1_SPLIT_WITH},      {"and", 3, 0, M1_SPLIT_AND}};
+
+/* The word separator at field[i] (the caller checked the byte before it): its length with a full stop it takes, its bit, whether it splits inside brackets; 0 for none. */
+static unsigned m1_split_word(const char *f, unsigned i, unsigned *bit, unsigned *inner) {
+    unsigned w, k;
+    for (w = 0; w < sizeof m1_split_words / sizeof *m1_split_words; ++w) {
+        unsigned l = m1_split_words[w].len, fl = m1_split_words[w].flags;
+        for (k = 0; k < l; ++k) {
+            int c = (unsigned char)f[i + k];
+            if (!(fl & 2)) c = m1_lower(c);
+            if (c != (unsigned char)m1_split_words[w].w[k]) break;
+        }
+        if (k < l) continue;
+        *bit = m1_split_words[w].bit;
+        *inner = (fl & 4) != 0;
+        if (f[i + l] == ' ') return l;
+        if ((fl & 1) && f[i + l] == '.') return l + 1;
+        return 0;
+    }
+    return 0;
+}
+
+static int m1_split_same(const char *a, const char *b, unsigned n) {
+    unsigned i;
+    for (i = 0; i < n; ++i)
+        if (m1_lower((unsigned char)a[i]) != m1_lower((unsigned char)b[i])) return 0;
+    return 1;
+}
+
+/* Whether byte i of field lies inside an occurrence of one of the exception names. */
+static int m1_split_protected(const char *f, unsigned len, unsigned i, const char *const *ex) {
+    for (; ex && *ex; ++ex) {
+        unsigned el = (unsigned)strlen(*ex), j = i + 1 > el ? i + 1 - el : 0;
+        for (; j <= i && j + el <= len; ++j)
+            if (m1_split_same(f + j, *ex, el)) return 1;
+    }
+    return 0;
+}
+
+static int m1_split_open(char c) { return c == '(' || c == '['; }
+static int m1_split_close(char c) { return c == ')' || c == ']'; }
+
+/* Add f[a, b) as a name: trimmed of spaces and of the brackets the cut left unmatched (a trailing opener, a leading closer, a closer or opener the part does not balance), nothing when
+ * it is then empty or repeats a name already in out[0, n). Returns 1 when added. */
+static int m1_split_add(const char *f, unsigned a, unsigned b, m1_artist_span *out, unsigned n) {
+    unsigned i;
+    for (;;) {
+        unsigned opens = 0, closes = 0;
+        while (a < b && (f[a] == ' ' || f[a] == '\t')) ++a;
+        while (b > a && (f[b - 1] == ' ' || f[b - 1] == '\t')) --b;
+        if (a >= b) return 0;
+        for (i = a; i < b; ++i) opens += m1_split_open(f[i]), closes += m1_split_close(f[i]);
+        if (m1_split_open(f[b - 1]) || (closes > opens && m1_split_close(f[b - 1])))
+            --b;
+        else if (m1_split_close(f[a]) || (opens > closes && m1_split_open(f[a])))
+            ++a;
+        else
+            break;
+    }
+    for (i = 0; i < n; ++i)
+        if (out[i].n == b - a && m1_split_same(out[i].p, f + a, b - a)) return 0;
+    out[n].p = f + a;
+    out[n].n = b - a;
+    return 1;
+}
+
+int m1_artist_split(const char *field, m1_artist_span *out, int max, const m1_split_opts *opts) {
+    unsigned len, start = 0, i = 0, n = 0, depth = 0, seen = 0;
+    unsigned mask = opts ? opts->mask : M1_SPLIT_DEFAULT;
+    const char *const *ex = opts ? opts->except : 0;
     if (!field || !out || max <= 0) return 0;
     len = (unsigned)strlen(field);
-    while (n < (unsigned)max) {
-        unsigned cut = len, seplen = 0, i, k, s, a, b;
-        for (s = 0; s < sizeof m1_artist_seps / sizeof *m1_artist_seps; ++s) {
-            unsigned l = (unsigned)strlen(m1_artist_seps[s]);
-            for (i = start; i + l <= len && i < cut; ++i) {
-                for (k = 0; k < l && m1_lower((unsigned char)field[i + k]) == (unsigned char)m1_artist_seps[s][k]; ++k);
-                if (k == l) {
-                    cut = i;
-                    seplen = l;
-                    break;
+    for (;;) {
+        unsigned sl = 0, bit = 0, inner = 0;
+        if (i < len) {
+            char c = field[i];
+            if (m1_split_open(c)) {
+                if (depth < 31) seen &= ~(1u << ++depth);
+            } else if (m1_split_close(c)) {
+                if (depth) --depth;
+            } else {
+                /* (an exception only ever suppresses a separator, so it is looked for where one was found: a field with none costs no exception scan) */
+                sl = m1_split_symbol((const unsigned char *)field + i, &bit);
+                if (sl) {
+                    if (!(mask & bit) || (depth && (bit == M1_SPLIT_X || !(seen >> depth & 1))) ||
+                        m1_split_protected(field, len, i, ex))
+                        sl = 0;
+                } else if (i && (field[i - 1] == ' ' || m1_split_open(field[i - 1]))) {
+                    sl = m1_split_word(field, i, &bit, &inner);
+                    if (sl && (!(mask & bit) || (depth && !inner) || m1_split_protected(field, len, i, ex))) sl = 0;
+                    if (sl && depth) seen |= 1u << depth;
                 }
             }
         }
-        for (a = start, b = cut; a < b && (field[a] == ' ' || field[a] == '\t'); ++a);
-        while (b > a && (field[b - 1] == ' ' || field[b - 1] == '\t')) --b;
-        if (b > a) {
-            out[n].p = field + a;
-            out[n].n = b - a;
-            ++n;
+        if (i >= len || sl) {
+            n += (unsigned)m1_split_add(field, start, i, out, n);
+            if (i >= len || n >= (unsigned)max) break;
+            start = i += sl;
+        } else {
+            ++i;
         }
-        if (cut >= len) break;
-        start = cut + seplen;
     }
     return (int)n;
 }

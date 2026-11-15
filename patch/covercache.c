@@ -10,6 +10,7 @@
  */
 #include "offsets.inc"
 #include "entries.h"
+#include "artsplit.h"
 
 #ifdef CF_HOST
 #include <stdlib.h>
@@ -426,6 +427,8 @@ int cc_open_album(void *artist_row, unsigned scope, int index) {
     void *list;
     int r;
     unsigned cls = !artist_row ? CLASS_ALBUMS : scope == CLASS_COMPOSERS ? CLASS_COMPOSER_ALBUMS : CLASS_ARTIST_ALBUMS;
+    if (artist_row && scope != CLASS_COMPOSERS && as_is_row(deque_at(artist_row, 0)))
+        return as_open_album(deque_at(artist_row, 0), index); /* the artist split's row: the library album's own page */
     cc_album_list(artist_row, scope);
     list = *(void **)PDEQ_SHOWLIST;
     if (!list || (unsigned)index >= deque_size(list)) return -1;
@@ -1722,9 +1725,13 @@ int cc_build_add(const char *track, unsigned key) {
 
 /* An album for the artist photos: its track folder joins the purity snapshot (every album, jobs or not), and the artist gets one job per set when it has no result yet (or force). */
 int cc_build_add_artist(const char *track, const char *artist, int force) {
-    char path[72];
+    char path[72], lead[256];
     job_t *j;
-    unsigned key = ap_key(artist);
+    unsigned key;
+    if (as_lead(artist, lead, sizeof lead))
+        artist =
+            lead; /* the artist split is on: the album is the first name's (a folder of collaborations stays pure for the artist it is under) */
+    key = ap_key(artist);
     if (!cb.jobs || cb.running || cb.mode == CC_DURATIONS || !track || !*track) return 0;
     if (key == ap_key("Unknown Artist"))
         key = 0; /* no artist: it joins the snapshot (a folder it is in is no artist's own) but gets no job */

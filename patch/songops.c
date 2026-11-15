@@ -271,6 +271,7 @@ void pod_open_player(void *queue, int idx,
 /* Song `at` (-1: a random one) of the list and the list as the queue, in Now Playing: the stock Songs row's handler (@0x5275a4: loadSongList of the shown list, then
  * Now Playing at the row), as Shuffle Songs does it (patch/shuffle.c). The caller has put the browsing record back (loadSongList runs the class query again and keeps
  * classinfo for the memory playback). */
+static int so_own __attribute__((section(".scratch"))); /* so_play_own: the list is the queue, no stock query */
 int so_play_with(int cls, void *list, int at, int how, so_open_fn open, int rev, so_reorder_fn reorder) {
     void *pick, *queue, *first;
     unsigned n, idx = 0, count = deque_size(list);
@@ -281,7 +282,13 @@ int so_play_with(int cls, void *list, int at, int how, so_open_fn open, int rev,
     queue = _create_deque("stSongInfo");
     if (!queue) return -1;
     deque_init(queue);
-    found = loadSongList(queue, cc_str(pick, REC_NAME), I(pick, REC_CUE_START), cls);
+    if (so_own) { /* the records are the queue's (as loadSongList stamps them: the class) */
+        unsigned i;
+        deque_assign(queue, list);
+        for (i = 0; i < deque_size(queue); ++i) I(deque_at(queue, i), REC_CLASS) = cls;
+        found = at;
+    } else
+        found = loadSongList(queue, cc_str(pick, REC_NAME), I(pick, REC_CUE_START), cls);
     n = deque_size(queue);
     if (rev &&
         n > 1) { /* the page shows the stock order the other way round (the Songs page's Z-A): the queue too, so the row tapped is where the page shows it */
@@ -336,6 +343,18 @@ int so_play_with(int cls, void *list, int at, int how, so_open_fn open, int rev,
     return 0;
 }
 
+/* The queue's class is All Songs, as Daily Mix's and Shuffle Songs' queues are: stock saves the playing class with the track (save_memoryplay_info @0x4e3340: class, position, name,
+ * path) and keeps the browsing record from the last loadSongList, which this path never runs. After a restart memeory_startplayer (@0x4e34dc) re-runs the saved class's query and finds the
+ * track by name and path: class 0xf001 reads no browsing record (getAllMusic), so the same track resumes in library order whatever record is left; the artist class would run the query
+ * on a stale record. */
+int so_play_own(void *list, int at, int how, so_open_fn open) {
+    int r;
+    so_own = 1;
+    r = so_play_with(CLASS_ALL_SONGS, list, at, how, open, 0,
+                     (so_reorder_fn)0); /* (the list is in the order shown: no reversal) */
+    so_own = 0;
+    return r;
+}
 int so_play_dir(int cls, void *list, int at, int how, so_open_fn open, int rev) {
     return so_play_with(cls, list, at, how, open, rev, (so_reorder_fn)0);
 }

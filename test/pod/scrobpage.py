@@ -121,8 +121,8 @@ def pages_tests(ctx):
     """The rows, the ids, the pages and the built assets."""
     expect = ctx.expect
     L, S, B, F = P.LIBRARY_PAGE, P.SCROBBLING_PAGE, P.LB_PAGE, P.LF_PAGE
-    expect((P.ACT_LB, P.ACT_SCROBUP, P.ACT_LBAUTO, P.ACT_LF, P.ACT_SCROBPAGE) == (108, 109, 112, 113, 139) and max(P._ACTS) == 171 and 110 not in P._ACTS and 111 not in P._ACTS and not hasattr(P, 'ACT_LBTOKEN') and not hasattr(P, 'ACT_LBOUT')
-           and (P.INFO_LBACCT, P.INFO_LFACCT) == (P.INFO_DUR + 3, P.INFO_DUR + 4) == (71, 72),
+    expect((P.ACT_LB, P.ACT_SCROBUP, P.ACT_LBAUTO, P.ACT_LF, P.ACT_SCROBPAGE) == (108, 109, 112, 113, 139) and max(P._ACTS) == 183 and 110 not in P._ACTS and 111 not in P._ACTS and not hasattr(P, 'ACT_LBTOKEN') and not hasattr(P, 'ACT_LBOUT')
+           and (P.INFO_LBACCT, P.INFO_LFACCT) == (P.INFO_DUR + 3, P.INFO_DUR + 4) == (72, 73),
            'the actions 108, 109, 112, 113 and 139 (110 was the Token row, 111 Sign Out: gone, their ids not reused); the Account rows are INFO_DUR + 3 and + 4')
     expect(P.PAGES[P.LB_PAGE_INDEX] is B and P.PAGES[P.LF_PAGE_INDEX] is F and P.PAGES[P.SCROBBLING_PAGE_INDEX] is S
            and (B.key, B.name, B.title) == ('m1plus_listenbrainz', 'm1plus_listenbrainz_page', 'ListenBrainz') and (F.key, F.name, F.title) == ('m1plus_lastfm', 'm1plus_lastfm_page', 'Last.fm')
@@ -131,7 +131,7 @@ def pages_tests(ctx):
     expect(lay[-4:-2] == ['Podcasts', 'Scrobbling'] and lay[-2] is P.GAP and lay[-1] == 'CD Ripping',
            f'the Library page ends with a card of two rows, Podcasts and Scrobbling, then CD Ripping in a card of its own ({lay[-4:]})')
     expect([(r.label, r.action, r.arg, P.row_kind(r)) for r in L.rows[-2:-1]] == [('Scrobbling', P.ACT_SCROBPAGE, P.SCROBBLING_PAGE_INDEX, 'value')] and P.ACT_SCROBPAGE in P.VALUE_ACTIONS and P.VALUE_INIT[P.ACT_SCROBPAGE] == 'Off'
-           and not {P.ACT_SCROBBLE, P.ACT_LB, P.ACT_LF, P.ACT_LBAUTO, P.ACT_SCROBUP} & {r.action for r in L.rows} and len(L.rows) == 11 and ST.pieces(L.layout)[-3:] == ['top', 'bot', 'single'],
+           and not {P.ACT_SCROBBLE, P.ACT_LB, P.ACT_LF, P.ACT_LBAUTO, P.ACT_SCROBUP} & {r.action for r in L.rows} and len(L.rows) == 12 and ST.pieces(L.layout)[-3:] == ['top', 'bot', 'single'],
            'a value row (Off at rest) opening the Scrobbling page, the second row of the last card (under Podcasts); no account, upload or switch rows left on the Library page')
     slay = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in S.layout]
     expect(slay == ['Scrobbling', 'Saved to .scrobbler.log on the card.', 'ListenBrainz', 'Last.fm', P.GAP, 'Auto Upload', 'Upload Scrobbles', P.LB_AUTO_NOTE] and ST.pieces(S.layout) == ['single', 'top', 'bot', 'top', 'bot'],
@@ -601,7 +601,7 @@ def auto_tests(ctx):
     row = next(r for r in P.FILES_PAGE.rows if r.label == 'scrobble-auto')
     expect(S.index('scrobble-auto') == S.index('scrobbling') + 1 and AUTO_FILE == '/mnt/data/m1plus/' + S[idx - 5] and row.action == P.ACT_SFDEL and row.arg == P.INFO_SF + idx,
            'the Settings Files row scrobble-auto follows scrobbling (the account has no row: it is on the card) and is the file\'s name')
-    expect(len(S) == 47 and P.INFO_SFOLD - P.INFO_SF == 52 and P.INFO_DUR == 68, '47 setting files: INFO_SFOLD = INFO_SF + 52, INFO_DUR 68')
+    expect(len(S) == 48 and P.INFO_SFOLD - P.INFO_SF == 53 and P.INFO_DUR == 69, '48 setting files: INFO_SFOLD = INFO_SF + 53, INFO_DUR 69')
 
     def stat(m):
         buf = m.alloc(24)

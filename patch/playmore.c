@@ -43,6 +43,7 @@
 #include "albums.h"
 #include "coverflow.h"
 #include "entries.h"
+#include "artsplit.h"
 #include "lyrics.h"
 
 #define PM_ROWS \
@@ -455,7 +456,7 @@ static int pm_on_lookup_album(void *ctx, void *e) {
  * stock handler. Like the stock one it sets songerinfoflag (a track tap or Play on an album page above then unwinds to the Now Playing that is
  * in the stack) and closes an albuminfo_page in the stack; the flag is released by the destroy of that page (pm_on_album_gone). */
 static int pm_on_lookup_artist(void *ctx, void *e) {
-    void *track, *list, *one, *top, *below;
+    void *track, *list, *one = (void *)0, *top, *below;
     const char *name;
     unsigned i, n;
     int found = -1, ret;
@@ -467,19 +468,24 @@ static int pm_on_lookup_artist(void *ctx, void *e) {
     if (sbs_playing_ours()) return pm_lookup_src(ctx, 1);
     name = cc_str(track, REC_ARTIST);
     if (!*name) return RET_OK;
-    if (loadLocalClassList(CLASS_ARTISTS) <= 0) return RET_OK;
-    list = *(void **)PDEQ_SHOWLIST;
-    n = list ? deque_size(list) : 0;
-    for (i = 0; i < n && found < 0; i++) {
-        void *r = deque_at(list, i);
-        if (*(int *)((char *)r + REC_ID) != -1 && !cc_nocase(cc_str(r, REC_TITLE), name)) found = (int)i;
+    if (*(volatile int *)ARTIST_TYPE != 1 && as_mask())
+        one = as_first_row(
+            name); /* the artist split is on: the first name of the field, as the Artists page lists it (never the joined name's empty page) */
+    if (!one) {
+        if (loadLocalClassList(CLASS_ARTISTS) <= 0) return RET_OK;
+        list = *(void **)PDEQ_SHOWLIST;
+        n = list ? deque_size(list) : 0;
+        for (i = 0; i < n && found < 0; i++) {
+            void *r = deque_at(list, i);
+            if (*(int *)((char *)r + REC_ID) != -1 && !cc_nocase(cc_str(r, REC_TITLE), name)) found = (int)i;
+        }
+        if (found < 0) return RET_OK;
+        one = _create_deque(
+            "stSongInfo"); /* the page takes its own copy of the row; this list only carries it there (and keeps the stock list's reload from pulling it away) */
+        if (!one) return RET_OK;
+        deque_init(one);
+        _deque_push_back(one, deque_at(list, (unsigned)found));
     }
-    if (found < 0) return RET_OK;
-    one = _create_deque(
-        "stSongInfo"); /* the page takes its own copy of the row; this list only carries it there (and keeps the stock list's reload from pulling it away) */
-    if (!one) return RET_OK;
-    deque_init(one);
-    _deque_push_back(one, deque_at(list, (unsigned)found));
     prev = *(unsigned char *)SONGER_FLAG;
     *(unsigned char *)SONGER_FLAG = 1;
     below = window_manager_get_top_window(window_manager());

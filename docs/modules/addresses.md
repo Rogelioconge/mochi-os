@@ -187,6 +187,10 @@ runs one table delete per marked row and then `remove_file` `0x4e1264` (`access`
 
 Screen state: exported byte `backlight_status` at `0x97cae4` is pinned in `tools/pod.py`. Stock `awake_screen` sets it to 1 before enabling the framebuffer; zero means off. Existing page-owned timers use it to defer visual work.
 
+## Memory Playback record (read from the disassembly, not pinned: the payload only avoids it)
+
+`g_memory_info` `0xa0caf8`, `0xd94` bytes: +0 play type (`mclGetPlayType`), +4 position, +8 name (512), +0x208 path (1024), +0x608 `CLASSINFO` copy (`0x390`, written only by `loadSongList` `0x4e2d80`). Saved by `save_memoryplay_info` `0x4e3340` (`write_memory_to_file` `0x4e31ec`); the boot resume `memeory_startplayer` `0x4e34dc` (`read_memory_from_file` `0x4e3280`) re-runs the saved class's query and matches name + path; no match or an unreadable file resumes nothing (returns -1). `patch/songops.c` `so_play_own` therefore queues as class `0xf001`; details in artists.md "Split index".
+
 ## Library scan and queries (patch/common.c `m1_scan_dir`, patch/pcmodel.c `pc_library_query`; `SCAN_PINS`, `QUERY_PINS` in tools/pod.py)
 
 | What | Address | Evidence |

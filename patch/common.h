@@ -38,10 +38,29 @@ typedef struct {
     const char *p;
     unsigned n;
 } m1_artist_span;
-/* The names in an artist field, in the order they appear: split on " feat. ", " ft. ", " featuring ", " & ", " x ", ", " and "; " (ASCII case folded; each separator
- * carries the spaces it is written with, so a bare "Tom;Jerry" stays one name), parts trimmed and empty ones dropped, at most max into out. Returns the count (1 for a
- * field with no separator, 0 when there is nothing to share). Reads `field` only: the span must not outlive it. docs/modules/artists.md "Separators". */
-int m1_artist_split(const char *field, m1_artist_span *out, int max);
+/* The separators m1_artist_split may split on (a bitmask the caller picks). Symbols split with or without spaces, in their ASCII and full-width / CJK forms; the word ones need a space (or an opening bracket) before and a space after. */
+#define M1_SPLIT_SEMICOLON 0x001u /* ; and the full-width semicolon */
+#define M1_SPLIT_SLASH 0x002u /* / and the full-width solidus */
+#define M1_SPLIT_AMPERSAND 0x004u /* & and the full-width ampersand */
+#define M1_SPLIT_COMMA 0x008u /* , the full-width comma and the ideographic comma */
+#define M1_SPLIT_FEAT 0x010u /* feat, ft, featuring (a full stop may follow; any case) */
+#define M1_SPLIT_VS 0x020u /* vs, versus (a full stop may follow; any case) */
+#define M1_SPLIT_X 0x040u /* the word x (lower case only, so "Malcolm X" stays whole) and the multiplication sign */
+#define M1_SPLIT_PLUS 0x080u /* + and the full-width plus */
+#define M1_SPLIT_WITH 0x100u /* with (any case) */
+#define M1_SPLIT_AND 0x200u /* and (any case) */
+#define M1_SPLIT_DEFAULT (M1_SPLIT_SEMICOLON | M1_SPLIT_SLASH | M1_SPLIT_AMPERSAND | M1_SPLIT_FEAT)
+/* What the caller chooses: the separators (M1_SPLIT_*) and names that never split (a NULL-terminated array, matched ASCII case-insensitively wherever they occur in the field; NULL: none). */
+typedef struct {
+    unsigned mask;
+    const char *const *except;
+} m1_split_opts;
+/* The built-in names that never split ("AC/DC", "Simon & Garfunkel", ...), NULL-terminated, for m1_split_opts.except. */
+const char *const *m1_artist_split_exceptions(void);
+/* The names in an artist field, in the order they appear, at most max into out: split on the separators opts allows (NULL opts: M1_SPLIT_DEFAULT, no exceptions), each part trimmed (spaces, and
+ * the bracket a cut leaves behind: "A (feat. B)" gives "A" and "B"), empty and repeated parts dropped. Inside () and [] only feat/ft/featuring/vs/versus split, and a symbol splits there only after
+ * one of them in the same brackets. Returns the count (1 for a field with no separator, 0 when there is nothing to share). Reads `field` only: the spans must not outlive it. docs/modules/artists.md "Separators". */
+int m1_artist_split(const char *field, m1_artist_span *out, int max, const m1_split_opts *opts);
 int m1_card_mounted(
     void); /* the SD card is mounted (statfs: /mnt/mmc is another file system than /mnt); never write under /mnt/mmc otherwise */
 /* a (na bytes) then b (nb) into path in dir (CARD_DIR or a folder in it) on the card, atomically (tmp, fsync, rename, fsync of dir);

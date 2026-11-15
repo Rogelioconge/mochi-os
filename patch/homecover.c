@@ -21,6 +21,7 @@
 #include "home.h"
 #include "covercache.h"
 #include "artistphoto.h"
+#include "artsplit.h"
 #include "durations.h"
 #include "common.h"
 #include "i18n.h"
@@ -353,6 +354,7 @@ static void hc_dur_save(void) {
 /* The page's build released: the timer removed, what was measured saved, a running worker cancelled (joined if finished, else left to exit on its own), the line hidden. */
 static void hc_end(void) {
     m1_timer_stop(&hc.timer);
+    as_session(0);
     hc_free_scan();
     hc_dur_save();
     if (hc.own) cc_build_stop();
@@ -639,6 +641,7 @@ static int hc_on_start(const void *unused) {
         hc.astage = !hc.trunc && hc.count <= AP_LIB_MAX ? 1 : 2;
         hc.acur = 0;
         if (hc.astage == 2) ap_lib_drop(); /* no snapshot this time: the saved purity map describes another library */
+        if (hc.astage == 1) as_session(1); /* the artist split's options, read once for the pass */
     }
     if (hc.astage == 1) {
         unsigned stop = hc.acur + HC_BATCH;
@@ -659,6 +662,7 @@ static int hc_on_start(const void *unused) {
         if (hc.astage == 1 && !cc_build_artist_ok())
             hc.atrunc =
                 1; /* no memory for the purity snapshot: the artist jobs write nothing, and the pass is not stamped */
+        as_session(0);
         if (hc.astage == 1)
             ap_lib_save(); /* the snapshot is whole (an unusable one removes the file): its purity map is kept for the re-check of one artist (UI thread, one write) */
         if (hc.arebuild && !artists && !hc.atrunc) unlink(AREBUILD_FILE); /* no artist to check */

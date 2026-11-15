@@ -80,15 +80,19 @@ static char *ap_path(char *out, unsigned key, const char *suffix) {
 /* ---- showing a photo (UI thread) */
 
 /* The lead artist: the first name of the shared splitter (patch/common.c m1_artist_split, docs/modules/artists.md "Separators"), so this
- * page and every later consumer of an artist field read the same separator table. A field with no separator has no lead: 0. */
+ * page and every later consumer of an artist field read the same rule, with a mask of its own (never the later setting's). A field with no separator has no lead: 0. */
 int ap_lead(const char *name, char *out, unsigned n) {
     m1_artist_span sp;
-    unsigned len, a = 0, b;
-    if (!name || m1_artist_split(name, &sp, 1) < 1 || sp.n >= n) return 0;
-    len = (unsigned)strlen(name);
+    m1_split_opts o = {M1_SPLIT_SEMICOLON | M1_SPLIT_SLASH | M1_SPLIT_AMPERSAND | M1_SPLIT_COMMA | M1_SPLIT_FEAT |
+                           M1_SPLIT_X,
+                       m1_artist_split_exceptions()};
+    unsigned a = 0, e;
+    if (!name || m1_artist_split(name, &sp, 1, &o) < 1 || sp.n >= n) return 0;
     while (name[a] == ' ' || name[a] == '\t') ++a;
-    for (b = len; b > a && (name[b - 1] == ' ' || name[b - 1] == '\t'); --b);
-    if (sp.p != name + a || sp.n == b - a) return 0; /* one name, or the field starts with a separator: no lead */
+    e = (unsigned)(sp.p - name) + sp.n;
+    while (name[e] == ' ' || name[e] == '\t' || name[e] == ')' || name[e] == ']') ++e;
+    if (sp.p != name + a || !name[e])
+        return 0; /* the field starts with a separator, or nothing follows the name: no lead */
     memcpy(out, sp.p, sp.n);
     out[sp.n] = 0;
     return 1;

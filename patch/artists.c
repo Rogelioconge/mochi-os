@@ -46,6 +46,7 @@
 #include "libsrc.h"
 #include "artists.h"
 #include "albums.h"
+#include "artsplit.h"
 #include "coverflow.h"
 #include "entries.h"
 
@@ -87,6 +88,7 @@ static struct {
     unsigned count;
     unsigned cls; /* the stock class listed: CLASS_ARTISTS, CLASS_GENRES or CLASS_COMPOSERS */
     const lib_src_t *src; /* the library source the list comes from (artists_open_src); NULL = the stock library */
+    int split; /* the rows are patch/artsplit.c's (the artist split setting is on): built from the songs, not the stock query */
     unsigned gen, rows, gen_timer; /* the source's gen and gen_rows at the last read, and the timer that watches it */
     int home; /* its Home tile (HOME_GENRE, HOME_COMPOSER; 0 for Artists): where a window that will not open falls back */
     void *chev; /* the chevron bitmap */
@@ -497,13 +499,16 @@ static int ar_on_scroll(void *ctx, void *e) {
  * again and compared with the page's rows (the capped count): 1 when they differ (a list that is now empty too). */
 static void ar_load(int keep);
 static int ar_local_changed(void) {
-    void *list = loadLocalClassList(ar.cls) > 0 ? *(void **)PDEQ_SHOWLIST : (void *)0;
+    void *list = ar.split ? as_rows() : loadLocalClassList(ar.cls) > 0 ? *(void **)PDEQ_SHOWLIST : (void *)0;
     unsigned n = list ? deque_size(list) : 0;
     int changed;
     if (!n && !ar.count) return 0;
     if (n > MAX_ARTISTS) n = MAX_ARTISTS;
     changed = !(n && ar.artists && ar.count == n && ls_same_list(ar.artists, n, list, n));
-    if (list) deque_clear(list); /* (read for the comparison alone: the page has its own rows) */
+    if (list && ar.split)
+        deque_destroy(list);
+    else if (list)
+        deque_clear(list); /* (read for the comparison alone: the page has its own rows) */
     return changed;
 }
 
@@ -564,7 +569,7 @@ static void ar_load(int keep) {
     free(ar.rank);
     free(ar.pst);
     ar.order = (unsigned *)0, ar.rank = (unsigned char *)0, ar.pst = (unsigned char *)0;
-    ar.count = 0, ar.press = ar.down = 0;
+    ar.count = 0, ar.press = ar.down = ar.split = 0;
     ar.al.count = 0, ar.al.nsec = 0;
     grid_drop(&ar.g); /* (the circles, the placeholder too) */
     if (ar.photo) ar.g.placeholder = ap_placeholder(ar.win, AR_PHOTO);
@@ -584,6 +589,12 @@ static void ar_load(int keep) {
         if (!ar.count && ar.src->state) st = ar.src->state(ar.src, LS_ARTISTS, (void *)0);
         if (ar.count > MAX_ARTISTS) ar.count = MAX_ARTISTS;
         if (ar.count) ar_sort();
+    } else if (ar.cls == CLASS_ARTISTS && *(volatile int *)ARTIST_TYPE != 1 && as_mask() &&
+               (list = as_rows())) { /* the artist split is on: one row per name (patch/artsplit.c) */
+        ar.split = 1;
+        ar.artists = list, ar.count = deque_size(list);
+        if (ar.count > MAX_ARTISTS) ar.count = MAX_ARTISTS;
+        ar_sort();
     } else if ((list = loadLocalClassList(ar.cls) > 0 ? *(void **)PDEQ_SHOWLIST : (void *)0) && deque_size(list) &&
                (ar.artists = lib_take_list(
                     list))) { /* (the rows are the page's now, not copied: *pdeq_showlist is left empty) */

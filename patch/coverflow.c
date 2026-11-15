@@ -23,6 +23,7 @@
  */
 #include "offsets.inc"
 #include "entries.h"
+#include "artsplit.h"
 
 #include "coverflow.h" /* CF_ONE, CF_REACH, CF_RING, cfg_t, coverflow_render */
 #define CF_WANTED (CF_RING + 1) /* the covers the loader keeps decoded: the ring and the next one ahead */
@@ -1228,6 +1229,9 @@ int coverflow_artist_albums(void *artist_row, unsigned scope, int keep_card, voi
     void *list, *all;
     unsigned n, i, j, m, mask = 0, *ix = (unsigned *)0;
     *albums = (void *)0, *keys = (unsigned *)0;
+    if (scope == CLASS_ARTISTS && as_is_row(deque_at(artist_row, 0)))
+        return as_albums(deque_at(artist_row, 0), keep_card, albums,
+                         keys); /* the artist split's row (patch/artsplit.c) */
     loadAlbumList(scope, deque_at(artist_row, 0));
     list = *(void **)PDEQ_SHOWLIST;
     n = list ? deque_size(list) : 0;

@@ -34,6 +34,7 @@
 #include "libsrc.h"
 #include "sbsrc.h"
 #include "songops.h"
+#include "artsplit.h"
 #include "albums.h"
 #include "coverflow.h"
 #include "entries.h"
@@ -589,7 +590,10 @@ static void se_load(void) {
         goto sized;
     }
     se_py_hold();
-    if (loadLocalClassList(CLASS_ARTISTS) > 0 && (list = *(void **)PDEQ_SHOWLIST) != (void *)0 && deque_size(list))
+    if (*(volatile int *)ARTIST_TYPE != 1 && as_mask() && (list = as_rows()) != (void *)0 && deque_size(list))
+        se.lists[SE_ARTIST] =
+            list; /* the artist split is on: one row per name, marked (patch/artsplit.c), so a name that only occurs inside another's field is found and opens its own page */
+    else if (loadLocalClassList(CLASS_ARTISTS) > 0 && (list = *(void **)PDEQ_SHOWLIST) != (void *)0 && deque_size(list))
         se.lists[SE_ARTIST] = cc_copy_list(list);
     se.lists[SE_ALBUM] = cc_albums();
     if (loadLocalClassList(CLASS_PLAYLISTS) > 0 && (list = *(void **)PDEQ_PLAYLIST) != (void *)0 && deque_size(list))

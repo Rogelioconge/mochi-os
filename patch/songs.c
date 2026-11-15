@@ -68,6 +68,7 @@
 #include "fnv.h"
 #include "coverflow.h"
 #include "entries.h"
+#include "artsplit.h"
 #include "search.h"
 
 #define ROW LIST_ROW_H
@@ -168,6 +169,7 @@ static struct {
     int down_more; /* the press began in a row's "..." zone */
     const lib_src_t *
         src; /* a non-stock library source (songs_open_src), or 0: every stock path above is then unchanged; sg.list is the source's own copy (deque_destroy) */
+    int split; /* an artist's songs from the artist split (patch/artsplit.c): the list is built from the library's songs, not the stock query; sg.name is the artist, sg.pl_id 1 for the Unknown Artist row */
     int which; /* the source's list: LS_SONGS, LS_FAVORITES or LS_DOWNLOADED */
     int part; /* the source's list is a part that grows (lib_src_t.complete): no sections, no rail */
     unsigned sgen, srows; /* the source's gen and gen_rows when the list was read */
@@ -307,6 +309,10 @@ static void sg_classinfo(void) {
 /* The stock query of the class listed (into *pdeq_showlist), the browsing record put back first. */
 static int sg_query(void) {
     sg_classinfo();
+    if (sg.split)
+        return as_fill(
+            sg.name,
+            sg.pl_id); /* the browsing record is as songs_open_artist left it; the list is the artist's songs */
     return loadLocalClassList(sg.cls);
 }
 
@@ -1196,6 +1202,10 @@ static void sg_play_at(int at, int how) {
         return;
     }
     sg_classinfo(); /* loadSongList runs the class query again and keeps classinfo for the memory playback */
+    if (sg.split) { /* the artist split's songs are the queue as they are (patch/songops.c so_play_own) */
+        so_play_own(sg.list, at, how, pod_start_player);
+        return;
+    }
     so_play_dir(sg.cls, sg.list, at, how, pod_start_player, sg_flipped());
 }
 
@@ -1671,6 +1681,8 @@ static int sg_stack(void) {
 
 /* The page listing class cls (pl_id: a playlist's id; key: the title's key, or 0 for name). 0 once the page is up, -1 if the window could not open, -2 if the
  * asset is not ours (the page is left again). */
+static int sg_split_next
+    __attribute__((section(".scratch"))); /* songs_open_artist: the page about to open is an artist split's */
 static int sg_open_page(int cls, int pl_id, const char *key, const char *name, const lib_src_t *src, int which,
                         void *scope) {
     int i, az_ok;
@@ -1685,6 +1697,7 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     memset(&sg, 0, sizeof sg);
     sg.cls = cls, sg.pl_id = pl_id, sg.key = key;
     sg.src = src, sg.which = which, sg.scope_d = scope_d;
+    sg.split = sg_split_next, sg_split_next = 0;
     if (sg_artist())
         memcpy(sg.ci, (void *)CLASSINFO, CLASSINFO_SIZE); /* songs_open_artist ran the two queries just before */
     for (i = 0; name[i] && i < (int)sizeof sg.name - 1; ++i) sg.name[i] = name[i];
@@ -1883,6 +1896,7 @@ void *songs_artist_list(void *artist, unsigned scope) {
     unsigned n;
     int comp = scope == CLASS_COMPOSERS;
     if (!artist) return (void *)0;
+    if (!comp && as_is_row(artist)) return as_load(artist); /* the artist split's row: its songs, patch/artsplit.c */
     loadAlbumList(comp ? CLASS_COMPOSERS : CLASS_ARTISTS, artist);
     list = *(void **)PDEQ_SHOWLIST;
     n = list ? deque_size(list) : 0;
@@ -1896,8 +1910,10 @@ void *songs_artist_list(void *artist, unsigned scope) {
  * a composer's row): every song of the artist or composer (songs_artist_list), class 0xff11 or 0xff14. The page keeps the record. -1 when the page did not open or there
  * is no All songs row (the caller opens the stock page). */
 int songs_open_artist(void *artist, unsigned scope) {
+    int split = scope != CLASS_COMPOSERS && as_is_row(artist), unknown = split && I(artist, REC_ID) == -1;
     if (sg.win || !artist || !songs_artist_list(artist, scope)) return -1;
-    return sg_open(scope == CLASS_COMPOSERS ? CLASS_14 : CLASS_ARTIST_SONGS, 0, (const char *)0,
+    sg_split_next = split;
+    return sg_open(scope == CLASS_COMPOSERS ? CLASS_14 : CLASS_ARTIST_SONGS, unknown, (const char *)0,
                    cc_str(artist, REC_TITLE), -1);
 }
 
@@ -1907,6 +1923,10 @@ int songs_open_artist(void *artist, unsigned scope) {
 int songs_play_artist(void *artist, unsigned scope, int how) {
     void *list = songs_artist_list(artist, scope);
     if (!list || !deque_size(list)) return -1;
+    if (scope != CLASS_COMPOSERS && as_is_row(artist)) { /* the artist split's songs are the queue as they are */
+        so_play_own(list, how == SO_SHUFFLE ? -1 : 0, how, pod_start_player);
+        return 0;
+    }
     so_play(scope == CLASS_COMPOSERS ? CLASS_14 : CLASS_ARTIST_SONGS, list, how == SO_SHUFFLE ? -1 : 0, how,
             pod_start_player);
     return 0;

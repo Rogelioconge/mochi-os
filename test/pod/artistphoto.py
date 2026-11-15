@@ -404,23 +404,50 @@ def lead_tests(ctx):
         ok = m.call(PSYMS['ap_lead'], a0=m.cstr(name), a1=buf, a2=n, count=1 << 40)
         return m.read_cstr(buf) if ok else None
     for name, want in (('Adele feat. Someone', 'Adele'), ('Adele FEAT. Someone', 'Adele'), ('Adele ft. Someone', 'Adele'), ('Adele Ft. Someone', 'Adele'), ('Adele featuring Someone', 'Adele'),
-                       ('Adele FeaturingSomeone', None), ('Simon & Garfunkel', 'Simon'), ('Mark X Mark', 'Mark'), ('Mark x Mark', 'Mark'), ('Tyler, The Creator', 'Tyler'),
-                       ('Tom; Jerry', 'Tom'), ('Tom;Jerry', None), ('Beyoncé feat. Jay-Z & Kanye', 'Beyoncé'.encode().decode('latin-1')), ('A & B feat. C', 'A'), ('A feat. B & C', 'A'), ('Abba', None),
-                       ('Maxx', None), ('Fox', None), ('Adele ft.', None), ('feat. X', None), ('Prince and the Revolution', None), ('Earth, Wind & Fire', 'Earth'), (' Abba', None), ('Abba ', None), (' Abba & B', 'Abba'), ('A & ', 'A'), (' & B', None), (' feat. B & C', None)):
+                       ('Adele FeaturingSomeone', None), ('Simon & Garfunkel', None), ('Mark X Mark', None), ('Mark x Mark', 'Mark'), ('Tyler, The Creator', None), ('Tom;Jerry', 'Tom'), ('周杰伦/蔡依林', '周杰伦'.encode().decode('latin-1')), ('AC/DC', None), ('A (feat. B)', 'A'), ('A)', None),
+                       ('Tom; Jerry', 'Tom'), ('Beyoncé feat. Jay-Z & Kanye', 'Beyoncé'.encode().decode('latin-1')), ('A & B feat. C', 'A'), ('A feat. B & C', 'A'), ('Abba', None),
+                       ('Maxx', None), ('Fox', None), ('Adele ft.', 'Adele'), ('feat. X', None), ('Prince and the Revolution', None), ('Earth, Wind & Fire', None), ('Earth, Wind & Fire feat. Z', 'Earth, Wind & Fire'), (' Abba', None), ('Abba ', None), (' Abba & B', 'Abba'), ('A & ', 'A'), (' & B', None), (' feat. B & C', None)):
         expect(lead(name) == want, f'lead of {name!r}: {want!r} (got {lead(name)!r})')
     expect(lead('x' * 300 + ' & B') is None and lead('Longer than the buffer & B', 6) is None, 'a lead that does not fit gives none')
     spans = m.alloc(8 * 8)
-    def split(field, mx=8):
+    opts = m.alloc(8)
+    ex = m.call(PSYMS['m1_artist_split_exceptions'], count=1 << 40)
+    ALL = 0x3ff
+    SEMI, SLASH, AMP, COMMA, FEAT, VS, X, PLUS, WITH, AND = (1 << k for k in range(10))
+    def split(field, mx=8, mask=None, exc=None):
         f = m.cstr(field)
-        c = m.call(PSYMS['m1_artist_split'], a0=f, a1=spans, a2=mx, count=1 << 40)
-        raw = field.encode('latin-1')
-        return [raw[m.word(spans + 8 * i) - f:][:m.word(spans + 8 * i + 4)].decode('latin-1') for i in range(c)]
-    for field, want in (('Anna Jones feat. Ben Ito & Cy', ['Anna Jones', 'Ben Ito', 'Cy']), ('AC/DC', ['AC/DC']), ('Simon & Garfunkel', ['Simon', 'Garfunkel']), ('Tom;Jerry', ['Tom;Jerry']),
-                        ('A, B; C x D FT. E Featuring F', ['A', 'B', 'C', 'D', 'E', 'F']), ('  A  &  B  ', ['A', 'B']), ('A & , B', ['A', 'B']), (' & B', ['B']), ('A & ', ['A']), ('', []), ('   ', []),
-                        ('Earth, Wind & Fire', ['Earth', 'Wind', 'Fire'])):
-        expect(split(field) == want, f'names of {field!r}: {want!r} (got {split(field)!r})')
-    expect(split('A & B & C & D', 2) == ['A', 'B'] and split('A & B', 0) == [], 'at most max names; none for max 0')
-    expect(m.call(PSYMS['m1_artist_split'], a0=0, a1=spans, a2=8, count=1 << 40) == 0, 'no field: no names')
+        o = 0
+        if mask is not None:
+            o = opts
+            m.u.mem_write(opts, struct.pack('<II', mask, exc if exc is not None else 0))
+        c = m.call(PSYMS['m1_artist_split'], a0=f, a1=spans, a2=mx, a3=o, count=1 << 40)
+        raw = field.encode('utf-8')
+        return [raw[m.word(spans + 8 * i) - f:][:m.word(spans + 8 * i + 4)].decode('utf-8') for i in range(c)]
+    # no opts: the default mask (semicolon, slash, ampersand, feat), no exceptions
+    for field, want in (('Anna Jones feat. Ben Ito & Cy', ['Anna Jones', 'Ben Ito', 'Cy']), ('AC/DC', ['AC', 'DC']), ('Simon & Garfunkel', ['Simon', 'Garfunkel']), ('Tom;Jerry', ['Tom', 'Jerry']),
+                        ('A, B', ['A, B']), ('A x B', ['A x B']), ('A + B', ['A + B']), ('A with B and C vs D', ['A with B and C vs D']), ('  A  &  B  ', ['A', 'B']), ('A & ; B', ['A', 'B']), (' & B', ['B']), ('A & ', ['A']),
+                        ('', []), ('   ', []), ('A ft. B', ['A', 'B']), ('A FEATURING B', ['A', 'B']), ('A feat B', ['A', 'B']), ('A feat.', ['A']), ('Afeat. B', ['Afeat. B']), ('Afeat B', ['Afeat B']),
+                        ('A/B；C／D＆E', ['A', 'B', 'C', 'D', 'E']), ('A & B & a & b', ['A', 'B'])):
+        expect(split(field) == want, f'default names of {field!r}: {want!r} (got {split(field)!r})')
+    for field, want in (('A, B; C x D FT. E Featuring F', ['A', 'B', 'C', 'D', 'E', 'F']), ('周杰伦/蔡依林', ['周杰伦', '蔡依林']), ('周杰伦、蔡依林，方文山；A＋B', ['周杰伦', '蔡依林', '方文山', 'A', 'B']),
+                        ('A + B+C＋D', ['A', 'B', 'C', 'D']), ('A × B', ['A', 'B']), ('Malcolm X', ['Malcolm X']), ('Malcolm X & Y', ['Malcolm X', 'Y']), ('A X B', ['A X B']), ('A x B', ['A', 'B']), ('Ax B', ['Ax B']), ('A xB', ['A xB']),
+                        ('A VS. B versus C Vs D', ['A', 'B', 'C', 'D']), ('A with B WITH C', ['A', 'B', 'C']), ('A and B And C', ['A', 'B', 'C']), ('Band and Brand', ['Band', 'Brand']), ('Withers with Sand', ['Withers', 'Sand']),
+                        ('A (feat. B & C)', ['A', 'B', 'C']), ('A (feat. B)', ['A', 'B']), ('A [ft. B]', ['A', 'B']), ('A (B & C)', ['A (B & C)']), ('A (Live and Acoustic)', ['A (Live and Acoustic)']),
+                        ('A (B x C)', ['A (B x C)']), ('A (with B)', ['A (with B)']), ('A (Live) & B', ['A (Live)', 'B']), ('A (feat. B) & C', ['A', 'B', 'C']), ('A (feat. B (live) & C)', ['A', 'B (live)', 'C']),
+                        ('A [feat. B & C] / D', ['A', 'B', 'C', 'D']), ('A (B & C) & D (feat. E & F)', ['A (B & C)', 'D', 'E', 'F']), ('(feat. B)', ['B']), ('A & (B', ['A', 'B']), ('A (', ['A'])):
+        expect(split(field, mask=ALL) == want, f'all-bits names of {field!r}: {want!r} (got {split(field, mask=ALL)!r})')
+    for field, mask, want in (('A/B & C', AMP, ['A/B', 'C']), ('A/B & C', SLASH, ['A', 'B & C']), ('A;B', SLASH | AMP | FEAT, ['A;B']), ('A, B', ALL & ~COMMA, ['A, B']), ('A ft. B', ALL & ~FEAT, ['A ft. B']),
+                              ('A vs B', FEAT, ['A vs B']), ('A vs B', VS, ['A', 'B']), ('A x B × C', ALL & ~X, ['A x B × C']), ('A + B', ALL & ~PLUS, ['A + B']), ('A＋B', ALL & ~PLUS, ['A＋B']),
+                              ('A with B', ALL & ~WITH, ['A with B']), ('A and B', ALL & ~AND, ['A and B']), ('A、B', ALL & ~COMMA, ['A、B']), ('A、B', COMMA, ['A', 'B']), ('A (ft. B & C)', ALL & ~FEAT, ['A (ft. B & C)']),
+                              ('A (feat. B & C)', FEAT, ['A', 'B & C']), ('A feat. B', 0, ['A feat. B'])):
+        expect(split(field, mask=mask) == want, f'mask {mask:#x} names of {field!r}: {want!r} (got {split(field, mask=mask)!r})')
+    for field, want in (('AC/DC', ['AC/DC']), ('ac/dc & Hall & Oates', ['ac/dc', 'Hall & Oates']), ('Simon & Garfunkel feat. Z', ['Simon & Garfunkel', 'Z']), ('Z; Earth, Wind & Fire', ['Z', 'Earth, Wind & Fire']),
+                        ('Florence + The Machine', ['Florence + The Machine']), ('Tyler, The Creator & Z', ['Tyler, The Creator', 'Z']), ('Crosby, Stills, Nash & Young', ['Crosby, Stills, Nash & Young']),
+                        ('Simon & Garfunkel', ['Simon & Garfunkel']), ('AC/DC/Z', ['AC/DC', 'Z']), ('Hall & Oates, Hall & Oates', ['Hall & Oates'])):
+        expect(split(field, mask=ALL, exc=ex) == want, f'exceptions: names of {field!r}: {want!r} (got {split(field, mask=ALL, exc=ex)!r})')
+    expect(split('AC/DC', mask=ALL) == ['AC', 'DC'] and split('Tyler, the Creator', mask=ALL) == ['Tyler', 'the Creator'], 'exceptions NULL: nothing is protected')
+    expect(split('A & B & C & D', 2) == ['A', 'B'] and split('A & B', 0) == [] and split('A & A & B & C', 3) == ['A', 'B', 'C'], 'at most max names (repeats do not count); none for max 0')
+    expect(m.call(PSYMS['m1_artist_split'], a0=0, a1=spans, a2=8, a3=0, count=1 << 40) == 0, 'no field: no names')
     expect(key(m, 'Adele feat. Someone') != key(m, 'Adele') and key(m, 'The Weeknd & Drake') != key(m, 'Weeknd'), 'ap_key itself never splits')
 
 

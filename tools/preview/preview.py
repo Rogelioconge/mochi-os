@@ -282,6 +282,7 @@ def main():
     run('preview_recent_albums.py', work, os.path.dirname(os.path.abspath(out)))   # recent-songs-view.png, recent-album-view.png: Recently Added's two views (docs/modules/recent-albums.md)
     run('preview_ndserver.py', work, os.path.dirname(os.path.abspath(out)))   # nd-server.png, nd-signin-*.png: the Navidrome Server page and its Sign In page (docs/modules/subsonic.md)
     run('preview_ndroot.py', work, os.path.dirname(os.path.abspath(out)))   # nd-root-*.png: the Subsonic root page (status glyphs, footer, collapse, the Search + "..." capsule and its card)
+    run('preview_split.py', work, os.path.dirname(os.path.abspath(out)))   # split-*.png: Settings > Library > Split Artists (the row, the page off and on; docs/modules/settings.md)
     run('preview_accent.py', work, os.path.dirname(os.path.abspath(out)))   # accent-black.png, accent-graphite.png: the planned Accent + Background picker (a mock-up, not in the firmware)
     with tempfile.TemporaryDirectory() as t:
         p = lambda n: os.path.join(t, n)

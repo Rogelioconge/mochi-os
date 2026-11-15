@@ -758,6 +758,23 @@ TEXT = dict([
        'Encabezados', 'Intestazioni', 'หัวข้อส่วน', 'Nagłówki sekcji', 'Заголовки секций', 'Заголовки секцій'),
     _t('List Navigation', '列表导航', '列表導覽', 'リストのナビゲーション', '목록 탐색', 'Navigation des listes', 'Listennavigation',
        'Navegación de listas', 'Navigazione elenchi', 'การนำทางรายการ', 'Nawigacja list', 'Навигация по спискам', 'Навігація списками'),
+    _t('Split Artists', '拆分艺人', '拆分藝人', 'アーティストを分割', '아티스트 분리', 'Séparer artistes', 'Künstler trennen',
+       'Separar', 'Dividi artisti', 'แยกศิลปิน', 'Dziel wykonawców', 'Делить имена', 'Ділити імена'),
+    _t('Separators', '分隔符', '分隔符', '区切り文字', '구분자', 'Séparateurs', 'Trennzeichen',
+       'Separadores', 'Separatori', 'ตัวคั่น', 'Separatory', 'Разделители', 'Роздільники'),
+    _t('A track tagged A & B or A feat. B appears under each name in Artists. Names in artist-exceptions.txt on the card are never split.',
+       '标为 A & B 或 A feat. B 的曲目会出现在艺人列表中的每个名字下。卡中 artist-exceptions.txt 里的名字不会被拆分。',
+       '標為 A & B 或 A feat. B 的曲目會出現在藝人列表中的每個名字下。卡中 artist-exceptions.txt 內的名字不會被拆分。',
+       'A & B や A feat. B とタグ付けされた曲は、アーティスト一覧で各名前の下に表示されます。カードの artist-exceptions.txt にある名前は分割されません。',
+       'A & B 또는 A feat. B로 태그된 곡은 아티스트 목록에서 각 이름 아래에 표시됩니다. 카드의 artist-exceptions.txt에 있는 이름은 분리되지 않습니다.',
+       'Un titre balisé A & B ou A feat. B apparaît sous chaque nom dans Artistes. Les noms de artist-exceptions.txt sur la carte ne sont jamais séparés.',
+       'Ein Titel mit A & B oder A feat. B erscheint unter jedem Namen bei Künstler. Namen in artist-exceptions.txt auf der Karte werden nie getrennt.',
+       'Un tema etiquetado A & B o A feat. B aparece bajo cada nombre en Artistas. Los nombres de artist-exceptions.txt en la tarjeta nunca se separan.',
+       'Un brano con tag A & B o A feat. B appare sotto ogni nome in Artisti. I nomi in artist-exceptions.txt sulla scheda non vengono mai divisi.',
+       'เพลงที่ติดแท็ก A & B หรือ A feat. B จะแสดงใต้ชื่อแต่ละคนในศิลปิน ชื่อใน artist-exceptions.txt บนการ์ดจะไม่ถูกแยก',
+       'Utwór z tagiem A & B lub A feat. B pojawia się pod każdą nazwą w Wykonawcach. Nazwy z artist-exceptions.txt na karcie nigdy nie są dzielone.',
+       'Трек с тегом A & B или A feat. B появляется под каждым именем в Исполнителях. Имена из artist-exceptions.txt на карте не разделяются.',
+       "Трек із тегом A & B або A feat. B з'являється під кожним іменем у Виконавцях. Імена з artist-exceptions.txt на картці не розділяються."),
     _t('Songs, Artists, Albums and Radio lists', '歌曲、艺人、专辑和电台列表', '歌曲、藝人、專輯和電台列表', '曲、アーティスト、アルバム、ラジオのリスト', '노래, 아티스트, 앨범, 라디오 목록',
        'Titres, artistes, albums et radios', 'Titel, Künstler, Alben und Radio', 'Canciones, artistas, álbumes y radio', 'Brani, artisti, album e radio',
        'เพลง ศิลปิน อัลบั้ม และวิทยุ', 'Utwory, wykonawcy, albumy i radio', 'Песни, исполнители, альбомы и радио', 'Пісні, виконавці, альбоми й радіо'),
@@ -1984,7 +2001,7 @@ def english(key):
 
 
 import pod_pages
-BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',) + pod_pages.TZ_LABELS + pod_pages.DT_NUMBERS   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button; the time zones' English names and the date pickers' numbers)
+BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.ASSEP_LABELS + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',) + pod_pages.TZ_LABELS + pod_pages.DT_NUMBERS   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button; the time zones' English names and the date pickers' numbers)
 
 
 def key_for(english):

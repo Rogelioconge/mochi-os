@@ -96,10 +96,10 @@ def search_widgets(m, window=0x20003000, asset=ASSET, key='m1plus_search', list_
 PY_DICT_PATH = '/release/assets/default/raw/data/gpinyin.dat'   # PINYIN_DICT (patch/keyboard.h)
 
 
-def page_machine(songs=(), artists=(), albums=(), playlists=(), window=0x20003000, covers=(), pinyin=None):
+def page_machine(songs=(), artists=(), albums=(), playlists=(), window=0x20003000, covers=(), pinyin=None, cls=ListMachine):
     """A machine with the Search page's widgets and a library: songs [(title, artist, album)], artists [name], albums [(album, artist)], playlists [name]. covers: (artist, album) pairs that
     have a cover file in the cache."""
-    m = search_widgets(cover_machine(albums=0, cls=ListMachine), window)
+    m = search_widgets(cover_machine(albums=0, cls=cls), window)
     big = len(songs) > 500
     m.class_lists[ARTISTS] = [artist_rec(m, a, i + 1) for i, a in enumerate(artists)]
     m.class_lists[ALBUMS] = [m.record(album=al, artist=ar, path=f'/mnt/mmc/lib/{i}/1.flac', title=al, rid=i + 1) for i, (al, ar) in enumerate(albums)]
@@ -682,6 +682,41 @@ def tap_tests(ctx):
     m.calls = []
     tap(m, y_of(0))
     expect(('window_open', 'm1plus_albums') in m.calls, 'an artist still opens when the song list was replaced (the page keeps its own copy)')
+
+
+class CopyMachine(ListMachine):
+    """The stock deque's copy: _deque_push_back copies the 0x58 byte record and strdups the strings at +4..+0x2c (docs/modules/addresses.md), as the device does."""
+    def _hook(self, u, address, size, _):
+        if self.handlers.get(address, '') == '_deque_push_back':
+            a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+            rec = bytearray(bytes(u.mem_read(a1, 0x58)))
+            for off in range(4, 0x30, 4):
+                p = struct.unpack_from('<I', rec, off)[0]
+                if p:
+                    t = self.read_cstr(p).encode('latin-1'); a = self.malloc(len(t) + 1)
+                    u.mem_write(a, t + b'\0'); struct.pack_into('<I', rec, off, a)
+            c = self.malloc(0x58); u.mem_write(c, bytes(rec))
+            self.deques.setdefault(a0, []).append(c); self.calls.append(('_deque_push_back', a0, c))
+            u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+            return
+        return super()._hook(u, address, size, _)
+
+
+def split_tests(ctx):
+    """With Split Artists on the artist results are the split names (a name that only occurs inside another's field is found and opens the albums page scoped to it); off, the stock artists."""
+    expect = ctx.expect
+    songs = [('Apeshit', 'Jay-Z; Beyonce', 'Everything'), ('Halo', 'Beyonce', 'Fighter'), ('Other', 'Ann', 'Own')]
+    for saved, want in ((None, 0), (b'1\n', 1)):
+        m = page_machine(songs, ['Ann', 'Jay-Z; Beyonce', 'Beyonce'], [('Everything', 'Jay-Z; Beyonce')], cls=CopyMachine)
+        if saved: m.fs['/mnt/data/m1plus/library-artist-split'] = saved
+        for n in ('view_grid', 'albums_scrollview', 'label_status', 'label_row_title', 'label_row_sub', 'label_grid_title', 'label_grid_sub', 'btn_coverflow', *VS_WIDGETS): m.widget(n)
+        assert m.call(PSYMS['search_open'], count=40000000) == 0
+        typed(m, 'beyonce')
+        r = rows(m)
+        expect([k for k, _ in r].count(ARTIST) == (1 if want else 2), f'setting {saved!r}: the artist results for "beyonce" ({r})')
+        if not want: continue
+        tap(m, [k for k, _ in r].index(ARTIST) * ROW_H + ROW_H // 2)
+        expect(('window_open', 'm1plus_albums') in m.calls, 'on: a tap on the split name opens the Albums page')
 
 
 def perf_tests(ctx):
@@ -1357,4 +1392,4 @@ def src_tests(ctx):
     expect(rows(m) == [] and said(m, 'label_status') == "Can't connect to the server", f"a failed request: the failure line ({said(m, 'label_status')})")
 
 
-SECTIONS = [recent_tests, fold_tests, query_tests, pinyin_tests, rank_tests, incremental_tests, page_tests, chips_tests, scope_tests, chip_cover_tests, live_tests, tap_tests, perf_tests, loader_tests, entry_tests, return_tests, embed_tests, asset_tests, src_tests]   # tools/check.py runs each as its own task
+SECTIONS = [recent_tests, fold_tests, query_tests, pinyin_tests, rank_tests, incremental_tests, page_tests, chips_tests, scope_tests, chip_cover_tests, live_tests, tap_tests, perf_tests, loader_tests, entry_tests, return_tests, embed_tests, asset_tests, src_tests, split_tests]   # tools/check.py runs each as its own task

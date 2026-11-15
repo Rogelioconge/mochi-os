@@ -1751,6 +1751,46 @@ def lists_tests(ctx):
     calls = tap(m, 150, lay.row_y(1) + 30)
     expect([c[3] for c in calls if c[0] == 'loadSongList'] == [art_cls] and bytes(m.u.mem_read(ci0, nci)) == snap and m.played[1] == 1 and m.played[0] == m.songs[:5]
            and m.word(G_CLASS) == art_cls, 'a row plays the artist\'s songs with class 0xff11, the record put back before loadSongList')
+    # an artist the split setting made (patch/artsplit.c; the row's REC_CLASS marks it): the songs whose artist field names him, the stock queries only set the browsing record, a row plays the list as it is
+    m_prev, row_prev = m, row
+    m, row = artist_machine('John Coltrane')
+    for i, f in enumerate(('Miles Davis feat. John Coltrane', 'John Coltrane', 'Other', 'john coltrane; Somebody', 'Another')):
+        m.setword(m.songs[i] + O['REC_ARTIST'], m.cstr(f))
+    m.class_lists[0xf001] = list(m.songs); m.fs['/mnt/data/m1plus/library-artist-split'] = b'1\n'
+    m.setword(row + O['REC_CLASS'], 0x41535031)
+    r = m.call(PSYMS['songs_open_artist'], a0=row, a1=O['CLASS_ARTISTS'], count=900000000)
+    expect(r == 0 and m.deques[m.word(pod.DATA['PDEQ_SHOWLIST'][0])] == [m.songs[0], m.songs[1], m.songs[3]] and m.word(ci0) == art_cls and m.read_cstr(ci0 + O['CLASSINFO_ARTIST']) == 'John Coltrane',
+           'a split artist: his three songs (as a featured name, under another case, with a semicolon), the browsing record as the stock queries leave it')
+    m.setword(SHOWLIST, m.new_deque([])); m.u.mem_write(ci0, b'\xaa' * nci)   # another page's query
+    m.calls = []
+    m.call(PSYMS['sg_on_fg'], a0=0, a1=0, count=900000000)
+    expect(m.deques[m.word(pod.DATA['PDEQ_SHOWLIST'][0])] == [m.songs[0], m.songs[1], m.songs[3]] and not [c for c in m.calls if c[0] == 'loadLocalClassList' and c[1] == art_cls],
+           'read again on return: the artist\'s songs from the library, not the stock class query')
+    settle(m)
+    m.calls = []
+    calls = tap(m, 150, lay.row_y(1) + 30)
+    expect(m.played and m.played[1] == 1 and m.played[0] == [m.songs[0], m.songs[1], m.songs[3]] and not [c for c in calls if c[0] == 'loadSongList'] and m.word(G_CLASS) == O['CLASS_ALL_SONGS']
+           and all(m.word(q + O['REC_CLASS']) == O['CLASS_ALL_SONGS'] for q in m.played[0]),
+           'a row plays exactly his songs from that row, as an All Songs queue (Memory Playback re-runs getAllMusic and finds the track by name and path), no stock queue query')
+    # Select on a split page: Delete and Add run stock's generic loops on the page's own list (library records; the loops read the records, not the browsing record), and the page reads the list again through as_fill
+    m.confirm_answer = O['CONFIRM_DELETE_LIBRARY']
+    m.u.mem_write(ci0, b'\xaa' * nci)
+    pick(m, 'select'); tap(m, 150, lay.row_y(0) + 30); tap(m, 150, lay.row_y(2) + 30)
+    shown = list(m.deques[m.word(pod.DATA['PDEQ_SHOWLIST'][0])])
+    m.calls = []
+    calls = click(m, 'sg_del')
+    bd = [c for c in calls if c[0] == 'batch_delete_file']
+    expect(bd and bd[0][1] == art_cls and bd[0][6] == [0, 2] and m.deques[bd[0][2]] == shown and not [c for c in calls if c[0] == 'loadLocalClassList' and c[1] == art_cls]
+           and [c[1] for c in calls if c[0] == 'loadLocalClassList'] == [O['CLASS_ALL_SONGS']],
+           f'split Select, Delete: batch_delete_file on the page list and rows 0 and 2, then the list is read again from the library (as_fill), never the stock artist query ({bd})')
+    m.confirm_answer = None
+    pick(m, 'select'); tap(m, 150, lay.row_y(1) + 30)
+    m.windows['m1plus_playlists'] = 0   # the stock picker (our page does not open)
+    m.calls = []
+    calls = click(m, 'sg_add')
+    expect(('navigator_to_with_context', 'playlist_page', O['PICKER_ADD'] | art_cls) in calls, 'split Select, Add opens the playlist picker (batch_add_file class 0xff11: the generic path)')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m, row = m_prev, row_prev
     # the toggle with Cover Flow's artist page: the Cover Flow button closes this page only (the covers page is under it); Back leaves the artist (both pages)
     COVERS_WIN, SONGS_WIN = 0x111, 0x222
     def backs(m): return sum(1 for c in m.calls if c[0] == 'navigator_back')

@@ -1131,6 +1131,11 @@ def run(ctx):
     m = PM(); alib(m); m.widget_on_fail = frozenset({DESTROY}); ret = artist_tap(m)
     expect(ret == RET_STOP and flag(m) == 0, f'artist: the destroy watch refused: the page is open and the flag is not left set ({ret}, {flag(m)})')
 
+    m = PM(); alib(m, playing='Miles Davis feat. Zed'); m.fs['/mnt/data/m1plus/library-artist-split'] = b'm17\n'; ret = artist_tap(m)
+    expect(ret == RET_STOP and cf_calls(m) == [(('Miles Davis',), 0, CLS_ART)] and ('loadLocalClassList', CLS_ART) not in m.calls,
+           f'Look up artist with Split Artists on: the first name of the field opens its scoped page, the stock list is not asked ({ret}, {cf_calls(m)})')
+    m = PM(); alib(m, playing='Miles Davis feat. Zed'); stock_runs_a(m, 'artist: the joined name with Split Artists off (the stock lookup finds nothing)')
+
     # -- 7d. Delete closes the sheet before the stock handler's modal confirm (patch/playmore.c pm_on_delete) -----------------------------
     m = PM(); alib(m)
     expect(m.handlers_of(m.rows[DELETE], CLICK) == [(STOCK_CLICK['listitem6'], m.dialog), (PSYMS['pm_on_delete'], m.dialog)],

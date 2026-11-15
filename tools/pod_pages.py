@@ -139,6 +139,11 @@ ACT_TAPWAKE = 104     # switch row (Buttons & Power): Tap to Wake, stock's switc
 ACT_STANDBY = 105     # switch row (Buttons & Power): Auto-Standby, stock's switch (the byte standbyflag saved as [SYSSET] STANDBYMODE; turning it on turns Auto-Shutdown off; patch/keyspower.c kp_standby_toggle)
 ACT_SHUTDOWN = 106    # value row (Buttons & Power): Auto-Shutdown, stock's savepowermode (Off, 1min, 3min, 5min, 10min saved as [SYSSET] SAVEPOWERMODE; turning it on turns Auto-Standby off); opens its picker page (arg = the page index; patch/keyspower.c kp_shutdown)
 ACT_SHUTDOWNSET = 107 # picker row (Auto-Shutdown): choose the word (arg = stock's savepowermode, 0 off .. 4 10min); a check shows on the chosen row (patch/keyspower.c kp_shutdown_set)
+ACT_ASPAGE = 172      # value row (Settings > Library): Split Artists, On or Off as the switch on its page; opens the Split Artists page (arg = its page index; patch/artsplit.c as_setting)
+ACT_ASPLIT = 173      # switch row (Split Artists page): Split Artists, off by default (patch/artsplit.c as_toggle, /mnt/data/m1plus/library-artist-split)
+ASSEP_LABELS = (';', '/', '&', ',', 'feat.', 'vs.', 'x', '+', 'with', 'and')   # the splitter's separators in M1_SPLIT_* bit order (patch/common.h)
+for _k in range(len(ASSEP_LABELS)): globals()[f'ACT_ASSEP{_k}'] = 174 + _k   # ACT_ASSEP0 .. ACT_ASSEP9: switch rows (Split Artists page, Separators): separator bit k, no glyph (patch/artsplit.c as_sep_toggle)
+ASSEP_ACTIONS = tuple(174 + _k for _k in range(len(ASSEP_LABELS)))
 ACT_RGBROW = 143      # value row (LED Light, a card of its own under the choices, shown only while Dynamic is chosen): Theme, the Dynamic lamp's theme name; opens the Theme page (arg = its page index; patch/tracklamp.c tl_theme)
 ACT_RGBTHEME = 140    # picker row (Theme, opened by the LED Light page's Theme row): choose the theme (arg = 0 .. 5, patch/tracklamp.h TL_REFERENCE ..; patch/tracklamp.c tl_theme_set)
 ACT_ROTATE = 153      # switch row (Settings > Display): Screen Rotation, stock's two choices of systemset/screenrotate_page as one switch (the word rotate_mode, 0 = 0 degrees, 1 = 180 degrees, saved as [SYSSET] ROTATEMODE, then tk_set_lcd_orientation; patch/display.c disp_rotate_toggle)
@@ -190,13 +195,13 @@ ACT_SLEEPSET = 170    # picker row (the Sleep Timer page, opened by Now Playing'
 ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own under the choices, shown only while a timer runs): Time Left, H:MM rounded up to the minute (patch/sleeptimer.c st_left_text); no chevron, no touch
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
-SWITCH_ACTIONS = (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO)
+SWITCH_ACTIONS = (ACT_ASPLIT,) + ASSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO)
 SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA)
 NO_CHEVRON_ACTIONS = (ACT_PLAYER, ACT_SHUFFLE, ACT_REGEN)   # rows that play or act in place (a switch or a value row has none either)
-VALUE_ACTIONS = (ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
+VALUE_ACTIONS = (ACT_ASPAGE, ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
 CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, ACT_ACCENTSET, ACT_LOCKSET, ACT_REGIONSET, ACT_CHGLIMSET, ACT_PEQ_PICK, ACT_PEQ_CPICK, ACT_PEQ_PAUTO, ACT_PEQ_PVAL, ACT_IDLESET, ACT_LYRSIZESET, ACT_NASET, ACT_LIGHTSET, ACT_LEDSET, ACT_KEYLOCKSET, ACT_SHUTDOWNSET, ACT_RGBTHEME, ACT_PLAYMODESET, ACT_MEMPLAYSET, ACT_GAINSET, ACT_RGSET, ACT_FILTERSET, ACT_DSDSET, ACT_USBVOLSET, ACT_XFEEDSET, ACT_SLEEPSET)   # picker rows: a check at the right of the chosen one (the image pod_check<row>), no icon
 ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron (Update Library, an ACT_HOME row, is one too: row_kind)
-VALUE_INIT = {ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
+VALUE_INIT = {ACT_ASPAGE: 'Off', ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
 VALUE_ACTIONS += (ACT_LANG,)
 CHECK_ACTIONS += (ACT_LANGSET,)
 VALUE_INIT[ACT_LANG] = ''   # the language's own name: the payload sets it as the page opens
@@ -410,6 +415,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_podcastsettings',
     'm1plus_podcastdirectory',
     'm1plus_rgbtheme',
+    'm1plus_artistsplit',
     'm1plus_books',
     'm1plus_psxfeed',
     'm1plus_language',
@@ -520,6 +526,7 @@ PCFIND_PAGE_INDEX = page_index('m1plus_pcfind')   # the Podcasts page's search i
 LB_PAGE_INDEX = page_index('m1plus_listenbrainz')   # Settings > Library > Scrobbling > ListenBrainz
 LF_PAGE_INDEX = page_index('m1plus_lastfm')   # Settings > Library > Scrobbling > Last.fm
 SCROBBLING_PAGE_INDEX = page_index('m1plus_scrobbling')   # Settings > Library > Scrobbling
+ASPLIT_PAGE_INDEX = page_index('m1plus_artistsplit')   # Settings > Library > Split Artists
 PLAYSET_PAGE_INDEX = page_index('m1plus_playset')   # Settings > Playback Settings, then its seven pickers (Play Mode, Memory Playback, Gain, ReplayGain, Digital Filter, DSD Output Mode, USB Volume)
 PSMODE_PAGE_INDEX = page_index('m1plus_psmode')
 PSMEM_PAGE_INDEX = page_index('m1plus_psmem')
@@ -709,7 +716,7 @@ ABOUT_PAGE = Page('m1plus_about', 'm1plus_about_page', 'About', layout=[
 # Settings > Developer > Cache (patch/homecover.c, docs/modules/homecover.md "Cache page"): the Covers card holds the cache folder's counts (INFO_CC_*: homecover_stat reads each, an ellipsis until counted), the build's Status and Clear Cover Cache;
 # the Track Durations card holds Measured Tracks (INFO_DUR: dur_stat, patch/durations.c) and Clear Track Durations.
 INFO_CC_ALBUMS, INFO_CC_COVERS, INFO_CC_NOART, INFO_CC_MISSING, INFO_CC_OLD, INFO_CC_SIZE, INFO_CC_STATUS = range(8, 15)   # (patch/m1plus.c INFO_CC = 8 + the index homecover_stat takes)
-INFO_DUR = INFO_CC_STATUS + 54  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
+INFO_DUR = INFO_CC_STATUS + 55  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
 INFO_APHOTOS, INFO_ANONE = INFO_DUR + 1, INFO_DUR + 2   # patch/m1plus.c: the Artist Photos card's counts (homecover_stat 7, 8)
 INFO_LBACCT = INFO_DUR + 3   # patch/m1plus.c: the ListenBrainz page's Account row (patch/scrobpage.c lb_account_text)
 INFO_LFACCT = INFO_DUR + 4   # ... and the Last.fm page's
@@ -741,7 +748,7 @@ COVLIST = Page('m1plus_covlist', 'm1plus_covlist_page', 'Missing Covers', kind='
 # Only the setting files (ACT_SFDEL) are tappable, while present: a tap deletes the file after a confirm. The guard files and the folder stay ACT_INFO (never deleted).
 SETTING_FILES = ('albums-view', 'albums-sort', 'artists-sort', 'genres-sort', 'composers-sort', 'songs-sort-rev', 'folders-sort', 'playlists-sort', 'playlists-view', 'recently-added-view', 'coverflow-landscape', 'coverflow-volume-keys', 'cassette-theme', 'vinyl-record', 'vinyl-base', 'nowplaying-idle', 'nowplaying-lyrics-size', 'pod-appearance',
                  'appearance-accent', 'appearance-background', 'lockscreen-layout', 'appearance-index-rail', 'appearance-headers', 'home-recent-albums', 'home-daily-mix', 'home-menu', 'pulldown-tiles', 'keyboard-pinyin', 'podcast-online-search', 'podcast-region',
-                 'battery-percentage', 'battery-charge-limit', 'playback-shuffle', 'playback-eq', 'playback-next-album', 'scrobbling', 'scrobble-auto', 'search-history', 'radio-view', 'radio-recent', 'covers-rebuild', 'artists-rebuild', 'wifi-networks', 'podcast-directory', 'led-dynamic', 'playback-mono', 'playback-crossfeed')
+                 'battery-percentage', 'battery-charge-limit', 'playback-shuffle', 'playback-eq', 'playback-next-album', 'scrobbling', 'scrobble-auto', 'search-history', 'radio-view', 'radio-recent', 'covers-rebuild', 'artists-rebuild', 'wifi-networks', 'podcast-directory', 'led-dynamic', 'playback-mono', 'playback-crossfeed', 'library-artist-split')
 GUARD_FILES = ('m1plus-start', 'm1plus-run', 'm1plus-bad', 'm1plus-off')
 # The files older builds left behind (patch/setfiles.c sf_retired, the same order; each with its .tmp sibling). Unsupported Files counts and lists them and
 # Delete Unsupported Files removes them. A renamed setting's old name goes here, never a guard file or a setting above (tests: unsupported_tests).
@@ -751,7 +758,7 @@ RETIRED_FILES = ('/mnt/data/m1plus-albums', '/mnt/data/m1plus-playlists', '/mnt/
                  '/mnt/data/m1plus-battpct', '/mnt/data/m1plus-pod-theme', '/mnt/data/m1plus-mix', '/mnt/data/m1plus-mix.art', '/mnt/data/m1plus/recently-played')
 FOLDER_LABEL = 'm1plus/'
 INFO_SF = INFO_CC_STATUS + 1   # patch/m1plus.c INFO_SF = INFO_CC + 7; row k reads setfiles_stat(k): 4 guard files, the folder, the settings
-INFO_SFOLD = INFO_SF + 52      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
+INFO_SFOLD = INFO_SF + 53      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
 assert len(GUARD_FILES) + 1 + len(SETTING_FILES) <= INFO_SFOLD - INFO_SF, 'the Settings Files rows reach INFO_SFOLD: raise it here and in patch/m1plus.c'
 assert INFO_DUR == INFO_SFOLD + 1, 'INFO_DUR must follow INFO_SFOLD (patch/m1plus.c)'
 FILES_PAGE_INDEX = page_index('m1plus_files')
@@ -890,6 +897,8 @@ LIBRARY_PAGE = Page('m1plus_library', 'm1plus_library_page', 'Library', layout=[
     Row('Update Library', ACT_HOME, HOME_UPDATE),
     Row('Rebuild Covers', ACT_REBUILD),
     Row('Rebuild Artist Photos', ACT_AREBUILD),
+    Hdr('Artists'),
+    Row('Split Artists', ACT_ASPAGE, ASPLIT_PAGE_INDEX),   # On or Off; opens the Split Artists page
     Hdr('List Navigation'),
     Row('Index Rail', ACT_AZRAIL),
     Row('Section Headers', ACT_AZHEAD),
@@ -1324,6 +1333,16 @@ LF_NOTE = 'Put USER, PASSWORD, API_KEY and API_SECRET under [LASTFM] in scrobble
 LF_PAGE = Page('m1plus_lastfm', 'm1plus_lastfm_page', 'Last.fm', layout=[
     Row('Account', ACT_INFO, INFO_LFACCT),
     Note(LF_NOTE, lines=5),
+])
+
+# Settings > Library > Split Artists (patch/artsplit.c, docs/modules/artists.md "Split index", docs/modules/settings.md): the switch (off by default), then the Separators card of ten switch rows without glyphs,
+# one per separator of the splitter (patch/common.h M1_SPLIT_*, ASSEP_LABELS); while the switch is off the Separators rows are dimmed and take no tap (patch/m1plus.c assep_show).
+ASPLIT_NOTE = 'A track tagged A & B or A feat. B appears under each name in Artists. Names in artist-exceptions.txt on the card are never split.'
+ASPLIT_PAGE = Page('m1plus_artistsplit', 'm1plus_artistsplit_page', 'Split Artists', layout=[
+    Row('Split Artists', ACT_ASPLIT),
+    Hdr('Separators'),
+] + [Row(lab, ASSEP_ACTIONS[k]) for k, lab in enumerate(ASSEP_LABELS)] + [
+    Note(ASPLIT_NOTE, lines=4),
 ])
 
 # Settings > General > Language (patch/language.c, docs/modules/language.md): one card of stock's own thirteen languages in the order of stock's language page (systemset/language_page; its table at 0x97c880,

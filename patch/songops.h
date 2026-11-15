@@ -63,6 +63,9 @@ int so_add(int cls, unsigned count, const unsigned char *sel, unsigned nsel, int
 int so_play(int cls, void *list, int at, int how, so_open_fn open);
 /* The same for a page that shows the list reversed (list is the reversed stock list, `at` a position in it): the queue loadSongList builds is reversed too, so the song at `at` is the one shown there and the queue plays in the order shown. */
 int so_play_dir(int cls, void *list, int at, int how, so_open_fn open, int rev);
+/* so_play for a list that is the queue itself, in the order shown (the artist split's songs, patch/artsplit.c): its records are copied into the queue with class All Songs (0xf001) stamped, no stock query runs and the
+ * memory playback's record is not written (loadSongList is not called): after a restart the same track resumes from the library list (docs/modules/artists.md "Split index"). */
+int so_play_own(void *list, int at, int how, so_open_fn open);
 /* so_play through a library source (patch/libsrc.h): src NULL or &lib_stock is so_play(cls, ...) unchanged; another source plays its own records (cls is ignored by it). 0 started, -1 nothing
  * started, -2 a DSD track that is not on the card (the page confirms a download). */
 int so_play_src(const lib_src_t *src, int cls, void *list, int at, int how, so_open_fn open);
