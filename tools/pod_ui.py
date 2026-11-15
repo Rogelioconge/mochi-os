@@ -955,7 +955,8 @@ def row_menu(queue=False):
 # large title and the Play / Shuffle pills (real flat buttons: they scroll with the list; a playlist's header has hidden album-style image buttons, hd_shuffle / hd_play, instead); over the list the rail (a view of its own, outside the scroll_view, so a
 # touch on it never starts a drag) and the letter bubble (insensitive); the sort card (a scrim and the Playlists card's glass) and, hidden until select mode, the
 # bar with the Add to playlist and Delete pills and the navbar's Select All text. Everything that is shown later starts hidden AND insensitive.
-SG_HDR_PX, SG_RAIL_PX, SG_BUBBLE_PX, SG_PILL_PX = SECTION_PX, 12, 56, 18
+SG_HDR_PX, SG_RAIL_PX, SG_PILL_PX = SECTION_PX, 12, 18
+SG_BUBBLE_PX = OFFSETS['SG_BUBBLE_PX']
 SG_TITLE_PX = OFFSETS['PP_TITLE_PX']   # the large title's size, the Podcasts heading's too (patch/offsets.inc PP_TITLE_PX)
 SG_PILL_RGB, SG_PILL_DOWN_RGB, SG_PILL_OFF_RGB = SURFACE_RGB, LINE_RGB, '#141414'   # flat: no glass
 SG_PILL_PRESS_RGB = '#333335'   # the Play / Shuffle pills pressed: palette.ROLE_PRESS_PILL, one blue level off #333333 so the accent can find it (the select bars' pills keep #333333)

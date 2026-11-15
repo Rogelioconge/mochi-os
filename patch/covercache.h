@@ -139,6 +139,10 @@ int cc_scoped_sort(
 unsigned *cc_album_order_mode(
     void *albums, int mode,
     int rev); /* cc_album_order for the given CC_SORT_* and direction instead of the saved ones; NULL: no albums or no memory (Title falls back to the stock order, backwards for Z-A); "Unknown Album" and the All Songs row stay last */
+unsigned *cc_album_order_years(
+    void *albums, int rev,
+    unsigned **
+        years); /* cc_album_order_mode for the Year order that also hands back, from the same scan, the years: a heap array by stock row (the earliest year tag 1000..2999, 0 none; *years NULL when the order is) */
 unsigned *cc_album_order_src(
     void *albums, int mode,
     int rev); /* cc_album_order_mode for a library source's album records: Recently Added and Year read the records' own REC_TIME_CREATE and REC_YEAR, no song query */

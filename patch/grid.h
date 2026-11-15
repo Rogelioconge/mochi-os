@@ -149,6 +149,9 @@ int grid_mosaic_keys(void *songs, void *albums, unsigned *key, int *miss);
 /* Cells [first, last): the covers, then the albums, then the artists. tile_of(ctx, a) gives cell a's tile. */
 void grid_paint(void *canvas, grid_t *g, int first, int last, int origin_y, int view_h,
                 grid_tile_t *(*tile_of)(void *, int), void *ctx);
+/* The same for a run of cells that starts a row of its own: cell a sits at the position a - base of the run (column, row) from origin_y (the Albums grid's sections). */
+void grid_paint_base(void *canvas, grid_t *g, int first, int last, int base, int origin_y, int view_h,
+                     grid_tile_t *(*tile_of)(void *, int), void *ctx);
 
 /* Page helpers of the list pages (the stock calls their copies made, in the same order). */
 #define GRID_NAV_TITLE_H 22 /* the navbar's small title's height */

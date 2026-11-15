@@ -6,7 +6,7 @@
  * A page that uses it is a stock list_view > scroll_view holding ONE content view that paints the rows itself; this module is what both pages
  * do with sections and the index and neither owns:
  *   sections  az_sections: the non-decreasing labelling of the rows' ranks ("#" 0, A..Z 1..26) that puts the most rows under their own letter; the
- *             list keeps its order, a stray stays in the section around it. sec_start / sec_letter, at most SG_MAX_SEC (28) sections.
+ *             list keeps its order, a stray stays in the section around it. sec_start / sec_letter, at most SG_MAX_SEC (128) sections.
  *   geometry  the header of section s is at az_hdr_y(s) = top + s * hdr_h + sec_start[s] * row (hdr_h is SG_HDR_H, or 0 with Section Headers off); a row's y, the row under a y, the rows in view.
  *   switches  az_prefs: Index Rail (on by default; off: norail) and Section Headers (on by default: hdr_h), read when a page opens (docs/modules/artists.md).
  *   headers   az_paint_heads: the bare 20 px letters and the pinned header (an opaque black backing, the next header pushes it up).
@@ -29,6 +29,13 @@ typedef struct {
     int nsec; /* 0: a plain list; else the sections */
     unsigned sec_start[SG_MAX_SEC]; /* the first row of each section */
     unsigned char sec_letter[SG_MAX_SEC];
+    /* Sections that are years (az_year_sections: the Albums page's Year order): sec_year[s] is section s's year (0: the last section, "Unknown"; years 2: its decade or century key); the rail has nrail entries (decades from 1900, centuries before), each a first
+     * section (rail_sec) and a four-digit label (rail_label); fewer than two entries: no rail (az_rail_on). 0 years: letters. */
+    int years, nrail;
+    unsigned short sec_year[SG_MAX_SEC];
+    unsigned char rail_sec[SG_RAIL_ITEMS];
+    unsigned short rail_label[SG_RAIL_ITEMS];
+    int bub_small; /* the bubble's letter label is at the smaller year size */
     int grab, rail_on,
         rail_i; /* a finger holds the rail; it has set a letter (the disc and the bubble show); the letter's section */
     int hdr_h; /* the section header's height: SG_HDR_H, 0 with Section Headers off (az_prefs sets it: the page calls it when it opens) */
@@ -43,6 +50,8 @@ typedef struct {
 /* The rail's footprint on the rows: SG_RAIL_INSET while the rail is shown (sections and the Index Rail switch on), else 0. Every row of an A-Z page subtracts it from the list-row spec's
  * right side (hairline end LIST_HAIR_END, chevron x LIST_CHEV_X, text end LIST_TEXT_X + LIST_TEXT_W[_CHEV], the "..." zone's right edge RM_MORE_RIGHT); az_end is the hairline's end. */
 int az_inset(const az_t *az);
+int az_rail_on(
+    const az_t *az); /* the rail is shown: sections, the Index Rail switch on and, for years, two or more entries */
 int az_end(const az_t *az);
 
 /* The two switches of Settings > Library (appearance-index-rail, appearance-headers), read when a page opens: az_prefs sets hdr_h and norail. */
@@ -67,6 +76,12 @@ void az_bind_rail(az_t *az, int (*on)(void *, void *), int (*paint)(void *, void
 /* The sections of az->count rows whose ranks are the bytes rank[0], rank[stride], ...; no memory = a plain list (nsec 0). */
 void az_sections(az_t *az, const unsigned char *rank, unsigned stride);
 
+/* The sections of az->count rows whose years (year[i], 0 or outside 1000..2999 = none, last) are in runs: a section per run, the Unknown one last; the rail's decades. No section past SG_MAX_SEC: a plain list. */
+void az_year_sections(az_t *az, const unsigned short *year);
+/* The Albums grid's sections in the Year order: years grouped by az_year_key, each on a new row of per albums; az counts grid rows (az->row is the caller's row pitch), start[] the first album of each section. */
+void az_decade_sections(az_t *az, const unsigned short *year, int n, int per, unsigned *start);
+int az_year_key(int year); /* a year's rail entry: its decade from 1900, its century before, 0 for none */
+
 /* Geometry. */
 int az_off(const az_t *az); /* the scroll_view's offset */
 int az_hdr_y(const az_t *az, int s);
@@ -85,6 +100,8 @@ void az_fill_h(void *canvas, int x, int y0, int y1, int w, unsigned c,
 void az_paint_heads(az_t *az, void *canvas);
 /* Whether content point (x, y) is on section 0's text button (sec_act), where its header is drawn now: in the flow, or pinned at the window's top. */
 int az_act_hit(const az_t *az, int x, int y);
+/* Whether content point y is inside the pinned header's band as drawn now (the headers on, the window's top past the first header): a touch there is the band's, not the row's under it. */
+int az_pin_hit(const az_t *az, int y);
 
 /* The rail. */
 int az_rail_plan(const az_t *az, int *sec); /* the letters drawn, as section numbers in sec[]; the return is how many */

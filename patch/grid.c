@@ -420,20 +420,25 @@ void grid_text(void *canvas, grid_tile_t *t, int pass, int x, int y, int w, int 
     if (*len && (view_h <= 0 || (y >= 0 && y + h <= view_h))) canvas_draw_text_in_rect(canvas, s, (unsigned)*len, rect);
 }
 
-void grid_paint(void *canvas, grid_t *g, int first, int last, int origin_y, int view_h,
-                grid_tile_t *(*tile_of)(void *, int), void *ctx) {
+void grid_paint_base(void *canvas, grid_t *g, int first, int last, int base, int origin_y, int view_h,
+                     grid_tile_t *(*tile_of)(void *, int), void *ctx) {
     int a, pass;
     for (a = first; a < last; ++a)
-        grid_blit(canvas, g, tile_of(ctx, a), grid_cell_x(a), grid_cell_y(a, origin_y), view_h);
+        grid_blit(canvas, g, tile_of(ctx, a), grid_cell_x(a - base), grid_cell_y(a - base, origin_y), view_h);
     for (
         pass = 0; pass < 2;
         ++pass) { /* albums, then artists: one text style at a time, cut at the view's edges by the scroll_view's clip */
         widget_prepare_text_style(pass ? g->st_sub : g->st_title, canvas);
         for (a = first; a < last; ++a)
-            grid_text(canvas, tile_of(ctx, a), pass, grid_cell_x(a),
-                      grid_cell_y(a, origin_y) + GRID_COVER + GRID_TITLE_GAP + (pass ? GRID_TITLE_H : 0), GRID_COVER,
-                      pass ? GRID_SUB_H : GRID_TITLE_H, 0);
+            grid_text(canvas, tile_of(ctx, a), pass, grid_cell_x(a - base),
+                      grid_cell_y(a - base, origin_y) + GRID_COVER + GRID_TITLE_GAP + (pass ? GRID_TITLE_H : 0),
+                      GRID_COVER, pass ? GRID_SUB_H : GRID_TITLE_H, 0);
     }
+}
+
+void grid_paint(void *canvas, grid_t *g, int first, int last, int origin_y, int view_h,
+                grid_tile_t *(*tile_of)(void *, int), void *ctx) {
+    grid_paint_base(canvas, g, first, last, 0, origin_y, view_h, tile_of, ctx);
 }
 
 /* Fills x0..x1 of the rows [y0, y1) of the window with colour c (cut to the window by hand). */

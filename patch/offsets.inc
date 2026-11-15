@@ -906,8 +906,10 @@
 #define SG_RAIL_DOT_RGB 0xff8a8a8au
 #define SG_RAIL_DISC 16
 #define SG_BUBBLE 110
+#define SG_BUBBLE_PX 56      /* the bubble's letter */
+#define SG_BUBBLE_PX_YEAR 40 /* the bubble's four-digit decade label of the Year order (110 px wide bubble) */
 #define SG_BAR_H 64
-#define SG_MAX_SEC 28
+#define SG_MAX_SEC 128 /* sections: the letters' 27, or one per year of the Albums Year order (more distinct years: a plain list) */
 #define SG_COLLAPSE 46
 #define SG_BUILD_N 64
 #define SG_BUILD_MOVE 32

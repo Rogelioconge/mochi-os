@@ -138,12 +138,17 @@ static struct {
     void *btn_play, *btn_shuffle;
     int pills;
     unsigned *years;
+    unsigned *
+        ykey; /* the library page in the Year order: the earliest year tag by stock row (0 none; the same pass as the order), the list's sections and rail; else NULL */
     /* an artist's or composer's page with the name header (head: pills, and the asset's al_name label; a composer never has a photo): the circle (hdr: the photo, else the placeholder; made by the loader, hdr_done once tried)
      * and the name under it (name_lbl) replace the large title (al_title hidden) */
     int head, hdr_done;
     void *name_lbl, *hdr;
     az_t
         az; /* the list mode's sections, rail and pinned header (patch/azlist.c; az.nsec 0: a plain list: the scoped page, a grid) */
+    az_t
+        gz; /* the grid's sections (Year order, library page): by decade, counted in grid rows of PITCH px (az_decade_sections; gz.nsec 0: the plain grid); gstart[s] = the first album of section s */
+    unsigned gstart[SG_MAX_SEC];
     int az_ok; /* the page's rail, bubble and header text styles were found: the list may have sections */
     void *spin; /* a source's loading spinner (al_spin, optional) */
     /* a library source other than the stock one (albums_open_src; NULL = stock, every line below idle): src gives the list (re-read when its gen moves: gen, gen_timer) and the covers
@@ -173,11 +178,40 @@ static int al_top(void) {
     return !al.pills ? SG_TITLE_H : al.list ? end + GRID_ROW_GAP : end;
 }
 /* The list's content is the az_t's (its top is al_top(), al_size keeps it; the section headers between the rows when the Title order has them). */
+static int al_gsec(void) { return !al.list && al.gz.nsec; } /* the grid has its decade sections now */
 static int al_content(void) {
-    return al.list ? az_rows_end(&al.az) : al_top() + (al_rows() ? GRID_ROW_GAP + al_rows() * PITCH : 0);
+    return al.list     ? az_rows_end(&al.az)
+           : al_gsec() ? az_rows_end(&al.gz)
+                       : al_top() + (al_rows() ? GRID_ROW_GAP + al_rows() * PITCH : 0);
 }
-/* The section header's height the list mode has above its first row now: 0 in the grid, in a plain list and with Section Headers off. */
-static int al_hh(void) { return al.list && al.az.nsec ? al.az.hdr_h : 0; }
+/* The section header's height above the first row now: 0 in a plain grid or list and with Section Headers off. */
+static int al_hh(void) { return al.list ? (al.az.nsec ? al.az.hdr_h : 0) : al.gz.nsec ? al.gz.hdr_h : 0; }
+
+/* The sectioned grid's map between albums and grid rows (gz counts rows; a section starts a row of its own): the section of album a, its grid row, the first and the last album of a row, the album range's end. */
+static int al_gs_of(int a) {
+    int s = al.gz.nsec - 1;
+    while (s > 0 && (int)al.gstart[s] > a) --s;
+    return s;
+}
+static int al_g_row(int a) {
+    int s = al_gs_of(a);
+    return (int)al.gz.sec_start[s] + (a - (int)al.gstart[s]) / GRID_COLS;
+}
+static int al_g_end(int s) { return s + 1 < al.gz.nsec ? (int)al.gstart[s + 1] : (int)al.count; }
+static int al_g_first(int row) {
+    int s = az_sec_of(&al.gz, row);
+    return (int)al.gstart[s] + (row - (int)al.gz.sec_start[s]) * GRID_COLS;
+}
+static int al_g_last(int row) {
+    int e = al_g_end(az_sec_of(&al.gz, row)) - 1, a = al_g_first(row) + GRID_COLS - 1;
+    return a > e ? e : a;
+}
+/* The content y of album a's cell (its row's top). */
+static int al_cell_y(int a) {
+    return al.list     ? az_row_y(&al.az, a)
+           : al_gsec() ? az_row_y(&al.gz, al_g_row(a))
+                       : al_top() + GRID_ROW_GAP + a / GRID_COLS * PITCH;
+}
 static int al_max_scroll(void) {
     int m = al_content() - GRID_VIEW_H;
     return m > 0 ? m : 0;
@@ -219,9 +253,11 @@ static int al_row_of(int s) { return s > GRID_ROW_GAP + CELL_H ? (s - GRID_ROW_G
  * [0, max] while a drag pulls the list past an end (the stock scroll_view's overscroll, the gap above the first row): the
  * rows are kept inside [0, n - 1], never a row before the first (album -1 read past the album list and crashed the app). */
 static void al_span(int *r0, int *r1) {
-    int n = al.list ? (int)al.count : al_rows(), s = al_coff();
+    int n = al.list ? (int)al.count : al_gsec() ? al.gz.count : al_rows(), s = al_coff();
     if (al.list)
         az_span(&al.az, r0, r1);
+    else if (al_gsec())
+        az_span(&al.gz, r0, r1);
     else
         *r0 = al_row_of(s), *r1 = (s + GRID_VIEW_H - GRID_ROW_GAP + PITCH - 1) / PITCH - 1;
     if (*r0 < 0) *r0 = 0;
@@ -230,7 +266,7 @@ static void al_span(int *r0, int *r1) {
 
 /* The albums [*lo, *hi] the tiles are kept for: those in view and AL_AHEAD rows beyond them in the scroll direction. */
 static void al_window(int *lo, int *hi) {
-    int per = al.list ? 1 : GRID_COLS, n = al.list ? (int)al.count : al_rows(), r0, r1;
+    int per = al.list ? 1 : GRID_COLS, n = al.list ? (int)al.count : al_gsec() ? al.gz.count : al_rows(), r0, r1;
     al_span(&r0, &r1);
     if (al.dir < 0)
         r0 -= AL_AHEAD;
@@ -238,8 +274,8 @@ static void al_window(int *lo, int *hi) {
         r1 += AL_AHEAD;
     if (r0 < 0) r0 = 0;
     if (r1 > n - 1) r1 = n - 1;
-    *lo = r0 * per;
-    *hi = (r1 + 1) * per - 1;
+    *lo = al_gsec() ? al_g_first(r0) : r0 * per;
+    *hi = al_gsec() ? al_g_last(r1) : (r1 + 1) * per - 1;
     if (*hi > (int)al.count - 1) *hi = (int)al.count - 1;
 }
 
@@ -316,6 +352,17 @@ static void al_paint_grid(void *canvas) {
     int r0, r1, last;
     al_span(&r0, &r1);
     if (r1 < r0) return;
+    if (al_gsec()) { /* each section is a run of cells from its own first row; the headers over them */
+        int s, s1 = az_sec_of(&al.gz, r1);
+        for (s = az_sec_of(&al.gz, r0); s <= s1; ++s) {
+            int a0 = al_g_first(r0) > (int)al.gstart[s] ? al_g_first(r0) : (int)al.gstart[s];
+            int a1 = al_g_last(r1) + 1 < al_g_end(s) ? al_g_last(r1) + 1 : al_g_end(s);
+            grid_paint_base(canvas, &al.g, a0, a1, (int)al.gstart[s],
+                            az_row_y(&al.gz, (int)al.gz.sec_start[s]) - al_off(), GRID_VIEW_H, al_tile_of, (void *)0);
+        }
+        az_paint_heads(&al.gz, canvas);
+        return;
+    }
     last = (r1 + 1) * GRID_COLS;
     if (last > (int)al.count) last = (int)al.count;
     grid_paint(canvas, &al.g, r0 * GRID_COLS, last, GRID_ROW_GAP - al_coff(), GRID_VIEW_H, al_tile_of, (void *)0);
@@ -365,19 +412,14 @@ static int al_on_paint(void *ctx, void *e) {
 /* The album to decode next, or -1: of the window's albums without a tile that was tried, the cell nearest the middle
  * of the view, the cells in view before the rest (the window is the view and the rows ahead). */
 static int al_next_load(void) {
-    int lo, hi, a,
-        best = -1, bd = 0x7fffffff,
-        s = al.list ? al_off() : al_coff(); /* (the list's rows are placed by the az_t: from the content's top) */
+    int lo, hi, a, best = -1, bd = 0x7fffffff, s = al_off();
     if (!al.g.tiles || !al.count) return -1;
     al_window(&lo, &hi);
     for (a = lo; a <= hi; ++a) {
         tile_t *t = al_find(a);
         int top, h, d;
         if (t && t->art) continue;
-        if (al.list)
-            top = az_row_y(&al.az, a) - s, h = LIST_ROW_H;
-        else
-            top = GRID_ROW_GAP + a / GRID_COLS * PITCH - s, h = CELL_H;
+        top = al_cell_y(a) - s, h = al.list ? LIST_ROW_H : CELL_H;
         d = m1_abs(top + h / 2 - GRID_VIEW_H / 2);
         if (top >= GRID_VIEW_H || top + h <= 0) d += 100000; /* ahead of the view */
         if (d < bd) bd = d, best = a;
@@ -472,7 +514,7 @@ static int al_on_load(const void *unused) {
     a = al_next_load();
     if (a >= 0) {
         tile_t *t = al_tile(a);
-        int top = al.list ? az_row_y(&al.az, a) - al_off() : GRID_ROW_GAP + a / GRID_COLS * PITCH - al_coff();
+        int top = al_cell_y(a) - al_off();
         al_art(t, a);
         if (top < GRID_VIEW_H && top + (al.list ? LIST_ROW_H : CELL_H) > 0) al_redraw();
     }
@@ -506,6 +548,11 @@ static int al_on_scroll(void *ctx, void *e) {
 /* The display order of the list: the saved sort. A source has no song library to read the Recently Added and Year orders from: they follow the album records' own
  * creation time and year (cc_album_order_src). */
 static unsigned *al_order(void) {
+    free(al.ykey);
+    al.ykey = (unsigned *)0;
+    if (!al.src && !al.artist_row &&
+        al.sort == CC_SORT_YEAR) /* the library's Year order: its scan's years are the list's sections */
+        return cc_album_order_years(al.albums, al.rev, &al.ykey);
     return (al.src ? cc_album_order_src : cc_album_order_mode)(al.albums, al.sort, al.rev);
 }
 
@@ -665,13 +712,25 @@ static int al_on_fg(void *ctx, void *e) {
 
 /* The grid album under content point (x, y), or -1 for a gap, the margins and the empty tail of the last row. */
 static int al_cell_at(int x, int y) {
+    if (al_gsec()) { /* a header (the pinned band too) and the gaps are dead; a section's row r holds its albums from its first */
+        int row = az_at(&al.gz, y), cx = x - GRID_MARGIN, ry, a;
+        if (row < 0 || cx < 0 || az_pin_hit(&al.gz, y)) return -1;
+        ry = y - az_row_y(&al.gz, row);
+        if (ry >= CELL_H || cx % GRID_COL_PITCH >= GRID_COVER || cx / GRID_COL_PITCH >= GRID_COLS) return -1;
+        a = al_g_first(row) + cx / GRID_COL_PITCH;
+        return a <= al_g_last(row) ? a : -1;
+    }
     y -= al_top(); /* (the title block above the grid is no cell) */
     if (y < 0 || y >= al_content() - al_top()) return -1;
     return grid_cell_at(x, y, GRID_ROW_GAP, (int)al.count);
 }
 
 /* The list album under content point y, or -1 below the last row. */
-static int al_row_at(int y) { return az_at(&al.az, y); /* -1 for a header, the air below and above */ }
+static int al_row_at(int y) {
+    return az_pin_hit(&al.az, y)
+               ? -1
+               : az_at(&al.az, y); /* -1 for a header (the pinned band too), the air below and above */
+}
 
 /* The album under the pointer event: its screen position into the content view's coordinates (widget_to_local includes the scroll offset). */
 static int al_item_of(void *e) {
@@ -812,6 +871,7 @@ static int al_on_destroy(void *ctx, void *e) {
     if (al.artist_row) deque_destroy(al.artist_row);
     free(al.keys);
     free(al.years);
+    free(al.ykey);
     free(al.order);
     memset(&al, 0, sizeof al);
     return RET_OK;
@@ -847,8 +907,25 @@ static int al_on_rail_paint(void *ctx, void *e) {
 static void al_sections(void) {
     unsigned char *rank;
     unsigned i;
-    al.az.nsec = 0;
-    if (!al.az_ok || al.artist_row || al.sort != CC_SORT_TITLE || !al.count) return;
+    al.az.nsec = al.az.years = al.az.nrail = al.gz.nsec = al.gz.count = 0;
+    if (!al.az_ok || al.artist_row || !al.count) return;
+    if (al.sort ==
+        CC_SORT_YEAR) { /* the library's Year order: a section per year (the Unknown ones last), the rail by decade (az_year_sections) */
+        unsigned short *year = al.ykey && al.order && !al.src ? calloc(al.count, sizeof *year) : (unsigned short *)0;
+        if (!year) return;
+        for (i = 0; i < al.count; ++i) {
+            unsigned y = al.ykey[al.order[i]];
+            year[i] = y >= 1000 && y <= 2999 ? (unsigned short)y : 0;
+        }
+        az_year_sections(&al.az, year);
+        al.gz.sv = al.sv, al.gz.st_hdr = al.az.st_hdr, al.gz.hdr_h = al.az.hdr_h, al.gz.row = PITCH,
+        al.gz.top = al_top();
+        if (al.gz.hdr_h) /* the grid: by decade (Section Headers off: the plain grid) */
+            az_decade_sections(&al.gz, year, (int)al.count, GRID_COLS, al.gstart);
+        free(year);
+        return;
+    }
+    if (al.sort != CC_SORT_TITLE) return;
     rank = calloc(al.count, 1);
     if (!rank) return;
     for (i = 0; i < al.count; ++i) {
@@ -864,8 +941,9 @@ static void al_sections(void) {
 /* The first album in view: its row's first album in the grid, the top row in the list; inside [0, count - 1] also while
  * the list is pulled past an end (overscroll). */
 static int al_first(void) {
-    int a = al.list ? az_row_from(&al.az, al_off() + al_hh())
-                    : al_row_of(al_coff()) * GRID_COLS; /* (the list: the row just under the pinned band) */
+    int a = al.list     ? az_row_from(&al.az, al_off() + al_hh()) /* (the row just under the pinned band) */
+            : al_gsec() ? (al.count ? al_g_first(az_row_from(&al.gz, al_off() + al_hh())) : 0)
+                        : al_row_of(al_coff()) * GRID_COLS;
     if (a > (int)al.count - 1) a = (int)al.count - 1;
     return a < 0 ? 0 : a;
 }
@@ -877,7 +955,7 @@ static void al_shape(int list) { grid_shape(&al.g, list ? LIST_ART : GRID_COVER,
 /* The content view as high as the mode's content, and the scroll_view told the same (the list_view layouter sums it again at the next layout). */
 static void al_size(void) {
     int h;
-    al.az.top = al_top();
+    al.az.top = al.gz.top = al_top();
     h = al_content();
     al.az.content = h;
     widget_resize(al.view, AL_W, h);
@@ -974,8 +1052,9 @@ static void al_set_mode(int list) {
     al_rail();
     max = al_max_scroll();
     first = !first ? 0
-            : list
-                ? az_row_y(&al.az, first) - al_hh() /* (a section's first album brings its header to the top) */
+            : list ? az_row_y(&al.az, first) - al_hh() /* (a section's first album brings its header to the top) */
+            : al_gsec()
+                ? az_row_y(&al.gz, al_g_row(first)) - al_hh()
                 : al_top() + first / GRID_COLS * PITCH; /* (the first album is at the top: the title block with it) */
     widget_set_prop_int(al.sv, "yoffset", first > max ? max : first);
     al.seen = al_off();
@@ -1153,14 +1232,16 @@ static int al_same_u(const unsigned *a, const unsigned *b, unsigned n) {
 static void al_reload_with(void *albums, unsigned n, unsigned *keys, unsigned *years) {
     int max, same = 0;
     if (al.started && n && al.count == n && ls_same_list(al.albums, n, albums, n)) {
-        unsigned *old = al.order;
+        unsigned *old = al.order, *oldy = al.ykey;
+        al.ykey = (unsigned *)0; /* (al_order frees it: kept to compare) */
         deque_destroy(al.albums);
         al.albums = albums;
         al.order = al_order();
         /* (a deleted track can move an album in the Year or Recently Added order with the rows the same, change a year, or, for a compilation whose library representative was deleted, its cover key: the tiles are by display position and hold the year and the key, so they are made again) */
         same = old && al.order && al_same_u(old, al.order, n) && al_same_u(al.years, years, n) &&
-               al_same_u(al.keys, keys, n);
+               al_same_u(al.keys, keys, n) && (!al.ykey || (oldy && al_same_u(oldy, al.ykey, n)));
         free(old);
+        free(oldy);
     } else {
         free(al.order);
         if (al.albums) deque_destroy(al.albums);

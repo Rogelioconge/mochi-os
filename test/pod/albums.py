@@ -2431,7 +2431,7 @@ def az_tests(ctx):
     got = heads_of(m)
     expect(content_h(m) == content and [got[y] for y in sorted(got)] == ['Z', 'D', 'C', 'B', 'A', '#'], f'Title Z-A: the sections run Z..A and "#" last ({[got[y] for y in sorted(got)]}, {content_h(m)} == {content})')
     expect(vis(m, 'sg_rail') == (1, 1), 'Title Z-A: the rail shows')
-    for k, name in ((b'1\n', 'Artist'), (b'2\n', 'Recently Added'), (b'3\n', 'Year'), (b'b\n', 'Artist Z-A')):
+    for k, name in ((b'1\n', 'Artist'), (b'2\n', 'Recently Added'), (b'b\n', 'Artist Z-A')):
         m = opened(rail=b'1\n', sort_file=k)
         expect(content_h(m) == TOP + n * ROW and vis(m, 'sg_rail') == (0, 0) and not heads_of(m), f'{name}: a plain list, no headers, no rail ({content_h(m)})')
     m = opened(rail=b'1\n', sort_file=b'1\n')   # the sort card's Title row brings the sections back, and takes them away again
@@ -2467,6 +2467,388 @@ def az_tests(ctx):
     expect(content_h(m) == az_model(0)[2] and vis(m, 'sg_rail') == (1, 1), 'the switches are read when the page opens: a change meanwhile waits for the next open')
 
 
+def years_world(years, sort=b'3\n', rail=None, heads=None, mode=b'0\n', **kw):
+    """The library Albums page in the Year order (mode b'0\n' list, b'1\n' grid) over a library where album i has the one song of year years[i] (the stock rows in an arbitrary order: names Y<i>)."""
+    n = len(years)
+    m = albums_machine(n, az=True, title=lambda i: f'Y{i:03d}', **kw)
+    m.class_lists[O['CLASS_ALL_SONGS']] = []
+    for i, y in enumerate(years):
+        r = m.record(album=f'Y{i:03d}', artist='x', path=f'/mnt/mmc/s/{i}.flac', rid=100 + i)
+        m.setword(r + O['REC_YEAR'], y); m.class_lists[O['CLASS_ALL_SONGS']].append(r)
+    m.fs[SORT_FILE] = sort
+    if rail is not None: m.fs[AZ_RAIL] = rail
+    if heads is not None: m.fs[AZ_HEAD] = heads
+    m.fs[ALBUMS_FILE] = mode
+    open_grid(m)
+    return m
+
+
+def years_tests(ctx):
+    """The library Albums page's list mode in the Year order (patch/azlist.c az_year_sections, docs/modules/albums.md "Year"): a header per year with the albums of no usable year last under "Unknown", the rail by decade
+    (four digits; a century before 1900), the edge cases (sparse years, odd years, one decade, all unknown, no unknown, Oldest First, the two switches, the order and mode changes, the bubble, the limits)."""
+    expect = ctx.expect
+    PITCH_R, PAD = O['SG_RAIL_PITCH'], O['SG_RAIL_PAD']
+
+    opened = years_world
+
+    def model(years, rev=False, hh=HDR):
+        """(sections [(label, first row)], rail [(label, section)], the display order as year labels): the Year order by hand (a year outside 1000..2999 is none, last; ties by stock row)."""
+        ok = lambda y: y if 1000 <= y <= 2999 else 0
+        order = sorted(range(len(years)), key=lambda i: (not ok(years[i]), (ok(years[i]) if rev else -ok(years[i])), i))
+        ys = [ok(years[i]) for i in order]
+        secs = [(('Unknown' if not y else str(y)), r) for r, y in enumerate(ys) if r == 0 or ys[r - 1] != y]
+        rail = []
+        for s, (lab, _) in enumerate(secs):
+            y = ok(int(lab)) if lab != 'Unknown' else 0
+            key = (y // 10 * 10 if y >= 1900 else y // 100 * 100) if y else 0
+            if key and (not rail or rail[-1][0] != str(key)): rail.append((str(key), s))
+        return secs, rail, ys
+
+    def geo(secs, n, hh=HDR):
+        hy = lambda s: TOP + s * hh + secs[s][1] * ROW
+        sec_of = lambda i: max(k for k, (_, r) in enumerate(secs) if r <= i)
+        return hy, (lambda i: TOP + (sec_of(i) + 1) * hh + i * ROW), TOP + len(secs) * hh + n * ROW
+
+    def heads_of(m):
+        out = {}
+        for off in range(0, max(content_h(m) - VIEW_H, 0) + 100, 100):
+            scroll_to(m, off); paint(m)
+            for (t, (x, y, w, h)), s in zip(m.texts, m.text_styles):
+                if s == 'label_hdr' and y > 0: out[y + scroll_of(m)] = t
+        return out
+
+    def rail_labels(m):
+        ev = m.paint_event(); m.blits.clear(); m.texts.clear(); m.text_styles.clear(); m.fills.clear()
+        m.call(PSYMS['al_on_rail_paint'], a0=0, a1=ev, count=40000000)
+        return [t for t, _ in m.texts], list(m.texts), list(m.blits), list(m.text_styles)
+
+    def rail_touch(m, kind, j, t=3000):
+        g = tuple(m.props.get((m.rail, c)) for c in 'xywh')
+        m.touch(kind, 300, 30 + g[1] + PAD + j * PITCH_R + PITCH_R // 2, t, fn='al_on_rail', count=40000000)
+        return g
+
+    def check(m, years, label, rev=False, rail_on=True):
+        secs, rail, ys = model(years, rev)
+        hy, ry, content = geo(secs, len(years))
+        got = heads_of(m)
+        expect(content_h(m) == content and got == {hy(s): lab for s, (lab, _) in enumerate(secs)}, f'{label}: a header per year, Unknown last, the rows under them: {sorted(got.values(), key=lambda v: -1 if v == "Unknown" else 0) if 0 else [got[k] for k in sorted(got)]} (want {[l for l, _ in secs]}; {content_h(m)} == {content})')
+        if rail_on and len(rail) >= 2:
+            labels, texts, blits, styles = rail_labels(m)
+            expect(vis(m, 'sg_rail') == (1, 1) and labels == [l for l, _ in rail] and all(r[0] == 0 and r[2] == O['SG_RAIL_W'] for _, r in texts),
+                   f'{label}: the rail shows the decades {[l for l, _ in rail]}, four digits, centred in the 36 px column ({labels})')
+            g = tuple(m.props.get((m.rail, c)) for c in 'xywh')
+            expect(g[0] == O['SG_RAIL_X'] and g[2] == O['SG_RAIL_W'] and g[3] == len(rail) * PITCH_R + 2 * PAD, f'{label}: the rail widget is {len(rail)} entries high ({g})')
+            for j, (lab, s) in enumerate(rail):
+                m.calls = []; rail_touch(m, 'down', j)
+                expect(('widget_set_prop_int', m.widgets['albums_scrollview'], 'yoffset', min(hy(s) if s else 0, max(content - VIEW_H, 0))) in m.calls and ('widget_set_text_utf8', m.widgets['sg_bubble_letter'], lab) in m.calls,
+                       f'{label}: the entry {lab} jumps to the header of {secs[s][0]} and the bubble says {lab}')
+                rail_touch(m, 'up', j, 3100)
+        else:
+            expect(vis(m, 'sg_rail') == (0, 0), f'{label}: no rail')
+        return secs, rail
+
+    # 1. A library over several decades: a header per year, the decades on the rail, the albums of no year last
+    years = [1999, 2024, 0, 2023, 2015, 2010, 2024, 1985, 2019, 2009, 0, 1999]
+    m = opened(years, rail=b'1\n')
+    secs, rail = check(m, years, 'Year')
+    expect([l for l, _ in secs][-1] == 'Unknown' and [l for l, _ in rail] == ['2020', '2010', '2000', '1990', '1980'], 'the years run newest first, Unknown last with no rail entry; the decades 2020 2010 2000 1990 1980')
+    hy, ry, content = geo(secs, len(years))
+    blits, texts = paint(m)
+    hair = [f for f in m.fills if f[0] == O['LIST_HAIR']]
+    expect(hair and all(f[3] == HW - O['SG_RAIL_INSET'] for f in hair), 'the rail is shown: the rows leave its room (the hairlines end 26 px earlier)')
+    # the pinned header is the year at the top of the window
+    scroll_to(m, hy(2) + 5); paint(m)
+    expect([t for (t, r), s in zip(m.texts, m.text_styles) if s == 'label_hdr' and r[1] == 0] == [secs[2][0]], f'the pinned header is {secs[2][0]}')
+
+    # 2. A sparse library: every album in another year (a section per row), gaps in the decades absent
+    years = [2025, 2018, 2012, 2003, 1996, 1979, 1960]
+    m = opened(years, rail=b'1\n')
+    secs, rail = check(m, years, 'sparse')
+    expect(len(secs) == 7 and [l for l, _ in rail] == ['2020', '2010', '2000', '1990', '1970', '1960'], f'a section per album, one entry per decade present (2010 has two sections: {rail})')
+
+    # 3. Very old and odd years: 1000..2999 are years, 0 / 999 / 3000 / 9999 are none; before 1900 the rail has a century
+    years = [3000, 1959, 999, 2999, 1927, 9999, 1788, 0, 1000]
+    m = opened(years, rail=b'1\n')
+    secs, rail = check(m, years, 'odd years')
+    expect([l for l, _ in secs] == ['2999', '1959', '1927', '1788', '1000', 'Unknown'] and [l for l, _ in rail] == ['2990', '1950', '1920', '1700', '1000'], f'2999 .. 1000 are years, the four invalid ones Unknown ({secs} {rail})')
+    # centuries: eight of them before 1900 and every decade since: 22 entries cannot all be drawn; the rail keeps SG_RAIL_ITEMS and never overflows
+    years = [1000 + 100 * i for i in range(9)] + [1900 + 10 * i for i in range(13)]
+    m = opened(years, rail=b'1\n')
+    labels, texts, _, _ = rail_labels(m)
+    g = tuple(m.props.get((m.rail, c)) for c in 'xywh')
+    expect(len(labels) == O['SG_RAIL_ITEMS'] and labels[:4] == ['2020', '2010', '2000', '1990'] and g[3] == O['SG_RAIL_ITEMS'] * PITCH_R + 2 * PAD and len(heads_of(m)) == 22,
+           f'22 entries: the rail draws {len(labels)} (the oldest ones left to the last), the 22 headers all there ({labels})')
+    # more years than sections fit: a plain list
+    years = [1000 + i for i in range(O['SG_MAX_SEC'] + 2)]
+    m = opened(years, rail=b'1\n')
+    expect(content_h(m) == TOP + len(years) * ROW and vis(m, 'sg_rail') == (0, 0) and not heads_of(m), f'{len(years)} distinct years do not fit {O["SG_MAX_SEC"]} sections: a plain list')
+
+    # 4. One decade, or every album unknown: headers, no rail, the rows keep the full width
+    for years, label in (([2024, 2022, 2021, 2020], 'one decade'), ([0, 0, 0], 'all unknown'), ([2023], 'one album'), ([2024, 2024, 2024, 0], 'one year and Unknown')):
+        m = opened(years, rail=b'1\n')
+        check(m, years, label)
+        blits, texts = paint(m)
+        hair = [f for f in m.fills if f[0] == O['LIST_HAIR']]
+        expect(vis(m, 'sg_rail') == (0, 0) and hair and all(f[3] == HW for f in hair) and m.chevs and m.chevs[0][2][0] == O['LIST_CHEV_X'], f'{label}: fewer than two entries, no rail, hairlines and chevrons at the full width')
+    m = opened([2020, 2024, 2021], rail=b'1\n')
+    expect([t for t in heads_of(m).values()] == ['2024', '2021', '2020'], 'no album without a year: no Unknown section')
+
+    # 5. Oldest First: the sections ascend, the rail mirrors, Unknown still last
+    years = [1999, 2024, 0, 2023, 2015, 2010, 2024, 1985, 2019, 2009, 0, 1999]
+    m = opened(years, sort=b'd\n', rail=b'1\n')
+    secs, rail = check(m, years, 'Oldest First', rev=True)
+    expect([l for l, _ in secs][0] == '1985' and [l for l, _ in secs][-1] == 'Unknown' and [l for l, _ in rail] == ['1980', '1990', '2000', '2010', '2020'], 'oldest first: 1985 .. 2024 then Unknown; the rail 1980 .. 2020')
+
+    # 6. The two switches, as in the A-Z list
+    years = [1999, 2024, 0, 2023, 2015, 2010, 2024, 1985, 2019, 2009, 0, 1999]
+    for rail_f, heads_f in ((b'0\n', b'1\n'), (b'1\n', b'0\n'), (b'0\n', b'0\n')):
+        m = opened(years, rail=rail_f, heads=heads_f)
+        secs, rail, _ = (*model(years)[:2], 0)
+        hh = HDR if heads_f == b'1\n' else 0
+        hy, ry, content = geo(secs, len(years), hh)
+        got = heads_of(m)
+        expect(content_h(m) == content and (bool(got) == (hh > 0)) and (not got or got == {hy(s): lab for s, (lab, _) in enumerate(secs)}) and vis(m, 'sg_rail') == ((1, 1) if rail_f == b'1\n' else (0, 0)),
+               f'rail {rail_f.strip().decode()}, headers {heads_f.strip().decode()}: the content {content} px, headers {"shown" if hh else "off"}, rail {"shown" if rail_f == b"1\n" else "hidden"}')
+        if rail_f == b'1\n':
+            for j, (lab, s) in enumerate(rail):
+                m.calls = []; rail_touch(m, 'down', j)
+                expect(('widget_set_prop_int', m.widgets['albums_scrollview'], 'yoffset', min(hy(s) if s else 0, max(content - VIEW_H, 0))) in m.calls, f'headers off: the entry {lab} still jumps to its section\'s first row ({hy(s)})')
+                rail_touch(m, 'up', j, 3100)
+
+    # 7. Mode and order changes in place: the card's rows (Title 0, Artist 1, Recently Added 2, Year 3; Grid 4, List 5)
+    m = opened(years, sort=b'0\n', rail=b'1\n')
+    expect(list(heads_of(m).values()) == ['Y'] and vis(m, 'sg_rail') == (1, 1), 'Title order: the A-Z section (all the titles start with Y) and its rail')
+    m.call(PSYMS['al_on_item'], a0=3, count=40000000)
+    secs, rail = check(m, years, 'Title -> Year')
+    m.call(PSYMS['al_on_item'], a0=4, count=40000000)
+    expect(vis(m, 'sg_rail') == (0, 0) and all(h == 'Unknown' or h.endswith('s') for h in heads_of(m).values()), 'the grid: no rail, the headers are by decade (year_grid_tests)')
+    m.call(PSYMS['al_on_item'], a0=5, count=40000000)
+    check(m, years, 'Grid -> List')
+    m.call(PSYMS['al_on_item'], a0=1, count=40000000)
+    expect(vis(m, 'sg_rail') == (0, 0) and not heads_of(m) and content_h(m) == TOP + len(years) * ROW, 'Artist order: a plain list')
+    m.call(PSYMS['al_on_item'], a0=2, count=40000000)
+    expect(vis(m, 'sg_rail') == (0, 0) and not heads_of(m), 'Recently Added: a plain list')
+    m.call(PSYMS['al_on_item'], a0=3, count=40000000)
+    m.call(PSYMS['al_on_item'], a0=3, count=40000000)   # the ticked row again: reversed
+    check(m, years, 'Year reversed from the card', rev=True)
+    m.call(PSYMS['al_on_item'], a0=0, count=40000000)
+    letters = list(heads_of(m).values())
+    m.calls = []; rail_touch(m, 'down', 1)
+    expect(letters == ['Y'] and ('widget_set_text_utf8', m.widgets['sg_bubble_letter'], 'Y') in m.calls and (m.widgets['sg_bubble_letter'], 'normal:font_size', O['SG_BUBBLE_PX']) in m.styled,
+           'back to Title: letters again, the bubble at its letter size')
+
+    # 8. The first album in view stays at the top on a mode switch
+    m = opened([2024 - i // 2 for i in range(30)], rail=b'1\n')
+    secs, _, _ = (*model([2024 - i // 2 for i in range(30)])[:2], 0)
+    hy, ry, content = geo(secs, 30)
+    scroll_to(m, ry(12) - 20); paint(m)
+    m.call(PSYMS['al_on_item'], a0=4, count=40000000)
+    m.call(PSYMS['al_on_item'], a0=5, count=40000000)
+    expect(abs(scroll_of(m) - (ry(12) - 20)) <= ROW + HDR, f'grid and back: the same place in the list ({scroll_of(m)} near {ry(12) - 20})')
+
+    # 9. The bubble: four digits, set smaller than a letter (the 110 px bubble); a letter list sets the normal size again
+    m = opened(years, rail=b'1\n')
+    m.styled = []; rail_touch(m, 'down', 1)
+    sizes = [v for w, n, v in m.styled if w == m.widgets['sg_bubble_letter']]
+    expect(sizes == [O['SG_BUBBLE_PX_YEAR']] * 3 and ('widget_set_text_utf8', m.widgets['sg_bubble_letter'], '2010') in m.calls, f'the bubble shows 2010 at {O["SG_BUBBLE_PX_YEAR"]} px ({sizes})')
+    rail_touch(m, 'up', 1, 3100)
+
+    # 10. No memory for the years: a plain list
+    years = [2024, 2010, 2000, 1990, 1980, 0, 2011, 2012, 2013]
+    m = albums_machine(len(years), az=True, title=lambda i: f'Y{i:03d}')
+    m.class_lists[O['CLASS_ALL_SONGS']] = []
+    for i, y in enumerate(years):
+        r = m.record(album=f'Y{i:03d}', artist='x', path=f'/mnt/mmc/s/{i}.flac', rid=100 + i); m.setword(r + O['REC_YEAR'], y); m.class_lists[O['CLASS_ALL_SONGS']].append(r)
+    m.fs[SORT_FILE], m.fs[AZ_RAIL], m.fs[ALBUMS_FILE] = b'3\n', b'1\n', b'0\n'
+    m.calloc_fail_size = 2 * len(years)
+    open_grid(m)
+    expect(content_h(m) == TOP + len(years) * ROW and vis(m, 'sg_rail') == (0, 0) and not heads_of(m), 'no memory for the years: a plain list, the order kept')
+
+    # 11. The pinned header's band over scrolled rows is dead (az_pin_hit); the row just below it opens
+    years = [2024] * 6 + [2010] * 6
+    m = opened(years)
+    secs, _, ys = model(years)
+    _, ry, _ = geo(secs, len(years))
+    order = sorted(range(len(years)), key=lambda i: (-years[i], i))
+    scroll_to(m, 130); paint(m)
+    expect(scroll_of(m) == 130, 'pinned band: scrolled to 130')
+    calls = tap_at(m, 100, 10, 90000)
+    expect(not any(c[0] == 'navigator_to_with_context' for c in calls), 'a tap on the pinned header band opens nothing')
+    p = next(q for q in range(len(years)) if ry(q) - 130 >= HDR)
+    calls = tap_at(m, 100, ry(p) - 130 + 10, 91000)
+    expect(('navigator_to_with_context', 'albuminfo_page', O['CLASS_ALBUMS'], order[p]) in calls, f'a tap on position {p} just below the band opens it')
+
+
+def year_grid_tests(ctx):
+    """The library Albums page's grid in the Year order (docs/modules/albums.md "Year grid"): a header per decade (a century before 1900, "Unknown" last), each section on a row of its own, the tiles' size, columns and
+    gaps unchanged, no rail; the taps, the first-album rule of the mode switch, and the plain grid of the other orders, of Section Headers off and of no memory."""
+    expect = ctx.expect
+    ok = lambda y: y if 1000 <= y <= 2999 else 0
+    key = lambda y: (y // 10 * 10 if y >= 1900 else y // 100 * 100) if y else 0
+
+    def model(years, rev=False, hh=HDR):
+        """The display order (stock row per position), the sections [(label, first position, first row)], the tile (x, content y) of a position, the header y of a section and the content height, by hand."""
+        n = len(years)
+        order = sorted(range(n), key=lambda i: (not ok(years[i]), (ok(years[i]) if rev else -ok(years[i])), i))
+        keys = [key(ok(years[i])) for i in order]
+        secs, row = [], 0
+        for p, k in enumerate(keys):
+            if p == 0 or keys[p - 1] != k:
+                if secs: row += (p - secs[-1][1] + 1) // 2
+                secs.append(('Unknown' if not k else f'{k}s', p, row))
+        rows = row + (n - secs[-1][1] + 1) // 2 if n else 0
+        if not hh:
+            return order, secs, (lambda p: (MARGIN + p % 2 * CPITCH, TOP + RGAP + p // 2 * PITCH)), None, TOP + RGAP + (n + 1) // 2 * PITCH if n else TOP
+        sec_of = lambda p: max(k for k, sc in enumerate(secs) if sc[1] <= p)
+
+        def tile(p):
+            k = sec_of(p); _, st, r0 = secs[k]
+            return MARGIN + (p - st) % 2 * CPITCH, TOP + (k + 1) * hh + (r0 + (p - st) // 2) * PITCH
+        return order, secs, tile, (lambda k: TOP + k * hh + secs[k][2] * PITCH), TOP + len(secs) * hh + rows * PITCH
+
+    def heads_of(m):
+        out = {}
+        for off in range(0, max(content_h(m) - VIEW_H, 0) + 100, 100):
+            scroll_to(m, off); paint(m)
+            for (t, (x, y, w, h)), sty in zip(m.texts, m.text_styles):
+                if sty == 'label_hdr' and y > 0: out[y + scroll_of(m)] = (t, x, w, h)
+        return out
+
+    def tiles_ok(m, years, label, rev=False, hh=HDR):
+        """Every tile painted where the model puts it, at every offset; every tile in view painted."""
+        order, secs, tile, hdr_y, content = model(years, rev, hh)
+        pos = {stock: p for p, stock in enumerate(order)}
+        bad, short = [], []
+        for off in range(0, max(content - VIEW_H, 0) + 150, 150):
+            scroll_to(m, off); blits, texts = paint(m); sc = scroll_of(m)
+            t, _ = grid_texts(m, texts)
+            for name, r in t.items():
+                x, y = tile(pos[int(name[1:])])
+                if r != (x, y - sc + COVER + TGAP, COVER, THEIGHT): bad.append((off, name, r, (x, y - sc)))
+            for stock, p in pos.items():
+                x, y = tile(p)
+                if y - sc < VIEW_H and y - sc + CELL > 0 and f'Y{stock:03d}' not in t: short.append((off, stock))
+        expect(not bad and not short, f'{label}: every tile at its place ({bad[:3]} {short[:3]})')
+        return order, secs, tile, hdr_y, content
+
+    def check(m, years, label, rev=False, hh=HDR):
+        order, secs, tile, hdr_y, content = tiles_ok(m, years, label, rev, hh)
+        got = heads_of(m)
+        if hh:
+            want = {hdr_y(k): (lab, O['SG_HDR_X'], 0, hh - 1) for k, (lab, _, _) in enumerate(secs)}
+            expect(content_h(m) == content and {y: v[0] for y, v in got.items()} == {y: v[0] for y, v in want.items()} and all(v[1] == O['SG_HDR_X'] and v[3] == hh - 1 for v in got.values()),
+                   f'{label}: a header per decade ({[got[y][0] for y in sorted(got)]} want {[l for l, _, _ in secs]}), content {content_h(m)} == {content}')
+        else:
+            expect(content_h(m) == content and not got, f'{label}: the plain grid, content {content_h(m)} == {content}, no header')
+        expect(vis(m, 'sg_rail') == (0, 0) and vis(m, 'sg_bubble') == (0, 0), f'{label}: no rail and no bubble')
+        return order, secs, tile, hdr_y, content
+
+    def tap(m, x, y):
+        scroll_to(m, max(0, min(y - 100, content_h(m) - VIEW_H)))
+        return tap_at(m, x, y - scroll_of(m), 1000 + 400 * len(m.calls))
+
+    def opens(calls, row): return ('navigator_to_with_context', 'albuminfo_page', O['CLASS_ALBUMS'], row) in calls
+
+    # 1. Several decades: the new decade starts a row of its own, Unknown last
+    years = [1999, 2024, 0, 2023, 2015, 2010, 2024, 1985, 2019, 2009, 0, 1999]
+    m = years_world(years, mode=b'1\n')
+    order, secs, tile, hdr_y, content = check(m, years, 'Year grid')
+    expect([l for l, _, _ in secs] == ['2020s', '2010s', '2000s', '1990s', '1980s', 'Unknown'] and [r for _, _, r in secs] == [0, 2, 4, 5, 6, 7], f'sections {secs}: three 2020s on two rows, then a row per section start')
+    # the pinned header is the decade at the top of the window
+    scroll_to(m, hdr_y(2) + 5); paint(m)
+    expect([t for (t, r), sty in zip(m.texts, m.text_styles) if sty == 'label_hdr' and r[1] == 0] == ['2000s'], 'the header of the decade at the top stays pinned')
+
+    # 2. Sparse: an album per year across the decades, a header per decade not per row; an odd decade followed by another
+    years = [2025, 2018, 2012, 2003, 1996, 1979, 1960]
+    check(years_world(years, mode=b'1\n'), years, 'sparse')
+    years = [2021, 2022, 2023, 2011, 2012, 2013, 2014, 2001]
+    m = years_world(years, mode=b'1\n')
+    order, secs, tile, hdr_y, content = check(m, years, 'odd then even')
+    expect(tile(3)[0] == MARGIN and tile(3)[1] - tile(2)[1] == PITCH + HDR and tile(2)[0] == MARGIN, 'the 2010s start at the left on the row after the 2020s odd last row')
+
+    # 3. Very old and odd years: 1000..2999 are years, 0 / 999 / 3000 / 9999 none; a century a section before 1900
+    years = [3000, 1959, 999, 2999, 1927, 9999, 1788, 0, 1000, 1899, 1900]
+    m = years_world(years, mode=b'1\n')
+    order, secs, _, _, _ = check(m, years, 'odd years')
+    expect([l for l, _, _ in secs] == ['2990s', '1950s', '1920s', '1900s', '1800s', '1700s', '1000s', 'Unknown'], f'decades from 1900, centuries before ({[l for l, _, _ in secs]})')
+
+    # 4. One decade, every album unknown, one album, no Unknown: the headers stay
+    for years, label, heads in (([2024, 2022, 2021, 2020, 2029], 'one decade', ['2020s']), ([0, 0, 0], 'all unknown', ['Unknown']), ([2023], 'one album', ['2020s']), ([2020, 2000], 'no Unknown', ['2020s', '2000s'])):
+        m = years_world(years, mode=b'1\n')
+        check(m, years, label)
+        expect([v[0] for _, v in sorted(heads_of(m).items())] == heads, f'{label}: headers {heads}')
+
+    # 5. Oldest First: the sections ascend, Unknown still last
+    years = [1999, 2024, 0, 2023, 2015, 2010, 2024, 1985, 2019, 2009, 0, 1999]
+    m = years_world(years, sort=b'd\n', mode=b'1\n')
+    order, secs, _, _, _ = check(m, years, 'Oldest First', rev=True)
+    expect([l for l, _, _ in secs] == ['1980s', '1990s', '2000s', '2010s', '2020s', 'Unknown'], 'oldest first: ascending decades, Unknown last')
+
+    # 6. Section Headers off: exactly the plain grid; the switch is read when the page opens
+    m = years_world(years, heads=b'0\n', mode=b'1\n')
+    check(m, years, 'headers off', hh=0)
+    expect(content_h(m) == TOP + RGAP + 6 * PITCH, 'headers off: the plain grid height (12 albums, 6 rows)')
+
+    # 7. Taps: a tile after the headers opens its album, a header, a gap and the empty slot of a partial row nothing
+    years = [2021, 2022, 2023, 2011, 2012, 2013, 2014, 2001, 0]
+    m = years_world(years, mode=b'1\n')
+    order, secs, tile, hdr_y, content = model(years)
+    for p in range(len(years)):
+        x, y = tile(p)
+        for dx, dy in ((10, 10), (COVER - 5, CELL - 5)):
+            expect(opens(tap(m, x + dx, y + dy), order[p]), f'a tap on position {p} (stock row {order[p]}) opens it')
+    for what, x, y in (('the header of 2010s', 100, hdr_y(1) + 5), ('the first header', 100, hdr_y(0) + 5), ('the empty slot of the 2020s odd row', tile(2)[0] + CPITCH + 10, tile(2)[1] + 10),
+                       ('the gap under a row', tile(0)[0] + 10, tile(0)[1] + PITCH - 4), ('the column gap', tile(0)[0] + COVER + 3, tile(0)[1] + 10), ('the title block', 100, 10), ('below the last row', 100, content - 1)):
+        calls = tap(m, x, y) if y < content else tap(m, x, content - 1)
+        expect(not any(c[0] == 'navigator_to_with_context' for c in calls), f'a tap on {what} opens nothing')
+    # the pinned header's band over scrolled tiles is dead (az_pin_hit); a tile just below it opens
+    pyears = [2024] * 6 + [2010] * 6
+    mp = years_world(pyears, mode=b'1\n')
+    porder, _, ptile, _, _ = model(pyears)
+    scroll_to(mp, 130); paint(mp)
+    expect(scroll_of(mp) == 130, 'pinned band: scrolled to 130')
+    calls = tap_at(mp, 100, 10, 90000)
+    expect(not any(c[0] == 'navigator_to_with_context' for c in calls), 'a tap on the pinned header band opens nothing')
+    p = next(q for q in range(len(pyears)) if ptile(q)[1] - 130 >= HDR and ptile(q)[1] - 130 < VIEW_H - CELL)
+    calls = tap_at(mp, ptile(p)[0] + 10, ptile(p)[1] - 130 + 10, 91000)
+    expect(opens(calls, porder[p]), f'a tap on position {p} just below the band opens it')
+    # the Title chosen from the card brings the plain grid, the Year row the sections again
+    m.call(PSYMS['al_on_item'], a0=1, count=40000000)
+    expect(content_h(m) == TOP + RGAP + 5 * PITCH and not heads_of(m), 'Artist order: the plain grid (9 albums, 5 rows)')
+    m.call(PSYMS['al_on_item'], a0=3, count=40000000)
+    expect(content_h(m) == content, 'Year chosen from the card: the sections again')
+
+    # 8. The other orders are plain, as is a library with the sort file of each
+    for sort, name in ((b'0\n', 'Title'), (b'1\n', 'Artist'), (b'2\n', 'Recently Added'), (b'b\n', 'Artist Z-A')):
+        m = years_world(years, sort=sort, mode=b'1\n')
+        expect(content_h(m) == TOP + RGAP + 5 * PITCH and not heads_of(m) and vis(m, 'sg_rail') == (0, 0), f'{name}: the plain grid')
+
+    # 9. Grid and List keep the first album: a row's first album under the (pinned) header is the same album after the switch, with headers either side
+    years = [2024 - i // 3 for i in range(60)]
+    m = years_world(years, mode=b'1\n')
+    order, secs, tile, hdr_y, content = model(years)
+    for p in (7, 8, 21, 40):   # positions in the grid, the first of a grid row or not
+        a = p - (p - max(st for _, st, _ in secs if st <= p)) % 2   # its row's first album
+        scroll_to(m, tile(a)[1] - HDR); paint(m)
+        m.call(PSYMS['al_on_item'], a0=5, count=40000000)
+        sec_list = sorted({years[order[q]] for q in range(len(order))}, reverse=True)
+        lh = lambda q: TOP + (sec_list.index(years[order[q]]) + 1) * HDR + q * ROW
+        expect(scroll_of(m) == min(lh(a) - HDR, content_h(m) - VIEW_H), f'grid to list: album {a} stays under the pinned header ({scroll_of(m)} == {lh(a) - HDR})')
+        m.call(PSYMS['al_on_item'], a0=4, count=40000000)
+        expect(scroll_of(m) == min(tile(a)[1] - HDR, max(content_h(m) - VIEW_H, 0)), f'list to grid: album {a} again ({scroll_of(m)} == {tile(a)[1] - HDR})')
+
+    # 10. No memory for the years: the plain grid, the order kept
+    years = [2024, 2010, 2000, 1990, 1980, 0, 2011, 2012, 2013]
+    m = albums_machine(len(years), az=True, title=lambda i: f'Y{i:03d}')
+    m.class_lists[O['CLASS_ALL_SONGS']] = []
+    for i, y in enumerate(years):
+        r = m.record(album=f'Y{i:03d}', artist='x', path=f'/mnt/mmc/s/{i}.flac', rid=100 + i); m.setword(r + O['REC_YEAR'], y); m.class_lists[O['CLASS_ALL_SONGS']].append(r)
+    m.fs[SORT_FILE], m.fs[AZ_RAIL], m.fs[ALBUMS_FILE] = b'3\n', b'1\n', b'1\n'
+    m.calloc_fail_size = 2 * len(years)
+    open_grid(m)
+    expect(content_h(m) == TOP + RGAP + 5 * PITCH and not heads_of(m), 'no memory for the years: the plain grid')
+
+
 def loading_tests(ctx):
     """A source's Albums page (all, and an artist's) before its list is there: the state decides. LOADING is the one spinner and nothing else (the large title stays); FAILED / OFFLINE say why;
     READY is "No albums"; a list with rows is never asked; the rows arriving remove the spinner."""
@@ -2498,4 +2880,4 @@ def loading_tests(ctx):
     expect(not any(e[0] == 'state' for e in m.fake_log) and not spin(m) and not status(m), 'cached rows: shown at once, the state is not asked, no spinner')
 
 
-SECTIONS = [layout_tests, taps_list_tests, toggle_tests, stock_widget_tests, background_build_tests, foreground_loader_tests, reread_tests, card_asset_tests, sort_card_tests, reverse_tests, title_tests, az_tests, src_tests, loading_tests, nextalbum_tests]   # tools/check.py runs each as its own task
+SECTIONS = [layout_tests, taps_list_tests, toggle_tests, stock_widget_tests, background_build_tests, foreground_loader_tests, reread_tests, card_asset_tests, sort_card_tests, reverse_tests, title_tests, az_tests, years_tests, year_grid_tests, src_tests, loading_tests, nextalbum_tests]   # tools/check.py runs each as its own task

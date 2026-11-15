@@ -1069,7 +1069,7 @@ static void so_rec_stats(unsigned n) {
     }
 }
 
-static unsigned *so_order(void *albums, int mode, int rev, int src) {
+static unsigned *so_order(void *albums, int mode, int rev, int src, unsigned **ykeep) {
     unsigned n = albums ? deque_size(albums) : 0, i;
     unsigned *v;
     if (!n) return (unsigned *)0;
@@ -1102,13 +1102,22 @@ static unsigned *so_order(void *albums, int mode, int rev, int src) {
     free(so_rec);
     if (mode == CC_SORT_ARTIST || mode == CC_SORT_TITLE) free((void *)so_key);
     free(so_rank);
-    free(so_year);
+    if (ykeep && v && mode == CC_SORT_YEAR && so_year)
+        *ykeep = so_year; /* (the Year order's scan already read them) */
+    else
+        free(so_year);
     so_rec = (void **)0, so_key = (const char **)0, so_rank = so_year = (unsigned *)0;
     return v;
 }
 
-unsigned *cc_album_order_mode(void *albums, int mode, int rev) { return so_order(albums, mode, rev, 0); }
-unsigned *cc_album_order_src(void *albums, int mode, int rev) { return so_order(albums, mode, rev, 1); }
+unsigned *cc_album_order_mode(void *albums, int mode, int rev) {
+    return so_order(albums, mode, rev, 0, (unsigned **)0);
+}
+unsigned *cc_album_order_src(void *albums, int mode, int rev) { return so_order(albums, mode, rev, 1, (unsigned **)0); }
+unsigned *cc_album_order_years(void *albums, int rev, unsigned **years) {
+    *years = (unsigned *)0;
+    return so_order(albums, CC_SORT_YEAR, rev, 0, years);
+}
 
 void *cc_row(void *albums, const unsigned *order, unsigned i) { return deque_at(albums, order ? order[i] : i); }
 

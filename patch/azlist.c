@@ -68,7 +68,7 @@ void az_bind_rail(az_t *az, int (*on)(void *, void *), int (*paint)(void *, void
 void az_sections(az_t *az, const unsigned char *rank, unsigned stride) {
     unsigned *bits = calloc((unsigned)az->count, sizeof(unsigned)), i, b, n = (unsigned)az->count;
     int m[SG_RANKS], r, d, k, lab = SG_RANKS - 1, prev = -1;
-    az->nsec = 0;
+    az->nsec = az->years = az->nrail = 0;
     if (!bits) return;
     for (r = 0; r < SG_RANKS; ++r) m[r] = 0;
     for (i = 0; i < n; ++i) {
@@ -92,6 +92,57 @@ void az_sections(az_t *az, const unsigned char *rank, unsigned stride) {
     free(bits);
 }
 
+/* The Year order's sections (Albums, list mode): the albums are already sorted by year (newest first or oldest first, the ones without a year last), so a section is a run of equal years and
+ * the Unknown section, if there is one, is the last. The rail has an entry per decade that has albums (from 1900, named by its first year) and one per century before 1900 ("1800", "1700"), the
+ * Unknown section none; an entry jumps to its first section. More entries than SG_RAIL_ITEMS (only years before 1900 in more than eight centuries make it) leave the surplus ones to the
+ * last entry. More runs than SG_MAX_SEC (128 distinct years): a plain list. */
+int az_year_key(int y) { return y >= 1900 && y <= 2999 ? y / 10 * 10 : y >= 1000 && y < 1900 ? y / 100 * 100 : 0; }
+
+void az_year_sections(az_t *az, const unsigned short *year) {
+    int i, s, last = 0;
+    az->nsec = az->years = az->nrail = 0;
+    for (i = 0; i < az->count; ++i) {
+        int y = year[i] >= 1000 && year[i] <= 2999 ? year[i] : 0;
+        if (i && y == (az->sec_year[az->nsec - 1])) continue;
+        if (az->nsec >= SG_MAX_SEC) {
+            az->nsec = 0;
+            return;
+        }
+        az->sec_start[az->nsec] = (unsigned)i, az->sec_letter[az->nsec] = 0,
+        az->sec_year[az->nsec++] = (unsigned short)y;
+    }
+    az->years = 1;
+    for (s = 0; s < az->nsec; ++s) {
+        int key = az_year_key(az->sec_year[s]);
+        if (key && key != last && az->nrail < SG_RAIL_ITEMS)
+            az->rail_sec[az->nrail] = (unsigned char)s, az->rail_label[az->nrail++] = (unsigned short)key;
+        if (key) last = key;
+    }
+}
+
+/* The Albums grid's sections in the Year order: the same albums (year[i], 0 = none, last) grouped by az_year_key (a decade from 1900, a century before, the Unknown ones last), each section starting a
+ * new grid row of per albums. az counts grid rows (count; sec_start[s] is section s's first row, sec_year[s] its key, years 2: the headers read "2020s"), start[s] is its first album (SG_MAX_SEC entries).
+ * Rows are az->row apart (the caller's). More sections than SG_MAX_SEC (not reachable with the keys' 23 values): none, a plain grid. */
+void az_decade_sections(az_t *az, const unsigned short *year, int n, int per, unsigned *start) {
+    int i, rows = 0;
+    az->nsec = az->years = az->count = 0;
+    for (i = 0; i < n; ++i) {
+        int key = az_year_key(year[i]);
+        if (i && key == az->sec_year[az->nsec - 1]) continue;
+        if (az->nsec >= SG_MAX_SEC) {
+            az->nsec = 0;
+            return;
+        }
+        if (i) rows += (i - (int)start[az->nsec - 1] + per - 1) / per;
+        start[az->nsec] = (unsigned)i, az->sec_start[az->nsec] = (unsigned)rows, az->sec_letter[az->nsec] = 0,
+        az->sec_year[az->nsec++] = (unsigned short)key;
+    }
+    if (n) rows += (n - (int)start[az->nsec - 1] + per - 1) / per;
+    az->count = rows, az->years = 2;
+}
+
+int az_rail_on(const az_t *az) { return az->nsec > 0 && !az->norail && (!az->years || az->nrail > 1); }
+
 /* ---------------------------------------------------------------------------
  * The two switches of Settings > Library, read when a page opens (set_read: one character). Index Rail and Section Headers are
  * both on unless the file says "0". A toggle saves first and changes only when the save worked: the new state, or -1.
@@ -109,7 +160,7 @@ int azhead_toggle(void) {
     return home_write_atomic(AZHEAD_FILE, AZHEAD_TMP, next ? "1\n" : "0\n") != 0 ? -1 : next;
 }
 
-int az_inset(const az_t *az) { return az->nsec > 0 && !az->norail ? SG_RAIL_INSET : 0; }
+int az_inset(const az_t *az) { return az_rail_on(az) ? SG_RAIL_INSET : 0; }
 int az_end(const az_t *az) { return LIST_HAIR_END - az_inset(az); }
 
 void az_prefs(az_t *az) {
@@ -210,13 +261,33 @@ static int az_act_w(const az_t *az) {
     return m1_text_w(az->st_act, w);
 }
 
+/* A year's four digits as wide text, or the language's "Unknown" for 0; the characters. */
+static unsigned az_year_wide(int year, unsigned *w) {
+    unsigned i;
+    if (!year) return az_wide("Unknown", w, AZ_TEXT);
+    for (i = 0; i < 4; ++i, year /= 10) w[3 - i] = (unsigned)('0' + year % 10);
+    w[4] = 0;
+    return 4;
+}
+
+/* A decade (or century) key as wide text with its "s" ("2020s"), or "Unknown" for 0. */
+static unsigned az_decade_wide(int key, unsigned *w) {
+    unsigned n = az_year_wide(key, w);
+    if (key) w[n++] = 's', w[n] = 0;
+    return n;
+}
+
 static void az_letter_text(const az_t *az, void *canvas, int s, int y) {
     unsigned w[AZ_TEXT], n = 1;
     int rect[4], aw;
     if (y < 0 || y + az->hdr_h > GRID_VIEW_H) return;
     w[0] = az->sec_letter[s], w[1] = 0;
     rect[0] = SG_HDR_X, rect[1] = y, rect[2] = 100, rect[3] = az->hdr_h - 1;
-    if (az->sec_text) n = az_wide(az->sec_text[s], w, AZ_TEXT), rect[2] = AZ_TEXT_W;
+    if (az->years) {
+        n = az->years == 2 ? az_decade_wide(az->sec_year[s], w) : az_year_wide(az->sec_year[s], w);
+        rect[2] = AZ_TEXT_W;
+    } else if (az->sec_text)
+        n = az_wide(az->sec_text[s], w, AZ_TEXT), rect[2] = AZ_TEXT_W;
     canvas_draw_text_in_rect(canvas, w, n, rect);
     if (s == 0 &&
         (aw = az_act_w(az)) >
@@ -247,6 +318,13 @@ int az_act_hit(const az_t *az, int x, int y) {
     return x >= az_end(az) - aw - AZ_ACT_PAD && y >= top && y < top + az->hdr_h;
 }
 
+int az_pin_hit(const az_t *az, int y) {
+    int py = 0, top;
+    if (az_pinned(az, &py) < 0) return 0;
+    top = az_off(az) + py;
+    return y >= top && y < top + az->hdr_h;
+}
+
 /* The letters of the headers, then the pinned band (the page's black over the rows scrolling under it: the headers in the flow have no band) and its letter. */
 void az_paint_heads(az_t *az, void *canvas) {
     int s, pin, py, off = az_off(az);
@@ -269,8 +347,15 @@ void az_redraw_rail(const az_t *az) { widget_invalidate_force(az->rail, (void *)
  * and how many (the return). At most SG_RAIL_ITEMS items fit: the sections' own letters when there are that few, else every k-th section (k from 2 up, until the
  * letters with a dot between each pair fit) with the first and the last always there (a multiple of k within half a step of the last gives way to it). A rail with
  * fewer letters than sections (the return < az->nsec) has a dot between two letters: item 2j is letter j, item 2j + 1 a dot. */
+/* Dots sit between two letters when the plan skips sections; the years' entries are every one drawn. */
+static int az_dots(const az_t *az, int letters) { return !az->years && letters < az->nsec; }
+
 int az_rail_plan(const az_t *az, int *sec) {
     int n = az->nsec, k, m, i;
+    if (az->years) { /* the decades' entries, each at its first section: all fit (az_year_sections), no dots */
+        for (i = 0; i < az->nrail; ++i) sec[i] = az->rail_sec[i];
+        return az->nrail;
+    }
     if (n <= SG_RAIL_ITEMS) {
         for (i = 0; i < n; ++i) sec[i] = i;
         return n;
@@ -284,7 +369,7 @@ int az_rail_plan(const az_t *az, int *sec) {
 }
 
 int az_rail_span(const az_t *az, int letters) {
-    return (letters < az->nsec ? 2 * letters - 1 : letters) * SG_RAIL_PITCH;
+    return (az_dots(az, letters) ? 2 * letters - 1 : letters) * SG_RAIL_PITCH;
 } /* the drawn height */
 
 /* The rail widget is the drawn span plus SG_RAIL_PAD above and below, centred on the list of rail_h px (the bar of select mode leaves less than the window; a touch
@@ -297,17 +382,33 @@ void az_rail_fit(az_t *az, int rail_h) {
         widget_move(az->rail, SG_RAIL_X, SG_LIST_Y + (rail_h - span) / 2 - SG_RAIL_PAD);
         widget_resize(az->rail, SG_RAIL_W, span + 2 * SG_RAIL_PAD);
     }
-    m1_show(az->rail, az->nsec > 0 && az->count && !az->norail);
+    m1_show(az->rail, az_rail_on(az) && az->count);
     az_redraw_rail(az);
 }
 
 static void az_bubble(az_t *az, int i) { /* the bubble shows section i's letter, or hides */
-    char s[2];
+    char s[8];
+    int k, small = az->years;
     if (i < 0) {
         widget_set_visible(az->bubble, 0, 0);
         return;
     }
-    s[0] = (char)az->sec_letter[i], s[1] = 0;
+    if (small != az->bub_small) { /* four digits are set smaller than a letter to fit the bubble */
+        static const char *const key[3] = {"normal:font_size", "disable:font_size", "focused:font_size"};
+        unsigned v[4];
+        for (k = 0; k < 3; ++k) {
+            memset(v, 0, sizeof v);
+            value_set_uint32(v, small ? SG_BUBBLE_PX_YEAR : SG_BUBBLE_PX);
+            widget_set_style(az->bubble_letter, key[k], v);
+        }
+        az->bub_small = small;
+    }
+    if (az->years) {
+        int y = az_year_key(az->sec_year[i]);
+        for (k = 0; k < 4; ++k, y /= 10) s[3 - k] = (char)('0' + y % 10);
+        s[4] = 0;
+    } else
+        s[0] = (char)az->sec_letter[i], s[1] = 0;
     widget_set_text_utf8(az->bubble_letter, s);
     widget_set_visible(az->bubble, 1, 0);
 }
@@ -344,7 +445,7 @@ void az_rail_end(az_t *az) {
 /* DOWN grabs the touch (the moves and the release come here wherever they go), every position sets the letter under it (above the first and below the last: those). */
 void az_rail_event(az_t *az, void *e) {
     int type, pt[2], i, l, sec[SG_MAX_SEC];
-    if (!e || !az->nsec || az->norail) return;
+    if (!e || !az_rail_on(az)) return;
     type = I(e, 0);
     if (type == EVT_POINTER_UP || type == EVT_POINTER_ABORT) {
         az_rail_end(az);
@@ -360,6 +461,11 @@ void az_rail_event(az_t *az, void *e) {
     l = az_rail_plan(
         az,
         sec); /* the drawn span, however many letters it shows, is split into the sections: every one is reachable */
+    if (az->years) { /* each entry's own item: its first section */
+        i = pt[1] < SG_RAIL_PAD ? 0 : (pt[1] - SG_RAIL_PAD) / SG_RAIL_PITCH;
+        az_rail_set(az, sec[i > l - 1 ? l - 1 : i]);
+        return;
+    }
     i = pt[1] < SG_RAIL_PAD ? 0
                             : (pt[1] - SG_RAIL_PAD) * az->nsec /
                                   az_rail_span(az, l); /* (the span starts SG_RAIL_PAD down the widget) */
@@ -378,15 +484,24 @@ static const signed char az_rail_dx[27] = SG_RAIL_DX; /* "#", A..Z */
 #define SG_RAIL_DISC_Y \
     (-((SG_RAIL_DISC - SG_RAIL_INK2 + 1) / 2)) /* floor((INK2 - DISC) / 2), negative: the disc starts above the item */
 
+/* The pill behind the touched entry j: its label's width and 10 px, inside the touch column. */
+static int az_rail_label_w(const az_t *az, int j) {
+    unsigned w[8];
+    int pw;
+    az_year_wide(az->rail_label[j], w);
+    pw = m1_text_w(az->st_rail, w) + 10;
+    return pw > SG_RAIL_W ? SG_RAIL_W : pw < SG_RAIL_DISC ? SG_RAIL_DISC : pw;
+}
+
 /* The rail (its own EVT_AFTER_PAINT, the rail's coordinates, the span from SG_RAIL_PAD): the plan's letters, a dot between two of them when the plan skips sections,
  * the touched letter (when it is a drawn one) on its disc with a black letter. */
 void az_rail_paint(az_t *az, void *e) {
     void *canvas = e ? *(void **)((char *)e + EVENT_PAINT_CANVAS) : (void *)0;
     int j, k, l, y0 = SG_RAIL_PAD, step, dots, pass, rect[4], sec[SG_MAX_SEC];
-    unsigned w[2];
-    if (!canvas || !az->nsec || az->norail) return;
+    unsigned w[8];
+    if (!canvas || !az_rail_on(az)) return;
     l = az_rail_plan(az, sec);
-    dots = l < az->nsec;
+    dots = az_dots(az, l);
     step = dots ? 2 : 1; /* the items a letter takes with the dot after it */
     if (dots) {
         int x = SG_RAIL_CX - SG_RAIL_X - SG_RAIL_DOT / 2;
@@ -404,7 +519,16 @@ void az_rail_paint(az_t *az, void *e) {
                 src[0] = src[1] = 0, src[2] = src[3] = SG_RAIL_DISC;
                 dst[0] = SG_RAIL_CX - SG_RAIL_X - SG_RAIL_DISC / 2,
                 dst[1] = y0 + step * j * SG_RAIL_PITCH + SG_RAIL_DISC_Y, dst[2] = dst[3] = SG_RAIL_DISC;
-                canvas_draw_image(canvas, az->disc, src, dst);
+                if (az->years) { /* the disc stretched to a pill behind the four digits: its two halves, the middle column between them */
+                    int pw = az_rail_label_w(az, j), h = SG_RAIL_DISC / 2, x0 = SG_RAIL_W / 2 - pw / 2;
+                    src[2] = h, dst[0] = x0, dst[2] = h;
+                    canvas_draw_image(canvas, az->disc, src, dst);
+                    src[0] = h, src[2] = h, dst[0] = x0 + pw - h;
+                    canvas_draw_image(canvas, az->disc, src, dst);
+                    src[0] = h - 1, src[2] = 1, dst[0] = x0 + h, dst[2] = pw - 2 * h;
+                    if (dst[2] > 0) canvas_draw_image(canvas, az->disc, src, dst);
+                } else
+                    canvas_draw_image(canvas, az->disc, src, dst);
             }
         }
     }
@@ -413,6 +537,11 @@ void az_rail_paint(az_t *az, void *e) {
         widget_prepare_text_style(pass ? az->st_rail_on : az->st_rail, canvas);
         for (j = 0; j < l; ++j) {
             if ((sec[j] == az->rail_i && az->rail_on) != pass) continue;
+            if (az->years) { /* the decade's four digits centred in the touch column (SG_RAIL_W): the rows have left it (SG_RAIL_INSET) */
+                rect[0] = 0, rect[1] = y0 + j * SG_RAIL_PITCH, rect[2] = SG_RAIL_W, rect[3] = SG_RAIL_PITCH;
+                canvas_draw_text_in_rect(canvas, w, az_year_wide(az->rail_label[j], w), rect);
+                continue;
+            }
             w[0] = az->sec_letter[sec[j]], w[1] = 0;
             k = w[0] >= 'A' && w[0] <= 'Z' ? (int)w[0] - 'A' + 1 : 0;
             rect[0] = SG_RAIL_CX - SG_RAIL_X - SG_RAIL_TEXT_W / 2 + az_rail_dx[k],
