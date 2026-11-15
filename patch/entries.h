@@ -68,6 +68,9 @@ int tape_open_idle(
     void); /* 0 once the page is up (or already open), -1 when it could not open; a tap on a page it opened closes it */
 int tape_theme(void); /* the saved theme, 0 Normal (the default), 1 Chrome, 2 Metal, 3 Auto (by the track's quality) */
 int tape_theme_set(int theme); /* choose it, saved atomically; the theme or -1 */
+int tape_badge(
+    void *
+        rec); /* the sticker the playing record's quality earns (the cassette's rule, one mclGetInfo): 0 none, 1 HI-RES, 2 DSD; Now Playing's info page shows it too */
 
 /* patch/vinyl.c */
 int vinyl_open(void);

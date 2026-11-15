@@ -601,6 +601,15 @@ static int tp_lossless(const char *s) {
     return 0;
 }
 
+static void tp_quality(void *t, int look, struct tp_q *q);
+
+/* The sticker for another page (Now Playing's information page): 0 none, 1 HI-RES, 2 DSD, by the same rule as the cassette's. */
+int tape_badge(void *rec) {
+    struct tp_q q;
+    tp_quality(rec, 1, &q);
+    return q.badge;
+}
+
 static void tp_quality(void *t, int look, struct tp_q *q) {
     int in[PLAYINFO_SIZE / 4], rate, bits, kbps, ok, dsd, lossless, hires;
     char ext[8], *codec = (char *)in + PLAYINFO_FMT;

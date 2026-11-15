@@ -76,6 +76,62 @@ IH = 480                         # the idle lyrics page is fullscreen (320 x 480
 ISCRIM = (0, 0, W, IH)           # np_scrim_idle.png: the same scrim over the whole window of the idle lyrics page (patch/idlelyrics.c; its ramps at the window's top and bottom, as preview_idlelyrics); np_tint_idle.png is the tint over the same 480 rows
 DOT = 10                         # the interlude dots' diameter (patch/offsets.inc LY_DOT): np_dot.png, white, anti-aliased; the payload makes three image widgets
 
+# ---- the info page (page 3): header, quality line, four rows; text and hairlines only (patch/offsets.inc NPI_*, patch/nowplaying.c np_header / np_quality / np_row)
+I_X, I_R, I_W = 16, 304, 288                       # the page's text column
+I_ART, I_ART_Y, I_ART_R = 64, 36, 8                # the cover thumbnail (patch/minibar.c mb_art_*)
+I_TEXT_X, I_TEXT_W = 92, 212                       # title / artist / album column
+I_TITLE_Y, I_TITLE_PX, I_ARTIST_Y, I_ALBUM_Y, I_META_PX = 38, 20, 62, 82, 16
+I_PAD = 2                                          # an own label's box is its line plus this above and below
+I_BADGE_Y, I_BADGE_H, I_BADGE_GAP = 40, 18, 8      # HI-RES / DSD badge: a picture right aligned to I_R, the title narrower by its width + the gap
+I_BADGE_W = {'HI-RES': 49, 'DSD': 35}              # the text's width in Inter 11 px + 12
+GOLD = '#E3C16F'                                   # fixed: the Accent picker does not move it
+I_Q_Y, I_Q_UY, I_Q_VPX, I_Q_UPX, I_Q_UGAP, I_Q_DIV_Y, I_Q_DIV_H = 122, 126, 17, 12, 3, 123, 18
+I_ROW_Y, I_ROW_PITCH, I_ROW_PX, I_KEY_GAP, I_ROWS = 150, 33, 16, 14, 4
+I_HAIRS = (112,) + tuple(I_ROW_Y + k * I_ROW_PITCH for k in range(I_ROWS))   # y of the hairlines: above the quality line, above each row but the last's bottom
+HAIR, DIVIDER = '#FFFFFF26', '#FFFFFF2E'           # 15 % and 18 % white
+HAIR_RGBA, DIVIDER_RGBA = (255, 255, 255, 0x26), (255, 255, 255, 0x2E)
+I_RELAY = 3                                        # ticks after the page starts that lay the info page out again (patch/offsets.inc NP_RELAY)
+I_ROW_TAIL = 200                                   # bytes of a Location's end looked at (head ellipsis)
+I_UNITS = ('', 'kHz', 'bit', 'kbps')
+
+def i_box(y, px): return y - I_PAD, px + 2 * I_PAD
+
+def i_row_y(r): return I_ROW_Y + r * I_ROW_PITCH + (I_ROW_PITCH - I_ROW_PX) // 2
+
+def qparse(s):
+    """patch/nowplaying.c np_qparse: stock's "FLAC|44.1kHz|16bit|1021kbps" as [(value, unit)], a unit taken off its value, a field with no value (or a zero one, except the format) dropped."""
+    out = []
+    for f, field in enumerate(s.split('|')[:4]):
+        v, u = field.strip(' '), ''
+        if f and v.endswith(I_UNITS[f]): v, u = v[:-len(I_UNITS[f])].rstrip(' -'), I_UNITS[f]
+        v = v[:23]
+        if not v or (f and not v.strip('0.')): continue
+        out.append((v, u))
+    return out
+
+def qlayout(items, measure):
+    """np_qlayout: per item (value x, unit x or None, divider x or None) and the widths; measure(text, px) is a text's width. Items are as wide as their content, the gaps are equal."""
+    ws = [(measure(v, I_Q_VPX), measure(u, I_Q_UPX) + I_Q_UGAP if u else 0) for v, u in items]
+    n, room, x, out = len(items), max(0, I_W - sum(a + b for a, b in ws)), 0, []
+    for i, (vw, uw) in enumerate(ws):
+        left = I_X + room * (2 * i + 1) // (2 * n) + x
+        out.append((left, left + vw + I_Q_UGAP if uw else None, I_X + room * i // n + x if i else None))
+        x += vw + uw
+    return out
+
+def head_fit(s, room, measure):
+    """np_head_fit: s, or "..." and the end of it that fits room px (the first character from which it does); only the last I_ROW_TAIL bytes are looked at."""
+    b = s.encode()
+    cut = len(b) > I_ROW_TAIL
+    if cut:
+        b = b[-I_ROW_TAIL:]
+        while b and b[0] & 0xc0 == 0x80: b = b[1:]
+    t = b.decode()
+    if not cut and measure(t) <= room: return t
+    for k in range(len(t) + 1):
+        if measure('...' + t[k:]) <= room: return '...' + t[k:]
+    return '...'
+
 M = 28                           # side margin: the cover, the text column and the bar share it
 ART, ART_R = 264, 12             # cover = what demo writes (mod_lockscreen.COVER_SIZE, 1:1), corner radius
 ART_X, ART_Y = M, 28
@@ -248,6 +304,18 @@ def live_bar_image(w, right):
             px[x, y] = (255, 255, 255, round(255 * cov / (n * n) * (LIVE_BAR_OUT + (LIVE_BAR_IN - LIVE_BAR_OUT) * t)))
     return im.transpose(Image.FLIP_LEFT_RIGHT) if right else im
 
+def badge_image(text, w, ss=8):
+    """The info page's HI-RES / DSD badge: GOLD text in a 1 px GOLD outline (radius 4), no fill, I_BADGE_H high; the text is Inter 11 px (not translated)."""
+    from PIL import Image, ImageChops, ImageDraw, ImageFont
+    h = I_BADGE_H
+    big = Image.new('L', (w * ss, h * ss), 0); d = ImageDraw.Draw(big)
+    d.rounded_rectangle((0, 0, w * ss - 1, h * ss - 1), radius=4 * ss, fill=255); d.rounded_rectangle((ss, ss, w * ss - 1 - ss, h * ss - 1 - ss), radius=3 * ss, fill=0)
+    f = ImageFont.truetype(mod_icons.TILE_FONT, 11 * ss); bb = f.getbbox(text)
+    t = Image.new('L', big.size, 0)
+    ImageDraw.Draw(t).text(((w * ss - (bb[2] - bb[0])) // 2 - bb[0], (h * ss - (bb[3] - bb[1])) // 2 - bb[1]), text, font=f, fill=255)
+    mask = ImageChops.lighter(big, t).resize((w, h), Image.BOX)
+    im = Image.new('RGBA', (w, h), tuple(int(GOLD[k:k + 2], 16) for k in (1, 3, 5)) + (0,)); im.putalpha(mask); return im
+
 def write_images(rootfs_xx):
     """The glyphs (committed PNGs of mod_icons.py), the corner mask and the gradient, as new files; returns the names."""
     for name in NP_IMAGES:
@@ -259,13 +327,14 @@ def write_images(rootfs_xx):
         elif name == 'np_scrim_lyrics': scrim_image(True).save(p, optimize=True)
         elif name == 'np_scrim_idle': scrim_image(idle=True).save(p, optimize=True)
         elif name == 'np_dot': dot_image().save(p, optimize=True)
+        elif name.startswith('np_i_badge_'): badge_image(*(('HI-RES', I_BADGE_W['HI-RES']) if name.endswith('hires') else ('DSD', I_BADGE_W['DSD']))).save(p, optimize=True)
         elif name == 'np_shadow': shadow_image().save(p, optimize=True)
         elif name in ('rn_live_l', 'rn_live_r'): live_bar_image(LIVE_BAR_W, name.endswith('r')).save(p, optimize=True)
         else: shutil.copyfile(os.path.join(mod_icons.PNG, name + '.png'), p)
         os.chmod(p, IMG_MODE); os.utime(p, (IMG_MTIME, IMG_MTIME))
     return list(NP_IMAGES)
 
-NP_IMAGES = sorted(mod_icons.np_names() + ['np_tint', 'np_tint_idle', 'np_scrim', 'np_scrim_lyrics', 'np_scrim_idle', 'np_dot', 'np_shadow', 'rn_live_l', 'rn_live_r'])
+NP_IMAGES = sorted(mod_icons.np_names() + ['np_tint', 'np_tint_idle', 'np_scrim', 'np_scrim_lyrics', 'np_scrim_idle', 'np_dot', 'np_shadow', 'rn_live_l', 'rn_live_r', 'np_i_badge_hires', 'np_i_badge_dsd'])
 
 def added_rels(stock_rootfs=None):
     """Rootfs-relative paths of the added images (for fwtool --allow-added; all new in any tree)."""
@@ -351,16 +420,32 @@ def apply_ui(root):
     lyr.children.insert(lyr.children.index(lrc) + 1, awtk_ui.Widget('scroll_view', M, LYR_Y, W - 2 * M, LYR_H, [('name', 'np_lyrics'), ('floating', 'false')]))
     msg = find(root, 'label_lyricmsg'); move(msg, 0, LYR_Y + (LYR_H - 28) // 2, W, 28); text_style(msg, META_PX, GREY, 'center')
     mqa = find(root, 'img_mqa'); move(mqa, mqa.x, 22, mqa.w, mqa.h)
-    y = 52
-    li = find(root, 'label_info'); move(li, 8, y, W - 16, 24); text_style(li, META_PX, FG, 'center'); y += 32
-    # the formatted quality line (patch/nowplaying.c np_quality): stock rewrites label_info on every tick, so the payload shows this label instead and hides label_info
-    nq = awtk_ui.Widget('label', 8, li.y, W - 16, 24, [('name', 'np_quality'), ('visible', 'false'), ('sensitive', 'false')])
-    text_style(nq, META_PX, FG, 'center'); li.set('sensitive', 'false')
-    lp = parent_of(root, li); lp.children.insert(lp.children.index(li) + 1, nq)
-    for n in ('label_album', 'label_genre', 'label_year', 'label_size'):
-        w = find(root, n); move(w, 24, y, W - 48, 24); text_style(w, META_PX, GREY, 'center'); y += 30
-    loc = find(root, 'label_location'); move(loc, 24, y + 4, W - 48, LYR_Y + LYR_H - y - 4); text_style(loc, 16, GREY, 'center')
-    album = find(root, 'label_album')
+    # ---- the info page (patch/nowplaying.c np_header / np_quality / np_row): stock's six labels stay as the data source, at the place their line has, 16 / 17 px, left aligned, so the page
+    # without the payload still reads; the payload hides them (hidden and insensitive) and shows its own labels, moved by measured text. Text and hairlines only, no card.
+    li = find(root, 'label_info'); move(li, I_X, I_Q_Y - I_PAD, I_W, I_Q_VPX + 2 * I_PAD); text_style(li, I_Q_VPX, TITLE_RGB, 'left'); li.set('sensitive', 'false')
+    album = find(root, 'label_album'); move(album, I_TEXT_X, I_ALBUM_Y - I_PAD, I_TEXT_W, I_META_PX + 2 * I_PAD); text_style(album, I_META_PX, GREY, 'left')
+    for r, n in enumerate(('label_genre', 'label_year', 'label_size', 'label_location')):
+        w = find(root, n); move(w, I_X, i_row_y(r) - I_PAD, I_W, I_ROW_PX + 2 * I_PAD); text_style(w, I_ROW_PX, GREY, 'left')
+    own = []
+    def label(name, kind, x, y, w, px, rgb, align, ellipsis=False):
+        y0, h = i_box(y, px)
+        wd = awtk_ui.Widget(kind, x, y0, w, h, [('name', name), ('visible', 'false'), ('sensitive', 'false')] + ([('only_parent_focus', 'true'), ('ellipses', 'true')] if ellipsis else []))
+        text_style(wd, px, rgb, align); each(wd, STATES, 'margin_left', '0'); each(wd, STATES, 'margin_right', '0'); own.append(wd)
+    def solid(name, x, y, w, h, rgb, shown):
+        wd = awtk_ui.Widget('view', x, y, w, h, [('name', name), ('sensitive', 'false')] + ([] if shown else [('visible', 'false')])); each(wd, STATES, 'bg_color', rgb); own.append(wd)
+    for y in I_HAIRS: solid(f'img_np_hair{y}', I_X, y, I_W, 1, HAIR, True)
+    art = awtk_ui.Widget('view', I_X, I_ART_Y, I_ART, I_ART, [('name', 'np_i_art'), ('sensitive', 'false')]); each(art, STATES, 'bg_color', '#00000000'); own.append(art)
+    label('np_i_title', 'hscroll_label', I_TEXT_X, I_TITLE_Y, I_TEXT_W, I_TITLE_PX, TITLE_RGB, 'left', True)
+    label('np_i_artist', 'hscroll_label', I_TEXT_X, I_ARTIST_Y, I_TEXT_W, I_META_PX, GREY, 'left', True)
+    label('np_i_album', 'hscroll_label', I_TEXT_X, I_ALBUM_Y, I_TEXT_W, I_META_PX, GREY, 'left', True)
+    for text, name in (('HI-RES', 'np_i_badge_hires'), ('DSD', 'np_i_badge_dsd')):
+        own.append(awtk_ui.Widget('image', I_R - I_BADGE_W[text], I_BADGE_Y, I_BADGE_W[text], I_BADGE_H, [('name', name), ('image', name), ('draw_type', 'default'), ('visible', 'false'), ('sensitive', 'false')]))
+    for i in range(4): label(f'np_i_qv{i}', 'label', I_X, I_Q_Y, 80, I_Q_VPX, TITLE_RGB, 'left')
+    for i in range(4): label(f'np_i_qu{i}', 'label', I_X, I_Q_UY, 40, I_Q_UPX, GREY, 'left')
+    for i in range(1, 4): solid(f'np_i_qd{i}', I_X + 72 * i, I_Q_DIV_Y, 1, I_Q_DIV_H, DIVIDER, False)
+    for r in range(I_ROWS): label(f'np_i_k{r}', 'label', I_X, i_row_y(r), 100, I_ROW_PX, GREY, 'left')
+    for r in range(I_ROWS): label(f'np_i_v{r}', 'hscroll_label', I_X + 100, i_row_y(r), I_W - 100, I_ROW_PX, TITLE_RGB, 'right', True)
+    info.children += own
 
     # ---- progress bar, times, page dots
     sl = find(root, 'slider_play'); move(sl, *SLIDER); sl.set('bar_size', str(BAR))
@@ -394,7 +479,7 @@ def apply_ui(root):
     for n in ('img_repeata', 'img_repeatb'): w = find(root, n); move(w, SLIDER[0], SLIDER[1] + SLIDER[3] // 2 + 7, w.w, w.h)
 
     after = [w.name for w in root.walk() if w.name]
-    assert sorted(set(names)) == sorted(set(after) - {'img_np_tint', 'np_remaining', 'np_elapsed', 'np_quality', 'img_np_scrim_lyrics', 'img_np_scrim_info', 'img_np_shadow', 'np_lyrics'}), 'a widget name was lost'
+    assert sorted(set(names)) == sorted(set(after) - {'img_np_tint', 'np_remaining', 'np_elapsed', 'img_np_scrim_lyrics', 'img_np_scrim_info', 'img_np_shadow', 'np_lyrics'} - {w.name for w in own}), 'a widget name was lost'
     assert album in info.children
     return root
 
@@ -462,8 +547,10 @@ def check_touch(root):
         t = hit(root, (0, 0, W, H), x, y)
         assert inside(t, sv), f'touch at ({x},{y}) on the cover page lands on {t.name or t.type}, not the slide_view'
     # the decoration never takes a touch
-    for n in ('img_np_tint', 'img_np_scrim_lyrics', 'img_np_scrim_info', 'img_np_shadow', 'np_remaining', 'np_elapsed', 'np_quality', 'label_info', 'label_playtime', 'label_playlen', 'img_repeata', 'img_repeatb', 'image_wait'):
+    for n in ('img_np_tint', 'img_np_scrim_lyrics', 'img_np_scrim_info', 'img_np_shadow', 'np_remaining', 'np_elapsed', 'label_info', 'label_playtime', 'label_playlen', 'img_repeata', 'img_repeatb', 'image_wait'):
         assert find(root, n).get('sensitive') == 'false', f'{n} must be insensitive'
+    for w in find(root, 'view_info').walk():
+        if w.name and w.name.startswith(('np_i_', 'img_np_hair')): assert w.get('sensitive') == 'false', f'{w.name} must be insensitive'
     return [(n, rects[n]) for n in PROBES]
 
 # ---------------------------------------------------------------------------------------------- page theme

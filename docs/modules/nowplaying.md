@@ -82,7 +82,7 @@ the timer covers missed events. Foreground work refreshes page data before retin
 Missing bars, failed style calls or refused lifecycle listeners leave the bar untouched.
 Real status-bar appearance remains a device-validation concern.
 
-## Time and information
+## Time
 
 `get_playtimeandlength` (`0x4e015c`) supplies seconds.
 `np_elapsed` shows `m:ss` or `h:mm:ss`; `np_remaining` shows the negative
@@ -90,21 +90,26 @@ remaining value, clamped at zero. They replace the visibility of stock time labe
 than competing with stock text writes. Invalid lengths restore stock labels.
 Missing time widgets disable that portion without disabling tint.
 
-The page tick reads the stock info labels and rewrites changed, complete strings only.
-It spaces colons and units and translates Genre/Year.
-While the playing record is a server stream (`REC_ID <= -2`, mapped by `sba_rec_track`, and `REC_PATH` an `http` address) `np_stream_text` writes the size and location lines itself, since stock's come from the
-stream address (token and salt included) and a file that does not exist: stock's label, then `N.NN MB` from the server size kept in the queue map (`sba_rec_size`; "Unknown" when none) or the saved server's scheme and
-host[:port] (`sba_url`, user info, path and query dropped; "Unknown" with no server). A downloaded track plays from its own path and keeps stock's lines. The same `np.done` hashes keep it from looping. Failed reads, truncation or output
-overflow leave stock text. Stock text can appear for up to one 500 ms tick after a track change.
+## Information page
 
-The quality line differs: stock rewrites `label_info` with the compact text on every tick, so
-rewriting it would alternate two widths in a centred label. The asset adds `np_quality`
-(same rectangle, size 18, centred, hidden, insensitive). The tick reads `label_info`, formats
-it (spaced separators when the result fits), writes `np_quality` only when that text changes,
-and then shows it while `label_info` is hidden and made insensitive. Stock keeps writing
-`label_info`, the data source. A page without `np_quality` leaves `label_info` visible and
-untouched. A failed read or write, or a text too long to read whole, hides `np_quality` and
-shows `label_info` again (so a stale line never stays up); the next good text takes it back.
+Page 3 (`view_info`) is text and hairlines only, on the existing `np_scrim`, in the 320 × 450 window:
+
+- **Header.** The record's cover (`mb_art_t`, `patch/minibar.c`, 64 px, 8 px corners, drawn from the `np_i_art` view's `EVT_AFTER_PAINT`, decoded on the tick when the track changes and never in the paint) at (16, 36);
+  title 20 px white at y 38, artist and album 16 px `#AAAAAA` at y 62 and 82, x 92, 212 px wide, one line each, ellipsis at the end. Text comes from `REC_TITLE` (else the file name), `REC_ARTIST`, `REC_ALBUM`, cut below 200 bytes.
+- **Badge.** `HI-RES` or `DSD` (not translated): a gold `#E3C16F` 1 px outline picture (`np_i_badge_hires` / `np_i_badge_dsd`, text baked in, 49 and 35 px by 18, no fill, fixed against the Accent picker) right-aligned to x 304 at y 40; the title is narrower by its width + 8.
+  The rule is the cassette theme's: `tape_badge` (`patch/tape.c`, one `mclGetInfo`): lossless and (over 48 kHz, or 24 bit from 44.1 kHz) is HI-RES, 1 bit is DSD, nothing for CD quality or lossy; DSD files also by extension when the player has no stream yet.
+- **Quality line.** Hairline at y 112, the line at y 122: format, rate, bit depth, bitrate, values 17 px white, units (`kHz`, `bit`, `kbps`, always Latin) 12 px `#AAAAAA` 3 px after the value, 1 px dividers (white 18 %). Items are as wide as their content with equal gaps across x 16..304
+  (`qlayout` in `tools/mod_nowplaying.py` is the model; `2822.4 kHz` and `22579.2 kHz` fit). An item with no value or a zero one (no bit depth) is dropped with its divider.
+- **Rows.** Hairline at y 150, four rows 33 px apart (text tops 158, 191, 224, 257): Genre, Year, File Size, Location; label 16 px `#AAAAAA` at x 16, value 16 px white right-aligned to 304 in the room the label leaves (14 px gap), hairlines (white 15 %) between rows.
+  A value too long is cut with an ellipsis at the end, the Location at the start (`...` and as much of the end as fits, looking at its last 200 bytes; `head_fit`), so the file name stays. Everything ends above y 288.
+  Genre, Year and File Size are our keys (`Genre`, `Year`, `File Size`: stock's `player_filesize` reads "Location" in Ukrainian), Location is stock's word in the app language.
+
+Stock writes the quality line and the five "Label:value" lines when the track changes (`label_info`, `label_album`, `label_genre`, `label_year`, `label_size`, `label_location`); they stay as the data source, never rewritten, and are hidden and made insensitive once ours show.
+The tick (`np_info`) lays a part out when its stock text hash changed, or the track changed (`mb_track_key`: the header, and every row again, since a stream's stock text is the same for each record); the header's title, artist and album labels are shown once the header runs, and for `NP_RELAY` (3) ticks after the page starts or returns, because a label measures in its own style only once the window is open. Our labels are placed with `widget_move` / `widget_resize` from measured text
+(`m1_text_w`), ellipsis at the end by the `hscroll_label`'s own, the Location's by `np_head_fit` (binary search over character starts). While the playing record is a server stream (`REC_ID <= -2`, mapped by `sba_rec_track`, and `REC_PATH` an `http` address) `np_stream_text` writes the size and location lines itself, since stock's come from the
+stream address (token and salt included) and a file that does not exist: stock's label, then `N.NN MB` from the server size kept in the queue map (`sba_rec_size`; "Unknown" when none) or the saved server's scheme and host[:port] (`sba_url`, user info, path and query dropped; "Unknown" with no server).
+A downloaded track plays from its own path and keeps stock's lines.
+Fallback is per part: a part whose own widgets the asset lacks, or whose stock text is unreadable (failed read, longer than the 511 byte buffer, no `Label:value` shape, no quality item), shows stock's label again at its row, and the next good text takes it back. The header has no fallback beyond an empty line (stock's album label stays when the asset lacks it).
 
 ## Pins, safety and validation
 
@@ -119,6 +124,6 @@ The affected functions are outside the boot path.
 
 Runtime work is page-scoped, with no new thread or lock. Widgets/styles use stock setters;
 fallbacks preserve stock behavior. Only the cover widget has paint-time payload work.
-Tests check lifecycle, tone/corner models, cover caching, time formatting, translated info,
+Tests check lifecycle, tone/corner models, cover caching, time formatting, the information page (layout model, badge rule, fallback),
 contrast and stock hit targets. Real repaint behavior, slider rounding, corner blending,
 intro dots and frame timing need the device.

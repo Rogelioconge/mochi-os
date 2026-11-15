@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Approximate PIL mock-up of the Now Playing page (ui/playing_page.bin + its page theme); not pixel-exact AWTK.
 
-  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,cover=FILE][,tint=RRGGBB][,playing] ...
+  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3][,cover=FILE][,tint=RRGGBB][,playing] ...
 
 RAW_DIR is a tree's rootfs/release/assets/default/raw. Each panel draws a 30 px status bar and the 450 px
 window under it. Styles resolve as on the device: inline style:<state>:<prop>, then the window theme
@@ -19,17 +19,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import awtk_ui, awtk_style
 from awtk_text import Ttf, StbText
+import mod_nowplaying as MN
 from mod_nowplaying import tone, tint_alpha, corner_alpha, ART_R, BG
 
 HSCROLL_MARGIN = 2
 W, BAR, H = 320, 30, 450
 SAMPLE = {'scrlabel_title': 'Money', 'scrlabel_artist': 'Pink Floyd', 'label_album': 'Album: The Dark Side of the Moon',
           'label_index': '5/10', 'np_elapsed': '1:23', 'np_remaining': '-4:59',
-          # the info page's lines as patch/nowplaying.c np_info leaves them (stock writes "Album:...", "Genres:...", "Era:...",
-          # "File Size:48.92MB", "FLAC|44.1kHz|16bit|1021kbps")
-          'np_quality': 'FLAC | 44.1 kHz | 16-bit | 1021 kbps', 'label_genre': 'Genre: Progressive Rock', 'label_year': 'Year: 1973',
-          'label_size': 'File Size: 48.92 MB', 'label_location': 'Location: SD:/Music/Pink Floyd/The Dark Side of the Moon',
+          # (the information page is drawn by Painter.info_page from INFO)
           'label_lyricmsg': 'No lyrics'}
+# The information page's sample tracks (page=2, info=NAME): what stock writes (the quality line, the lines "Label:value") and the record's title, artist, album
+INFO = {'cd': dict(title='Money', artist='Pink Floyd', album='The Dark Side of the Moon', quality='FLAC|44.1kHz|16bit|1021kbps', genre='Progressive Rock', year='1973', size='48.92MB',
+                   location='SD:/Music/Pink Floyd/The Dark Side of the Moon/05 Money.flac', badge=''),
+        'hires': dict(title='Aja', artist='Steely Dan', album='Aja', quality='FLAC|96kHz|24bit|2913kbps', genre='Jazz Rock', year='1977', size='173.40MB', location='SD:/Music/Steely Dan/Aja/02 Aja.flac', badge='HI-RES'),
+        'dsd': dict(title='So What', artist='Miles Davis', album='Kind of Blue', quality='DSF|2822.4kHz|1bit|5645kbps', genre='Jazz', year='1959', size='379.12MB', location='SD:/Music/Miles Davis/Kind of Blue/01 So What.dsf', badge='DSD'),
+        'mp3': dict(title='Wish You Were Here (2011 Remastered Version)', artist='Pink Floyd', album='Wish You Were Here', quality='MP3|44.1kHz|16bit|320kbps', genre='Rock', year='1975', size='12.80MB',
+                    location='SD:/Music/Pink Floyd/Wish You Were Here/04 Wish You Were Here.mp3', badge='')}
+INFO_LABELS = ('label_info', 'label_album', 'label_genre', 'label_year', 'label_size', 'label_location')    # stock's data labels: hidden while the payload's own show
 PROGRESS = 22    # % played in the mock-up
 
 def color_str(u):
@@ -66,6 +72,7 @@ class Painter:
     def stb(self, px):
         if px not in self.stbs: self.stbs[px] = StbText(self.ttf, px)
         return self.stbs[px]
+    info = INFO['cd']    # the information page's sample track
     playing = False      # the play button shows the pause glyph (the app swaps btn_imgplay_style / btn_imgpause_style)
     def image(self, name):
         if not name: return None
@@ -145,11 +152,43 @@ class Painter:
             rgb = tone(*self.cover_img.convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0)))
         win = Image.new('RGBA', (W, H), ('#%02X%02X%02X' % tuple(rgb)) if rgb else root.get('style:normal:bg_color', BG))
         self.walk(win, root, 0, 0, (0, 0, W, H), page, root)
+        if page == 2: self.info_page(win)
         im.alpha_composite(win, (0, BAR))
         return im
+    def info_page(self, win):
+        """The information page as patch/nowplaying.c lays it out (np_header, np_quality, np_row), from the shared model (mod_nowplaying qparse / qlayout / head_fit) and the built font."""
+        I = self.info
+        adv = lambda t, px: self.stb(px).layout(t)[1] if t else 0
+        def put(x, y, t, px, rgb):                       # the text's top at y, left at x
+            f = self.font(px); layer = Image.new('RGBA', win.size); ld = ImageDraw.Draw(layer)
+            for ch, pen in self.stb(px).layout(t)[0]: ld.text((x + pen, y + f.getmetrics()[0]), ch, font=f, fill=rgb, anchor='ls')
+            win.alpha_composite(layer)
+        def end_fit(t, px, room):
+            if adv(t, px) <= room: return t
+            while t and adv(t + '...', px) > room: t = t[:-1]
+            return t + '...'
+        for y in MN.I_HAIRS: win.alpha_composite(Image.new('RGBA', (MN.I_W, 1), MN.HAIR_RGBA), (MN.I_X, y))
+        c = self.cover(MN.I_ART, MN.I_ART); m = Image.new('L', c.size, 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, c.width - 1, c.height - 1], radius=MN.I_ART_R, fill=255)
+        win.paste(c, (MN.I_X, MN.I_ART_Y), m)
+        bw = MN.I_BADGE_W.get(I['badge'], 0)
+        put(MN.I_TEXT_X, MN.I_TITLE_Y, end_fit(I['title'], MN.I_TITLE_PX, MN.I_TEXT_W - (bw + MN.I_BADGE_GAP if bw else 0)), MN.I_TITLE_PX, '#FFFFFF')
+        put(MN.I_TEXT_X, MN.I_ARTIST_Y, end_fit(I['artist'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
+        put(MN.I_TEXT_X, MN.I_ALBUM_Y, end_fit(I['album'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
+        if bw: win.alpha_composite(self.image('np_i_badge_' + ('hires' if I['badge'] == 'HI-RES' else 'dsd')), (MN.I_R - bw, MN.I_BADGE_Y))
+        items = MN.qparse(I['quality'])
+        for (v, u), (vx, ux, dx) in zip(items, MN.qlayout(items, adv)):
+            put(vx, MN.I_Q_Y, v, MN.I_Q_VPX, '#FFFFFF')
+            if u: put(ux, MN.I_Q_UY, u, MN.I_Q_UPX, MN.GREY)
+            if dx is not None: win.alpha_composite(Image.new('RGBA', (1, MN.I_Q_DIV_H), MN.DIVIDER_RGBA), (dx, MN.I_Q_DIV_Y))
+        for r, (k, v) in enumerate((('Genre', I['genre']), ('Year', I['year']), ('File Size', I['size'].replace('MB', ' MB')), ('Location', I['location']))):
+            y, room = MN.i_row_y(r), MN.I_W - adv(k, MN.I_ROW_PX) - MN.I_KEY_GAP
+            put(MN.I_X, y, k, MN.I_ROW_PX, MN.GREY)
+            v = MN.head_fit(v, room, lambda t: adv(t, MN.I_ROW_PX)) if r == 3 else end_fit(v, MN.I_ROW_PX, room)
+            put(MN.I_R - adv(v, MN.I_ROW_PX), y, v, MN.I_ROW_PX, '#FFFFFF')
+
     def walk(self, im, wd, ox, oy, clip, page, root):
-        if wd.name in ('np_remaining', 'np_elapsed', 'np_quality'): pass       # the hook shows them and hides the stock times / quality line
-        elif wd.name in ('label_info',) or wd.name in ('label_playlen', 'label_playtime') or wd.get('visible') == 'false' or wd.get('disg:hide') == 'true': return
+        if wd.name in ('np_remaining', 'np_elapsed'): pass       # the hook shows them and hides the stock times / quality line
+        elif wd.name in INFO_LABELS or wd.name in ('label_playlen', 'label_playtime') or wd.get('visible') == 'false' or wd.get('disg:hide') == 'true': return
         if wd.name in ('image_wait', 'img_repeata', 'img_repeatb'): return       # app-driven, normally hidden
         w, h = wd.w, wd.h
         x, y = wd.x, wd.y
@@ -206,6 +245,7 @@ def main():
         for o in opts:
             if o.startswith('cover='): p.cover_img = Image.open(o[6:])
             if o == 'playing': p.playing = True
+            if o.startswith('info='): p.info = INFO[o[5:]]
             if o.startswith('tint='): p.tint = tone(*(int(o[5:][k:k + 2], 16) for k in (0, 2, 4)))
         shots.append((label, p.render(root, page)))
     top, pad = 18, 10

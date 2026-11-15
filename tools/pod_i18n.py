@@ -1060,6 +1060,9 @@ TEXT = dict([
        'Género', 'Genere', 'ประเภท', 'Gatunek', 'Жанр', 'Жанр'),
     _t('Year', '年份', '年份', '年', '연도', 'Année', 'Jahr',
        'Año', 'Anno', 'ปี', 'Rok', 'Год', 'Рік'),
+    # Now Playing's information page: the File Size row's label (stock's player_filesize reads "Location" in Ukrainian)
+    _t('File Size', '文件大小', '檔案大小', 'ファイルサイズ', '파일 크기', 'Taille du fichier', 'Dateigröße',
+       'Tamaño del archivo', 'Dimensione file', 'ขนาดไฟล์', 'Rozmiar pliku', 'Размер файла', 'Розмір файлу'),
     # Now Playing's File Size / Location of a server stream when the server gave no size (np_stream_text)
     _t('Unknown', '未知', '未知', '不明', '알 수 없음', 'Inconnu', 'Unbekannt',
        'Desconocido', 'Sconosciuto', 'ไม่ทราบ', 'Nieznane', 'Неизвестно', 'Невідомо'),

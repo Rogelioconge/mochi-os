@@ -482,13 +482,47 @@
 #define NP_ALPHA_TOP 38
 #define NP_ALPHA_BOTTOM 235
 #define NP_WIN_H 450
-/* The info page's lines (np_info): the stock text is read into NP_INFO_BUF bytes (stock writes them with a 0x200
- * buffer, so a longer text is never rewritten); the quality line keeps single spaces round its bars when the result is
- * at most NP_INFO_SPACED characters (the label is 304 px wide at 18 px, 8 px from each side: such a line is at most 272 px
- * wide, a DSD line without the spaces at most 295). */
+/* The info page (np_info; tools/mod_nowplaying.py is the model, its constants equal these): the stock text of the six data labels is read into NP_INFO_BUF bytes (stock writes them with a 0x200
+ * buffer, so a longer text is never used). Header: the cover NPI_ART px at (NPI_X, NPI_ART_Y), corners NPI_ART_R px; the title (NPI_TITLE_PX), artist and album (NPI_META_PX) NPI_TEXT_W wide from NPI_TEXT_X
+ * at window y NPI_TITLE_Y, NPI_ARTIST_Y, NPI_ALBUM_Y; the badge (a picture NPI_BADGE_H high, NPI_BADGE_HIRES_W or NPI_BADGE_DSD_W wide) right aligned to NPI_R at NPI_BADGE_Y and NPI_BADGE_GAP
+ * before the title. Quality line: values NPI_Q_VPX high, units NPI_Q_UPX (NPI_Q_UGAP after the value) in NPI_Q_W from NPI_X, text tops NPI_Q_Y and NPI_Q_UY, dividers NPI_Q_DIV_H high at NPI_Q_DIV_Y.
+ * Rows: NPI_ROWS of NPI_ROW_PITCH from NPI_ROW_Y, NPI_ROW_PX text, the value right aligned to NPI_R, NPI_KEY_GAP after the label. Every own label's box is its text's line plus NPI_PAD above and below.
+ * NP_RELAY: ticks after the page starts (or returns) that lay everything out again: a label measures in its own style only once the window has opened. */
 #define NP_INFO_N 6
 #define NP_INFO_BUF 512
-#define NP_INFO_SPACED 36
+#define NP_RELAY 3
+#define NP_ROW_TAIL 200 /* the bytes of a Location's end that np_head_fit looks at */
+#define NPI_X 16
+#define NPI_R 304
+#define NPI_ART 64
+#define NPI_ART_Y 36
+#define NPI_ART_R 8
+#define NPI_TEXT_X 92
+#define NPI_TEXT_W 212
+#define NPI_TITLE_Y 38
+#define NPI_TITLE_PX 20
+#define NPI_ARTIST_Y 62
+#define NPI_ALBUM_Y 82
+#define NPI_META_PX 16
+#define NPI_PAD 2
+#define NPI_BADGE_Y 40
+#define NPI_BADGE_H 18
+#define NPI_BADGE_HIRES_W 49
+#define NPI_BADGE_DSD_W 35
+#define NPI_BADGE_GAP 8
+#define NPI_Q_W 288
+#define NPI_Q_Y 122
+#define NPI_Q_UY 126
+#define NPI_Q_VPX 17
+#define NPI_Q_UPX 12
+#define NPI_Q_UGAP 3
+#define NPI_Q_DIV_Y 123
+#define NPI_Q_DIV_H 18
+#define NPI_ROWS 4
+#define NPI_ROW_Y 150
+#define NPI_ROW_PITCH 33
+#define NPI_ROW_PX 16
+#define NPI_KEY_GAP 14
 /* The status bar follows the page (EXPERIMENTAL, np_bar_*): the window events of the page (widget_on on the window:
  * window_manager_default_open_window dispatches 0x12c to the window a new non-keyboard, non-overlay window covers and 0x12d
  * to the one it uncovers, @0x69182c / @0x691b3c), the stock black, and the largest weighted square sum (2126 r^2 + 7152 g^2
