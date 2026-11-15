@@ -213,14 +213,14 @@ def asset_tests(ctx):
     title_room = by['label_title'].w
     expect(all(StbText(font, 22).layout(built[loc]['Software Update'])[1] <= title_room for loc in pod_i18n.LOCALES), f'the title "Software Update" fits the navbar\'s label ({title_room} px) in all 13 languages')
     rowfont = max(StbText(font, 21).layout(built[loc]['Software Update'])[1] for loc in pod_i18n.LOCALES)
-    expect(rowfont <= 187, f'the About row label fits the card row in all 13 languages ({rowfont} px of 187)')
+    expect(rowfont <= 187, f'the General row label fits the card row in all 13 languages ({rowfont} px of 187)')
     expect(all(k in pod_i18n.TEXT or k in pod_i18n.STOCK for k in KEYS), 'every key has its 13 translations')
-    # the About row: a link right below the version row, none in the System card
-    rows = pod_pages.ABOUT_PAGE.rows
+    # the General row: a link right below About, none on About, Settings or Developer
+    rows = pod_pages.GENERAL_PAGE.rows
     labels = [r.label for r in rows]
     i = labels.index('Software Update')
-    expect(labels[i - 1] == 'M1+ Music' and 'Software Update' not in [r.label for r in pod_pages.SETTINGS_PAGE.rows] and rows[i].action == pod_pages.ACT_UPDATE and pod_pages.row_kind(rows[i]) == 'link'
-           and 'System Update' not in [r.label for r in pod_pages.DEVELOPER_PAGE.rows], 'Settings > General > About: Software Update right below the version row, a link row, none in the System card; the Developer page has no System Update row any more')
+    expect(labels[i - 1] == 'About' and 'Software Update' not in [r.label for r in pod_pages.SETTINGS_PAGE.rows + pod_pages.ABOUT_PAGE.rows] and rows[i].action == pod_pages.ACT_UPDATE and pod_pages.row_kind(rows[i]) == 'link'
+           and 'System Update' not in [r.label for r in pod_pages.DEVELOPER_PAGE.rows], 'Settings > General: Software Update right below About, a link row; not on About, Settings or Developer')
 
 
 def flow_tests(ctx):
@@ -615,12 +615,12 @@ def life_tests(ctx):
     m = UM(UP.Site()); del m.widgets['up_pd_fill']
     r = m.open()
     expect(r == 0xffffffff and ('navigator_back',) in m.hist, 'an asset without a widget the payload needs: -1, the page closes again')
-    # the About row opens it
+    # the General row opens it
     m = UM(UP.Site())
-    i = next(i for i, r in enumerate(pod_pages.ABOUT_PAGE.rows) if r.action == pod_pages.ACT_UPDATE)
+    i = next(i for i, r in enumerate(pod_pages.GENERAL_PAGE.rows) if r.action == pod_pages.ACT_UPDATE)
     m.calls = []
-    m.call(PSYMS['on_row'], a0=PSYMS['pod_rows_%d' % pod_pages.ABOUT_PAGE_INDEX] + 12 * i, count=3000000)
-    expect(('window_open', 'm1plus_update') in m.calls, 'the About row opens the page')
+    m.call(PSYMS['on_row'], a0=PSYMS['pod_rows_%d' % pod_pages.GENERAL_PAGE_INDEX] + 12 * i, count=3000000)
+    expect(('window_open', 'm1plus_update') in m.calls, 'the General row opens the page')
 
 
 RWIN = 0x24500000

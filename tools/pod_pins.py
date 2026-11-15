@@ -510,7 +510,6 @@ SETTINGS_PINS = (   # (address, stock word, what it proves)
     (0x4b1418, 0x8f848020, 'the Bluetooth hub row: lw a0, GOT page 0x750000'), (0x4b141c, 0x8f99a704, 'the Bluetooth hub row: lw t9, GOT navigator_to'),
     (BTHUB_SITE, 0x0320f809, 'the Bluetooth hub row (0x4b1408): jalr navigator_to'), (0x4b142c, 0x24848f00, 'its delay slot: a0 = "systemset/bluetooth_page"'), (0x4b1430, 0x00001025, 'the Bluetooth hub row: move v0, zero (the result is not used)'),
     (0x4ad830, 0x0320f809, 'the Settings rows\' shared call: jalr navigator_to'), (0x4ada74, 0x24848ab4, 'Settings row 3: a0 = "systemset/display_page" (our Display page takes its place)'),
-    (0x4ada38, 0x24848a68, 'Settings row 1: a0 = "systemset/fwupdate_page"'),
     # About: the stock page's values (the widget walk's callback inside what the symbol table calls on_sn_qrcode_onclick, @0x4a1240..0x4a170c; the init 0x4a170c-): the model and firmware version literals, the card
     # numbers (access /tmp/mmc_add, then getDiskMemoryInfo("/mnt/mmc", &cap 0xa03e74, &rem 0xa03e70)), the serial number and the Wi-Fi MAC strings, the IP address
     (0x4a145c, 0x24427718, 'about row 0: v0 = "Shanling M1 Plus" (the model literal)'), (0x4a14cc, 0x2442773c, 'about row 1: v0 = "V2.1" (the firmware version literal)'),
@@ -878,18 +877,8 @@ TFUPDATE_PINS = (   # (address, stock word, what it proves)
     (0x4a6d18, 0x24c67160, 'widget walk: a2 = 0x4a7160 (the delay slot): the row\'s click handler is the one called here'),
 )
 # Settings > General's direct rows (docs/modules/settings.md "General"): the stock pages ACT_STOCK opens (a plain navigator_to of the name, no context; the payload's own table holds the names, these pins
-# prove each name is the one stock's own list or hub uses) and Format Storage, whose handler is called: the sysset list's case 12 (the jump table 0x748ae0, row 12 of 0x97c8c0) does `bal 0x4ad678` with no argument.
-# The handler is self-contained: the confirm dialog (msg_checkformat, navigator_to_with_context "dialog/confirminfo_dialog"; only the answer 10 goes on), toolsCheckMount("/mnt/mmc"), then navigator_to
-# ("dialog/formatcard_dialog") or, without the card, the msg_nottf message box. The usbset and rippingset pages have no opener in V2.1 other than the page registry (0x4d0c10, 0x4d0464: the init dispatcher by name).
-FORMAT_CARD = 0x4ad678
+# prove each name is the one stock's own list or hub uses). The usbset and rippingset pages have no opener in V2.1 other than the page registry (0x4d0c10, 0x4d0464: the init dispatcher by name).
 STOCKROWS_PINS = (   # (address, stock word, what it proves)
-    (FORMAT_CARD, 0x3c1c0055, 'format handler prologue'), (FORMAT_CARD + 4, 0x279c6858, 'format handler prologue'), (FORMAT_CARD + 8, 0x0399e021, 'format handler prologue'),
-    (0x4ad6fc, 0x0320f809, 'format: jalr navigator_to_with_context (the modal confirm)'), (0x4ad700, 0x24844570, 'format: a0 = "dialog/confirminfo_dialog"'),
-    (0x4ad708, 0x1443000b, 'format: bne v0, 0xa: only Yes goes on'), (0x4ad71c, 0x24844bd0, 'format: a0 = "/mnt/mmc" (toolsCheckMount)'),
-    (0x4ad730, 0x0320f809, 'format: jalr navigator_to'), (0x4ad734, 0x24848930, 'format: a0 = "dialog/formatcard_dialog"'),
-    (0x4ada3c, 0x8f99afb4, 'sysset list: the Format row: lw t9, GOT 0x4b0000'), (0x4ada40, 0x2739d678, 'sysset list: the Format row: t9 = 0x4ad678'), (0x4ada44, 0x0411ff0c, 'sysset list: the Format row: bal 0x4ad678'),
-    (0x4ada14, 0x24848a1c, 'sysset list: the Regulatory row: a0 = "systemset/prove_page" (the shared jalr navigator_to 0x4ad830)'),
-    (0x4ada5c, 0x24848a80, 'sysset list: the Reset row: a0 = "systemset/reset_page" (the shared jalr navigator_to 0x4ad830)'),
     (0x4b13f0, 0x0320f809, 'the SyncLink hub row (0x4b13d0): jalr navigator_to'), (0x4b13f4, 0x24848ee8, 'its delay slot: a0 = "systemset/synclink_page"'),
     (0x4d0c10, 0x24a59f14, 'page registry: a1 = "systemset/usbset_page" (strcmp, then systemset_usbset_page_init)'), (0x4d0464, 0x24a59e70, 'page registry: a1 = "systemset/rippingset_page" (strcmp, then systemset_rippingset_page_init)'),
 )

@@ -2,7 +2,7 @@
 
 An over-the-air update for this project: over Wi-Fi the page finds the newest GitHub release, downloads its `update.bin` to the TF card's `/mnt/mmc/update.bin`, then calls the firmware's own TF card update, so the user
 lands on stock's confirmation. **Stock still does the battery check, the confirmation, the MD5 checks and the flash**; nothing here touches flashing, the bootloader or the recovery kernel.
-No new hook, no patched stock word and no new import: the entry is a link row on the About page, the page a new window asset, the network the Podcasts worker's libcurl client (one job slot), the hand-over a **pinned call** of
+No new hook, no patched stock word and no new import: the entry is a link row on the General page, the page a new window asset, the network the Podcasts worker's libcurl client (one job slot), the hand-over a **pinned call** of
 stock's TF card update click handler (below). The dialogs are the payload's existing ones: the stock confirm dialog (as Screenshot and Rebuild Covers use it) and the Podcasts refresh dialog's scrim and card.
 
 The design follows q2-pod's Network Update (github.com/DiamondBond/q2-pod, `patch/netupdate.c`, `docs/internals.md` "Network Update"): a header-only request to `releases/latest` whose redirect names the tag, a download
@@ -13,8 +13,8 @@ Preview: `uv run python -I tools/preview/preview_update.py work/mod-release out/
 
 ## What the user sees
 
-- **The row**: Settings > General > About > **Software Update**, a link row (chevron, no glyph, the About page's row style; `ACT_UPDATE`) **right below the version row** (M1+ Music) in the About page's first card. It is not in the General card
-  (Settings > General lists About, Date & Time, Keyboards, Language and the stock pages' direct rows); stock's TF card update page is General > Firmware Update. Back from the update page returns to About.
+- **The row**: Settings > General > **Software Update**, a link row (chevron, glyph `download`; `ACT_UPDATE`) **right below About**, in General's first card. It is not on the About page
+  (About lists values only); stock's TF card update page is no longer linked and stays under All System Settings. Back from the update page returns to General.
 - **The page** (black, the stock navbar with Back and Now Playing, neutral white and grey; only the download popup's progress fill takes the accent, role `ROLE_FILL`): one block with **fixed places** (`tools/pod_ui.py UP_YS`: the same in every state, so nothing jumps), centred in the 400 px under the navbar: a 48 px glyph, 16 px, the title (22 px white), 8 px, the detail (18 px grey #AAAAAA, centred, at most two lines of 280 px), 24 px, a pill (260 x 48, 20 px text), 12 px, a second pill; a state shows the parts it has (`patch/update.c up_apply`). Every string is one of our translation keys (13 languages, `docs/modules/i18n.md`); `%s` is the version, put in by the payload.
 
   | State | Glyph | Title | Explanation | Pills |
@@ -124,7 +124,7 @@ Not run on a device: the flash itself is stock's, untouched.
 
 `reset_poweroptions_timer` (`0x4d7874`, `PODCAST_PINS`) and `navigator_back` were pinned already; this page's timer is a second caller of the first. `tools/pod.py` `SOURCES` gains `upver.c` (before `pcnet.c`) and `update.c`, and compiles with
 `-DM1PLUS_VERSION`, `-DM1PLUS_DEV`, `-DM1PLUS_REPO`; `patch/curlopts.h` gains `CURLOPT_NOBODY`, `CURLPROTO_HTTPS`, `CURLINFO_REDIRECT_URL` and `CURLINFO_CONTENT_LENGTH_DOWNLOAD_T`; `up_dev` is placed in a `.data.up_dev` section (a zero would be `.bss`,
-which the payload has none of). Assets: `ui/m1plus_update.bin` (`tools/pod_ui.py build_update_page`, `pod_pages.UPDATE`; `podcasts_dialog` takes the widget prefix and the title key), the About page's row `ACT_UPDATE` (44), `ui/m1plus_relnotes.bin` (`build_relnotes_page`, `pod_pages.RELNOTES`), the glyphs `pod_es_download` and
+which the payload has none of). Assets: `ui/m1plus_update.bin` (`tools/pod_ui.py build_update_page`, `pod_pages.UPDATE`; `podcasts_dialog` takes the widget prefix and the title key), General's row `ACT_UPDATE`, `ui/m1plus_relnotes.bin` (`build_relnotes_page`, `pod_pages.RELNOTES`), the glyphs `pod_es_download` and
 `pod_es_check` (`tools/mod_icons.py ES_ICONS`, `assets/icons/png`), 29 translation keys (`tools/pod_i18n.py`; "Release Notes" is the new one). `pcnet.c` gains no import (`calloc` and `free` were there); `tools/pod.py` `SOURCES` gains `relnotes.c`. No import is added (open, read, write, fsync, rename, unlink, statfs, access, snprintf and libcurl's easy interface were there).
 
 ## Tests
@@ -137,4 +137,4 @@ which the payload has none of). Assets: `ui/m1plus_update.bin` (`tools/pod_ui.py
 - `test/pod/updatepage.py` (the page under Unicorn): the asset (boxes, hidden and insensitive widgets, the popup's scrim and card, contrast, neutral colours, every text in 13 languages, the confirm text in three lines, the About row), the flow (idle, check, offer, the confirm dialog,
   the popup watched by the page's timer, the direct call of stock's TF card update and no page), the confirm dialog (Cancel / back / 0 start nothing and make no request; its buttons relabelled; the text in 13 languages), the popup (Cancel, Cancelling… until the worker stopped, Back is Cancel,
   errors close it, a waiting download), Check Again and a second download over an existing `update.bin` (a failure, a cancel and a wrong package keep the first file; success replaces it through the `.part`; up to date; a failed check; a development build), reopening, a page in the background,
-  every failure in 13 languages and Try Again, every state in 13 languages, waiting for a busy slot, the power timers, destroy, a wrong asset, the About row. The call of `tf_update_click` is mocked (it is stock's flash path). The Release Notes pill only when the check kept notes (and not under the popup, in Up to Date or Update Downloaded), the notes page (asset, neutral colours, heading and wrapped lines at their places, a long text scrolling to its last line, CJK and unbroken words wrapped, Back returning to the same offer, destroy and reopening, a window or asset that fails, the pill and heading in 13 languages).
+  every failure in 13 languages and Try Again, every state in 13 languages, waiting for a busy slot, the power timers, destroy, a wrong asset, the General row. The call of `tf_update_click` is mocked (it is stock's flash path). The Release Notes pill only when the check kept notes (and not under the popup, in Up to Date or Update Downloaded), the notes page (asset, neutral colours, heading and wrapped lines at their places, a long text scrolling to its last line, CJK and unbroken words wrapped, Back returning to the same offer, destroy and reopening, a window or asset that fails, the pill and heading in 13 languages).

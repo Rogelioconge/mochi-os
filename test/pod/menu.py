@@ -610,9 +610,9 @@ def settings_tests(ctx):
 
     # 15. Settings (cards): the stock Wi-Fi and Bluetooth pages, our pages, Playback (EQ, Continue Playing, the stock list), System (Display, Accent, Keyboards, About, the stock list), Developer
     expect([r.label for r in S.rows] == ['Wi-Fi', 'Bluetooth', 'Network Services', 'Home Screen', 'Library', 'Now Playing', 'EQ', 'Playback Settings',
-                                         'General', 'Display', 'Appearance', 'Buttons & Power', 'Battery', 'Developer'],
-           'the Settings page lists Wi-Fi, Bluetooth, Network Services, Home Screen, Library, Now Playing, EQ, Playback Settings, General, Display, Appearance, Buttons & Power, Battery, Developer')
-    pb = next(r for r in S.rows if r.label == 'Playback Settings'); ss = next(r for r in P.GENERAL_PAGE.rows if r.label == 'All System Settings')
+                                         'General', 'Display', 'Appearance', 'Buttons & Power', 'Battery', 'All System Settings', 'Developer'],
+           'the Settings page lists Wi-Fi, Bluetooth, Network Services, Home Screen, Library, Now Playing, EQ, Playback Settings, General, Display, Appearance, Buttons & Power, Battery, All System Settings, Developer')
+    pb = next(r for r in S.rows if r.label == 'Playback Settings'); ss = next(r for r in S.rows if r.label == 'All System Settings')
     expect((pb.action, pb.arg) == (P.ACT_PAGE, P.PLAYSET_PAGE_INDEX) and (ss.action, ss.arg) == (P.ACT_HOME, P.HOME_SYSSET),
            'Playback Settings opens our page, All System Settings the stock list')
     expect([r.label for r in P.HOMESET_PAGE.rows][-3:] == ['Main Menu', 'Extras', 'Regenerate Daily Mix'] and P.HOMESET_PAGE.title == 'Home Screen', 'Home Screen ends with Main Menu, Extras and Regenerate Daily Mix')

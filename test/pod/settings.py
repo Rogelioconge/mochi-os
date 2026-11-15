@@ -101,7 +101,7 @@ def layout_tests(ctx):
             r, kind = rows[n], P.row_kind(it)
             last = kinds[n] in ('single', 'bot')
             swatch = it.action == P.ACT_ACCENTSET   # the Accent picker's rows: a round swatch where a glyph goes (pod_swatch)
-            has_icon = swatch or (kind not in ('check', 'info', 'preset', 'delete', 'plain') and it.action not in (P.ACT_CCLIST, P.ACT_SFOLD, P.ACT_UPDATE, P.ACT_REGION, P.ACT_PCDIR, P.ACT_RGBROW, P.ACT_LEDFOLLOW, *P.ASSEP_ACTIONS, P.ACT_PEQ_PRESETS, P.ACT_PEQ_TENBAND))   # (the ListenBrainz page's rows have no glyph: Token, Account, the red Sign Out and the Auto Upload switch)
+            has_icon = swatch or (kind not in ('check', 'info', 'preset', 'delete', 'plain') and it.action not in (P.ACT_CCLIST, P.ACT_SFOLD, P.ACT_REGION, P.ACT_PCDIR, P.ACT_RGBROW, P.ACT_LEDFOLLOW, *P.ASSEP_ACTIONS, P.ACT_PEQ_PRESETS, P.ACT_PEQ_TENBAND))   # (the ListenBrainz page's rows have no glyph: Token, Account, the red Sign Out and the Auto Upload switch)
             lab = next(c for c in r.children if c.name == f'pod_label{n}')
             lx, lw = ST.label_box(kind, has_icon)
             if it.action == P.ACT_PEQ_PICK and it.label: lw = ST.curve_box()[0] - ST.VALUE_LABEL_GAP - lx   # the 10-Band EQ row's grey curve name
@@ -202,10 +202,10 @@ def about_tests(ctx):
     A = P.ABOUT_PAGE
     S = P.GENERAL_PAGE
     ab_i = next(i for i, r in enumerate(S.rows) if r.label == 'About')
-    expect((S.rows[ab_i].action, S.rows[ab_i].arg) == (P.ACT_PAGE, P.ABOUT_PAGE_INDEX) and A.title == 'About' and A.key == 'm1plus_about' and all(P.row_kind(r) == 'info' for r in A.rows if r.action != P.ACT_UPDATE) and [r.label for r in A.rows][:2] == ['M1+ Music', 'Software Update'] and P.row_kind(A.rows[1]) == 'link'
+    expect((S.rows[ab_i].action, S.rows[ab_i].arg) == (P.ACT_PAGE, P.ABOUT_PAGE_INDEX) and A.title == 'About' and A.key == 'm1plus_about' and all(P.row_kind(r) == 'info' for r in A.rows) and [r.label for r in A.rows][:2] == ['M1+ Music', 'Firmware'] and 'Software Update' not in [r.label for r in A.rows]
            and not any(n == 'systemset/about_page' for n, *_ in P.STOCK_PAGES), 'Settings > General > About opens our own page of information rows; the stock About page is not linked')
     sections = [x.text if isinstance(x, P.Hdr) else x.label if isinstance(x, P.Row) else None for x in A.layout]
-    expect(sections == ['M1+ Music', 'Software Update', 'Firmware', 'Device', 'Model', 'Serial Number', 'Wi-Fi MAC', 'IP Address', 'Storage', 'Capacity', 'Available'], f'the sections: build and firmware, Device, Storage ({sections})')
+    expect(sections == ['M1+ Music', 'Firmware', 'Device', 'Model', 'Serial Number', 'Wi-Fi MAC', 'IP Address', 'Storage', 'Capacity', 'Available'], f'the sections: build and firmware, Device, Storage ({sections})')
     names = {r.label: i for i, r in enumerate(A.rows)}
 
     def open_about(sn=b'', mac=b'', card=False, disk=(0.0, 0.0), net=0, ip=b''):
@@ -236,9 +236,9 @@ def about_tests(ctx):
     expect(not any(c[0] in ('navigator_to', 'window_open', 'write_int_config', 'open', 'write') for c in m.calls if c != ('window_open', A.key))
            and not [c for c in m.calls if c[0] == 'widget_on' and c[1] in {m.widgets[f'pod_value{i}'] for i in range(len(A.rows))}], 'opening the page only reads')
     # the page's rows are not bound: a tap on one does nothing (the rows are insensitive in the asset too)
-    expect(not [k for k in m.bound if k[0] in {m.widgets.get(f'pod_row{i}') for i in range(len(A.rows)) if A.rows[i].action != P.ACT_UPDATE}], 'no information row of the page is bound')
+    expect(not [k for k in m.bound if k[0] in {m.widgets.get(f'pod_row{i}') for i in range(len(A.rows))}], 'no information row of the page is bound')
     tree = page_tree(A)
-    expect(all((tree.find(f'pod_row{i}').get('sensitive') == 'false') == (A.rows[i].action != P.ACT_UPDATE) for i in range(len(A.rows))), 'every information row is insensitive: not tappable; the Software Update link row takes the tap')
+    expect(all(tree.find(f'pod_row{i}').get('sensitive') == 'false' for i in range(len(A.rows))), 'every information row is insensitive: not tappable')
     rows_with_value_fit = [c for c in m.calls if c[0] == 'widget_resize' and c[1] == m.widgets[f'pod_label{names["Wi-Fi MAC"]}']]
     expect(rows_with_value_fit, 'the value takes the room its text needs and the row\'s label gets the rest (value_fit)')
 
@@ -280,10 +280,10 @@ def stock_tests(ctx):
         expect([c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names() and opened == (['m1plus_wifi'] if label == 'Wi-Fi' else ['m1plus_bluetooth']),
                f'{label}: our page opens first and (here, an asset without its widgets) hands over to one plain navigator_to("{name}"), no context')
     # (the Home dispatcher's ids 16 and 17 are bound to the two rows: tests/pod/menu.py checks the table)
-    expect(len(P.STOCK_PAGES) == 8 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
-           'eight stock pages; Settings opens two of them by ACT_STOCK rows (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests), General six (below)')
-    expect(not [r for r in P.DEVELOPER_PAGE.rows if r.action in (P.ACT_STOCK, P.ACT_HOME)], 'no Developer row is a stock page or opens stock\'s list (All System Settings is General\'s last row)')
-    # General's direct rows: each page by the plain navigator_to name read from the stock image at the string stock's own list or hub passes (STOCKROWS_PINS), no context
+    expect(len(P.STOCK_PAGES) == 5 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
+           'five stock pages; Settings opens two of them by ACT_STOCK rows (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests), the direct rows three (above)')
+    expect(not [r for r in P.DEVELOPER_PAGE.rows if r.action in (P.ACT_STOCK, P.ACT_HOME)], 'no Developer row is a stock page or opens stock\'s list (All System Settings is on the Settings root)')
+    # The direct rows: each page by the plain navigator_to name read from the stock image at the string stock's own list or hub passes (STOCKROWS_PINS), no context
     G = P.GENERAL_PAGE
     gi = {r.label: i for i, r in enumerate(G.rows)}
     # (USB Mode, CD Ripping and SyncLink are General's former rows: now on Playback Settings, Library and Network Services; Back returns to the page the row is on)
@@ -296,21 +296,6 @@ def stock_tests(ctx):
         name = P.STOCK_PAGES[H.rows[hi].arg][0]
         expect(label not in gi and H.rows[hi].action == P.ACT_STOCK and name == m.read_cstr(at) and [c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names(),
                f'{H.title} > {label}: one plain navigator_to("{name}"), the string stock\'s own caller loads, no context; no row on General')
-    stock_names = {'Firmware Update': 0x748a68, 'Regulatory': 0x748a1c, 'Reset': 0x748a80}   # (the list's fwupdate, prove, reset)
-    for label, at in stock_names.items():
-        m = settings_page_machine(G); m.calls = []
-        m.click(f'pod_row{gi[label]}')
-        name = P.STOCK_PAGES[G.rows[gi[label]].arg][0]
-        expect(G.rows[gi[label]].action == P.ACT_STOCK and name == m.read_cstr(at) and [c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names(),
-               f'General > {label}: one plain navigator_to("{name}"), the string stock\'s own caller loads, no context')
-    # Format Storage calls stock's own list handler (0x4ad678, mocked here: it is the confirm "msg_checkformat", then dialog/formatcard_dialog, or the stock message without the card): once, with no argument, nothing else of ours
-    fr = G.rows[gi['Format Storage']]
-    expect(fr.action == P.ACT_FORMAT == 169 and P.row_kind(fr) == 'action' and pod.FORMAT_CARD == 0x4ad678, 'Format Storage is the action row ACT_FORMAT (169) over the stock handler 0x4ad678')
-    m = settings_page_machine(G); m.calls = []
-    m.click(f'pod_row{gi["Format Storage"]}')
-    expect([c for c in m.calls if c[0] in ('stock_format_card', 'navigator_to', 'navigator_to_with_context', 'confirm', 'toast')] == [('stock_format_card',)]
-           and m.read_cstr(0x748910) == 'msg_checkformat' and m.read_cstr(0x748930) == 'dialog/formatcard_dialog' and m.read_cstr(0x744570) == 'dialog/confirminfo_dialog',
-           'Format Storage: one call of stock\'s handler and nothing else; the strings its steps load are the confirm text, the confirm dialog and the format dialog (pinned, STOCKROWS_PINS)')
     m = settings_machine()
     m.click(f'pod_row{rows["EQ"]}')
     expect(('window_open', P.PEQ_PAGE.key) in m.calls and 'navigator_to' not in m.names(), 'EQ opens our Equalizer page (ACT_PEQ), not stock\'s')
@@ -339,24 +324,24 @@ def stock_tests(ctx):
 
 
 def general_tests(ctx):
-    """Settings > General: one link row on Settings, three cards: About, Date & Time, Keyboards, Language; Firmware Update, Regulatory, Format Storage, Reset; All System Settings."""
+    """Settings > General: one link row on Settings, two cards: About, Software Update; Date & Time, Keyboards, Language."""
     expect, P = ctx.expect, pod_pages
     S, G = P.SETTINGS_PAGE, P.GENERAL_PAGE
     lay = [x.label if isinstance(x, P.Row) else x for x in S.layout]
     gi = lay.index('General')
-    expect(lay[gi - 1] is P.GAP and lay[gi + 1:gi + 5] == ['Display', 'Appearance', 'Buttons & Power', 'Battery'] and lay[gi + 5] is P.GAP and lay[-1] == 'Developer' and not any(isinstance(x, P.Hdr) and x.text == 'System' for x in S.layout),
-           'Settings: a card of General, Display, Appearance, Buttons & Power, Battery (no System header), then Developer')
+    expect(lay[gi - 1] is P.GAP and lay[gi + 1:gi + 5] == ['Display', 'Appearance', 'Buttons & Power', 'Battery'] and lay[gi + 5] is P.GAP and lay[-2:] == ['All System Settings', 'Developer'] and lay[-3] is P.GAP and not any(isinstance(x, P.Hdr) and x.text == 'System' for x in S.layout),
+           'Settings: a card of General, Display, Appearance, Buttons & Power, Battery (no System header), then a card of All System Settings and Developer')
     r = S.rows[[x.label for x in S.rows].index('General')]
     expect((r.action, r.arg, P.row_kind(r)) == (P.ACT_PAGE, P.GENERAL_PAGE_INDEX, 'link') and P.PAGES[P.GENERAL_PAGE_INDEX] is G and P.PAGE_ORDER.index('m1plus_general') == len(P.PAGE_ORDER) - 6
            and (G.key, G.title) == ('m1plus_general', 'General'), 'the General row is a link to m1plus_general, the page before the two Network Services pages')
-    expect([(x.label, x.action, x.arg) for x in G.rows] == [('About', P.ACT_PAGE, P.ABOUT_PAGE_INDEX), ('Date & Time', P.ACT_PAGE, P.DATETIME_PAGE_INDEX), ('Keyboards', P.ACT_PAGE, P.KEYBOARDS_PAGE_INDEX),
-                                                              ('Language', P.ACT_LANG, P.LANGUAGE_PAGE_INDEX),
-                                                              ('Firmware Update', P.ACT_STOCK, P.STOCK_FWUPDATE), ('Regulatory', P.ACT_STOCK, P.STOCK_PROVE), ('Format Storage', P.ACT_FORMAT, 0), ('Reset', P.ACT_STOCK, P.STOCK_RESET), ('All System Settings', P.ACT_HOME, P.HOME_SYSSET)]
-           and [P.row_kind(x) for x in G.rows] == ['link', 'link', 'link', 'value'] + ['link', 'link', 'action', 'link', 'link'] and G.layout[4] is P.GAP and G.layout[9] is P.GAP and len(G.layout) == 11
-           and not any(x.label in ('USB Mode', 'CD Ripping', 'SyncLink') for x in G.rows), 'the General page: About, Date & Time, Keyboards, Language (a value row), a gap, Firmware Update, Regulatory, Format Storage, Reset, a gap, All System Settings; no USB Mode, CD Ripping or SyncLink')
+    expect([(x.label, x.action, x.arg) for x in G.rows] == [('About', P.ACT_PAGE, P.ABOUT_PAGE_INDEX), ('Software Update', P.ACT_UPDATE, 0), ('Date & Time', P.ACT_PAGE, P.DATETIME_PAGE_INDEX),
+                                                              ('Keyboards', P.ACT_PAGE, P.KEYBOARDS_PAGE_INDEX), ('Language', P.ACT_LANG, P.LANGUAGE_PAGE_INDEX)]
+           and [P.row_kind(x) for x in G.rows] == ['link', 'link', 'link', 'link', 'value'] and G.layout[2] is P.GAP and len(G.layout) == 6
+           and not any(x.label in ('USB Mode', 'CD Ripping', 'SyncLink', 'Firmware Update', 'Regulatory', 'Format Storage', 'Reset', 'All System Settings') for x in G.rows),
+           'the General page: About, Software Update, a gap, Date & Time, Keyboards, Language (a value row); no stock-page rows, no All System Settings (it is on the Settings root)')
     m = settings_page_machine(G)
     expect(('window_open', G.key) in m.calls, 'the Settings row opens the General page')
-    vals = [c[2] for c in m.calls if c[0] == 'widget_set_tr_text' and c[1] == m.widgets['pod_value3']]
+    vals = [c[2] for c in m.calls if c[0] == 'widget_set_tr_text' and c[1] == m.widgets['pod_value4']]
     expect(vals, 'the Language value is filled on the General page')
 
 

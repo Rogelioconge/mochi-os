@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * Opened from Settings > General > About > Software Update. The design follows q2-pod's Network Update (github.com/DiamondBond/q2-pod; patch/netupdate.c, docs/internals.md "Network Update"): ask GitHub for the
+ * Opened from Settings > General > Software Update. The design follows q2-pod's Network Update (github.com/DiamondBond/q2-pod; patch/netupdate.c, docs/internals.md "Network Update"): ask GitHub for the
  * latest release, download its update.bin to the card, then hand over to the firmware's own TF card update. The code is our own. The network is ONE worker thread of patch/pcnet.c (pn_up_*): the page asks
  * (UI thread: the guards, then the thread) and afterwards only READS the status record from its own 250 ms timer, so AWTK is not touched from the thread.
  *
@@ -420,7 +420,7 @@ static int up_tick(const void *timer) {
     return RET_REPEAT;
 }
 
-/* Open: Settings > General > About > Software Update. 0 once the page is up (or already open); -1 when it could not open (nothing is left of it). */
+/* Open: Settings > General > Software Update. 0 once the page is up (or already open); -1 when it could not open (nothing is left of it). */
 int update_open(void) {
     int st;
     if (up.win) return 0;

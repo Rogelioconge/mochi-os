@@ -110,7 +110,7 @@ def settings_tests(ctx):
     labels = [r.label for r in V.rows]
     li = labels.index('Language')
     expect(V.rows[li].action == P.ACT_LANG and V.rows[li].arg == P.LANGUAGE_PAGE_INDEX and P.PAGES[P.LANGUAGE_PAGE_INDEX] is L and P.row_kind(V.rows[li]) == 'value'
-           and labels[li - 1] == 'Keyboards' and labels[li + 1:] == ['Firmware Update', 'Regulatory', 'Format Storage', 'Reset', 'All System Settings'] and (L.key, L.title) == ('m1plus_language', 'Language') and V.layout.index(V.rows[li]) == V.layout.index(V.rows[li - 1]) + 1,
+           and labels[li - 1] == 'Keyboards' and labels[li + 1:] == [] and (L.key, L.title) == ('m1plus_language', 'Language') and V.layout.index(V.rows[li]) == V.layout.index(V.rows[li - 1]) + 1,
            'Settings > General > Language: a value row after Keyboards, opening our picker')
     expect([(str(r.label), r.action, r.arg) for r in L.rows] == [(n, P.ACT_LANGSET, i) for i, n in enumerate(P.LANGUAGE_NAMES)] and all(P.row_kind(r) == 'check' for r in L.rows) and len(L.rows) == 13
            and not any(not isinstance(x, P.Row) for x in L.layout) and (P.ACT_LANG, P.ACT_LANGSET) == (150, 151) and P.ACT_LANG in P.VALUE_ACTIONS and P.ACT_LANGSET in P.CHECK_ACTIONS and P.VALUE_INIT[P.ACT_LANG] == '',

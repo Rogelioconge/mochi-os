@@ -71,8 +71,6 @@ enum {
     ACT_NETAIR = 166, /* Settings > Network Services: AirPlay, a switch row (patch/netservice.c) */
     ACT_NETDLNA = 167, /* ... DLNA */
     ACT_NETTRANS = 168, /* ... Wi-Fi Transfer, a link row: our page, or a toast without Wi-Fi */
-    ACT_FORMAT =
-        169, /* Settings > General > Format Storage: stock's own Format handler (the confirm, then the format dialog) */
     ACT_SLEEPSET = 170, /* the Sleep Timer page's rows (arg = the row: 0 Off, 1 .. 6 the times; patch/sleeptimer.c) */
     ACT_SLEEPLEFT =
         171, /* the Sleep Timer page's Time Left: an information row in a card shown while a timer runs (patch/sleeptimer.c st_left_text) */
@@ -573,9 +571,7 @@ static int on_row(void *ctx, void *e) {
     else if (row->action == ACT_NETTRANS) {
         if (ns_transfer_ok())
             open_page(row->arg, 0); /* Wi-Fi Transfer: the page starts the server (patch/netservice.c) */
-    } else if (row->action == ACT_FORMAT)
-        stock_format_card(); /* stock's list handler: the msg_checkformat confirm (modal), then dialog/formatcard_dialog, or the No TF Card Found message */
-    else if (row->action == ACT_SCROBUP)
+    } else if (row->action == ACT_SCROBUP)
         lb_upload_tap(); /* the scrobble log to the services now: a toast, no page */
     else if (
         row->action ==

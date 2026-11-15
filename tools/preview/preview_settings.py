@@ -529,7 +529,7 @@ def main():
     for loc, tag in (('ge_DE', 'de'), ('ru_RU', 'ru'), ('zh_CN', 'zh'), ('th_TH', 'th'), ('fr_FR', 'fr')):   # the Wi-Fi Transfer page in the long languages (out/preview/stock2/wifitransfer-<tag>.png)
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
         draw_page(t, 'm1plus_wifitransfer', full=True, state=WT_STATE).save(os.path.join(s2, f'wifitransfer-{tag}.png')); print('wrote', os.path.join(s2, f'wifitransfer-{tag}.png'))
-        draw_page(t, 'm1plus_general', full=True).save(os.path.join(s2, f'general-{tag}.png')); print('wrote', os.path.join(s2, f'general-{tag}.png'))   # General's long labels (Firmware Update, Format Storage ...)
+        draw_page(t, 'm1plus_general', full=True).save(os.path.join(s2, f'general-{tag}.png')); print('wrote', os.path.join(s2, f'general-{tag}.png'))   # General's labels
     # Light Mode (docs/modules/accent.md): the same pages with the hooks' colours and images (tools/palette.py); the Settings page with Light Mode On, and the picker
     lit = os.path.join(os.path.dirname(out), 'settings-light.png')
     sheet([('Light Mode: Settings, first screen', draw_page(s, 'm1plus_settings', lit=True)),

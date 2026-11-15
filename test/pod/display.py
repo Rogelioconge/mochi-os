@@ -182,7 +182,7 @@ def settings_tests(ctx):
     expect(V.rows[di].action == P.ACT_PAGE and V.rows[di].arg == P.DISPLAY_PAGE_INDEX and P.PAGES[P.DISPLAY_PAGE_INDEX] is P.DISPLAY_PAGE and P.row_kind(V.rows[di]) == 'link' and labels[di + 1] == 'Appearance',
            'Settings > Display opens our page')
     lay = [x.label if isinstance(x, P.Row) else x for x in V.layout]
-    expect(lay[-3:] == ['Battery', P.GAP, 'Developer'], f'the last card: Developer on its own ({lay[-3:]})')
+    expect(lay[-4:] == ['Battery', P.GAP, 'All System Settings', 'Developer'], f'the last card: All System Settings, Developer ({lay[-4:]})')
     expect(P.PAGES[P.DISPLAY_PAGE_INDEX] is D and P.PAGES[P.LIGHTTIME_PAGE_INDEX] is L and P.PAGES[P.LED_PAGE_INDEX] is E and (P.LIGHTTIME_PAGE_INDEX, P.LED_PAGE_INDEX) == (71, 72)
            and (D.key, D.title, L.key, L.title, E.key, E.title) == ('m1plus_display', 'Display', 'm1plus_lighttime', 'Screen Timeout', 'm1plus_ledlight', 'LED Light'), 'the three pages')
     expect([(r.label, r.action, r.arg) for r in D.rows] == [('Screen Timeout', P.ACT_LIGHT, P.LIGHTTIME_PAGE_INDEX), ('Lock Screen', P.ACT_PAGE, P.LOCK_PAGE_INDEX), ('Screen Rotation', P.ACT_ROTATE, 0), ('LED Light', P.ACT_LED, P.LED_PAGE_INDEX)]
@@ -198,7 +198,7 @@ def settings_tests(ctx):
     expect(el == ['Off', 'Green', 'Blue', 'Dynamic', P.GAP, 'Follow Screen', 'The light is off while the screen is off', 'Theme'], f'LED Light: the choices; Follow Screen in a card of its own with its note under it; Theme in the card after the note, last (hidden, it leaves nothing to move) ({el})')
     expect((P.ACT_LIGHT, P.ACT_LIGHTSET, P.ACT_LED, P.ACT_LEDSET, P.ACT_LEDFOLLOW) == (97, 98, 99, 100, 101) and {P.ACT_LIGHT, P.ACT_LED} <= set(P.VALUE_ACTIONS) and {P.ACT_LIGHTSET, P.ACT_LEDSET} <= set(P.CHECK_ACTIONS)
            and P.ACT_LEDFOLLOW in P.SWITCH_ACTIONS, 'the actions')
-    expect(len(P.STOCK_PAGES) == 8 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
+    expect(len(P.STOCK_PAGES) == 5 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
            and not [r for r in D.rows if r.action == P.ACT_STOCK] and not any(r.label == 'Lock Screen' for r in P.APPEARANCE_PAGE.rows),
            'no row opens stock\'s Display list or any of its four pages; Lock Screen is on Display only')
     stock_ui = os.path.join(paths.find_stock(), 'rootfs/release/assets/default/raw/ui')

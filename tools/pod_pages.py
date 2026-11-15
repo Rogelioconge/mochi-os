@@ -77,7 +77,7 @@ ACT_VREC = 38     # value row (Settings > Now Playing > Vinyl Mode): the record 
 ACT_RECSET = 39   # picker row (Record): choose the colour (arg = its index in vinyl_art.RECORD_NAMES); a check shows on the chosen row (patch/vinyl.c vinyl_record_set)
 ACT_VTHEME = 40   # value row (Settings > Now Playing > Vinyl Mode): the plinth theme, Graphite or White; opens its picker page (arg = the page index; patch/vinyl.c vinyl_theme)
 ACT_VTHSET = 41   # picker row (Base): choose the theme (arg = its index in vinyl_art.THEME_NAMES); a check shows on the chosen row (patch/vinyl.c vinyl_theme_set)
-ACT_UPDATE = 45   # link row (Settings > General > About): Software Update, our own page (patch/update.c update_open): check GitHub for a newer release, download it to the card, hand over to the stock TF card update
+ACT_UPDATE = 45   # link row (Settings > General): Software Update, our own page (patch/update.c update_open): check GitHub for a newer release, download it to the card, hand over to the stock TF card update
 ACT_BG = 46       # value row (Settings > Appearance > Background): Black or Tinted; opens its picker page (arg = the page index); the payload shows the saved background (patch/palette.c pal_bg_mode)
 ACT_BGSET = 47    # picker row (Background): choose the background (arg 0 Black, 1 Tinted); a check shows on the chosen row, and the choice applies at once (patch/palette.c pal_bg_set)
 ACT_ACCENT = 48    # value row (Settings > Appearance > Accent): the accent's name; opens its picker page (arg = the page index); the payload shows the saved accent (patch/palette.c pal_accent_saved)
@@ -190,7 +190,6 @@ ACT_DTAPPLY = 165     # action row (the Date and Time pages): Set Date / Set Tim
 ACT_NETAIR = 166       # switch row (Settings > Network Services): AirPlay, stock's switch (the byte airplayflag, [SYSSET] AIRPLAY; patch/netservice.c ns_airplay_toggle)
 ACT_NETDLNA = 167      # switch row (Network Services): DLNA, stock's switch (the byte dlnaflag, [SYSSET] DLNA; patch/netservice.c ns_dlna_toggle)
 ACT_NETTRANS = 168     # link row (Network Services): Wi-Fi Transfer, our page (arg = its page index) unless Wi-Fi is off: then a toast (patch/netservice.c ns_transfer_open)
-ACT_FORMAT = 169      # action row (Settings > General): Format Storage, stock's own Format handler of the system list (the confirm, then the format dialog; patch/m1plus.c stock_format_card, STOCKROWS_PINS)
 ACT_SLEEPSET = 170    # picker row (the Sleep Timer page, opened by Now Playing's More sheet and the Control Center tile): choose the time (arg = an index of SLEEP_VALUES, 0 off; stock's sleepflag byte and sleep_time word; patch/sleeptimer.c st_set)
 ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own under the choices, shown only while a timer runs): Time Left, H:MM rounded up to the minute (patch/sleeptimer.c st_left_text); no chevron, no touch
 ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page): choose the preferred codec (arg = stock's btcoding 0 .. 7; patch/btpage.c bp_codec_set: the init guard, stock's confirm while a device is connected, then stock's Quality choice)
@@ -209,22 +208,21 @@ VALUE_INIT[ACT_LANG] = ''   # the language's own name: the payload sets it as th
 SWITCH_ACTIONS += (ACT_DTAUTO, ACT_DT24)   # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md)
 VALUE_ACTIONS += (ACT_DTZONE, ACT_DTDATE, ACT_DTTIME, ACT_DTFIELD)
 CHECK_ACTIONS += (ACT_DTZONESET, ACT_DTSET)
-ACTION_ACTIONS += (ACT_DTAPPLY, ACT_FORMAT)
+ACTION_ACTIONS += (ACT_DTAPPLY,)
 VALUE_INIT.update({ACT_DTZONE: 'GMT+8 Shanghai', ACT_DTDATE: '', ACT_DTTIME: '', ACT_DTFIELD: '2026'})   # (the payload writes the date and the time)
 # The stock pages ACT_STOCK opens: (the name navigator_to takes = ui/<name>.bin, the value the row shows at the right: the payload reads the stock state, patch/m1plus.c VK_*, or None).
 # Each is a plain navigator_to(name) with no context in stock (docs/modules/settings.md "Stock pages"): the Settings list's rows, the Wi-Fi hub's two; Back returns to our page.
 # (The EQ row is ACT_PEQ: our Equalizer page, docs/modules/peq.md; stock's playset/equalizer_page is retired: its one caller opens the 10-Band editor, tools/pod.py EQ_ROW.)
-STOCK_WIFI, STOCK_BLUETOOTH, STOCK_USB, STOCK_RIPPING, STOCK_SYNCLINK, STOCK_FWUPDATE, STOCK_PROVE, STOCK_RESET = range(8)
+STOCK_WIFI, STOCK_BLUETOOTH, STOCK_USB, STOCK_RIPPING, STOCK_SYNCLINK = range(5)
 # (navigator path, value shown, window name): the window name is the asset's root widget name, which m1_open_stock restacks an opened window of instead of stacking a second one; None: always a new window.
-# Only a page whose init does nothing that a restack would not redo has one (docs/modules/settings.md "Stock pages"); the five pages of the direct rows (USB Mode, SyncLink, Firmware Update, Regulatory, Reset) have one (below). Wi-Fi: its init scans (wifi_scan) on every open and the foreground handler only rebuilds the list from the old results.
+# Only a page whose init does nothing that a restack would not redo has one (docs/modules/settings.md "Stock pages"); the two pages of the direct rows (USB Mode, SyncLink) have one (below). Wi-Fi: its init scans (wifi_scan) on every open and the foreground handler only rebuilds the list from the old results.
 # Bluetooth: its background handler stops discovery (btStopSearch) and the foreground handler does not restart it, only init does.
 # Stock's Display list (systemset/display_page) and its four pages are not linked: Settings > Display is our own page (DISPLAY_PAGE); they stay under All System Settings.
-# The direct rows (USB Mode on Playback Settings, CD Ripping on Library, SyncLink on Network Services, Firmware Update .. Reset on General) are plain navigator_to rows too (STOCKROWS_PINS in tools/pod_pins.py). The pages whose init binds no EVT_WINDOW_TO_FG / TO_BG handler (usbset, synclink, fwupdate, prove, reset:
+# The direct rows (USB Mode on Playback Settings, CD Ripping on Library, SyncLink on Network Services) are plain navigator_to rows too (STOCKROWS_PINS in tools/pod_pins.py). The pages whose init binds no EVT_WINDOW_TO_FG / TO_BG handler (usbset, synclink:
 # read off the inits' widget_on calls, only EVT_CLICK) name their window: the top-right Now Playing button leaves such a page in the stack, and a restack of it is a plain bring-to-front, so a second tap does not stack a second window.
 # rippingset's init binds both events (0x12d / 0x12c), so it is opened afresh like Wi-Fi and Bluetooth.
 STOCK_PAGES = (('systemset/wifi_page', 'wifi', None), ('systemset/bluetooth_page', 'bluetooth', None),
-               ('systemset/usbset_page', None, 'usbset_page'), ('systemset/rippingset_page', None, None), ('systemset/synclink_page', None, 'synclink_page'),
-               ('systemset/fwupdate_page', None, 'fwupdate_page'), ('systemset/prove_page', None, 'prove_page'), ('systemset/reset_page', None, 'reset_page'))
+               ('systemset/usbset_page', None, 'usbset_page'), ('systemset/rippingset_page', None, None), ('systemset/synclink_page', None, 'synclink_page'))
 STOCK_VALUES = ('wifi', 'bluetooth', 'eq')   # the VK_* of patch/m1plus.c, in this order ('eq': the EQ row's value, ACT_PEQ)
 
 # ACT_SHUFFLE arguments (mirror the enum in patch/shuffle.c)
@@ -662,7 +660,7 @@ SHUFFLE_PAGE = Page('m1plus_shuffle', 'm1plus_shuffle_page', 'Shuffle', rows=[
 
 # Settings (iOS style grouped cards, tools/pod_settings.py places them; the design is tools/preview/preview_settings.py's): the stock Wi-Fi and Bluetooth pages, the M1+ Music pages
 # (Home Screen, Library, Now Playing, Keyboards), Playback (EQ, the stock Play Settings list) and System (Display, Appearance, Keyboards, About, the stock
-# System Settings list), then Developer. Every "stock page" row is a plain navigator_to of the page stock's own list calls (STOCK_PAGES).
+# System Settings list), then All System Settings (stock's whole system list, the fallback to every stock page) and Developer. Every "stock page" row is a plain navigator_to of the page stock's own list calls (STOCK_PAGES).
 SETTINGS_PAGE = Page('m1plus_settings', 'm1plus_settings_page', 'Settings', layout=[
     Row('Wi-Fi', ACT_STOCK, STOCK_WIFI),
     Row('Bluetooth', ACT_STOCK, STOCK_BLUETOOTH),
@@ -681,23 +679,19 @@ SETTINGS_PAGE = Page('m1plus_settings', 'm1plus_settings_page', 'Settings', layo
     Row('Buttons & Power', ACT_PAGE, KEYSPOWER_PAGE_INDEX),
     Row('Battery', ACT_PAGE, BATTERY_PAGE_INDEX),
     GAP,
+    Row('All System Settings', ACT_HOME, HOME_SYSSET),   # stock's whole system list: the fallback to every stock page
     Row('Developer', ACT_PAGE, DEVELOPER_PAGE_INDEX),
 ])
 
-# Settings > General: About, Date & Time, Keyboards and Language (links to their own pages), then the stock pages stock's System Settings list holds, one row each (Firmware Update, Regulatory, Format Storage, Reset; USB Mode sits on Playback Settings, CD Ripping on Library,
-# SyncLink on Network Services): the pages stay stock for now (ACT_STOCK, the Format row stock's own handler) and are replaced one by one. The whole stock list is a fallback row on Developer.
+# Settings > General: two cards: About and Software Update (our own pages), then Date & Time, Keyboards and Language (links to their own pages). USB Mode sits on Playback Settings, CD Ripping on Library,
+# SyncLink on Network Services; the other stock pages (Firmware Update, Regulatory, Format Storage, Reset) stay reachable through All System Settings on the Settings root.
 GENERAL_PAGE = Page('m1plus_general', 'm1plus_general_page', 'General', layout=[
     Row('About', ACT_PAGE, ABOUT_PAGE_INDEX),
+    Row('Software Update', ACT_UPDATE),
+    GAP,
     Row('Date & Time', ACT_PAGE, page_index('m1plus_datetime')),
     Row('Keyboards', ACT_PAGE, KEYBOARDS_PAGE_INDEX),
     Row('Language', ACT_LANG, LANGUAGE_PAGE_INDEX),
-    GAP,
-    Row('Firmware Update', ACT_STOCK, STOCK_FWUPDATE),
-    Row('Regulatory', ACT_STOCK, STOCK_PROVE),
-    Row('Format Storage', ACT_FORMAT),
-    Row('Reset', ACT_STOCK, STOCK_RESET),
-    GAP,
-    Row('All System Settings', ACT_HOME, HOME_SYSSET),   # the last card: stock's whole system list, the fallback to every stock page
 ])
 
 # Settings > General > About (our own page: the stock About page's seven values in sections, read the way stock reads them; docs/modules/settings.md "About"). INFO_* say where patch/m1plus.c reads
@@ -705,7 +699,6 @@ GENERAL_PAGE = Page('m1plus_general', 'm1plus_general_page', 'General', layout=[
 INFO_TAG, INFO_FW, INFO_MODEL, INFO_SN, INFO_MAC, INFO_IP, INFO_CAP, INFO_FREE = range(8)
 ABOUT_PAGE = Page('m1plus_about', 'm1plus_about_page', 'About', layout=[
     Row('M1+ Music', ACT_INFO, INFO_TAG),
-    Row('Software Update', ACT_UPDATE),
     Row('Firmware', ACT_INFO, INFO_FW),
     Hdr('Device'),
     Row('Model', ACT_INFO, INFO_MODEL),
@@ -773,7 +766,7 @@ FILES_PAGE = Page('m1plus_files', 'm1plus_files_page', 'Settings Files', layout=
 
 # Settings > Developer: Startup (the Boot to M1+ Music switch, patch/home.c, and the way out to the stock grid) and the developer's tools. Screenshot: a confirm dialog, then a 5 s
 # countdown (cancellable), then the screen is written to the card (patch/shot.c). Reset All Settings (under Reset): a confirm, then every settings file is deleted (restart to apply).
-# Tools holds Screenshot, Cache and Settings Files (All System Settings, stock's whole system list, is General's last card). About > Software Update is ours; General's Firmware Update is stock's TF card update page.
+# Tools holds Screenshot, Cache and Settings Files (All System Settings, stock's whole system list, is on the Settings root). General > Software Update is ours; stock's Firmware Update page stays under All System Settings.
 DEVELOPER_PAGE = Page('m1plus_developer', 'm1plus_developer_page', 'Developer', layout=[
     Hdr('Startup'),
     Row('Boot to M1+ Music', ACT_STARTUP),

@@ -50,7 +50,7 @@ for commands, [UI](ui.md) for layout/assets, and [history](history.md) for recor
 | [Lyrics page](modules/lyrics.md) | Our own lyrics lines over the stock rows: anchor, opacity falloff, eased scroll |
 | [More sheet](modules/playmore.md) | Playback options, Display Mode (Cassette, Vinyl and Lyrics Mode) and Find Cover & Lyrics entries |
 | [Find Cover & Lyrics](modules/onlineart.md) | Online album covers (iTunes, Deezer) and lyrics (LRCLIB) for the playing track: page, worker, storage |
-| [Software Update](modules/update.md) | Settings > General > About > Software Update: the newest GitHub release downloaded to the card, then stock's TF card update (a pinned call); version rules, checks, page, popup |
+| [Software Update](modules/update.md) | Settings > General > Software Update: the newest GitHub release downloaded to the card, then stock's TF card update (a pinned call); version rules, checks, page, popup |
 | [Mini player](modules/minibar.md) | Home overlay, controls, blur and timer |
 | [Recently Played](modules/recent.md) | History file, covers and shelf layout |
 | [Scrobbling](modules/scrobble.md) | Offline .scrobbler.log of listens; the upload to ListenBrainz and Last.fm (manual, and automatic from the poll while music plays), the accounts (the card's scrobble.ini only, written on a computer: no entry and no sign-out on the device, nothing on flash) and settings (Library > ListenBrainz, Last.fm, Upload Scrobbles, Auto Upload) |

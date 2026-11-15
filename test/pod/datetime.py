@@ -189,8 +189,8 @@ def settings_tests(ctx):
     V = P.GENERAL_PAGE
     labels = [r.label for r in V.rows]
     di = labels.index('Date & Time')
-    expect(V.rows[di].action == P.ACT_PAGE and V.rows[di].arg == P.DATETIME_PAGE_INDEX and P.row_kind(V.rows[di]) == 'link' and labels[di - 1] == 'About' and labels[di + 1] == 'Keyboards' and P.PAGES[P.DATETIME_PAGE_INDEX] is P.DATETIME_PAGE,
-           'Settings > General > Date & Time: after About, opens our page')
+    expect(V.rows[di].action == P.ACT_PAGE and V.rows[di].arg == P.DATETIME_PAGE_INDEX and P.row_kind(V.rows[di]) == 'link' and labels[di - 1] == 'Software Update' and labels[di + 1] == 'Keyboards' and P.PAGES[P.DATETIME_PAGE_INDEX] is P.DATETIME_PAGE,
+           'Settings > General > Date & Time: after Software Update, opens our page')
     D, Z, DD, DT = P.DATETIME_PAGE, P.PAGES[P.TIMEZONE_PAGE_INDEX], P.PAGES[P.DTDATE_PAGE_INDEX], P.PAGES[P.DTTIME_PAGE_INDEX]
     expect([(r.label, r.action) for r in D.rows] == [('Set Automatically', P.ACT_DTAUTO), ('Time Zone', P.ACT_DTZONE), ('Date', P.ACT_DTDATE), ('Time', P.ACT_DTTIME), ('24-Hour Time', P.ACT_DT24)]
            and [P.row_kind(r) for r in D.rows] == ['switch', 'value', 'value', 'value', 'switch'] and D.title == 'Date & Time' and D.key == 'm1plus_datetime', 'the page\'s rows and their kinds')

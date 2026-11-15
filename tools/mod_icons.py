@@ -147,7 +147,7 @@ CARD_GLYPHS = {'Wi-Fi': 'wifi', 'Bluetooth': 'bluetooth', 'Home Screen': 'house'
                'Split Artists': 'mic-vocal', 'Index Rail': 'list', 'Section Headers': 'list-start', 'Continue Playing': 'skip-forward', 'Screen Rotation': 'rotate-ccw-square', 'Car Mode': 'car'}
 CARD_GLYPHS.update({'Network Services': 'network', 'AirPlay': 'airplay', 'DLNA': '+dlna:filled', 'Wi-Fi Transfer': 'folder-sync'})   # Settings > Network Services (docs/modules/netservice.md)
 CARD_GLYPHS['Language'] = 'languages'   # Settings > General > Language (the glyph of the Keyboards page's rows too)
-CARD_GLYPHS.update({'USB Mode': 'usb', 'CD Ripping': 'disc', 'SyncLink': 'link', 'Firmware Update': 'hard-drive-download', 'Regulatory': 'badge-check', 'Format Storage': 'eraser', 'Reset': 'rotate-ccw'})   # Settings > General's rows for stock's pages
+CARD_GLYPHS.update({'USB Mode': 'usb', 'CD Ripping': 'disc', 'SyncLink': 'link', 'Software Update': 'download'})   # the direct rows for stock's pages, and Settings > General's Software Update
 CARD_GLYPHS.update({'Date & Time': 'calendar-clock', 'Set Automatically': 'refresh-cw', 'Time Zone': 'globe', 'Date': 'calendar', 'Time': 'clock', '24-Hour Time': 'sun-moon',   # Settings > General > Date & Time (docs/modules/datetime.md)
                     'Year': 'calendar', 'Month': 'calendar', 'Day': 'calendar', 'Hour': 'clock', 'Minute': 'clock', 'Set Date': '+check', 'Set Time': '+check'})
 

@@ -2012,15 +2012,6 @@ TEXT.update([
        'Відновлює останній трек під час запуску. Автоочікування, автовимкнення та USB-підключення ігноруються.'),
 ])
 
-# Settings > General's direct rows for stock's pages (docs/modules/settings.md "General"). USB Mode, CD Ripping (STOCK system_rippingset) and SyncLink (STOCK wifiset_synclink) use stock's own words. The other three
-# are short English labels of ours (stock's say "System Update", Chinese only for Regulatory, "Formatting Card"); each language takes stock's word where stock has one that fits (zh and ja Regulatory, the zh Format card,
-# the system-update words), else the card-format words of STOCK_FIX (system_formatcard) or a short text of ours (Regulatory: certification marks and approvals).
-TEXT.update([
-    _t('Firmware Update', '系统升级', '系統升級', 'ファームウェア更新', '시스템 업데이트', 'Mise à jour système', 'Systemupdate', 'Actualizar sistema', 'Aggiornamento sistema', 'อัพเดทระบบ', 'Aktualizacja systemu', 'Обновление системы', 'Оновлення системи'),
-    _t('Regulatory', '技术证明', '技術證明', '技術証明', '인증 정보', 'Réglementation', 'Zulassungen', 'Normativa', 'Normative', 'ข้อมูลการรับรอง', 'Informacje prawne', 'Сертификация', 'Сертифікація'),
-    _t('Format Storage', '格式化存储卡', '格式化記憶卡', 'カードをフォーマット', '카드 포맷', 'Formater la carte', 'Karte formatieren', 'Formatear tarjeta', 'Formatta scheda', 'ฟอร์แมตการ์ด', 'Formatuj kartę', 'Форматировать карту', 'Форматувати картку'),
-])
-
 KEYS = sorted(TEXT)
 
 

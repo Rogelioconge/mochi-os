@@ -214,7 +214,7 @@ def settings_tests(ctx):
     expect, P = ctx.expect, pod_pages
     V, B, L = P.SETTINGS_PAGE, P.BATTERY_PAGE, P.CHGLIMIT_PAGE
     labels = [r.label for r in V.rows]
-    expect(labels[labels.index('Buttons & Power') + 1] == 'Battery' and labels[labels.index('Battery') + 1] == 'Developer' and V.rows[labels.index('Battery')].action == P.ACT_PAGE and V.rows[labels.index('Battery')].arg == P.BATTERY_PAGE_INDEX,
+    expect(labels[labels.index('Buttons & Power') + 1] == 'Battery' and labels[labels.index('Battery') + 1] == 'All System Settings' and V.rows[labels.index('Battery')].action == P.ACT_PAGE and V.rows[labels.index('Battery')].arg == P.BATTERY_PAGE_INDEX,
            'Settings: Battery after Buttons & Power')
     expect(P.PAGES[P.BATTERY_PAGE_INDEX] is B and P.PAGES[P.CHGLIMIT_PAGE_INDEX] is L and B.title == 'Battery' and L.title == 'Charge Limit'
            and [(r.label, r.action, r.arg) for r in B.rows] == [('Battery Percentage', P.ACT_BATTPCT, 0), ('Charge Limit', P.ACT_CHGLIM, P.CHGLIMIT_PAGE_INDEX)]
