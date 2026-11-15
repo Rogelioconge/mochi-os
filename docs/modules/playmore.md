@@ -22,6 +22,7 @@ there is no slide.
 |---|---|---|
 | 1 (opens here every time) | Look up album, Look up artist, Add to playlist, **Display Mode** (chevron), **More** (chevron) | 250 px, `pc_sheet5` |
 | 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, More | 100 px, `pc_sheet2` |
+| 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, More | 100 px, `pc_sheet2` |
 | 2 (More; its back header returns to the page it came from) | back header **< More**, Playback speed, **Sleep Timer**, A-B repeat, **Cover & Lyrics**, Delete song (red `#FF6B6B`) | 300 px, `pc_sheet6` |
 | Display Mode | back header **< Display Mode**, **Cassette Mode**, **Vinyl Mode**, **Lyrics Mode** | 200 px, `pc_sheet4` |
 

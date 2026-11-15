@@ -36,7 +36,8 @@ has 12 px corners. Existing widget names are kept.
 - The stock `slider_play` keeps its 30 px seek target and 6 px track (30% white track,
   `#FFFFFFEB` fill, radius 4).
 - The mode button keeps its four steps and looks; the shown mode follows the Shuffle flag, see
-  [shuffle](shuffle.md).
+  [shuffle](shuffle.md). While an audiobook part plays it is hidden and insensitive (`np_mode_sync`, each tick):
+  a book plays its parts in order (`bk_play` sets List play). Only a button `np_mode_sync` hid is shown again.
 - Favourite is a filled or outline star. While a podcast plays it is a saved/unsaved bookmark.
   While a server track plays it is the server's favourite ([subsonic](subsonic.md)); stock's
   `manage_myfav` never writes the stream record.

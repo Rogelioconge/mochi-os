@@ -68,7 +68,7 @@
 #define PM_ALBUMS_WINDOW "m1plus_albums_page" /* our Albums page's window (tools/pod_pages.py ALBUMS) */
 
 /* what each page shows, top to bottom, as indices into pm.row[]; the sheet is as high as its page's rows (PM_PAGE_N, PM_PAGE2_N) */
-static const unsigned char pm_page[4][PM_PAGE_MAX] = {
+static const unsigned char pm_page[5][PM_PAGE_MAX] = {
     {4, 5, 2, PM_MODE, PM_MORE}, /* Look up album, Look up artist, Add to playlist, Display Mode, More */
     {PM_BACK, 1, PM_SLEEP, 0, PM_ART,
      6}, /* the back header, Playback speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete */
@@ -76,11 +76,13 @@ static const unsigned char pm_page[4][PM_PAGE_MAX] = {
      PM_MORE}, /* page 1 of a podcast episode: Go to Podcasts, More (the rows that mean nothing for an episode are hidden) */
     {PM_BACK, PM_TAPE, PM_VINYL,
      PM_LYR}, /* the Display Mode page: the back header, Cassette Mode, Vinyl Mode, Lyrics Mode */
+    {PM_MODE,
+     PM_MORE}, /* page 1 of an audiobook part: Display Mode, More (a part has no album or artist to look up, nor a playlist to join) */
 };
-static const unsigned char pm_rows[4] = {PM_PAGE_N, PM_PAGE2_N, PM_PAGE_EP_N, PM_PAGE_MODE_N};
-static const char *const pm_glass[4] = {
-    "pc_sheet5", "pc_sheet6", "pc_sheet2",
-    "pc_sheet4"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
+static const unsigned char pm_rows[5] = {PM_PAGE_N, PM_PAGE2_N, PM_PAGE_EP_N, PM_PAGE_MODE_N, PM_PAGE_BOOK_N};
+static const char *const pm_glass[5] = {
+    "pc_sheet5", "pc_sheet6", "pc_sheet2", "pc_sheet4",
+    "pc_sheet2"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
 
 static struct {
     void *dlg, *lv, *sv, *bar,
@@ -89,11 +91,13 @@ static struct {
     void *back_label; /* the back header's label: "More" on page 2, "Display Mode" on the Display Mode page */
     int page; /* 0: the first page, 1: the More page, 2: the Display Mode page */
     int ep; /* the playing track is a podcast episode: the first page is the episode's (set 2) */
+    int book; /* the playing track is an audiobook part: the first page is the part's (set 4) */
     int srv; /* the playing track is a server track (streamed or downloaded): Find Cover & Lyrics is not for it (its cover and lyrics have no local album or file to be saved under) */
 } pm __attribute__((section(".scratch")));
 
-/* The row set shown: 0 the first page, 1 the More page, 2 the first page of an episode, 3 the Display Mode page. */
-static int pm_set(void) { return pm.page == 2 ? 3 : pm.page ? 1 : pm.ep ? 2 : 0; }
+/* The row set shown: 0 the first page, 1 the More page, 2 the first page of an episode, 3 the Display Mode page, 4 the first page
+ * of an audiobook part. */
+static int pm_set(void) { return pm.page == 2 ? 3 : pm.page ? 1 : pm.ep ? 2 : pm.book ? 4 : 0; }
 
 /* The rows as pm.page says: the shown ones at y = position x PM_ROW_H, the others hidden and parked under the sheet; the
  * children stacked in that order; the sheet PM_PAGE_N rows high on the bottom of the screen. */
@@ -645,6 +649,7 @@ static void pm_start(void *dlg) {
     pm.page = 0;
     track = cc_playing();
     pm.ep = track && pc_is_path(cc_str(track, REC_PATH));
+    pm.book = track && bk_is_path(cc_str(track, REC_PATH));
     pm.srv = track && sba_rec_track(*(int *)((char *)track + REC_ID))[0] != 0;
     pm_arrange();
     return;

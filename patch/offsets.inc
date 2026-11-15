@@ -821,6 +821,7 @@
 #define PM_ROW_H 50
 #define PM_PAGE_N 5               /* page 1's rows (Look up album, Look up artist, Add to playlist, Display Mode, More; the asset's pod_goep, Go to Podcasts, is the episode's first row): the sheet is that high (PM_ROW_H x) */
 #define PM_PAGE_EP_N 2            /* page 1 of a podcast episode (Go to Podcasts, More) */
+#define PM_PAGE_BOOK_N 2          /* page 1 of an audiobook part (Display Mode, More) */
 #define PM_PAGE2_N 6              /* page 2's rows (the back header, Speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete) */
 #define PM_PAGE_MODE_N 4          /* the Display Mode page's rows (the back header, Cassette Mode, Vinyl Mode, Lyrics Mode) */
 #define PM_PAGE_MAX 6             /* the tallest page's rows */

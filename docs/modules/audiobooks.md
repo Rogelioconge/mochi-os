@@ -117,6 +117,8 @@ files change; Clear Cover Cache rebuilds it. Delete Book leaves it.
 cover file, else the art cache file when it exists. The [Queue](queue.md) page uses it for the rows
 and header of a part; it never starts the worker. Now Playing and the surfaces sharing its cover use it only
 as a fallback, for a part stock has no picture of ([nowplaying](nowplaying.md)).
+While a part plays, Now Playing hides the play mode button ([nowplaying](nowplaying.md)) and the More sheet's
+first page is Display Mode and More, without the Look up and Add to playlist rows ([playmore](playmore.md)).
 
 ## LibriVox
 

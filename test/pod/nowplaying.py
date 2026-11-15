@@ -1402,6 +1402,22 @@ def run(ctx):
     expect(not art_paint(m) and m.styles[-1][2] == O['NP_NEUTRAL'], 'a book with no cover at all: as before, no art of ours, the neutral tone')
     m = bk_machine(0, path='/mnt/mmc/a/1.flac')
     expect(not [c for c in m.calls if c[0] == 'bk_art_cover'] and not art_paint(m), 'a track that is not a part: the book is never asked, nothing drawn')
+    # the play mode button is hidden while an audiobook part plays (a book plays in order); only a button the payload hid is shown again
+    def mode_machine(path):
+        mm = NowMachine(); btn = mm.widget('btn_playmode'); mm.page(); mm.src(0)
+        mm.jpeg('/tmp/coverpic.jpg', data=b'stock cover' * 40, pix=bytes([200, 40, 40, 255]) * 16, size=(4, 4))
+        mm.play([mm.record(album='Book One', artist='N', path=path, rid=3)], 0); mm.init()
+        return mm, btn
+    def mode_shows(mm, btn): return [c for c in mm.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive') and c[1] == btn]
+    mm, btn = mode_machine(BK)
+    expect(mm.props.get((btn, 'visible')) == 0 and mm.props.get((btn, 'sensitive')) == 0, 'an audiobook part: the play mode button is hidden and takes no tap')
+    mm.calls = []; mm.tick(); mm.tick()
+    expect(not mode_shows(mm, btn), f'later ticks of the part: nothing more is done to the button ({mode_shows(mm, btn)})')
+    mm.play([mm.record(album='Local', artist='A', path='/mnt/mmc/a/1.flac', rid=1)], 0); mm.tick()
+    expect(mm.props.get((btn, 'visible')) == 1 and mm.props.get((btn, 'sensitive')) == 1, 'music after the book: the button shows again and takes taps')
+    for what, path in (('music', '/mnt/mmc/a/1.flac'), ('an episode', '/mnt/mmc/Podcasts/Show/e1.mp3')):
+        mm, btn = mode_machine(path); mm.tick()
+        expect(not mode_shows(mm, btn), f'{what}: the play mode button is stock\'s, never touched ({mode_shows(mm, btn)})')
     m = bk_machine(1)
     m.calls = []; m.src(0); m.tick()
     expect(len(art_paint(m)) == 1, 'busy, then no picture: the book\'s cover')

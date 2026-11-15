@@ -78,6 +78,8 @@ static const char *const np_iw_names[NI_N] = {
 
 static struct {
     void *fav; /* btn_fav (stock's star button): wears the bookmark styles while an episode plays */
+    void *mode; /* btn_playmode: hidden while an audiobook part plays (a book plays in order) */
+    int modehid; /* 1 while np_mode_sync has the mode button hidden */
     int favrec, favv; /* a server track's star: the REC_ID favv (1 starred) was read for, 0 none yet */
     unsigned favgen; /* sba_gen() at that read: the cache changed since when it differs */
     void *win, *rem, *tot; /* the window, np_remaining (ours), label_playlen (stock) */
@@ -1151,6 +1153,16 @@ static int np_on_fav(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* The play mode button while an audiobook part plays: hidden, since a book plays its parts in order (bk_play sets List play)
+ * and Shuffle or Repeat one would break that. Only a button this hid is shown again, so stock's own state of it is left alone. */
+static void np_mode_sync(void) {
+    void *rec = cc_playing();
+    int book = rec && bk_is_path(cc_str(rec, REC_PATH));
+    if (!np.mode || book == np.modehid) return;
+    m1_show(np.mode, !book);
+    np.modehid = book;
+}
+
 static void np_work(void) {
     recent_note(cc_playing()); /* No stock list query: the page underneath owns pdeq_showlist;
                                * the menu's foreground handler resolves the cover key. */
@@ -1161,6 +1173,7 @@ static void np_work(void) {
     np_info();
     ly_tick(); /* the lyrics page (patch/lyrics.c) */
     np_fav_sync();
+    np_mode_sync();
 }
 
 static int np_tick(const void *timer) {
@@ -1227,6 +1240,7 @@ static void np_start(void *win) {
     np.pt = widget_lookup(win, "label_playtime", 1);
     np.fav = widget_lookup(win, "btn_fav", 1);
     if (np.fav) widget_on(np.fav, EVT_CLICK, np_on_fav, (void *)0);
+    np.mode = widget_lookup(win, "btn_playmode", 1);
     if (!np.el || !np.pt) np.el = np.pt = (void *)0; /* only the pair is swapped */
     np.shown = np.eshown = -1;
     for (n = 0; n < NP_INFO_N; ++n) np.info[n] = widget_lookup(win, np_info_names[n], 1);

@@ -30,7 +30,8 @@ ROWS = STOCK_NAMES + ['pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep
 PAGE1, PAGE2 = [GO_ALBUM, GO_ARTIST, ADD, MODE, MORE], [BACK, SPEED, SLEEP, AB, ART, DELETE]
 PAGE_MODE = [BACK, TAPE, VINYL, LYR]   # the Display Mode page (a tap on page 1's Display Mode row)
 PAGE_EP = [GOEP, MORE]   # page 1 of a podcast episode
-HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE = (sorted(set(range(16)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE))
+PAGE_BOOK = [MODE, MORE]   # page 1 of an audiobook part
+HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE, HIDDEN_BOOK = (sorted(set(range(16)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE, PAGE_BOOK))
 N1, NM = len(PAGE1), len(PAGE_MODE)
 YS1 = [i * ROW_H for i in range(N1)]             # page 1's rows: 0, 50, 100, 150, 200
 VT = {'dialog': LI_VT, 'list_view': LV_VT, 'scroll_view': SV_VT, 'list_item': LI_VT, 'image': IMG_VT}
@@ -902,6 +903,26 @@ def run(ctx):
         expect(m.shown() == PAGE1 and all(m.dead(i) for i in HIDDEN1) and m.size(m.dialog) == (320, SHEET_H) and m.size(m.glass) == (320, SHEET_H), f'{what}: the sheet is the music sheet, five rows, Go to Podcasts hidden')
     m = PM(); m.open()
     expect(m.shown() == PAGE1 and m.dead(GOEP), 'nothing playing: the music sheet')
+
+    # -- 7d. an audiobook part is playing: page 1 is Display Mode and More (patch/playmore.c pm_set) ------------------------------------
+    m = ep_sheet('/mnt/mmc/Audiobooks/Book One/01.mp3'); img = [c for c in m.calls if c[0] == 'image_base_set_image']
+    expect(m.shown() == PAGE_BOOK and all(m.live(i) for i in PAGE_BOOK) and all(m.dead(i) for i in HIDDEN_BOOK),
+           f'audiobook part: page 1 shows Display Mode and More; Look up album, Look up artist and Add to playlist are hidden and insensitive ({m.shown()})')
+    expect(m.ys() == [0, 50] and m.size(m.dialog) == (320, 100) and m.size(m.glass) == (320, 100) and m.top() == SCREEN_H - 100 and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet2'),
+           f'audiobook part: the sheet is two rows, 100 px, on the bottom of the screen, with the 100 px glass ({m.size(m.dialog)}, y {m.top()})')
+    m.click_more()
+    expect(m.shown() == PAGE2 and m.size(m.dialog) == (320, SHEET2_H), 'audiobook part: More opens the same second page as for a song')
+    m.click_back()
+    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, 100) and all(m.dead(i) for i in HIDDEN_BOOK), 'audiobook part: the back header returns to the part\'s page 1')
+    m.click_row(MODE)
+    expect(m.shown() == PAGE_MODE, f'audiobook part: Display Mode opens the Display Mode page ({m.shown()})')
+    m.click_back()
+    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, 100), 'audiobook part: its back header returns to the part\'s page 1')
+    m = ep_sheet('/mnt/mmc/audiobooks/Book One/01.mp3')
+    expect(m.shown() == PAGE_BOOK, 'audiobook part: the Audiobooks folder is matched without case')
+    for what, path in (('the Audiobooks folder itself', '/mnt/mmc/Audiobooks/'), ('another folder named Audiobooks', '/mnt/mmc/Music/Audiobooks/Book/01.mp3')):
+        m = ep_sheet(path)
+        expect(m.shown() == PAGE1, f'{what}: the music sheet')
 
     # -- 7b. Look up album opens our album page (patch/playmore.c pm_on_lookup_album) -----------------------------------------------
     FLAG, CLICK, DESTROY = pod.DATA['SONGER_FLAG'][0], O['EVT_CLICK'], O['EVT_DESTROY']
