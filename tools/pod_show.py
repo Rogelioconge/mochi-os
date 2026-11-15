@@ -253,10 +253,10 @@ def subscribe_pill(font, text):
 PD = cdefs.defines(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'patch', 'pcdetail.h'))
 
 
-def detail_date(when, length, mb='%d MB'):
-    """The date line (pd_date): "Oct 28 · 48 MB", English words; the size is left out when it is unknown, the date when there is none."""
+def detail_date(when, length, mb='%d MB', dur=0, mins='%dm'):
+    """The date line (pd_date): "Oct 28 · 48m · 48 MB", English words; the length (dur seconds, minutes rounded up as pc_len_text) and the size are left out when unknown, the date when there is none."""
     size = mb % ((length + 1048575) >> 20) if length else ''
-    return ' · '.join(x for x in (when, size) if x)
+    return ' · '.join(x for x in (when, mins % ((dur + 59) // 60) if dur else '', size) if x)
 
 
 def detail_layout(font, title, show, desc, hint='No description', has_pill=True):

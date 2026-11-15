@@ -56,12 +56,18 @@ int pd_lines(pd_t *d, void *st, unsigned *s, int n, int room, int maxl, pw_line_
     return pw_wrap(s, n, adv, room, maxl, m1_text_w(st, e), out);
 }
 
-void pd_date(char *out, unsigned size, const char *when, unsigned length) {
+void pd_date(char *out, unsigned size, const char *when, unsigned dur, unsigned length) {
     char t[24];
     unsigned o = 0;
     out[0] = 0;
     if (when[0]) o = (unsigned)snprintf(out, size, "%s", when);
-    if (length && o < size) {
+    if (o >= size) return;
+    if (dur) {
+        pc_len_text(t, sizeof t, dur);
+        o += (unsigned)snprintf(out + o, size - o, "%s%s", o ? " \xc2\xb7 " : "", t);
+        if (o >= size) return;
+    }
+    if (length) {
         pc_fmt(t, sizeof t, TR("%d MB"), (length + 1048575) >> 20);
         snprintf(out + o, size - o, "%s%s", o ? " \xc2\xb7 " : "", t);
     }

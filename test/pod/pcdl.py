@@ -981,7 +981,7 @@ def page_tests(ctx):
     m = page()
     open_sub_one(m)
     before = [t for _, t in lines(m)]
-    expect(dates(m)[0][1] == '1h ago' and before == [f'{(len(DATA) + 1048575) >> 20} MB', 'Download', 'Download'], f'a plain remote episode: its date line and a download pill with the feed\'s size, "Download" without one ({dates(m)[0]}, {before})')
+    expect(dates(m)[0][1] == '1h ago · 10m' and before == [f'{(len(DATA) + 1048575) >> 20} MB', 'Download', 'Download'], f'a plain remote episode: its date line with the length and a download pill with the feed\'s size, "Download" without one ({dates(m)[0]}, {before})')
     m.calls = []; m.thread = None
     PCP.act(m, 0)
     expect(m.thread and m.thread[0] == PSYMS['pn_dmain'] and toasts(m) == [] and ('timer_add', PSYMS['pg_awake_tick'], 1000) in m.calls and fn(m, 'pn_dl_count') == 1,

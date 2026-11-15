@@ -347,7 +347,7 @@ def page_tests(ctx):
     expect(len(L['title']) >= 3 and len(L['desc']) > 12 and L['h'] > O['GRID_VIEW_H'] + 150, f'the page scrolls as a whole: {L["h"]} px of content for a 400 px view')
     expect(L['show'].startswith('All-In') and PCS.font().width(L['show'], 15) <= PD['PD_SHOW_TEXT_W'], f'the show row\'s name fits its room: {L["show"]!r}')
     date = [t for t in seen if t[0] == 'label_ps_date']
-    expect(len(date) == 1 and date[0][3] == L['y_date'] and date[0][2] == PD['PD_X'] + O['PS_BADGE_DISC_W'] and date[0][1].endswith('ago · 48 MB') and L['y_date'] == PD['PD_TOP'], f'the date line is the first thing: the downloaded badge, the cell\'s date and the size ({date})')
+    expect(len(date) == 1 and date[0][3] == L['y_date'] and date[0][2] == PD['PD_X'] + O['PS_BADGE_DISC_W'] and date[0][1].endswith('ago · 72m · 48 MB') and L['y_date'] == PD['PD_TOP'], f'the date line is the first thing: the downloaded badge, the cell\'s date, the length and the size ({date})')
     bl, texts, styles, _ = PCP.paint(m, 0)
     ry = L['y_show'] + (PD['PD_SHOW_H'] - PD['PD_COVER']) // 2
     expect(not [b for b in bl if tuple(b[2][2:]) == (O['PS_ART'], O['PS_ART'])] and [tuple(b[2]) for b in bl if tuple(b[2][2:]) == (PD['PD_COVER'], PD['PD_COVER'])] == [(PD['PD_X'], ry, 32, 32)], 'no big cover: the show row has the show\'s cover, 32 px at the text edge')
@@ -632,7 +632,7 @@ def N_wsj():
 # ---------------------------------------------------------------------------
 
 def width_tests(ctx):
-    """The date line (the longest date, a year and the size, after both badges) and the hint in the 13 languages, in the real font: one line each."""
+    """The date line (the longest date, a year, the length and the size, after both badges) and the hint in the 13 languages, in the real font: one line each."""
     expect = ctx.expect
     fnt = pod_show.Font(pod_show.font_path(WORK))
     worst = {}
@@ -641,12 +641,12 @@ def width_tests(ctx):
         t = pod_i18n.table_for(loc)
         tr = lambda key, *n, t=t: _fmt(pod_i18n.TEXT[key][t], n)
         dates = [tr(k, 30) + tr(', %d', 2025) for k in months] + [tr('Just now')] + [tr(k, 59) for k in ('%dm ago', '%dh ago', '%dd ago')]
-        lines = [pod_show.detail_date(d, 999 << 20, pod_i18n.TEXT['%d MB'][t]) for d in dates]
+        lines = [pod_show.detail_date(d, 999 << 20, pod_i18n.TEXT['%d MB'][t], 999 * 60, pod_i18n.TEXT['%dm'][t]) for d in dates]
         worst[loc] = dict(date=max(fnt.width(x, 15) for x in lines), hint=fnt.width(tr('No description'), 15))
     print('  widest per language (px):', {k: max(v[k] for v in worst.values()) for k in worst['en_US']}, 'in', {k: max(worst, key=lambda loc: worst[loc][k]) for k in worst['en_US']})
     bad = lambda k, room: [(loc, w[k]) for loc, w in worst.items() if w[k] > room]
     room = PD['PD_W'] - O['PS_BADGE_CHECK_W'] - O['PS_BADGE_DISC_W']
-    expect(not bad('date', room), f'the date line ("Dec 30, 2025 · 999 MB") fits after both badges ({room} px) in every language ({bad("date", room)})')
+    expect(not bad('date', room), f'the date line ("Dec 30, 2025 · 999m · 999 MB") fits after both badges ({room} px) in every language ({bad("date", room)})')
     expect(not bad('hint', PD['PD_W']), f'"No description" fits a line in every language ({bad("hint", PD["PD_W"])})')
 
 

@@ -54,7 +54,7 @@ typedef struct {
 } pd_t;
 
 /* The date line: the cell's date and, when the size is known, " · 48 MB" ("Oct 28 · 48 MB"; just the size when there is no date). */
-void pd_date(char *out, unsigned size, const char *when, unsigned length);
+void pd_date(char *out, unsigned size, const char *when, unsigned dur, unsigned length);
 /* The page's texts: title in st_title, the show's name in st_meta (cut with an ellipsis to PD_SHOW_TEXT_W), the date line, and the description in st_desc (empty desc: the hint text instead, in the meta
  * style). has_pill: the pill row is there (the page puts the pill and the "..." at y_pill). */
 void pd_make(pd_t *d, void *st_title, void *st_meta, void *st_desc, const char *title, const char *show,

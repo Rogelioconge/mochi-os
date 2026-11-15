@@ -360,6 +360,9 @@ def cell_tests(ctx):
     # both badges: "check, disc, Oct 10" (a played, downloaded episode); the date line reads as the date model says
     sprites, texts, _ = cell_parts(m, 1)
     expect(texts['label_ps_date'][0][0] == PCP.when_model(NOW - 2 * DAY, NOW), f'the date line: {texts["label_ps_date"][0][0]}')
+    # an episode not on the card has its length after the date (its pill says the size); on the card the play pill says the length
+    remote = cell_parts(m, 3)[1]['label_ps_date'][0][0]
+    expect(remote == PCP.when_model(NOW - 4 * DAY, NOW) + ' · 60m', f'a remote episode\'s date line ends with its length: {remote}')
     # the pill widths are the model's (measured in the real font)
     expect(pod_show.pill_width(font(), '72m') == 10 + 16 + 6 + font().width('72m', 16) + 12, 'a pill is the pad, the 16 px glyph, 6 px, the label and the pad')
     # a played remote episode: the check without the disc

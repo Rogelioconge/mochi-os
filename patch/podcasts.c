@@ -938,7 +938,7 @@ static void pg_vis_make(void) {
 /* A cell's layout: the title and the description wrapped (two lines each), the date; made when it first paints, kept in the ring until the list is made again. */
 static pg_cell_t *pg_cell(int a) {
     pg_cell_t *c;
-    char date[48];
+    char date[80];
     int n, room = PS_CELL_W - (pg.select ? SG_SEL_COL : 0);
     const pc_ep_t *e;
     if (!pg.cells || a < 0 || a >= pg_nrows()) return (pg_cell_t *)0;
@@ -953,6 +953,12 @@ static pg_cell_t *pg_cell(int a) {
     c->dn = pg_lines(pg.st[ST_CDESC], c->desc, n, room, 2, c->dl);
     date[0] = 0;
     if (e->pub) pc_when(e->pub, (unsigned)time((long *)0), date, sizeof date);
+    if (e->dur && e->state != PC_LOCAL) { /* the length after the date; on the card the play pill says it */
+        char len[24];
+        pc_len_text(len, sizeof len, e->dur);
+        if (date[0]) pg_cat(date, sizeof date, " \xc2\xb7 "); /* " · " */
+        pg_cat(date, sizeof date, len);
+    }
     c->datelen = pg_wide(c->date, 40, date);
     return c;
 }
@@ -3655,7 +3661,7 @@ static void pg_det_note(int a, char *out) {
 static void pg_det_open(int a) {
     const pc_ep_t *e;
     pd_t *d;
-    char *note, when[40], date[48];
+    char *note, when[40], date[96];
     if (a < 0 || a >= pg.neps || pg.det || pg.select || pg.sheet || pg.dlg) return;
     e = &pg.eps[a];
     d = calloc(1, sizeof *d);
@@ -3669,7 +3675,7 @@ static void pg_det_open(int a) {
     pg_det_note(a, note);
     when[0] = 0;
     if (e->pub) pc_when(e->pub, (unsigned)time((long *)0), when, sizeof when);
-    pd_date(date, sizeof date, when, e->length);
+    pd_date(date, sizeof date, when, e->dur, e->length);
     pd_make(d, pg.st[ST_HEAD], pg.st[ST_META], pg.st[ST_SEC], e->title, pg.shows[pg.sel].title, date, note,
             TR("No description"), !pg.preview);
     free(note);
