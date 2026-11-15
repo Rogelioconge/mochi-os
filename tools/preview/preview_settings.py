@@ -27,7 +27,8 @@ STATE = {
     'm1plus_display': {'values': {'pod_value0': '30s', 'pod_value2': 'Green'}, 'switches': {'pod_switch3': True}},
     'm1plus_lighttime': {'shown': {'pod_check2'}},
     'm1plus_keyspower': {'values': {'pod_value0': 'Both', 'pod_value3': '5min'}, 'switches': {'pod_switch1': True, 'pod_switch2': False}},
-    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off', 'pod_value5': 'Low', 'pod_value6': '80', 'pod_value7': 'Memory', 'pod_value8': 'L3', 'pod_value9': 'Off', 'pod_value11': 'D2P', 'pod_value12': 'Variable'}, 'switches': {'pod_switch1': False, 'pod_switch3': True, 'pod_switch13': False}},
+    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off', 'pod_value5': 'Low', 'pod_value6': '80', 'pod_value7': 'Memory', 'pod_value8': 'L3', 'pod_value10': 'Medium', 'pod_value11': 'Off', 'pod_value13': 'D2P', 'pod_value14': 'Variable'}, 'switches': {'pod_switch1': False, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch15': False}},
+    'm1plus_psxfeed': {'shown': {'pod_check2'}},
     'm1plus_psmaxvol': {'vol_text': '80', 'vol': 80},
     'm1plus_psbootvol': {'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}},
     'm1plus_psbal': {'vol_text': 'L3', 'vol': 7},
@@ -448,11 +449,12 @@ def main():
         tr = lambda k: t.strings.get(k, k)
         sheet([('Settings, whole list', draw_page(t, 'm1plus_settings', full=True, state={'values': {'pod_value0': tr('Off'), 'pod_value1': tr('Off'), 'pod_value5': tr('Rock')}})),
                ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value2': tr('Location'), 'pod_value4': tr('Off'), 'pod_value5': tr('Low'), 'pod_value6': '80', 'pod_value7': tr('Memory'), 'pod_value8': 'L3',
-                                                                                          'pod_value9': tr('Off'), 'pod_value11': tr('D2P'), 'pod_value12': tr('Variable')}, 'switches': {'pod_switch1': True, 'pod_switch3': True, 'pod_switch13': False}})),
+                                                                                          'pod_value10': tr('Medium'), 'pod_value11': tr('Off'), 'pod_value13': tr('D2P'), 'pod_value14': tr('Variable')}, 'switches': {'pod_switch1': True, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch15': False}})),
                ('Max Volume', draw_page(t, 'm1plus_psmaxvol', state={'vol_text': '80', 'vol': 80})),
                ('Default Volume (Volume Memory off)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}})),
                ('Default Volume (Volume Memory on)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'vol_dim': True, 'switches': {'pod_switch0': True}})),
                ('Channel Balance', draw_page(t, 'm1plus_psbal', state={'vol_text': 'L3', 'vol': 7})),
+               ('Crossfeed', draw_page(t, 'm1plus_psxfeed', state={'shown': {'pod_check2'}})),
                ('Play Mode', draw_page(t, 'm1plus_psmode'))], os.path.join(os.path.dirname(out), 'playset', f'playset-{tag}.png'))
     # LED Light with Dynamic chosen, and the Theme page with one theme of each palette group (docs/modules/display.md "Sample Rate"; the note under Theme's title is set at run time: the preview sets it the same way) (out/preview/rgb/)
     for loc, tag in (('en_US', 'en'), ('zh_CN', 'zh_CN'), ('ge_DE', 'de')):

@@ -5,9 +5,9 @@
  * the DSD pass-through and the reload on stock's gain command are its.
  *
  * hciplayer is MPlayer 1.3.0 modified. tools/mod_player.py points the equalizer's af_info open slot (0x89381c, stock
- * 0x44fd14) at peq_open, so every instance the player makes of "equalizer" is this filter. Stock adds it while its
- * Equalizer switch is on (mcl-seteq, then the playback loop's 0x4291cc, again at each file) and deletes it when the
- * switch goes off, so with the switch off nothing here runs. 0x4291cc then sends GAIN SET (0x40001d00) for channels 0..7
+ * 0x44fd14) at peq_open, so every instance the player makes of "equalizer" is this filter. Stock adds it (mcl-seteq,
+ * then the playback loop's 0x4291cc, again at each file) while its Equalizer switch is on, and deletes it when the switch
+ * goes off; peq_seteq_flag keeps it in the chain with the switch off (eq_off). 0x4291cc then sends GAIN SET (0x40001d00) for channels 0..7
  * with stock's ten gains (0xb10df4, dB): channel 0 rereads the state record (PEQ_STATE) and plays its curve, the file's
  * preset or the 10-Band EQ's gains and preamp (the record's, not stock's) as peaking bands, through the engine's 20 ms ramp. Control runs on the playback loop, never
  * in the PCM callback. The kill switch (PEQ_KILL, read at each open) passes everything through.
@@ -17,8 +17,14 @@
  * on the playback thread), and a cascade that starts from zero memory under a continuous signal clicks. An instance that
  * played to its demuxer's end leaves its settled memory in carry; the next instance adopts it on its first block when the
  * rate, the channel count and the whole curve match and the join is under CARRY_MS old. Anything else starts from zero.
+ * The stereo stage is carried beside it under the same join guards, whatever the curve (its ramps go on in the next file).
+ *
+ * Mono Audio and Crossfeed (patch/stereo.c, docs/modules/stereo.md): Mono Audio runs before the cascade, Crossfeed after it,
+ * as the record STEREO_FILE says (read at each REINIT and channel-0 gain command). With the switch off the filter
+ * stays in the chain and, with both off, passes the native format and every block through (stock's bits).
  */
 #include "peq.h"
+#include "stereo.h"
 
 _Static_assert(sizeof(af_data) == 24, "audio ABI");
 _Static_assert(__builtin_offsetof(af_instance, setup) == 16, "setup ABI");
@@ -39,13 +45,16 @@ _Static_assert(__builtin_offsetof(af_instance, mul) == 40, "multiplier ABI");
  * the codec's name (+0x3d0) and driver (+0x3e0), as "Selected audio codec" prints them (0x47ed70). The ten gains
  * mcl-seteq parses (0xb10df4) are no longer read (the 10-Band EQ plays the record's gains). Pinned by tools/mod_player.py. */
 #define MPCTX (*(char *volatile *)0xaf9e30u)
+#define REMOVE_FILTER 0x42929cu /* stock's flag-0 removal of "equalizer" from the chain at mpctx + 0x40 */
 
 typedef struct {
     peq_dsp dsp;
+    stereo_dsp st;
     peq_preset preset;
     int off; /* the kill switch was there at the open: pass everything through */
     int fresh; /* REINIT done, no block yet: the first one may adopt the carried memory */
     int played; /* this instance has filtered a block */
+    int ramp_in; /* it replaces a pass-through instance mid-track: Mono Audio and Crossfeed ramp in */
 } player_state;
 
 /* The memory of the instance that just ended, in the payload's .data (no .bss here; one writer: the playback thread). */
@@ -53,8 +62,10 @@ typedef struct {
 static struct {
     double z[PEQ_CHANNELS][PEQ_BANDS][2];
     peq_preset preset;
+    stereo_carry st_mem;
     long long at; /* ms, CLOCK_MONOTONIC, when it was left */
     int rate, channels, valid;
+    int eq, st; /* which of the two was left: the cascade's memory (settled, finite), the stereo stage */
 } carry __attribute__((section(".data")));
 
 static long long now_ms(void) {
@@ -76,29 +87,48 @@ static void leave(player_state *s) {
     if (!s->played) return;
     carry.valid = 0;
     long long t = now_ms();
-    if (s->off || !s->dsp.channels || s->dsp.current.bypass || s->dsp.ramp || s->dsp.waiting || t < 0 || !track_ended())
-        return;
+    if (s->off || !s->dsp.channels || t < 0 || !track_ended()) return;
+    carry.eq = !s->dsp.current.bypass && !s->dsp.ramp && !s->dsp.waiting;
     for (int ch = 0; ch < PEQ_CHANNELS; ++ch)
         for (int b = 0; b < PEQ_BANDS; ++b)
             for (int k = 0; k < 2; ++k)
-                if (!__builtin_isfinite(s->dsp.current.z[ch][b][k])) return;
-    memcpy(carry.z, s->dsp.current.z, sizeof carry.z);
-    carry.preset = s->preset;
+                if (!__builtin_isfinite(s->dsp.current.z[ch][b][k])) carry.eq = 0;
+    if (carry.eq) {
+        memcpy(carry.z, s->dsp.current.z, sizeof carry.z);
+        carry.preset = s->preset;
+    }
+    carry.st = stereo_carry_out(&s->st, &carry.st_mem);
     carry.at = t;
     carry.rate = s->dsp.rate;
     carry.channels = s->dsp.channels;
-    carry.valid = 1;
+    carry.valid = carry.eq || carry.st;
 }
 
-/* The first block of a new instance: one try, and the memory is gone either way. */
-static void adopt(player_state *s) {
+/* The join guards: what was left is this stream's, a moment ago. */
+static int joins(int rate, int channels) {
     long long t = now_ms();
-    int ok = carry.valid && t >= carry.at && t - carry.at < CARRY_MS && carry.rate == s->dsp.rate &&
-             carry.channels == s->dsp.channels && !s->dsp.current.bypass && !s->dsp.waiting &&
-             !memcmp(&carry.preset, &s->preset, sizeof carry.preset);
-    carry.valid = 0;
-    if (ok) memcpy(s->dsp.current.z, carry.z, sizeof carry.z);
+    return carry.valid && t >= carry.at && t - carry.at < CARRY_MS && carry.rate == rate && carry.channels == channels;
 }
+
+/* The first block of a new instance: one try, and the memory is gone either way. The cascade's needs the same curve;
+ * the stereo stage's does not (its weights go on toward what the record asks now). */
+static void adopt(player_state *s) {
+    int ok = joins(s->dsp.rate, s->dsp.channels);
+    carry.valid = 0;
+    if (!ok) return;
+    if (carry.eq && !s->dsp.current.bypass && !s->dsp.waiting &&
+        !memcmp(&carry.preset, &s->preset, sizeof carry.preset))
+        memcpy(s->dsp.current.z, carry.z, sizeof carry.z);
+    if (carry.st) stereo_carry_in(&s->st, &carry.st_mem);
+}
+
+/* Stock's Equalizer switch, as the last mcl-seteq said (peq_seteq_flag): 1 off. */
+static int eq_off __attribute__((section(".data")));
+/* The live instance passes the native format through because the switch is off and no stereo option is on. */
+static int pass_native __attribute__((section(".data")));
+/* peq_seteq_flag removed that instance while the music plays: the one the loop adds next starts its stereo stage from the
+ * untouched signal (peq_open takes this). */
+static int replaced __attribute__((section(".data")));
 
 /* DSD (the vendor's dsdiff driver: dsf, dff, SACD iso; or FFmpeg's ffdsd*) reaches the chain as integer PCM,
  * possibly DoP, whose bits must arrive unchanged: pass it through. */
@@ -116,6 +146,7 @@ static void effective(peq_preset *p) {
         *p = s.preset;
     else
         peq_tenband(p, s.gain, s.preamp);
+    if (eq_off) p->bypass = 1; /* stock's switch is off: no curve (the engine ramps in and out of bypass) */
 }
 
 static int control(af_instance *af, int command, void *arg) {
@@ -124,13 +155,27 @@ static int control(af_instance *af, int command, void *arg) {
         af_data *in = arg;
         if (!in || in->nch < 1 || in->nch > PEQ_CHANNELS) return AF_ERROR;
         *af->data = *in;
+        pass_native = 0;
         if (s->off || in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) {
             s->dsp.channels = 0; /* play leaves every block alone */
             carry.valid = 0; /* nothing carries through a pass-through track */
             return AF_OK;
         }
+        stereo_record rec;
+        stereo_load(&rec);
+        /* Switch off and no stereo option: the filter only sits in the chain and stock's bits go through. Not while the
+         * last file's stage would still be heard (an option switched off just before its end): this file filters, to
+         * finish that fade, and then leaves every sample alone. */
+        int fading = joins(in->rate, in->nch) && carry.st && stereo_carry_live(&carry.st_mem, in->rate);
+        if (eq_off && !(in->nch == 2 && stereo_on(&rec)) && !fading) {
+            s->dsp.channels = 0;
+            carry.valid = 0;
+            pass_native = 1;
+            return AF_OK;
+        }
         effective(&s->preset);
         peq_reset(&s->dsp, in->rate, in->nch, &s->preset);
+        stereo_reset(&s->st, in->rate, in->nch, &rec, s->ramp_in && !s->played);
         s->fresh = 1;
         af->data->format = AF_FORMAT_FLOAT;
         af->data->bps = 4;
@@ -152,6 +197,9 @@ static int control(af_instance *af, int command, void *arg) {
             peq_preset p;
             effective(&p);
             if (memcmp(&p, &s->preset, sizeof(p)) && peq_update(&s->dsp, &p)) s->preset = p;
+            stereo_record rec;
+            stereo_load(&rec);
+            stereo_update(&s->st, &rec);
         }
         return AF_OK;
     }
@@ -168,12 +216,16 @@ static af_data *play(af_instance *af, af_data *data) {
             adopt(s);
         }
         s->played = 1;
-        peq_process(&s->dsp, data->audio, (unsigned)data->len / (4 * data->nch));
+        unsigned frames = (unsigned)data->len / (4 * data->nch);
+        stereo_pre(&s->st, data->audio, frames);
+        peq_process(&s->dsp, data->audio, frames);
+        stereo_post(&s->st, data->audio, frames);
     }
     return data;
 }
 
 static void uninit(af_instance *af) {
+    pass_native = 0;
     if (af->setup) leave(af->setup);
     free(af->data);
     free(af->setup);
@@ -190,10 +242,39 @@ int peq_open(af_instance *af) {
     af->data = calloc(1, sizeof(af_data));
     af->setup = calloc(1, sizeof(player_state));
     if (!af->data || !af->setup) return AF_ERROR; /* af_create calls uninit on failure */
+    ((player_state *)af->setup)->ramp_in = replaced;
+    replaced = 0;
     void *kill = fopen(PEQ_KILL, "rb");
     if (kill) {
         ((player_state *)af->setup)->off = 1;
         fclose(kill);
     }
     return AF_OK;
+}
+
+/* mcl-seteq's flag, where hciplayer parses it (strtol at 0x42cd1c, tools/mod_player.py): the answer is the flag, except
+ * that off (anything but 1 and 2) is answered as 2. Stock then takes its "on" path for it: the filter stays in the chain
+ * and the playback loop adds it again at each file. The filter itself knows the switch is off (eq_off). Switching on while
+ * the filter passes the native format through would leave it unable to filter until the next file, so that one instance
+ * is removed (as stock's flag 0 removed it) and the loop adds a new one; so would Mono Audio or Crossfeed going on with the
+ * switch off (demo writes the record, then sends mcl-seteq). The kill switch leaves stock's answer. */
+int peq_seteq_flag(const char *text, char **end, int base) {
+    int flag = (int)strtol(text, end, base), off = flag != 1 && flag != 2;
+    int was = eq_off, passing = pass_native;
+    eq_off = off;
+    void *kill = fopen(PEQ_KILL, "rb");
+    if (kill) {
+        fclose(kill);
+        return flag;
+    }
+    stereo_record rec;
+    stereo_load(&rec);
+    if (passing && (off ? stereo_on(&rec) : was)) {
+        char *mp = MPCTX;
+        if (mp) {
+            replaced = 1;
+            ((void (*)(void *))REMOVE_FILTER)(mp + 0x40);
+        }
+    }
+    return off ? 2 : flag;
 }

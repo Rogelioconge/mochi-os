@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""The parametric EQ's player side: hciplayer's equalizer filter replaced by patch/peq_player.c (docs/modules/peq.md).
+"""The player side of the parametric EQ and of Mono Audio / Crossfeed: hciplayer's equalizer filter replaced by
+patch/peq_player.c (docs/modules/peq.md, docs/modules/stereo.md).
 
 hciplayer (/usr/bin/hciplayer, the audio daemon: MPlayer 1.3.0 modified) is pinned by SHA-256. Its final program
 header is an unused PT_NULL; pod.py's append_payload turns it into a file-backed PT_LOAD (RWX) at PLAYER_BASE holding the
-payload (patch/peq.c and patch/peq_player.c, built with PEQ_PLAYER, non-PIC, linked at PLAYER_BASE, no .bss: per-instance
-state is heap). Three edits, each pinned with its neighbours and the facts the C code reads:
+payload (patch/peq.c, patch/stereo.c and patch/peq_player.c, built with PEQ_PLAYER, non-PIC, linked at PLAYER_BASE, no .bss: per-instance
+state is heap). Four edits, each pinned with its neighbours and the facts the C code reads:
 
   * the equalizer's af_info open slot (EQ_OPEN_SLOT, stock af_equalizer open 0x44fd14) becomes peq_open;
   * stock skips the equalizer above 48 kHz in two places (RATE_GATES): the mcl-seteq command (beqz to the
     "===setequalizer off===" log) becomes a nop, and the playback loop's per-stream insert (bnez around the add at
-    0x42fbc4) an unconditional branch, so the filter runs at every rate (it passes DSD through itself).
+    0x42fbc4) an unconditional branch, so the filter runs at every rate (it passes DSD through itself);
+  * the strtol call that parses mcl-seteq's flag (SETEQ_CALL) becomes peq_seteq_flag, which answers 2 for an off flag, so
+    stock keeps the filter in the chain with its Equalizer switch off (the filter then passes the native format through
+    unless Mono Audio or Crossfeed is on) and, when the filter must leave native pass-through, calls stock's removal
+    0x42929c so the playback loop adds a float one. The kill switch gets stock's own answer.
 
 libc is reached only through hciplayer's own PLT GOT slots (no new import): a stub sets $gp and $t8 (the slot, which
 the lazy resolver PLT0 expects) and jumps through it, as q2-pod's tools/peq.py does.
@@ -26,7 +31,7 @@ REL = 'usr/bin/hciplayer'
 PLAYER_SHA = 'a64503746862af3e69b57f2e06167351b30cda28479348a845be5172e083a8c6'
 PLAYER_GP = 0xb16750          # DT_PLTGOT + 0x7ff0
 PLAYER_BASE = 0xe10000        # stock's last LOAD ends at 0xe03b38
-SOURCES = ['peq.c', 'peq_player.c']
+SOURCES = ['peq.c', 'stereo.c', 'peq_player.c']
 FLAGS = [*pod.FLAGS, '-mnan=2008', '-fno-math-errno', '-DPEQ_PLAYER']   # hciplayer: FP64, NaN2008 (its .MIPS.abiflags, e_flags 0x400)
 
 # The equalizer's af_info: info, name ("equalizer"), author, comment, flags, open.
@@ -36,8 +41,36 @@ EQ_OPEN_SLOT, STOCK_OPEN = EQ_INFO + 0x14, 0x44fd14
 # (address, stock word, patched word)
 RATE_GATES = ((0x42ce34, 0x10400098, 0),             # mcl-seteq: beqz $v0, 0x42d098 ("setequalizer off") -> nop
               (0x42fa78, 0x14400052, 0x10000052))    # the insert: bnez $v0, 0x42fbc4 -> b 0x42fbc4
+# The strtol call that parses mcl-seteq's flag (jal 0xadae10, the PLT stub of strtol): peq_seteq_flag takes it over.
+SETEQ_CALL, SETEQ_STOCK = 0x42cd1c, 0x0c2b6b84
 # Checked, not written: (address, stock word, what it proves).
 PINS = (
+    (0x42cd14, 0x2406000a, 'mcl-seteq flag: a2 = 10 (base)'),
+    (0x42cd18, 0x00002825, 'mcl-seteq flag: a1 = 0 (no end pointer)'),
+    (0x42cd20, 0x27a40e5c, 'mcl-seteq flag: a0 = the text (delay slot of the call)'),
+    (0x42cd24, 0x24030001, 'mcl-seteq flag: v1 = 1'),
+    (0x42cd28, 0x1043003c, 'mcl-seteq flag: beq v0, v1 -> flag 1 (0x42ce1c)'),
+    (0x42cd2c, 0x00408825, 'mcl-seteq flag: s1 = the flag'),
+    (0x42cd30, 0x24020002, 'mcl-seteq flag: v0 = 2'),
+    (0x42cd34, 0x12220032, 'mcl-seteq flag: beq s1, v0 -> flag 2 (0x42ce00)'),
+    (0x42cd54, 0x0c10a4a7, 'mcl-seteq flag 0 (not reached once the flag answers 2): jal 0x42929c, remove "equalizer"'),
+    (0x42cd64, 0xac400df0, 'mcl-seteq flag 0 (not reached): sw $zero, 0xdf0: the insert state 0'),
+    (0x42ce00, 0x3c060088, 'mcl-seteq flag 2: lui $a2, 0x88 (log)'),
+    (0x42ce0c, 0x24c66804, 'mcl-seteq flag 2: the log text "====pre_eqset======" (0x886804)'),
+    (0x42ce10, 0x3c0200b1, 'mcl-seteq flag 2: lui $v0, 0xb1'),
+    (0x42ce14, 0x1000fc3e, 'mcl-seteq flag 2: b 0x42bf10'),
+    (0x42ce18, 0xac510df0, 'mcl-seteq flag 2: sw $s1, 0xdf0($v0): the insert state becomes the flag, 2'),
+    (0x42ce3c, 0x24030002, 'mcl-seteq flag 1: v1 = 2'),
+    (0x42ce44, 0xac430df0, 'mcl-seteq flag 1: sw $v1, 0xdf0($v0): the insert state 2'),
+    (0x42929c, 0x27bdffd8, 'remove: the function stock removes "equalizer" with (a0 = mpctx + 0x40): addiu sp'),
+    (0x4292b0, 0x8c920004, 'remove: lw $s2, 4($a0): the filter chain'),
+    (0x4224e0, 0x8c440df0, 'file start: lw the insert state'),
+    (0x4224e4, 0x14830002, 'file start: bne state, 1'),
+    (0x4224ec, 0xac430df0, 'file start: state 1 becomes 2 (the filter is added again for each file)'),
+    (0x42f438, 0x8e830df0, 'the loop: lw the insert state'),
+    (0x42fbd4, 0xae820df0, 'the insert: state 1 after the add'),
+    (0xadae10, 0x3c0f00b0, 'strtol stub: lui $t7, 0xb0'),
+    (0xadae14, 0x8df998e8, 'strtol stub: lw $t9, -0x6718($t7): the GOT slot 0xaf98e8 (strtol)'),
     (0x42ce1c, 0x3c0200b0, 'mcl-seteq gate: lui $v0, 0xb0'),
     (0x42ce20, 0x3403bb81, 'mcl-seteq gate: ori $v1, $zero, 48001'),
     (0x42ce24, 0x8c429e30, 'mcl-seteq gate: lw $v0, -0x61d0($v0): mpctx at 0xaf9e30'),
@@ -88,7 +121,7 @@ LIBC = {
     'strlen': ('unsigned', 'const char *', 'strlen'), 'calloc': ('void *', 'unsigned, unsigned', 'calloc'),
     'free': ('void', 'void *', 'free'), 'fopen': ('void *', 'const char *, const char *', 'fopen64'),
     'fread': ('unsigned', 'void *, unsigned, unsigned, void *', 'fread'), 'fclose': ('int', 'void *', 'fclose'),
-    'clock_gettime': ('int', 'int, void *', 'clock_gettime'),
+    'clock_gettime': ('int', 'int, void *', 'clock_gettime'), 'strtol': ('long', 'const char *, char **, int', 'strtol'),
     'pow': ('double', 'double, double', '__pow_finite'), 'cos': ('double', 'double', 'cos'), 'sin': ('double', 'double', 'sin'),
 }
 
@@ -112,6 +145,7 @@ def check_stock(raw):
     pod.check(pod.sha(raw) == PLAYER_SHA, f'{REL} is not the pinned stock binary')
     got = tuple(word(raw, EQ_INFO + 4 * i) for i in range(6))
     pod.check(got == EQ_INFO_WORDS, f'equalizer af_info at {EQ_INFO:#x}: {[hex(w) for w in got]}')
+    pod.check(word(raw, SETEQ_CALL) == SETEQ_STOCK, f'{SETEQ_CALL:#x}: mcl-seteq strtol call {word(raw, SETEQ_CALL):#010x}')
     for a, old, _ in RATE_GATES:
         pod.check(word(raw, a) == old, f'{a:#x}: rate gate {word(raw, a):#010x} != {old:#010x}')
     for a, old, what in PINS:
@@ -143,7 +177,7 @@ def compile_payload(build, slots):
     script.write_text(f'SECTIONS {{ . = {PLAYER_BASE:#x}; .text : {{ *(.text*) }} .rodata : {{ *(.rodata*) }} '
                       '.data : { *(.data*) *(.sdata*) } .bss : { *(.bss*) *(.sbss*) *(COMMON) } '
                       '/DISCARD/ : { *(.comment) *(.note*) *(.pdr) *(.mdebug*) *(.MIPS.abiflags) *(.reginfo) *(.gnu.attributes) } }\n')
-    pod.run(pod.LD, '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', *objs, build / 'player_asm.o',
+    pod.run(pod.LD, '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', '-u', 'peq_seteq_flag', *objs, build / 'player_asm.o',
             '-o', build / 'player.elf')
     pod.run(pod.OBJCOPY, '-O', 'binary', build / 'player.elf', build / 'player.bin')
     with open(build / 'player.elf', 'rb') as f:
@@ -161,6 +195,9 @@ def patch(raw, payload, syms):
     pod.check(PLAYER_BASE <= entry < PLAYER_BASE + len(payload), 'peq_open outside the payload')
     struct.pack_into('<I', image, pod.fileoff(image, EQ_OPEN_SLOT), entry)
     for a, _, new in RATE_GATES: struct.pack_into('<I', image, pod.fileoff(image, a), new)
+    flag = syms['peq_seteq_flag']
+    pod.check(PLAYER_BASE <= flag < PLAYER_BASE + len(payload), 'peq_seteq_flag outside the payload')
+    struct.pack_into('<I', image, pod.fileoff(image, SETEQ_CALL), 0x0c000000 | flag >> 2)
     seg_off = pod.append_payload(image, payload, PLAYER_BASE)
     return bytes(image), seg_off
 
@@ -171,6 +208,7 @@ def apply(out):
     check_stock(raw)
     build = pathlib.Path(out) / 'playerbuild'; build.mkdir(exist_ok=True)
     slots = plt_slots(path)
+    pod.check(slots['strtol'] == 0xaf98e8, f'strtol slot {slots["strtol"]:#x}: not what the stub at 0xadae10 jumps through')
     syms, payload = compile_payload(build, slots)
     patched, seg_off = patch(raw, payload, syms)
     mode = stat.S_IMODE(os.stat(path).st_mode)
@@ -179,10 +217,12 @@ def apply(out):
                 'payload_len': len(payload), 'payload_sha256': pod.sha(payload), 'segment_file_off': seg_off,
                 'open_slot': {'addr': EQ_OPEN_SLOT, 'stock': STOCK_OPEN, 'target': syms['peq_open']},
                 'rate_gates': [[a, old, new] for a, old, new in RATE_GATES], 'libc_slots': slots,
+                'seteq_call': {'addr': SETEQ_CALL, 'stock': SETEQ_STOCK, 'target': syms['peq_seteq_flag']},
                 'symbols': {n: syms[n] for n in sorted(syms) if re.fullmatch(r'peq_\w+', n)}}
     (build / 'manifest.json').write_text(json.dumps(manifest, indent=1) + '\n')
     print(f'player: payload {len(payload)} bytes @ {PLAYER_BASE:#x}, equalizer open {EQ_OPEN_SLOT:#x} -> '
-          f'{syms["peq_open"]:#x}, rate gates {", ".join(hex(a) for a, _, _ in RATE_GATES)}')
+          f'{syms["peq_open"]:#x}, rate gates {", ".join(hex(a) for a, _, _ in RATE_GATES)}, '
+          f'mcl-seteq flag {SETEQ_CALL:#x} -> {syms["peq_seteq_flag"]:#x}')
 
 
 if __name__ == '__main__':

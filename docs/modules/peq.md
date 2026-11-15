@@ -14,7 +14,7 @@ parser refuses shows "Cannot read this preset" and changes nothing. With no file
 
 The equalizer runs in **hciplayer**, at every sample rate (stock's skipped anything above 48 kHz), on every output (the headphone
 DAC, USB, Bluetooth: it sits before ALSA). DSD (the vendor's `dsdiff` driver, FFmpeg's `ffdsd*`) passes untouched. With stock's
-switch off the player deletes the filter, so playback is stock's, bit for bit. Stock's slider page, the only place that showed the note
+switch off the filter stays in the chain but passes the native format and every block through, so playback is stock's, bit for bit (unless Mono Audio or Crossfeed is on, [stereo](stereo.md)). Stock's slider page, the only place that showed the note
 "EQ only for files below 48kHz." (`eq_only48kmsg`, `label_only48msg`), is retired (below), so the text is stock's and unseen. Our own grey note "EQ is not applied to DSD." (`DSD_NOTE`) ends the Equalizer page and the 10-Band editor.
 
 ## The player (`patch/peq_player.c`, `tools/mod_player.py`)
@@ -26,27 +26,38 @@ hciplayer (`a6450374…`, MPlayer 1.3.0 modified) is a slightly different build 
 |---|---|---|---|
 | equalizer `af_info` open slot (`af_info` at `0x893808`: info, `"equalizer"`, author, comment, flags 1, open) | `0x89381c` | `0x44fd14` (`af_equalizer` open) | `peq_open` |
 | `mcl-seteq`'s rate gate: `beqz` to `===setequalizer off===` | `0x42ce34` | `0x10400098` | `nop` |
+| `mcl-seteq`'s flag parse: `jal 0xadae10` (the `strtol` stub; flag, base 10) | `0x42cd1c` | `0x0c2b6b84` | `jal peq_seteq_flag` |
 | the playback loop's insert gate: `bnez` around the add `0x42fbc4` | `0x42fa78` | `0x14400052` | `b 0x42fbc4` |
 | spare `PT_NULL` (PH[10]) | | | `PT_LOAD` RWX at `0xe10000` (last stock LOAD ends `0xe03b38`) |
 
-The payload is `peq.c` + `peq_player.c` built with `PEQ_PLAYER`, `-mnan=2008 -fno-math-errno` (hciplayer is FP64, NaN2008), linked
-at `0xe10000` with no `.bss` (6.6 KB; per-instance state is heap). libc goes through hciplayer's own PLT slots (`.rel.plt`
+The payload is `peq.c` + `stereo.c` + `peq_player.c` built with `PEQ_PLAYER`, `-mnan=2008 -fno-math-errno` (hciplayer is FP64, NaN2008), linked
+at `0xe10000` with no `.bss` (15.8 KB; per-instance state is heap, the two switches below are in `.data`). libc goes through hciplayer's own PLT slots (`.rel.plt`
 `R_MIPS_JUMP_SLOT`; the stub sets `$gp` and `$t8` = the slot, which PLT0 expects): `memset memcpy memcmp strcmp strlen calloc free
-fopen64 fread fclose clock_gettime __pow_finite cos sin`. No new import.
+fopen64 fread fclose clock_gettime strtol __pow_finite cos sin`. `strtol` is the one new use (hciplayer already imports it: the slot `0xaf98e8`, checked).
 
 **How stock drives it.** demo's `set_equalizer_value(mode)` (`0x4d851c`) sends `{mcl-seteq\g0|..|g9|flag}`: the mode's ten gains
 (dB) and flag 0 while `equalizer_flag` is 0, else 1 (2 while playing). hciplayer parses the gains into `0xb10df4`; flag 0 deletes the
-filter (`0x42929c`), 1 or 2 set the insert state (`0xb10df0`) to 2, and the playback loop's `0x4291cc` finds or `af_add`s
+filter (`0x42929c`; no longer reached, see below), 1 or 2 set the insert state (`0xb10df0`) to 2, and the playback loop's `0x4291cc` finds or `af_add`s
 `"equalizer"` and sends `AF_CONTROL_EQUALIZER_GAIN | SET` (`0x40001d00`) for channels 0..7 with those gains. The player re-adds
 the filter at each file. So the filter:
 
+- **EQ off keeps the filter.** `peq_seteq_flag` (payload) stands in for the `strtol` that parses the flag (`0x42cd1c`): it calls
+  `strtol`, records `eq_off` (the flag is neither 1 nor 2) and answers 2 for an off flag, so stock takes its flag-2 path (`0x42ce00`: a log
+  line, `0xb10df0` = 2) and never its removal (`0x42cd54`, disassembled: `jal 0x42929c` on `mpctx + 0x40`, then `0xb10df0` = 0); the loop adds the
+  filter at each file as for EQ on. With `eq_off`, `effective()` returns the curve bypassed (the engine ramps in and out of bypass in
+  20 ms, so a mid-track switch is smooth), and REINIT with **no stereo option on** (`playback-stereo`, [stereo](stereo.md); stereo
+  tracks only) accepts the native format and passes blocks untouched like the DSD path (`pass_native`; bit-exact with stock, any rate).
+  With Mono Audio or Crossfeed on it asks for float and runs only the stereo stage. Switching EQ on, or a stereo option on with EQ
+  off, while the filter passes the native format through would leave it unable to work until the next file, so then (and only then)
+  `peq_seteq_flag` calls stock's removal `0x42929c` on `mpctx + 0x40` once and the loop adds a new instance. The kill switch gives stock
+  its own flag back (off removes the filter). Never `AF_DETACH`: `af_add` would hand back the freed filter.
 - `peq_open`: control / uninit / play, `mul` 1, `data` and `setup` calloc'd; `/mnt/mmc/m1plus-off` present → this instance passes
   everything through (the kill switch).
 - `REINIT` (`0x10000100`): a DSD codec, a rate outside 8–384 kHz or a special format → accepted as it comes, played untouched.
   Otherwise the curve (below) compiled for this rate and channel count, and the chain asked for float (`0x1d`, 4 bytes).
 - `GAIN SET` channel 0: the curve read again (from the record, or the gains it carries); a different one goes through the engine's
   20 ms crossfade. Other channels, `GAIN GET` (ten zeros) and the command line (`0x20000300`) change nothing.
-- `play`: the cascade on float blocks of the negotiated format, in place; steady bypass leaves the block bit-exact.
+- `play`: Mono Audio, the cascade, then Crossfeed on float blocks of the negotiated format, in place ([stereo](stereo.md)); steady bypass leaves the block bit-exact.
 
 **Carried filter memory (a gapless join).** Static RE of hciplayer (stock `a6450374…`): the filter chain is rebuilt for every file, on
 the one playback thread. `uninit_player` (`0x42def4`; called from the file loop at `0x4217d8`) runs `uninit_acodec` (`0x42e0a0`)

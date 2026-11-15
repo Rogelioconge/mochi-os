@@ -35,7 +35,7 @@ Read relevant ranges; avoid loading entire large files or history.
   and validation limits. Consolidate repeated facts; omit roadmaps and implementation phases.
   History holds only milestones, device findings and lessons.
 - No compatibility flags or code paths solely for old packages. No Bluetooth work.
-  `hciplayer` is patched for the parametric EQ only (`tools/mod_player.py`,
-  [peq](docs/modules/peq.md)); any other `hciplayer` change needs a decision first.
+  `hciplayer` is patched for the parametric EQ and for Mono Audio / Crossfeed (`tools/mod_player.py`,
+  [peq](docs/modules/peq.md), [stereo](docs/modules/stereo.md)); any other `hciplayer` change needs a decision first.
 - Preserve borrowed-code attribution, including q2-pod's README acknowledgement.
   Clone references outside this repository.

@@ -1,6 +1,6 @@
 """Settings > Playback Settings (patch/playset.c, docs/modules/playset.md): our page for stock's All Playback Settings rows. Every state is stock's own and is written the way stock's own click handlers write it, which the
 tests check by running stock's handlers under the emulator on the same state and comparing the stored values, the saves and the calls into the player and the driver, in order, with ours."""
-import os
+import os, struct
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 import awtk_ui
 
@@ -235,12 +235,12 @@ def settings_tests(ctx):
            and all(P.PAGES[i_] is p_ for i_, p_ in ((P.PSMAXVOL_PAGE_INDEX, P.PSMAXVOL_PAGE), (P.PSBOOTVOL_PAGE_INDEX, P.PSBOOTVOL_PAGE), (P.PSBAL_PAGE_INDEX, P.PSBAL_PAGE))) and PS.key == 'm1plus_playset' and PS.title == 'Playback'
            and [p.key for p in pickers] == ['m1plus_psmode', 'm1plus_psmem', 'm1plus_psgain', 'm1plus_psrg', 'm1plus_psfilter', 'm1plus_psdsd', 'm1plus_psusb'], 'the page, its seven pickers and the three loudness pages are in the page table at their indexes')
     expect([(r.label, r.action, r.arg) for r in PS.rows] == [('Play Mode', P.ACT_PLAYMODE, P.PSMODE_PAGE_INDEX), ('Gapless', P.ACT_GAPLESS, 0), ('Resume', P.ACT_MEMPLAY, P.PSMEM_PAGE_INDEX), ('Folder Skip', P.ACT_FOLDERSKIP, 0),
-                                                           ('Continue Playing', P.ACT_NEXTALBUM, P.NEXTALBUM_PAGE_INDEX), ('Gain', P.ACT_GAIN, P.PSGAIN_PAGE_INDEX), ('Max Volume', P.ACT_MAXVOL, P.PSMAXVOL_PAGE_INDEX), ('Default Volume', P.ACT_BOOTVOL, P.PSBOOTVOL_PAGE_INDEX), ('Channel Balance', P.ACT_BALANCE, P.PSBAL_PAGE_INDEX),
+                                                           ('Continue Playing', P.ACT_NEXTALBUM, P.NEXTALBUM_PAGE_INDEX), ('Gain', P.ACT_GAIN, P.PSGAIN_PAGE_INDEX), ('Max Volume', P.ACT_MAXVOL, P.PSMAXVOL_PAGE_INDEX), ('Default Volume', P.ACT_BOOTVOL, P.PSBOOTVOL_PAGE_INDEX), ('Channel Balance', P.ACT_BALANCE, P.PSBAL_PAGE_INDEX), ('Mono Audio', P.ACT_MONO, 0), ('Crossfeed', P.ACT_XFEED, P.PSXFEED_PAGE_INDEX),
                                                            ('ReplayGain', P.ACT_REPLAYGAIN, P.PSRG_PAGE_INDEX), ('Digital Filter', P.ACT_PAGE, P.PSFILTER_PAGE_INDEX), ('DSD Output Mode', P.ACT_DSD, P.PSDSD_PAGE_INDEX), ('USB Volume', P.ACT_USBVOL, P.PSUSB_PAGE_INDEX), ('Digital Output', P.ACT_DIGITAL, 0)]
-           and [P.row_kind(r) for r in PS.rows] == ['value', 'switch', 'value', 'switch', 'value', 'value', 'value', 'value', 'value', 'value', 'link', 'value', 'value', 'switch'], 'the page\'s rows and their kinds')
+           and [P.row_kind(r) for r in PS.rows] == ['value', 'switch', 'value', 'switch', 'value', 'value', 'value', 'value', 'value', 'switch', 'value', 'value', 'link', 'value', 'value', 'switch'], 'the page\'s rows and their kinds')
     pl = [x.text if isinstance(x, P.Hdr) else x.label for x in PS.layout]
-    expect(pl == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Volume', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'ReplayGain', 'Output', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output'],
-           f'three cards: Playback (no header), Volume (Gain, Max Volume, Default Volume, Channel Balance, ReplayGain), Output ({pl})')
+    expect(pl == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Volume', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'Mono Audio', 'Crossfeed', 'ReplayGain', 'Output', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output'],
+           f'three cards: Playback (no header), Volume (Gain, Max Volume, Default Volume, Channel Balance, Mono Audio, Crossfeed, ReplayGain), Output ({pl})')
     expect([(r.label, r.action, r.arg) for r in P.PSMODE_PAGE.rows] == [(t, P.ACT_PLAYMODESET, i) for i, t in enumerate(('List Play', 'Repeat Track', 'Shuffle', 'Repeat All'))]
            and [(r.label, r.action, r.arg) for r in P.PSMEM_PAGE.rows] == [(t, P.ACT_MEMPLAYSET, i) for i, t in enumerate(('Off', 'Track', 'Location'))]
            and [(r.label, r.action, r.arg) for r in P.PSGAIN_PAGE.rows] == [('Low', P.ACT_GAINSET, 0), ('High', P.ACT_GAINSET, 1)]
@@ -321,15 +321,15 @@ def settings_tests(ctx):
     expect(seen(gm) == [('write_int_config', 0, 'PLAYSET', 'GAIN'), ('mclSetGainMode', 0, 1)] and checks(gm, 2) == [1, 0], 'a tap on Low: the save, mclSetGainMode(0, 1), the check follows')
     # the page: values, switches, the Gain row's grey, the picker rows
     PK = ('pod_value', 'pod_label', 'pod_switch')
-    rows = 14
+    rows = 16
     pm = page(P.PLAYSET_PAGE_INDEX, rows, PK, gapless=1, jump=0, gain=1, replay=2, dsd=2, usbvol=0, mem=1, digital=1, maxv=80, bootv=35, bal=7)
     pm.mode = 1
     pm.calls = []; pm.fire(O['EVT_WINDOW_TO_FG'])
-    vals = {i: value(pm, i)[1] for i in (0, 2, 4, 5, 9, 11, 12)}
-    expect(vals == {0: ['Repeat Track'], 2: ['Track'], 4: ['Off'], 5: ['High'], 9: ['Album'], 11: ['Native'], 12: ['Fixed']}, f'the value rows show stock\'s state ({vals})')
+    vals = {i: value(pm, i)[1] for i in (0, 2, 4, 5, 11, 13, 14)}
+    expect(vals == {0: ['Repeat Track'], 2: ['Track'], 4: ['Off'], 5: ['High'], 11: ['Album'], 13: ['Native'], 14: ['Fixed']}, f'the value rows show stock\'s state ({vals})')
     nums = {i: [t for _, t in value(pm, i)[0]][-1:] for i in (6, 7, 8)}
     expect(nums == {6: ['80'], 7: ['35'], 8: ['L3']}, f'the loudness rows: Max Volume the number, Default Volume the number, Channel Balance as stock\'s label writes it ({nums})')
-    expect([sw_images(pm, i)[-1] for i in (1, 3, 13)] == ['sset_on', 'sset_off', 'sset_on'], 'the switches show Gapless on, Folder Skip off, Digital Output on')
+    expect([sw_images(pm, i)[-1] for i in (1, 3, 9, 15)] == ['sset_on', 'sset_off', 'sset_off', 'sset_on'], 'the switches show Gapless on, Folder Skip off, Mono Audio off (no file), Digital Output on')
     expect(not seen(pm), 'nothing is written when the page opens or comes back to the front')
     for lo, dim in ((0, 0), (1, 1)):
         m = page(P.PLAYSET_PAGE_INDEX, rows, PK, lineout=lo)
@@ -348,9 +348,9 @@ def settings_tests(ctx):
     expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'GAPLESS'), ('mclSetGaplessMode', 1)] and sw_images(m, 1)[-1] == 'sset_on', 'a tap on Gapless: stock\'s save and setter, the switch follows')
     m.calls = []; m.click('pod_row3')
     expect(seen(m) == [('write_int_config', 0, 'PLAYSET', 'JUMPFOLDER'), ('mclSetJumpFolder', 0)] and sw_images(m, 3)[-1] == 'sset_off', 'a tap on Folder Skip')
-    m.calls = []; m.click('pod_row13')
-    expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'DIGITALMODE'), ('mclSetLineOut', 1)] and sw_images(m, 13)[-1] == 'sset_on', 'a tap on Digital Output')
-    for row, target in ((0, 'm1plus_psmode'), (2, 'm1plus_psmem'), (4, 'm1plus_nextalbum'), (5, 'm1plus_psgain'), (6, 'm1plus_psmaxvol'), (7, 'm1plus_psbootvol'), (8, 'm1plus_psbal'), (9, 'm1plus_psrg'), (10, 'm1plus_psfilter'), (11, 'm1plus_psdsd'), (12, 'm1plus_psusb')):
+    m.calls = []; m.click('pod_row15')
+    expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'DIGITALMODE'), ('mclSetLineOut', 1)] and sw_images(m, 15)[-1] == 'sset_on', 'a tap on Digital Output')
+    for row, target in ((0, 'm1plus_psmode'), (2, 'm1plus_psmem'), (4, 'm1plus_nextalbum'), (5, 'm1plus_psgain'), (6, 'm1plus_psmaxvol'), (7, 'm1plus_psbootvol'), (8, 'm1plus_psbal'), (10, 'm1plus_psxfeed'), (11, 'm1plus_psrg'), (12, 'm1plus_psfilter'), (13, 'm1plus_psdsd'), (14, 'm1plus_psusb')):
         m = page(P.PLAYSET_PAGE_INDEX, rows, PK); m.calls = []; m.click(f'pod_row{row}')
         expect([c[1] for c in m.calls if c[0] == 'window_open'] == [target] and 'navigator_to' not in m.names() and not seen(m), f'row {row} opens {target} and nothing else')
     # the Library page's switch, and the Folders page's reading of the byte
@@ -366,15 +366,92 @@ def settings_tests(ctx):
     raw = os.path.join(WORK, 'rootfs/release/assets/default/raw/ui')
     trees = {k: awtk_ui.parse(open(os.path.join(raw, k + '.bin'), 'rb').read()) for k in ['m1plus_playset', 'm1plus_settings', 'm1plus_library'] + [p.key for p in pickers]}
     pt = trees['m1plus_playset']
-    expect([pt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(rows)] == ['pod_ci_repeat', 'pod_ci_infinity', 'pod_ci_history', 'pod_ci_folder', 'pod_ci_skip_forward', 'pod_ci_gauge', 'pod_ci_volume_2', 'pod_ci_volume_1', 'pod_ci_sliders_horizontal', 'pod_ci_scale', 'pod_ci_waves',
+    expect([pt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(rows)] == ['pod_ci_repeat', 'pod_ci_infinity', 'pod_ci_history', 'pod_ci_folder', 'pod_ci_skip_forward', 'pod_ci_gauge', 'pod_ci_volume_2', 'pod_ci_volume_1', 'pod_ci_sliders_horizontal', 'pod_ci_volume', 'pod_ci_headphones', 'pod_ci_scale', 'pod_ci_waves',
                                                                                               'pod_ci_audio_lines', 'pod_ci_usb', 'pod_ci_cable'] and pt.find('label_title').get('tr_text') == 'Playback',
-           'the page asset: fourteen glyphs and the title')
-    expect([pt.find(f'pod_label{i}').get('tr_text') for i in range(rows)] == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'ReplayGain', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output'],
+           'the page asset: sixteen glyphs and the title')
+    expect([pt.find(f'pod_label{i}').get('tr_text') for i in range(rows)] == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'Mono Audio', 'Crossfeed', 'ReplayGain', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output'],
            'the row labels')
     for p in pickers:
         t = trees[p.key]
         expect(all(t.find(f'pod_check{i}').get('visible') == 'false' and t.find(f'pod_check{i}').get('sensitive') == 'false' for i in range(len(p.rows))) and t.find('label_title').get('tr_text') == p.title
                and [t.find(f'pod_label{i}').get('tr_text') for i in range(len(p.rows))] == [pod_i18n.key_for(r.label) for r in p.rows], f'the {p.title} picker asset: a hidden insensitive check each, the labels translated (Album is stock\'s own key)')
+
+
+# ---- Mono Audio and Crossfeed (patch/stereoset.c, docs/modules/stereo.md): the two rows after Channel Balance and the Crossfeed picker ----------------------------------------------------------------------
+MONO_F, XFEED_F, STEREO_F = '/mnt/data/m1plus/playback-mono', '/mnt/data/m1plus/playback-crossfeed', '/mnt/data/m1plus/playback-stereo'
+
+
+def stereo_rows_tests(ctx):
+    """The rows' places, kinds, glyphs and texts in 13 languages, the picker, and a tap on each (the settings are ours: files in the settings folder; a failed save changes nothing)."""
+    expect, P = ctx.expect, pod_pages
+    import pod_i18n
+    import mod_icons
+    PS, X = P.PLAYSET_PAGE, P.PSXFEED_PAGE
+    labels = [r.label for r in PS.rows]
+    bi = labels.index('Channel Balance')
+    expect(labels[bi + 1:bi + 4] == ['Mono Audio', 'Crossfeed', 'ReplayGain'] and (P.ACT_MONO, P.ACT_XFEED, P.ACT_XFEEDSET) == (145, 146, 147)
+           and P.row_kind(PS.rows[bi + 1]) == 'switch' and P.row_kind(PS.rows[bi + 2]) == 'value' and PS.rows[bi + 2].arg == P.PSXFEED_PAGE_INDEX and P.VALUE_INIT[P.ACT_XFEED] == 'Off'
+           and P.ACT_MONO in P.SWITCH_ACTIONS and P.ACT_XFEED in P.VALUE_ACTIONS and P.ACT_XFEEDSET in P.CHECK_ACTIONS, 'Mono Audio (a switch) and Crossfeed (a value row) follow Channel Balance in the Volume card')
+    expect(P.PAGES[P.PSXFEED_PAGE_INDEX] is X and X.title == 'Crossfeed' and [(r.label, r.action, r.arg) for r in X.rows] == [(t, P.ACT_XFEEDSET, i) for i, t in enumerate(('Off', 'Low', 'Medium', 'High'))]
+           and all(P.row_kind(r) == 'check' for r in X.rows) and X.layout[-1].text == 'For headphones and Bluetooth. Not applied to Line Out, USB DAC or DSD.' and X.layout[-1].lines == 2 and P.PSXFEED_PAGE_INDEX == len(P.PAGE_ORDER) - 1,
+           'the picker: four check rows and the note under the card (the last page: no other number moved)')
+    for loc in pod_i18n.LOCALES:
+        expect(all(pod_i18n.TEXT[k][loc] for k in ('Mono Audio', 'Crossfeed', 'Off', 'Low', 'Medium', 'High', X.layout[-1].text)), f'the texts have a translation in {loc}')
+    expect([mod_icons.CARD_GLYPHS[k] for k in ('Mono Audio', 'Crossfeed')] == ['volume', 'headphones'], 'the glyphs: existing Lucide ones')
+
+    # the picker: the check, a tap, the files and the record
+    def opened(files=None, index=P.PSXFEED_PAGE_INDEX, nrows=4, kinds=('pod_check', 'pod_label'), **state):
+        m = PM(**state)
+        m.fs.update(files or {})
+        m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(['btn_return', 'btn_backtoplayer'] + [f'{k}{i}' for k in ('pod_row',) + tuple(kinds) for i in range(nrows)])}
+        row = m.alloc(12)
+        m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, P.ACT_PAGE); m.setword(row + 8, index)
+        m.call(PSYMS['on_row'], a0=row, count=6000000)
+        return m
+
+    def level_of(m): return m.call(PSYMS['stereo_crossfeed'], count=1 << 20)
+
+    def chk(m): return [[c[2] for c in m.calls if c[0] == 'widget_set_visible' and c[1] == m.widgets[f'pod_check{i}']][-1:] for i in range(4)]
+    for lvl, f in ((0, None), (1, b'1\n'), (2, b'2\n'), (3, b'3\n'), (0, b'junk'), (0, b'7\n')):
+        m = opened({XFEED_F: f} if f is not None else {})
+        expect(chk(m) == [[int(i == lvl)] for i in range(4)], f'file {f!r}: the check is on level {lvl} ({chk(m)})')
+    m = opened({XFEED_F: b'1\n'})
+    m.click('pod_row3')
+    expect(m.fs[XFEED_F] == b'3\n' and m.fs[STEREO_F][8:] == struct.pack('<ii', 0, 3) and chk(m) == [[0], [0], [0], [1]] and not seen(m), 'a tap on High: the file, the record (mono 0, level 3), the check follows; stock\'s state is not touched')
+    m.calls = []; m.click('pod_row3')
+    expect(not [c for c in m.calls if c[0] in ('open', 'rename', 'write')], 'a tap on the chosen row writes nothing')
+    m.fail.add(('rename', XFEED_F)); m.calls = []; before = m.fs[STEREO_F]; m.click('pod_row1')
+    expect(m.fs[XFEED_F] == b'3\n' and m.fs[STEREO_F] == before and XFEED_F + '.tmp' not in m.fs and chk(m) == [[]] * 4 and level_of(m) == 3, 'a save that fails changes nothing: the file, the record and the checks stay, no temporary file')
+    m.fail.discard(('rename', XFEED_F)); m.click('pod_row0')
+    expect(m.fs[XFEED_F] == b'0\n' and chk(m) == [[1], [0], [0], [0]], 'Off: the file says 0 and the check follows (the record is stereo.py\'s)')
+
+    # the page: the value text, the switch, the taps
+    PK = ('pod_value', 'pod_label', 'pod_switch')
+    rows = 16
+
+    def main(files=None):
+        m = opened(files, P.PLAYSET_PAGE_INDEX, rows, PK)
+        m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
+        return m
+
+    def val(m, i): return [c[2] for c in m.calls if c[0] == 'widget_set_tr_text' and c[1] == m.widgets[f'pod_value{i}']][-1:]
+    def sw(m, i): return [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets[f'pod_switch{i}']][-1:]
+    for f, text in ((None, 'Off'), (b'1\n', 'Low'), (b'2\n', 'Medium'), (b'3\n', 'High'), (b'bad', 'Off')):
+        m = main({XFEED_F: f} if f is not None else {})
+        expect(val(m, 10) == [text] and sw(m, 9) == ['sset_off'], f'the Crossfeed row shows {text} for {f!r}, Mono Audio is off')
+    m = main({MONO_F: b'1\n'})
+    expect(sw(m, 9) == ['sset_on'], 'Mono Audio on from its file')
+    m.click('pod_row9')
+    expect(m.fs[MONO_F] == b'0\n' and sw(m, 9) == ['sset_off'] and STEREO_F not in m.fs, 'a tap: the file, the switch (off: the record would be both off, none exists: none is made)')
+    m.click('pod_row9')
+    expect(m.fs[MONO_F] == b'1\n' and sw(m, 9) == ['sset_on'] and m.fs[STEREO_F][8:] == struct.pack('<ii', 1, 0) and not seen(m), 'a tap: on; the record (mono 1) is written; stock\'s state is not touched')
+    m.fail.add(('rename', MONO_F)); m.calls = []; m.click('pod_row9')
+    expect(m.fs[MONO_F] == b'1\n' and sw(m, 9) == [] and MONO_F + '.tmp' not in m.fs, 'a failed save: the file and the switch stay')
+    m = main(); m.calls = []; m.click('pod_row10')
+    expect([c[1] for c in m.calls if c[0] == 'window_open'] == ['m1plus_psxfeed'], 'the Crossfeed row opens its picker')
+    pt = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui', 'm1plus_psxfeed.bin'), 'rb').read())
+    expect(pt.find('label_title').get('tr_text') == 'Crossfeed' and [pt.find(f'pod_label{i}').get('tr_text') for i in range(4)] == ['Off', 'Low', 'Medium', 'High']
+           and pt.find('pod_note0_t').get('tr_text') == 'For headphones and Bluetooth. Not applied to Line Out, USB DAC or DSD.', 'the picker asset: the title, four labels, the note')
 
 
 # ---- the three loudness pages: stock's own handlers, bound to our widgets by name -----------------------------------------------------------------------------------------------------------------------------
@@ -783,4 +860,4 @@ def volnum_tests(ctx):
     expect('pod_vsnum' not in m.widgets and not [c for c in m.calls if c[0] == 'widget_set_text_utf8' and c[2][:1] not in ('L', 'R', '0')], 'Channel Balance has no number label: stock\'s own L3 / 0 / R2 text')
 
 
-SECTIONS = [toggle_tests, choice_tests, mode_tests, settings_tests, pin_tests, maxvol_tests, bootvol_tests, balance_tests, loudpages_tests, volnum_tests]
+SECTIONS = [toggle_tests, choice_tests, mode_tests, settings_tests, stereo_rows_tests, pin_tests, maxvol_tests, bootvol_tests, balance_tests, loudpages_tests, volnum_tests]

@@ -78,5 +78,6 @@ If M1+ Music is useful to you, you can support its development on [Ko-fi](https:
 ## Acknowledgements
 
 Inspired by Diamond Bond's [q2-pod](https://github.com/DiamondBond/q2-pod) for the Shanling Q2.
+The headphone crossfeed uses the algorithm and settings of Boris Mikhaylov's [bs2b](https://bs2b.sourceforge.net) (libbs2b, MIT).
 The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
 The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.

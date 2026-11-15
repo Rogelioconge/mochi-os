@@ -84,6 +84,8 @@ Feature settings live in their own folder, `/mnt/data/m1plus/` (`SET_DIR`, patch
 | `nowplaying-idle` | Idle Display | `1` Cassette, `2` Vinyl, `3` Lyrics; missing/other Album Cover. Off is stock's Cover mode byte, not this file ([bigcover](bigcover.md) "Idle view") |
 | `nowplaying-lyrics-size` | Lyrics Text Size | `0` Small (22 px), `1` Medium (26), `2` Large (30); missing/other Large (the default) ([lyrics](lyrics.md) "Text size") |
 | `playback-eq` | Equalizer curve | the `M1PEQ02` record ([peq](peq.md)); missing/invalid: 10-Band EQ, Flat, Auto. The switch is stock's `[PLAYSET] EQFLAG`. Per output ([peq](peq.md#per-output-eq-patchpeqoutc-patchpeqouth)): `playback-eq-headphones`, `-lineout`, `-usb` (the same record) and `playback-eq-output` (the owner and each output's switch) |
+| `playback-mono` | Playback Settings > Mono Audio | `1` on; missing/other off ([stereo](stereo.md)) |
+| `playback-crossfeed` | Playback Settings > Crossfeed | `0` Off .. `3` High; missing/other off (the user's level; the player reads `playback-stereo`, the effective record, which is derived and not listed) |
 | `playback-next-album` | Continue Playing | `1` Next Albums; missing/other Off (the default); `2` reserved for Auto Mix ([nextalbum](nextalbum.md)) |
 | `playback-shuffle` | Shuffle (the payload's flag; stock's mode is never 2) | `1` on; missing/other off ([shuffle](shuffle.md)) |
 | `playlists-sort` | Playlists order | `a` Name Z-A; missing/other Name A-Z (the retired `1` / `b` read as A-Z) ([playlists](playlists.md)) |

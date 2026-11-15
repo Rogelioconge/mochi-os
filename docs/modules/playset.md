@@ -20,6 +20,8 @@ The Settings row **Playback Settings** (Settings > Playback, after EQ; `ACT_PAGE
 | | Max Volume | value row (`ACT_MAXVOL` 125, the number), slider page `m1plus_psmaxvol` | word `max_volume` `0x97cb08` | stock's own slider, `btn_dec` and `btn_add` handlers `0x49f24c`, `0x49f16c`, `0x49f0f4`, bound to our widgets ("Loudness pages") |
 | | Default Volume | value row (126, `Memory` while the byte is 1, else the number), page `m1plus_psbootvol`: the Volume Memory switch (`ACT_BOOTMEM` 128), then the slider | byte `boot_volflag` `0xa05ac8`, word `boot_volume` `0x97cb04` | the switch: the byte xor 1 (stored as the save starts), `write_int_config(byte, "PLAYSET", "BOOTVOLFLAG")`; the slider: stock's handlers `0x49d418`, `0x49d39c`, `0x49d4c8` |
 | | Channel Balance | value row (127, stock's label text), slider page `m1plus_psbal` | word `balance` `0x97cafc` | stock's handlers `0x49cd78`, `0x49ce4c`, `0x49ccd8` |
+| | Mono Audio | switch (`ACT_MONO` 145) | ours: file `playback-mono` ([stereo](stereo.md)) | `stereo_mono_toggle`: the file, then the player's record and a reread |
+| | Crossfeed | value row (`ACT_XFEED` 146, Off / Low / Medium / High), picker `m1plus_psxfeed` (`ACT_XFEEDSET` 147), the note "For headphones and Bluetooth. Not applied to Line Out, USB DAC or DSD." | ours: file `playback-crossfeed`, the level the user chose (the player's effective level is 0 on Line Out and a USB DAC) | `stereo_crossfeed_set`, same |
 | | ReplayGain | value row (116), picker `m1plus_psrg`: Off, Track, Album (117) | `mclGetReplayGain()` | `mclSetReplayGain(i)`, `write_int_config(i, "PLAYSET", "REPLAYGAIN")` |
 | Output | Digital Filter | link row (`ACT_PAGE`), picker `m1plus_psfilter`, eight rows (118) | `mclGetfilter()` | `mclSetFilter(i)`, `write_int_config(i, "PLAYSET", "FILTER")` |
 | | DSD Output Mode | value row (119), picker `m1plus_psdsd`: D2P, DOP, Native (120) | `mclGetDsdMode()` | `write_int_config(i, "SYSSET", "DSDMODE")`; with `mclGetOutputWay() == 2` (USB audio) `save_stop_player()`; `mclSetDsdMode(i)`; with the output still 2 `save_start_player(0)` |
@@ -27,6 +29,8 @@ The Settings row **Playback Settings** (Settings > Playback, after EQ; `ACT_PAGE
 | | Digital Output | switch (121) | byte `digital_flag` `0xa05ac1` | the byte xor 1 (stored as the save's call starts), `write_int_config(byte, "PLAYSET", "DIGITALMODE")`, `mclSetLineOut(byte)` |
 
 Settings > Library also gets **Folder Album Cover** (switch, `ACT_FOLDERCOVER` 124, under a Folders header between List Navigation and Cover Flow): the byte `foldercover_flag` `0xa05a67` xor 1 stored as the save's call starts, `write_int_config(byte, "PLAYSET", "FOLDERCOVER")`, nothing else (the Folders page and the cover task read the byte, "Folder Album Cover" below).
+
+The two rows after Channel Balance are the exception to "nothing of ours saved": they are ours and keep files in the settings folder ([stereo](stereo.md)); the other rows' rules below apply to stock's.
 
 Rules shared by the rows:
 
@@ -65,7 +69,7 @@ Our own short English keys (stock's translations of these rows are partly wrong:
 
 ## Tests
 
-`test/pod/playset.py`, sections `toggle_tests`, `choice_tests`, `mode_tests`, `settings_tests` and, for the loudness pages, `pin_tests`, `maxvol_tests`, `bootvol_tests`, `balance_tests`, `loudpages_tests`, `volnum_tests`; the pull-down tile in `test/pod/pdtiles.py` `playtile_tests`. Stock's own click handler (entry `0x49ffe8`, the row item named by its place in the list, mapped by the table `0x97c7d0`) and set functions run under the emulator on the same state (the `memset`, `tk_snprintf` and `atoi` PLT stubs mocked, the mcl getters run for real, the setters mocked with their stores modelled); ours must reach the same final state, the same recorded calls in the same order and the same state at each call:
+`test/pod/playset.py`, sections `stereo_rows_tests` (Mono Audio and Crossfeed, [stereo](stereo.md)), `toggle_tests`, `choice_tests`, `mode_tests`, `settings_tests` and, for the loudness pages, `pin_tests`, `maxvol_tests`, `bootvol_tests`, `balance_tests`, `loudpages_tests`, `volnum_tests`; the pull-down tile in `test/pod/pdtiles.py` `playtile_tests`. Stock's own click handler (entry `0x49ffe8`, the row item named by its place in the list, mapped by the table `0x97c7d0`) and set functions run under the emulator on the same state (the `memset`, `tk_snprintf` and `atoi` PLT stubs mocked, the mcl getters run for real, the setters mocked with their stores modelled); ours must reach the same final state, the same recorded calls in the same order and the same state at each call:
 
 - the four switches from both states and Gain's toggle (and Line Out: stock does nothing, ours refuses);
 - Resume 3 x 3, ReplayGain 3 x 3, Digital Filter 8 x 8, DSD 3 x 3 on each of the three outputs (the stop and restart only on USB audio), USB Volume 2 x 2 with the volume;

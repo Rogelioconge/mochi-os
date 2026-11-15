@@ -8,7 +8,7 @@
  * save_start_player (a jack or a DAC changed under a playing track) and mclStartPlayer (a track starts on whatever is plugged in, screen off too), both hooks of
  * patch/radio.c. A changed output files the record under the old output, loads the new output's slot over PEQ_STATE (an output with no slot keeps what plays) and sets the
  * switch as that output had it; with notify (the UI thread's timer) the player is also told to reread. The first run only notes the output: the old single record plays on
- * every output until each is edited. Bluetooth is not an output of its own: it keeps the headphone EQ. Not on the boot path; the kill switch makes it do nothing.
+ * every output until each is edited. Bluetooth is not an output of its own: it keeps the headphone EQ. Not on the boot path; the kill switch makes it do nothing. It also runs stereo_sync (patch/stereoset.c: the Mono Audio / Crossfeed record for the output).
  */
 #include "offsets.inc"
 #include "stock.h"
@@ -16,6 +16,7 @@
 #include "peqout.h"
 #include "common.h"
 #include "peqpage.h"
+#include "stereo.h"
 
 static const char *const po_file[PO_N] = {PEQ_STATE_DIR "/playback-eq-headphones", PEQ_STATE_DIR "/playback-eq-lineout",
                                           PEQ_STATE_DIR "/playback-eq-usb"};
@@ -67,6 +68,9 @@ int peqout_sync(int notify) {
     int cur, flag, i, had, have_old, switched = 0;
     if (access(PEQ_KILL, F_OK) == 0) return 0;
     cur = peqout_current();
+    stereo_sync(
+        cur,
+        notify); /* Mono Audio and Crossfeed: the record for this output (patch/stereoset.c; the same early exit while nothing changed) */
     if (po.known && cur == po.cur) {
         if (notify &&
             po.pending) { /* the player thread switched outputs: the UI thread's next call shows it on the open pages */

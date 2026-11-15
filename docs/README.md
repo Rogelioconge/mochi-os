@@ -17,6 +17,7 @@
 | [Firmware](firmware.md) | Stock hashes, updater behaviour, partitions and space recovery |
 | [History](history.md) | Recorded milestones, device findings and lessons |
 | [Idle lyrics page](modules/idlelyrics.md) | The Lyrics idle display: header and lyrics over Now Playing, the lyrics engine retargeted |
+| [Mono Audio and Crossfeed](modules/stereo.md) | The player's stereo stage, its record, and the hciplayer edit that keeps the filter with EQ off |
 | [Subsonic / Navidrome](modules/subsonic.md) | Remote library, raw streaming, SD downloads and validation limits |
 
 Read the relevant `modules/` doc for implementation, pins and tests before changing a feature.
