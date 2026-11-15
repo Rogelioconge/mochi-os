@@ -174,6 +174,15 @@ def first_track_tests(expect, stock_demo):
                 got = [r[0] for r in q.results]
                 expect(q.sql == f"{pod.ALBUM_HEAD} where (album='{name.replace(chr(39), chr(39) * 2)}' COLLATE NOCASE) and {MUSIC}{pod.ALBUM_GROUP}{HAVING}", f'{fn}: the targeted album statement is filtered like an album list: {q.sql}')
                 expect(got == ([full[name.lower()]] if name.lower() in full else []), f'{fn}: {name!r}: one record, the full list\'s ({got} against {full.get(name.lower())})')
+    # cc_drop_unknown_album's question (patch/covercache.c): any music track without an album tag? Through both hooks it stays valid SQL (the album-tracks branch would
+    # put its `limit 1` inside a WHERE) and the library filter applies, so an untagged podcast or book part keeps no Unknown Album row.
+    for extra, want in (([], 0), ([(29, None, 'U', '', '', '', '/mnt/mmc/m/u/1.flac', 1)], 1), ([(29, '', 'U', '', '', '', '/mnt/mmc/m/u/1.flac', 1)], 1),
+                        ([(29, '', 'U', '', '', '', '/mnt/mmc/podcasts/s/1.mp3', 1), (30, None, 'U', '', '', '', '/mnt/mmc/audiobooks/b/1.mp3', 1)], 0)):
+        q = QueryMachine(more + extra)
+        for fn in ('pc_library_query', 'pc_sorted_query'):
+            n, sql = q.query(pod.UNTAGGED_SQL, fn)
+            expect(sql == f"select * from (select * from songtable where {MUSIC}) where (album is null or album = '') limit 1", f'{fn}: the untagged query keeps its limit outside the WHERE: {sql}')
+            expect(n == want == len(q.results), f'{fn}: {[r[0] for r in extra]}: {n} untagged music rows (want {want})')
     q.query("select id,album,songer,fileurl from songtable where album='x' COLLATE NOCASE group by album COLLATE NOCASE;")
     expect(q.sql.endswith(HAVING + ';'), 'with a trailing semicolon too')
     # the texts verified by hand against the SQLite 3.19.3 amalgamation

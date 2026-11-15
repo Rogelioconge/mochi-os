@@ -266,6 +266,8 @@ extern void pod_set_mode_for_queue(
 extern void
 pod_set_in_order_for_queue(void); /* patch/shuffle.c: pod_set_in_order right before a queue load: the flag only */
 extern int pod_clear_upnext(void); /* patch/shuffle.c: Clear: 1 done, 0 nothing after the position, -1 refused */
+extern void (*cstl_pop_back(void))(
+    void *); /* patch/shuffle.c: libcstl's deque_pop_back when the library is the pinned one, else NULL */
 extern int pod_clear_ready(void); /* patch/shuffle.c: Clear can run (kill switch off, libcstl as pinned) */
 extern void pod_set_repeat(int mode); /* the stock repeat mode (0 off, 3 all, 1 one), the Shuffle flag kept */
 /* patch/shuffle.c: rows (a deque of stSongInfo, copied) into the playing queue right after the playing song (after == 0) or at its end, under the payload lock, with Shuffle's

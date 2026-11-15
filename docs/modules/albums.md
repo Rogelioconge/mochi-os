@@ -10,6 +10,16 @@ Albums opens a grid or list in the last selected mode. A tap on an album calls `
 returns to the same position. Cover Flow opens above this page. If the window cannot open, the Home
 dispatcher opens stock Albums. No hook.
 
+**"Unknown Album" row.** Stock `getAllAlbum` appends a last row (`REC_ID` -1, "Unknown Album" /
+"Unknown Artist") to every non-empty list, whether or not a track lacks an album tag. The library
+list (`cc_albums`, so Albums, Cover Flow, Home, Daily Mix and the rest, and the Pod's Albums rows
+and cover pane) keeps it only when one query finds such a track:
+`select * from songtable where album is null or album = '' limit 1`, run through the hooked
+`toolsQueryDbTable` (the Library filter applies) by `cc_drop_unknown_album`. Otherwise the row is
+popped with libcstl's `deque_pop_back` (`cstl_pop_back`, [queue](queue.md) "Clear"). A failed query
+or an unpinned libcstl keeps the row. An artist's or composer's list never has the row (stock adds
+only its "All songs" row).
+
 ## Scoped to an artist
 
 A tap on a row of the Artists page (`albums_open_artist(list, row, scope)`) opens the same window
@@ -110,7 +120,7 @@ the title block are dead), `az_span`, `az_rows_end`; `grid_t.az` makes `grid_lis
   that also hands back `so_year` (the earliest year tag 1000..2999 by stock row, 0 none) in
   `al.ykey`. A changed year with the same order re-sections the page (`al_reload_with`).
 - A section is a run of equal years, newest first (reversed: oldest first). Albums with no year (and
-  the "Unknown Album" row) form one last section headed "Unknown"; no such albums, no section.
+  the "Unknown Album" row, when kept) form one last section headed "Unknown"; no such albums, no section.
 - The rail has an entry per decade that has albums, labelled by its first year ("2020", "2010",
   ...), and one per century before 1900; an entry jumps to the first section of its decade. The
   Unknown section has none. Labels are the rail's 12 px style centred in the 36 px column; the

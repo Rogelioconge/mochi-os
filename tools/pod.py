@@ -483,6 +483,7 @@ FUNCTIONS['widget_update_style'] = ('int', 'void *', 0x666780)   # the lyrics pr
 QUERY_DB, QUERY_DB_PROLOGUE = 0x5ee77c, (0x3c1c0041, 0x279c5754, 0x0399e021)
 ALBUM_HEAD, ALBUM_GROUP = 'select id,album,songer,fileurl from songtable', ' group by album COLLATE NOCASE'   # the album list statements' head and grouping (getAllAlbum's string at 0x74bad8; the getAlbumBy* family has the same columns and grouping)
 ALBUM_SQL = ALBUM_HEAD + ALBUM_GROUP   # getAllAlbum's statement (sprintf of the string at 0x74bad8 with the one at 0x74ba4c), run by the payload's cover map; Get Info's lookup adds a where album='...' COLLATE NOCASE between the two
+UNTAGGED_SQL = "select * from songtable where (album is null or album = '') limit 1"   # patch/covercache.c cc_drop_unknown_album: a track without an album tag (the brackets keep the library hook's album-tracks rewrite off it)
 QUERY_SORT, QUERY_SORT_PROLOGUE = 0x5ee9ac, (0x3c1c0041, 0x279c5524, 0x0399e021)
 LINEOUT_SITES = ((0x544f90, 0x544f88), (0x475ad8, 0x475ad0))   # (the jalr widget_set_text_utf8, the lw t9 that loads it)
 EQ_ROW_RESUME = 0x4a0070
@@ -1014,6 +1015,7 @@ def gen_stock_h(out, demo_path):
     h.append('#define STOCK_ALBUM_HEAD "' + ALBUM_HEAD + '"')    # the album list statement up to its filter and the grouping after it (cc_album_rep_key puts a where between them)
     h.append('#define STOCK_ALBUM_GROUP "' + ALBUM_GROUP + '"')
     h.append('#define STOCK_ALBUM_SQL STOCK_ALBUM_HEAD STOCK_ALBUM_GROUP')   # getAllAlbum's statement with its %s filled, byte for byte (checked against the string at 0x74bad8)
+    h.append('#define STOCK_UNTAGGED_SQL "' + UNTAGGED_SQL + '"')
     h.append(f'#define STOCK_HOME_CLICK 0x{HOME_CLICK:x}u')   # the icon click handler stock registers per icon
     h.append(f'#define POD_ENTRY_NAME "{pod_pages.HOME_ENTRY}"')   # the added icon's widget name (a decimal id, as stock's)
     h.append(f'#define stock_np_mode_button ((int (*)(void *))0x{NP_MODE_BUTTON:x}u)')   # Now Playing's mode button picture (patch/nowplaying.c)

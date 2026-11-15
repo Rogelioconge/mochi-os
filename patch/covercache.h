@@ -83,6 +83,9 @@ int cc_decode(void *w, const char *url, int unload, unsigned size, int box, unsi
 /* cc_decode for a picture that must not be cropped: the whole picture fitted inside size x size over the word bg (cc_fit). 1 when out was written. */
 int cc_decode_fit(void *w, const char *url, int unload, unsigned size, unsigned bg, unsigned *out);
 void *cc_copy_list(void *list); /* a stock list copied into a deque of our own */
+void cc_drop_unknown_album(
+    void *
+        list); /* list = the stock album list in *pdeq_showlist: its last row, "Unknown Album" (REC_ID -1), popped when no track lacks an album tag */
 void *cc_albums(
     void); /* the stock Albums list (getAllAlbum), owned by the caller; NULL if empty or failed (cc_list_failed) */
 void *

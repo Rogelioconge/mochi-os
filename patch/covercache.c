@@ -369,6 +369,24 @@ void *cc_copy_list(void *list) {
 static int cc_lfail __attribute__((section(
     ".scratch"))); /* the last cc_albums / cc_songs failed to copy a non-empty list, as opposed to an empty one: cc_list_failed */
 
+/* The stock Albums list (*pdeq_showlist, as loadLocalClassList left it) without its "Unknown Album" row when no track lacks an album tag. getAllAlbum appends that row (REC_ID -1,
+ * last) to every non-empty list, tracks or none; here one query asks (STOCK_UNTAGGED_SQL, its condition bracketed so pq_filter's album-tracks branch, which would put `limit 1` inside its WHERE, leaves it alone; with the song row callback, through the hooked toolsQueryDbTable so the
+ * Library filter applies; the record lands in *tools_pdeq_directory and is cleared at once) and the row is popped with libcstl's deque_pop_back (it runs the record's destructor).
+ * A failed query or an unpinned libcstl keeps the row. */
+void cc_drop_unknown_album(void *list) {
+    void *dq = (void *)0;
+    void (*pop)(void *);
+    unsigned n = list ? deque_size(list) : 0;
+    int found = 1;
+    if (!n || *(int *)((char *)deque_at(list, n - 1) + REC_ID) != -1 || !(pop = cstl_pop_back())) return;
+    if (toolsQueryDbTable(STOCK_DB_PATH, STOCK_UNTAGGED_SQL, STOCK_SONG_ROW, 0) >= 0) {
+        dq = *(void **)PDEQ_TOOLS_TMP;
+        found = dq && deque_size(dq);
+        if (dq) deque_clear(dq);
+    }
+    if (!found) pop(list);
+}
+
 /* A stock list class read into *pdeq_showlist and taken from it into a deque of our own (lib_take_list, patch/libload.c: the records change owner, none is copied, and *pdeq_showlist is left
  * empty; a page that shows the stock list reads it again, as after any query). NULL when empty (cc_lfail 0: stock's loadLocalClassList returns the deque's size, so a query that failed before any
  * row reads as empty too) or when there was no memory for the deque (cc_lfail 1: rows but no list). */
@@ -377,6 +395,7 @@ static void *cc_class_copy(int cls) {
     cc_lfail = 0;
     if (loadLocalClassList(cls) <= 0) return (void *)0;
     list = *(void **)PDEQ_SHOWLIST;
+    if (cls == CLASS_ALBUMS) cc_drop_unknown_album(list);
     if (!list || !deque_size(list)) return (void *)0;
     copy = lib_take_list(list);
     if (copy && !deque_size(copy)) {

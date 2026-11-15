@@ -734,7 +734,7 @@ void pod_set_in_order_for_queue(void) { set_in_order(1); }
  * its address once the first call has bound it (MIPS lazy binding: until then the stub inside demo's image), and pop_back lies CSTL_POP_OFF - CSTL_SIZE_OFF above it. The build pins the
  * library file (tools/pod.py check_libcstl); here the words of both functions are compared at the resolved addresses, so another library, an unbound slot or a moved function gives 0
  * (Clear refused) and nothing is called. */
-static void (*cstl_pop_back(void))(void *) {
+void (*cstl_pop_back(void))(void *) {
     static const unsigned size_words[] = CSTL_SIZE_WORDS, pop_words[] = CSTL_POP_WORDS;
     unsigned size_fn = *(volatile unsigned *)GOT_DEQUE_SIZE, pop_fn, i;
     if ((size_fn & 3) || size_fn <= STOCK_IMAGE_END) return (void (*)(void *))0;

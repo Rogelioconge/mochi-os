@@ -420,7 +420,7 @@ static int ip_run(int d) {
     switch (l->kind) {
     case K_ALBUMS:
     case K_CF:
-        loadLocalClassList(CLASS_ALBUMS);
+        if (loadLocalClassList(CLASS_ALBUMS) > 0) cc_drop_unknown_album(*(void **)PDEQ_SHOWLIST);
         break;
     case K_ARTISTS:
         loadLocalClassList(CLASS_ARTISTS);
@@ -779,8 +779,10 @@ static void ip_pane_reset(
 static int ip_pane_pick(unsigned *keys, char (*trks)[96]) {
     char url[80];
     void *list = loadLocalClassList(CLASS_ALBUMS) > 0 ? *(void **)PDEQ_SHOWLIST : (void *)0;
-    unsigned n = list ? deque_size(list) : 0, t, key, j;
+    unsigned n, t, key, j;
     int got = 0;
+    cc_drop_unknown_album(list);
+    n = list ? deque_size(list) : 0;
     for (t = 0; n && t < IP_PANE_TRIES && got < IP_PANE_KEYS; ++t) {
         void *rec = deque_at(list, pod_rand(n));
         if (!rec || I(rec, REC_ID) == ID_ALL_SONGS || !*cc_str(rec, REC_ALBUM)) continue;

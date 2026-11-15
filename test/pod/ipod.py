@@ -1968,4 +1968,46 @@ def server_cover_tests(ctx):
     expect('file://' + local in loads(c) and 'file://' + SBC not in loads(c), 'a local track: the album\'s cache file as before')
 
 
-SECTIONS = [angle_tests, asset_tests, menu_tests, open_tests, paint_tests, wheel_tests, feel_tests, tap_tests, nav_tests, stale_tests, playing_indicator_tests, music_menu_tests, root_shortcut_tests, now_row_tests, menu_padding_tests, rich_rows_tests, row_art_tests, playlist_art_tests, now_material_tests, classic_material_tests, split_menu_tests, pane_tests, server_cover_tests, shuffle_tests, settings_tests, i18n_tests, appearance_tests, transition_tests, fresh_art_tests, pane_sharp_tests, reference_nav_tests, shadow_slide_tests, now_steady_tests, podcasts_tests, podcasts_pane_tests]
+
+
+def unknown_album_tests(ctx):
+    """getAllAlbum appends the "Unknown Album" row (id -1) to every non-empty list; payload cc_drop_unknown_album pops it unless a track lacks an album tag
+    (`select * from songtable where album is null or album = '' limit 1`). The Pod's Albums rows and cc_albums (the lists of Albums, Cover Flow and the rest) both go through it."""
+    expect = ctx.expect
+
+    def world(untagged, libcstl=True):
+        m = machine(albums=[('Kind of Blue', 'Miles Davis'), ('Homogenic', 'Bjork')], songs=['So What'])
+        m.class_lists[O['CLASS_ALBUMS']].append(m.record(album='Unknown Album', artist='Unknown Artist', path='', title='', rid=-1))
+        m.class_lists[O['CLASS_ALL_SONGS']] = [m.song('So What', album='Kind of Blue')] + ([m.song('Untitled', album='')] if untagged else [])
+        if libcstl: m.install_libcstl()
+        return m
+
+    def pod_rows(m):
+        m.open(); m.timers = []
+        music(m)
+        m.turn(0, STEP_DEG * 1 + 5); m.tap(CX, CY)
+        texts, _, _ = m.paint()
+        return rows_of(texts)
+
+    def cc_rows(m):
+        h = m.call(PSYMS['cc_albums'], count=40000000)
+        return [m.read_cstr(m.word(r + O['REC_ALBUM'])) for r in m.deques[h]] if h else []
+
+    for untagged in (True, False):
+        want = ['Kind of Blue', 'Homogenic'] + (['Unknown Album'] if untagged else [])
+        what = 'a track has no album tag' if untagged else 'every track has an album'
+        m = world(untagged)
+        rows = pod_rows(m)
+        expect(rows == want, f'Pod Albums, {what}: {want} ({rows})')
+        expect(sum(1 for q in m.queries if 'album is null' in q) == 1, 'one untagged query for the list')
+        m = world(untagged)
+        rows = cc_rows(m)
+        expect(rows == want, f'cc_albums, {what}: {want} ({rows})')
+    m = world(False, libcstl=False)
+    expect(pod_rows(m) == ['Kind of Blue', 'Homogenic', 'Unknown Album'] and not any('album is null' in q for q in getattr(m, 'queries', [])),
+           'libcstl not the pinned one: the row stays, nothing is queried')
+    m = world(False); m.__dict__['untagged_fails'] = True
+    expect(pod_rows(m) == ['Kind of Blue', 'Homogenic', 'Unknown Album'], 'a failed query keeps the row')
+
+
+SECTIONS = [angle_tests, asset_tests, menu_tests, open_tests, paint_tests, wheel_tests, feel_tests, tap_tests, nav_tests, stale_tests, playing_indicator_tests, music_menu_tests, root_shortcut_tests, now_row_tests, menu_padding_tests, rich_rows_tests, row_art_tests, playlist_art_tests, now_material_tests, classic_material_tests, split_menu_tests, pane_tests, server_cover_tests, shuffle_tests, settings_tests, i18n_tests, appearance_tests, transition_tests, fresh_art_tests, pane_sharp_tests, reference_nav_tests, shadow_slide_tests, now_steady_tests, podcasts_tests, podcasts_pane_tests, unknown_album_tests]
