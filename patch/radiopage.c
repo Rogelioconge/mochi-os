@@ -131,7 +131,7 @@ static int rp_max_scroll(void) {
 /* The row (root, countries, genres) under content y, -1 for the title, a gap or the air below. */
 static int rp_at(int y) {
     int g, rel, r;
-    if (rp_az()) return az_at(&rp.al, y);
+    if (rp_az()) return az_pin_hit(&rp.al, y) ? -1 : az_at(&rp.al, y);
     g = rp_gap(), rel = y - rp_top();
     if (rel < 0) return -1;
     if (g && rel >= rp_row_h()) {

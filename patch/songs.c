@@ -321,8 +321,8 @@ static int sg_content(void) { return sg_rows_end() + SG_FOOT_H + sg_pad(); }
 static int sg_max_scroll(void) { return az_max_scroll(&sg.al); }
 static int sg_row_from(int y) { return az_row_from(&sg.al, y); }
 static int sg_at(int y) {
-    return az_at(&sg.al, y);
-} /* the song under content point y: its row, or -1 for the title block, a header and the air below the last row */
+    return az_pin_hit(&sg.al, y) ? -1 : az_at(&sg.al, y);
+} /* the song under content point y: its row, or -1 for the title block, a header (the pinned band too) and the air below the last row */
 static void sg_span(int *r0, int *r1) { az_span(&sg.al, r0, r1); }
 
 /* The songs the tiles are kept for: those in view and SG_AHEAD rows beyond them in the scroll direction. */

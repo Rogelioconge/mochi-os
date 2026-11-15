@@ -1346,6 +1346,16 @@ def directory_tests(ctx):
     expect(sites[1] == f'https://all.api.radio-browser.info/csv/stations/bycountrycodeexact/DE?{QUERY}' and text_of(m, 'sg_title') == 'Germany' and grid_titles(m) == ['Alpha FM', 'Beta Radio'],
            f"a country: its stations by the code, the title is its name ({sites[1:]})")
     expect(vis(m, 'rd_credit') == (0, 0), "a country's stations: no credit")
+    # the pinned header's band over scrolled countries is dead (az_pin_hit); the row just below it opens
+    mp = opened(); mp.answer = ('name,iso_3166_1,stationcount\n' + ''.join(f'{c}land,{c}X,5\n' for c in 'ABCDEFGHIJKL')).encode(); sp = sites_of(mp)
+    tap_dir(mp, 1); finish(mp); tick(mp)
+    mp.setword(mp.sv + 0x70, SV_VT)   # a real scroll_view's vtable: demo's widget_to_local adds its offset to a tap
+    scroll_to(mp, 52 + 3 * 80 + 28 + 5); paint(mp)   # (4th country's row at the top: its section's header is pinned over the row's first 28 px, the row shows under the band)
+    mp.answer = TOP_CSV.encode(); n = len(sp)
+    tap(mp, 100, 10)
+    expect(len(sp) == n and 'pthread_create' not in mp.names() and text_of(mp, 'sg_title') == 'Countries', 'a tap on the pinned header band opens nothing')
+    tap(mp, 100, 33); finish(mp); tick(mp)
+    expect(sp[n:] == [f'https://all.api.radio-browser.info/csv/stations/bycountrycodeexact/DX?{QUERY}'] and text_of(mp, 'sg_title') == 'Dland', f'a tap just below the band opens that country ({sp[n:]})')
     # the Index Rail and Section Headers switches (both on by default), read when the page opens: with the headers off the rows close up and no letter shows
     keep = m
     for rail, heads in ((b'0\n', b'1\n'), (b'1\n', b'0\n'), (b'0\n', b'0\n')):

@@ -589,6 +589,17 @@ def touch_tests(ctx):
         expect(not [c for c in tap(m, 150, lay.row_y(2) + 30, dx, dy) if c[0] == 'navigator_to_with_context'], f'{label} plays nothing')
     expect(not [c for c in tap(m, 150, 20) if c[0] == 'navigator_to_with_context'] and not [c for c in tap(m, 150, lay.hdr_y(1) + 10) if c[0] == 'navigator_to_with_context'],
            'a tap on the title block or on a header plays nothing')
+    # the pinned header's band over scrolled rows is dead (az_pin_hit); the row just below it plays
+    off = lay.row_y(7) + 10   # (row 7's top is scrolled out; the pinned header covers part of it)
+    m.setword(m.sv + 0x70, SV_VT)   # a real scroll_view's vtable: demo's widget_to_local adds its offset to a tap
+    scroll_to(m, off); settle(m)
+    m.calls.clear()
+    expect(not [c for c in tap(m, 150, 10) if c[0] == 'navigator_to_with_context'], 'a tap on the pinned header band plays nothing')
+    below = next(r for r in range(len(TITLES)) if lay.row_y(r) + ROW > off + HDR + 5)
+    m.calls.clear()
+    calls = tap(m, 150, HDR + 5)
+    expect([c for c in calls if c[0] == 'navigator_to_with_context' and c[1] == 'playing_page'] and m.played[1] == below, f'a tap just below the band plays row {below}')
+    scroll_to(m, 0); settle(m)
     touch(m, 'down', 150, SCREEN_Y0 + lay.row_y(3) + 20, 'sg_on_down')
     _, _, _, fl = paint(m)
     expect(any(f_[0] == O['LIST_PRESS'] and f_[2] == lay.row_y(3) and f_[4] == min(ROW - 1, VIEW_H - lay.row_y(3)) for f_ in fl), f'the row under the finger is filled #333333: {[f_ for f_ in fl if f_[0] == O["LIST_PRESS"]]} (row at {lay.row_y(3)})')

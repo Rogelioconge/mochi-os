@@ -443,7 +443,7 @@ static int ar_on_photo(const void *unused) {
 static int ar_item_of(void *e) {
     int pt[2];
     grid_ev_local(ar.view, e, pt);
-    return az_at(&ar.al, pt[1]);
+    return az_pin_hit(&ar.al, pt[1]) ? -1 : az_at(&ar.al, pt[1]); /* (the pinned band is dead) */
 }
 
 static int ar_on_down(void *ctx, void *e) {

@@ -357,6 +357,7 @@ def page_tests(expect, cover_asset):
 
     # 29a. The press: the row under the finger is filled #333333, a tap opens the artist, nothing else does
     def down(y, x=100): m.touch('down', x, SCREEN_Y0 + y, 1000, fn='ar_on_down')
+    ar_paint(m, 0)   # (back to the top: the page's offset is where the last scrolled paint left it)
     down(mod.row_y(1) + 10)
     _, _, _, fills = ar_paint(m, 0)
     expect((O['LIST_PRESS'], 0, mod.row_y(1), 320, ROW - 1) in fills and not [f for f in fills if f[0] == O['LIST_PRESS'] and f[2] != mod.row_y(1)], 'the pressed row is filled')
@@ -364,6 +365,17 @@ def page_tests(expect, cover_asset):
     expect(('window_open', 'm1plus_cover') in m.calls and [c for c in m.calls if c[0] == 'loadAlbumList'][0][3] == 'Nina Simone', 'a tap on a row opens Cover Flow on that artist')
     _, _, _, fills = ar_paint(m, 0)
     expect(not [f for f in fills if f[0] == O['LIST_PRESS']], 'the fill is gone on release')
+    # the pinned header's band over scrolled rows is dead (az_pin_hit); the row just below it opens
+    mm = artists_machine(); mm.call(open_, count=5000000)
+    off = mod.row_y(1) + 5   # (the pinned header covers the top of row 1)
+    mm.setword(mm.sv + 0x70, SV_VT)   # a real scroll_view's vtable: demo's widget_to_local adds its offset to a tap
+    ar_paint(mm, off)
+    for y0 in (10, mod.hh + 5):
+        mm.calls.clear()
+        mm.touch('down', 100, SCREEN_Y0 + y0, 1000, fn='ar_on_down'); mm.touch('up', 100, SCREEN_Y0 + y0, 1080, fn='ar_on_up', count=30000000)
+        la = [c for c in mm.calls if c[0] == 'loadAlbumList']
+        if y0 == 10: expect(not la and ('window_open', 'm1plus_cover') not in mm.calls, 'a tap on the pinned header band opens nothing')
+        else: expect(la and la[0][3] == 'Nina Simone' and ('window_open', 'm1plus_cover') in mm.calls, 'a tap just below the band opens that row')
     for what, y0, dy in (('the large title block', 10, 0), ('a section header', mod.hdr_y(0) + 8, 0), ('the air below the last row', mod.content() - 5, 0), ('a drag past the threshold', mod.row_y(0) + 10, 14)):
         mm = artists_machine(); mm.call(open_, count=5000000)
         mm.touch('down', 100, SCREEN_Y0 + y0, 1000, fn='ar_on_down'); mm.touch('up', 100, SCREEN_Y0 + y0 + dy, 1080, fn='ar_on_up', count=30000000)
