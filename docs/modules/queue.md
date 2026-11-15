@@ -63,10 +63,14 @@ y   0   (back)                                  glass Back, over the rows
   the rows, a mode change touches the buttons, a replaced queue reloads when the page is on top.
   The queue is checked by pointer, size and first record (`qp_valid`).
 - **Header:** the track at the play position, no tint (the page is black).
-- **Server and podcast tracks** are never looked up as albums. Subsonic rows (`sba_rec_track`) show
+- **Server, podcast and audiobook tracks** are never looked up as albums. Subsonic rows (`sba_rec_track`) show
   the source's cover (`sba_rec_cover`, see [subsonic](subsonic.md)), podcast episodes (`pc_is_path`)
-  the show folder's picture (`pc_show_cover`, ranked as the Shows page ranks them). Either gets the
-  placeholder when there is none. A server queue is this page's, not the stock drawer's:
+  the show folder's picture (`pc_show_cover`, ranked as the Shows page ranks them), audiobook parts
+  (`bk_is_path`) their book's cover (`bk_art_cover`, the one the Audiobooks page shows: the book's
+  `cover.*` / `folder.*`, else its art cache file; see [audiobooks](audiobooks.md)). Each is
+  read once per show or book while the page is open (`qp.pshow`, `qp.pbook`) and the header uses the
+  same. All get the placeholder when there is none; the page never starts the cover worker, so a
+  book whose art file is not made yet shows the placeholder. A server queue is this page's, not the stock drawer's:
   `qp_stream` reads the class word the play set, and only stock's stream classes (2, 3, `0xf0`,
   `0xf1`) count as streams.
 

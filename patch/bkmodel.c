@@ -249,6 +249,33 @@ static void bm_find_cover(const char *root, const char *dir, char *out) {
     closedir(d);
 }
 
+/* The cache key of a book's own art (bk_art_cover): the control byte keeps it apart from an album of an artist called audiobooks. */
+unsigned bk_art_key_of(const char *dir) { return cc_key_of("\x01" BK_KEY_PREFIX, dir); }
+
+/* The cover of the book a part's path (an Audiobooks path) is in, as "file://<path>" in url (size, 80 at least): the book folder's cover.* / folder.* when the stock decoder takes it
+ * (pc_cover_ok), else the book's own art file from the cover cache when it is there. Never starts the worker (the Audiobooks page does). NULL: another path, no cover, no art yet.
+ * A file straight in Audiobooks is a book of its own: no folder, only the cache file. One readdir of the folder. */
+const char *bk_art_cover(const char *path, char *url, unsigned size) {
+    static const char prefix[] = BM_ROOT "/audiobooks/";
+    char root[BK_FILE + 20], name[BK_FILE], file[BK_FILE], full[BM_PATH];
+    unsigned n = 0;
+    const char *p;
+    if (!bk_is_path(path) || size < 80) return (const char *)0;
+    p = path + sizeof prefix - 1;
+    while (p[n] && p[n] != '/') ++n;
+    if (n >= BK_FILE) return (const char *)0;
+    memcpy(name, p, n), name[n] = 0;
+    if (p[n] == '/' && bk_root(root)) { /* (a folder: its picture file first) */
+        bm_find_cover(root, name, file);
+        if (file[0] && bm_join(full, sizeof full, root, name, file) && pc_cover_ok(full) && bm_len(full) + 8 <= size) {
+            memcpy(url, "file://", 7);
+            memcpy(url + 7, full, bm_len(full) + 1);
+            return url;
+        }
+    }
+    return cc_url(url, bk_art_key_of(name));
+}
+
 typedef struct {
     unsigned parts, kb;
 } bm_sum_t;

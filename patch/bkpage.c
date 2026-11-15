@@ -886,8 +886,8 @@ void bk_kick(void) {
 static const char *bk_cover_url(const bk_book_t *b, char *url, unsigned size);
 static int bk_on_art(const void *unused);
 
-/* The cache key of a book's own art (the control byte keeps it apart from an album of an artist called audiobooks). */
-static unsigned bk_art_key(const bk_book_t *b) { return cc_key_of("\x01" BK_KEY_PREFIX, b->dir); }
+/* The cache key of a book's own art (bk_art_key_of). */
+static unsigned bk_art_key(const bk_book_t *b) { return bk_art_key_of(b->dir); }
 
 static void bk_art_flags(int from, int to) {
     int b;

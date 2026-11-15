@@ -90,6 +90,11 @@ int bk_root(char *out);
 int bk_scan_books(bk_book_t *out, int max);
 /* The parts of a book in reading order (natural order of the path, bk_natcmp); at most max, and in any case BK_MAX_PARTS. Returns the count. */
 int bk_load_parts(const bk_book_t *b, bk_part_t *out, int max);
+/* The cover of the book an Audiobooks path is in as "file://<path>" in url (size, 80 at least): its cover.* / folder.* file, else its own art in the cover cache; NULL for none (the
+ * placeholder), another path, or art not made yet. Never starts the cover worker. The Queue page's covers of a part (the Audiobooks page's rule). */
+const char *bk_art_cover(const char *path, char *url, unsigned size);
+/* The cover cache key of a book's own art: from the book's folder name, or the loose file's name. */
+unsigned bk_art_key_of(const char *dir);
 /* The full path of a part into out; 1 when it fits. */
 int bk_part_path(const bk_book_t *b, const bk_part_t *p, char *out, unsigned size);
 /* Natural, ASCII case-insensitive order: digit runs compare by value ("Part 2" < "Part 10"), '/' sorts before every other character (a folder's files stay together);

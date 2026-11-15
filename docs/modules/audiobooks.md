@@ -113,6 +113,10 @@ worker builds it ([covercache](covercache.md)) into a cache file keyed `"\x01aud
 (the control byte keeps it apart from album keys), once. The cache file stays when the book's
 files change; Clear Cover Cache rebuilds it. Delete Book leaves it.
 
+`bk_art_cover(path)` (`patch/bkmodel.c`) gives the cover of the book an Audiobooks path is in: the
+cover file, else the art cache file when it exists. The [Queue](queue.md) page uses it for the rows
+and header of a part; it never starts the worker.
+
 ## LibriVox
 
 Find a public-domain LibriVox book and download it. Once its parts are on the card it is an

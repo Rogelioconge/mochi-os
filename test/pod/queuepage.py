@@ -434,6 +434,65 @@ def episode_tests(ctx):
     destroy(m)
 
 
+AB = '/mnt/mmc/Audiobooks'
+
+
+def book_open(paths, tracks, art=(), pos=0, long=None):
+    """A queue of audiobook parts: Pic Book has cover.jpg (with a PNG-less folder beside it), Art Book has no picture file but its art cache file (art), Both Book has both, Bare Book neither, Big Book's
+    cover.jpg is too big to decode, Loose.m4b is a loose file at the root (a book of its own), and the book named long (if given) has cover.jpg. The page open and every row loaded once."""
+    m = queue_machine(n=len(paths), pos=pos, paths=paths, tracks=tracks)
+    m.listing[AB] = [('.', 4), ('..', 4), ('Pic Book', 4), ('Art Book', 4), ('Both Book', 4), ('Bare Book', 4), ('Big Book', 4), ('Loose.m4b', 8)] + ([(long, 4)] if long else [])
+    for book, pics in (('Pic Book', ['cover.jpg']), ('Both Book', ['cover.jpg']), ('Big Book', ['cover.jpg'])) + (((long, ['cover.jpg']),) if long else ()):
+        m.listing[f'{AB}/{book}'] = [('.', 4), ('01.mp3', 8)] + [(f, 8) for f in pics]
+        for f in pics:
+            big = book == 'Big Book'
+            m.pics[f'{AB}/{book}/{f}'] = jpeg_header(3000 if big else 600); m.images[f'file://{AB}/{book}/{f}'] = (8, 8, COVER_PIX[2])
+    for book in ('Art Book', 'Bare Book'): m.listing[f'{AB}/{book}'] = [('.', 4), ('01.mp3', 8)]
+    for book in art:
+        path = art_file(album_key('\x01audiobooks/', book))
+        m.present.add(path); m.files[path] = 4096; m.images['file://' + path] = (8, 8, COVER_PIX[2]); m.art_files = getattr(m, 'art_files', []) + [path]
+    m.top_main = m.window
+    r, calls = open_queue(m)
+    assert r == 0, f'the page did not open ({r})'
+    load_all(m)
+    return m
+
+
+def path_has_cache(m): return bool(m.cover_paths) and all(p in m.present for p in m.cover_paths.values())
+
+
+def book_tests(ctx):
+    """5d. An audiobook part shows its book's cover (the Audiobooks page's: cover.* / folder.*, else the art cache file), in the header and the rows; it is never looked up as an album."""
+    expect = ctx.expect
+    pic = [f'{AB}/Pic Book/0{i}.mp3' for i in range(1, 7)]
+    m = book_open(pic, [('Narrator', 'Pic Book')] * 6)
+    blits, texts, fills = paint(m)
+    expect(set(covers_of(m)) == {f'file://{AB}/Pic Book/cover.jpg'}, f'the header and every row: the book\'s cover.jpg ({sorted(set(covers_of(m)))})')
+    expect(len([b for b in blits if tuple(b[2][2:]) == (64, 64)]) == 1 and len([b for b in blits if b[2][2] == 52]) == 4, 'the header\'s cover and the four rows in view are painted')
+    expect(m.dir_log.count(f'{AB}/Pic Book') == 1, f'one book: its folder is read once while the page is open ({m.dir_log})')
+    expect(not m.__dict__.get('queries'), 'no album lookup (no cover map query) for audiobook parts')
+    destroy(m)
+
+    paths = [f'{AB}/Art Book/01.mp3', f'{AB}/Bare Book/01.mp3', f'{AB}/Both Book/01.mp3', f'{AB}/Big Book/01.mp3', f'{AB}/Loose.m4b', '/mnt/mmc/m/5.flac']
+    m = book_open(paths, [('N', 'Art Book'), ('N', 'Bare Book'), ('N', 'Both Book'), ('N', 'Big Book'), ('N', 'Loose'), ('Artist 0', 'Album 0')], art=('Art Book', 'Both Book', 'Loose.m4b'))
+    paint(m)
+    art_url = lambda b: 'file://' + art_file(album_key('\x01audiobooks/', b))
+    expect(set(covers_of(m)) == {art_url('Art Book'), f'file://{AB}/Both Book/cover.jpg', art_url('Loose.m4b'), 'file://' + m.cover_paths[0]},
+           f'a book with only the art file: the art file; with both: the cover file; a loose file: its art file; neither, or a picture too big: the placeholder; a song keeps its album\'s file ({sorted(set(covers_of(m)))})')
+    expect(art_url('Both Book') not in covers_of(m) and art_url('Big Book') not in covers_of(m), 'a cover file wins over the art file; a too big one is not decoded')
+    expect(not m.__dict__.get('queries'), 'no album lookup for any part')
+    destroy(m)
+
+    m = book_open([f'{AB}/Bare Book/01.mp3'] * 3, [('Artist 0', 'Album 0')] * 3)
+    expect(not covers_of(m) and path_has_cache(m), f'a book with neither: the placeholder, although its tags name an album that has a cache file ({sorted(set(covers_of(m)))})')
+    destroy(m)
+
+    long = 'A Long Audiobook Name ' * 5 + 'Volume One'   # 120 bytes: a name as long as a book folder may be (BK_FILE; the harness reads names as Latin-1, so ASCII)
+    m = book_open([f'{AB}/{long}/01.mp3'] * 3, [('N', long)] * 3, long=long)
+    expect(set(covers_of(m)) == {f'file://{AB}/{long}/cover.jpg'}, f'a book with a long name: its cover.jpg still fits ({sorted(set(covers_of(m)))})')
+    destroy(m)
+
+
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 fnv_nocase = fnv_fold   # the payload's album name hash (cmap_hash)
 
@@ -1329,4 +1388,4 @@ def server_tests(ctx):
     destroy(m)
 
 
-SECTIONS = [asset_tests, open_tests, header_tests, rows_tests, loader_tests, episode_tests, collab_tests, server_tests, cmap_tests, scroll_tests, play_tests, mode_tests, tick_tests, shuffle_tests, clear_tests, rowedit_tests]   # tools/check.py runs each as its own task
+SECTIONS = [asset_tests, open_tests, header_tests, rows_tests, loader_tests, episode_tests, book_tests, collab_tests, server_tests, cmap_tests, scroll_tests, play_tests, mode_tests, tick_tests, shuffle_tests, clear_tests, rowedit_tests]   # tools/check.py runs each as its own task

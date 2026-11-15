@@ -22,6 +22,8 @@
  *             moves (the Songs page's loader); else the placeholder. The first miss builds the cover map (ONE getAllAlbum query, no file opened); an album's file is looked
  *             at once, when first asked for, and the answer kept (2 bits an album, 8 bytes an album kept, at most 4096 albums).
  *             A podcast episode is never looked up as an album: its show folder's picture (pc_show_cover, the Podcasts page's choice), else the placeholder.
+ *             An audiobook part (a path under Audiobooks/) is never looked up as an album: its book's cover, the Audiobooks page's (bk_art_cover: the book's cover.* / folder.* file, else its art
+ *             cache file when the page has made it, never started from here), read once per book while the page is open, else the placeholder.
  *             A server track (its REC_ID is in the queue map) is never looked up as an album either: its cover is the source's file, the one Now Playing draws (sba_rec_cover; asked for when it
  *             is not cached, the tile waits and the page's tick looks again), else the placeholder. A server queue is this page's: its play type is a list's, not a stream's (qp_stream).
  * No hook of its own; everything runs from the page's widgets and timers.
@@ -36,6 +38,7 @@
 #include "azlist.h"
 #include "i18n.h"
 #include "podcasts.h"
+#include "books.h"
 #include "sbapi.h"
 #include "entries.h"
 #include "rowmenu.h"
@@ -78,6 +81,9 @@ static struct {
     unsigned pshow; /* the show (pc_show_of) whose picture purl is, 0 for none looked at yet */
     int purl_ok; /* purl holds that show's picture */
     char purl[408]; /* "file://" and the picture's path */
+    unsigned pbook; /* the book (bk_book_of) whose cover burl is, 0 for none looked at yet */
+    int burl_ok; /* burl holds that book's cover */
+    char burl[BK_FILE * 2 + 60]; /* "file://" and the cover's path (folder and file name BK_FILE each) */
     grid_t hg; /* the header's cover: one tile, QP_COVER px with QP_COVER_R px corners cut in the alpha */
     grid_t g; /* the rows' covers and texts: the ring */
 } qp __attribute__((section(".scratch")));
@@ -198,6 +204,16 @@ static const char *qp_ep_url(void *rec) {
     return qp.purl_ok ? qp.purl : (const char *)0;
 }
 
+/* An audiobook part's cover: its book's, the one the Audiobooks page shows (bk_art_cover: the book's cover.* / folder.* file, else its art cache file), read once per book while the page
+ * is open. Never the cover worker's job from here: no file yet is the placeholder. NULL for a track that is not in an audiobook, or a book with no cover (the placeholder). */
+static const char *qp_book_url(void *rec) {
+    const char *path = cc_str(rec, REC_PATH);
+    unsigned book = bk_book_of(path);
+    if (!book) return (const char *)0;
+    if (book != qp.pbook) qp.pbook = book, qp.burl_ok = bk_art_cover(path, qp.burl, sizeof qp.burl) != (const char *)0;
+    return qp.burl_ok ? qp.burl : (const char *)0;
+}
+
 /* A server track's record (streamed or downloaded)? Its cover is the source's file by the record's REC_ID, never a key of the library. */
 static int qp_srv(void *rec) { return rec && sba_rec_track(I(rec, REC_ID))[0] != 0; }
 
@@ -308,6 +324,8 @@ static int qp_on_load(const void *unused) {
         void *rec = deque_at(qp.list, (unsigned)(qp.base + a)); /* (qp_next_load checked qp_valid) */
         if (pc_is_path(cc_str(rec, REC_PATH)))
             grid_art_url(&qp.g, t, qp_ep_url(rec)); /* an episode: no album to look up */
+        else if (bk_is_path(cc_str(rec, REC_PATH)))
+            grid_art_url(&qp.g, t, qp_book_url(rec)); /* an audiobook part: its book's cover, no album to look up */
         else if (qp_srv(rec))
             t->load = qp_srv_art(&qp.g, t, rec);
         else
@@ -330,21 +348,25 @@ static int qp_on_scroll(void *ctx, void *e) {
 /* ---------------------------------------------------------------------------
  * The header: the playing track's cover, title and artist, and the song count
  */
-/* The header's cover for track rec (NULL: none, the placeholder): an episode's show picture (keyed by the show), else the album's cache file. */
+/* The header's cover for track rec (NULL: none, the placeholder): an episode's show picture (keyed by the show), an audiobook part's book cover (keyed by the book), else the album's cache file. */
 static void qp_cover(void *rec) {
     grid_tile_t *t = qp.hg.tiles ? grid_find(&qp.hg, 0) : (grid_tile_t *)0;
-    unsigned show = rec ? pc_show_of(cc_str(rec, REC_PATH)) : 0, srv = qp_srv(rec),
-             key = show  ? show
-                   : srv ? (unsigned)I(rec, REC_ID) | 1u
-                   : rec ? qp_key(rec)
-                         : 0;
+    unsigned show = rec ? pc_show_of(cc_str(rec, REC_PATH)) : 0, book = rec ? bk_book_of(cc_str(rec, REC_PATH)) : 0,
+             srv = qp_srv(rec),
+             key = show   ? show
+                   : book ? book
+                   : srv  ? (unsigned)I(rec, REC_ID) | 1u
+                   : rec  ? qp_key(rec)
+                          : 0;
     if (!t || key == qp.hkey) return;
     qp.hkey = key;
     grid_free_art(t);
-    t->ckey = show || srv ? 0 : key;
+    t->ckey = show || book || srv ? 0 : key;
     qp.hpend = 0;
     if (show)
         grid_art_url(&qp.hg, t, qp_ep_url(rec));
+    else if (book)
+        grid_art_url(&qp.hg, t, qp_book_url(rec));
     else if (srv)
         qp.hpend = qp_srv_art(&qp.hg, t, rec);
     else
