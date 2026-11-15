@@ -135,10 +135,10 @@ def layout_tests(ctx):
             for v in [c for c in sv.children if c.name.startswith(item)]:
                 lab = v.children[0]
                 if lab.get('style:normal:text_align_h') == 'center': continue   # a centred note (Note.center): test/pod/netservice.py checks the Wi-Fi Transfer page's
-                expect(v.type == 'view' and v.get('sensitive') == 'false' and len(v.children) == 1 and lab.name == v.name + '_t' and lab.x == ST.HDR_X + (lab.type == 'label') * 2 == 24 + (lab.type == 'label') * 2 and lab.w == ST.HDR_W - (lab.type == 'label') * 4
+                expect(v.type == 'view' and v.get('sensitive') == 'false' and len(v.children) == 1 and lab.name == v.name + '_t' and lab.x == ST.HDR_X + (lab.type == 'label') * 2 == 21 + (lab.type == 'label') * 2 and ST.HDR_X + ST.HDR_INK == ST.ICON_X + (ST.ICON_PX - ST.GLYPH_PX) // 2 and lab.w == ST.HDR_W - (lab.type == 'label') * 4
                        and lab.get('sensitive') == 'false' and lab.get('style:normal:text_color') == ST.GREY and lab.get('style:normal:text_align_h') == 'left'
                        and int(lab.get('style:normal:font_size')) == (ST.HDR_PX if item == 'pod_sec' else ST.NOTE_PX),
-                       f'{page.key}:{v.name}: an insensitive item holding a grey label at x {ST.HDR_X}, where the row glyphs\' ink starts (x {ST.ICON_X + (ST.ICON_PX - ST.GLYPH_PX) // 2})')
+                       f'{page.key}:{v.name}: an insensitive item holding a grey label box at x {ST.HDR_X}, its text ink (+{ST.HDR_INK}) where the row glyphs\' ink starts (x {ST.ICON_X + (ST.ICON_PX - ST.GLYPH_PX) // 2})')
         for v in [c for c in sv.children if c.name.startswith(('pod_top', 'pod_end', 'pod_gap'))]:
             expect(v.get('sensitive') == 'false' and not v.children, f'{page.key}:{v.name}: an insensitive empty spacer')
         fade = [c for c in t.children if c.name == pod_ui.NB_FADE_NAME]

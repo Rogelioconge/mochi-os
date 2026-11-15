@@ -1895,11 +1895,11 @@ def cfg_rows(w, labels, on):
 # The Extras page's section headers (patch/menu.c mn_extras; iOS grouped-list captions): one per group of pod_pages.EXTRAS_GROUPS, pod_hdr0 ..,
 # a plain view HDR_H (40) high, shorter than a row, the child of the list's scroll_view like a row (the stock list_view layouter keeps the height of a child that is not
 # a row, as it does the shelf's, and sums it). The caption is a stock hscroll_label (never scrolls, ellipsis) in the style of the Home menu's "Made for You" heading
-# (pod_dm_head) and the Recently Played shelf's, but the group caption role (pod_roles CAPTION_*): 18 px secondary grey, in the Settings pages' strip, its label at the rows' glyph ink (x 18; the Settings
-# captions sit on the glyph ink of their cards, x 24). Insensitive always and hidden in the asset (the payload shows it by visible alone): never a touch target, and no list_item (no press visual, no
+# (pod_dm_head) and the Recently Played shelf's, but the group caption role (pod_roles CAPTION_*): 18 px secondary grey, in the Settings pages' strip, its label box at x 14 so the text ink is at the rows' glyph ink (x 17; the Settings
+# captions' ink sits on the glyph ink of their cards, x 24, box 21). Insensitive always and hidden in the asset (the payload shows it by visible alone): never a touch target, and no list_item (no press visual, no
 # chevron or icon). The label is CAPTION_LABEL_H high, CAPTION_LABEL_Y down the strip.
 import pod_settings as _ST
-HDR_X, HDR_PX, HDR_RGB = 18, _ST.HDR_PX, SUB_RGB   # the Settings pages' caption (pod_settings.HDR_*; size and colour shared): the secondary grey, dimmer than its rows; x 18 = the left of the rows' glyph ink (the 24 px glyph at x 16, 20 px ink), as the Settings captions sit on theirs
+HDR_X, HDR_PX, HDR_RGB = 14, _ST.HDR_PX, SUB_RGB   # the Settings pages' caption (pod_settings.HDR_*; size and colour shared): the secondary grey, dimmer than its rows; label box x 14: the text ink starts 3 px right of the box (hscroll_label inset 2 + side bearing ~1), at x 17 = the left of the rows' glyph ink (the 24 px glyph at x 16, ink from 17), as the Settings captions sit on theirs
 HDR_LABEL_Y, HDR_LABEL_H = CAPTION_LABEL_Y, CAPTION_LABEL_H
 
 

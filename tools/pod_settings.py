@@ -11,7 +11,7 @@ bottom piece, ROW_W x ROW_H, tools/mod_icons.py card_piece) with the card's x CM
 transparent outside (the pressed pieces are lit). A hairline (CARD_HAIR_RGB) is a child of the row from the label to the card's right edge, on every row but a card's last. Coordinates
 below are row relative (x 0 is the list's left edge, so a card starts at CM). The 20 px glyph (GLYPH_PX in a 24 px image) is centred in a 20 px column PAD from the card's edge, the label
 starts LABEL_GAP after the column (a picker row has no glyph: PAD). On the right, the ink of the chevron, the switch and the check ends PAD from the card's edge; a value is grey, 8 px
-left of the chevron. A header is secondary grey and a note smaller grey text; their labels start at HDR_X, the left of the glyph column's ink.
+left of the chevron. A header is secondary grey and a note smaller grey text; their label boxes start at HDR_X so that the text ink starts at the glyph column's ink (HDR_INK to the right of the box).
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -56,8 +56,9 @@ ICON_X = CM + PAD + GLYPH_PX // 2 - ICON_PX // 2      # the 24 px image of a row
 ICON_Y = (ROW_H - ICON_PX) // 2
 TEXT_X = CM + PAD + GLYPH_PX + LABEL_GAP              # a row's label with a glyph; CM + PAD without
 RIGHT = CM + CARD_W - PAD                             # the right ink edge of the chevron, the switch and the check, row relative
-HDR_X = CM + PAD                                      # a header's and a note's label: the left of the row glyphs' ink
-HDR_W = CARD_W - PAD - 4   # the text starts at the card's text; the label runs to 4 px short of the scroll bar strip (the hscroll_label insets its text 2 px each side)
+HDR_INK = 3                                           # a label box's x to its text ink: the hscroll_label insets the text 2 px, the glyph's left side bearing is about 1 px more
+HDR_X = CM + PAD - HDR_INK                            # a header's and a note's label box: its text ink (box + HDR_INK) is flush with the row glyphs' ink (ICON_X + 2 = CM + PAD)
+HDR_W = CARD_W - PAD - 4 + HDR_INK   # the box runs to 4 px short of the scroll bar strip (right end CM + CARD_W - 4; the hscroll_label insets its text 2 px each side)
 
 
 TOP, END = 'top', 'end'      # the spacers the page starts and ends with (CM and END_H high)
