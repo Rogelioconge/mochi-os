@@ -54,6 +54,12 @@ STOCK = {
     'msg_wifidisconnect': 'Disconnect Now?',
     'msg_wificancelsave': 'Delete Record?',
     'msg_wifi_open': 'Bluetooth audio may stutter while Wi-Fi is on.',
+    'system_rippingset': 'CD Ripping',   # Settings > Library's CD Ripping row (stock's own title of its page, translated in every table)
+    'wifiset_synclink': 'SyncLink',      # ... Network Services' SyncLink (the same word in every table)
+    'system_language': 'Language', # Settings > General > Language: the row (stock's own title of its Language page), translated in every table
+    # the language list's thirteen rows (Settings > General > Language, patch/language.c): each language's own name, the same text in every table
+    'lan_simplified': '简体中文', 'lan_traditional': '繁體中文', 'lan_english': 'English', 'lan_japanese': '日本語', 'lan_korean': '한국어', 'lan_french': 'Français', 'lan_german': 'Deutsch',
+    'lan_spanish': 'español', 'lan_italian': 'Italiano', 'lan_thai': 'ภาษาไทย', 'lan_polish': 'Polski', 'lan_russian': 'Русский', 'lan_ukrainian': 'Українська',
     'powerm_sleep': 'Sleep Timer',   # Now Playing's More sheet row that opens the stock Power page: the same text as that page's own Sleep Timer row (patch/playmore.c)
 }
 
@@ -71,6 +77,8 @@ def _t(key, *texts, **by):
 TEXT = dict([
     _t('Appearance', '外观', '外觀', '外観', '화면 모드', 'Apparence', 'Darstellung',
        'Apariencia', 'Aspetto', 'รูปแบบหน้าจอ', 'Wygląd', 'Оформление', 'Вигляд'),
+    _t('General', '通用', '一般', '一般', '일반', 'Général', 'Allgemein',
+       'General', 'Generali', 'ทั่วไป', 'Ogólne', 'Основные', 'Загальні'),
     _t('Light', '浅色', '淺色', 'ライト', '밝게', 'Clair', 'Hell',
        'Claro', 'Chiaro', 'สว่าง', 'Jasny', 'Светлая', 'Світла'),
     _t('Dark', '深色', '深色', 'ダーク', '어둡게', 'Sombre', 'Dunkel',
@@ -128,7 +136,7 @@ TEXT = dict([
        'Ajustes de reproducción', 'Impostazioni riproduzione', 'การตั้งค่าการเล่น', 'Ustawienia odtwarzania', 'Параметры плеера', 'Параметри плеєра'),
     _t('System', '系统', '系統', 'システム', '시스템', 'Système', 'System',
        'Sistema', 'Sistema', 'ระบบ', 'System', 'Система', 'Система'),
-    # Settings > System > Appearance > Control Center (patch/pulldown.c; iOS's names for its Control Center): the page, and the two tile captions whose stock text shows the
+    # Settings > Appearance > Control Center (patch/pulldown.c; iOS's names for its Control Center): the page, and the two tile captions whose stock text shows the
     # state (High / Low, USB AUDIO / DAC / Storage)
     _t('Control Center', '控制中心', '控制中心', 'コントロールセンター', '제어 센터', 'Centre de contrôle', 'Kontrollzentrum',
        'Centro de control', 'Centro di Controllo', 'ศูนย์ควบคุม', 'Centrum sterowania', 'Пункт управления', 'Пункт керування'),
@@ -146,7 +154,7 @@ TEXT = dict([
        'Acerca de', 'Info', 'เกี่ยวกับ', 'Informacje', 'О плеере', 'Про пристрій'),
     _t('All System Settings', '全部系统设置', '全部系統設定', 'すべてのシステム設定', '모든 시스템 설정', 'Réglages système', 'Systemeinstellungen',
        'Ajustes del sistema', 'Impostazioni di sistema', 'การตั้งค่าระบบทั้งหมด', 'Ustawienia systemowe', 'Системные настройки', 'Налаштування системи'),
-    # Settings > System > About (our own page, docs/modules/settings.md "About"): the section headers and the row labels (values are data; the credits' names and licences are brands)
+    # Settings > General > About (our own page, docs/modules/settings.md "About"): the section headers and the row labels (values are data; the credits' names and licences are brands)
     _t('Firmware', '固件版本', '韌體版本', 'ファームウェア', '펌웨어', 'Firmware', 'Firmware',
        'Firmware', 'Firmware', 'เฟิร์มแวร์', 'Oprogramowanie', 'Прошивка', 'Прошивка'),
     _t('Device', '设备', '裝置', 'デバイス', '기기', 'Appareil', 'Gerät',
@@ -559,7 +567,7 @@ TEXT = dict([
     _t('Search words go to the chosen directory.', '搜索词会发送给所选目录。', '搜尋詞會傳送給所選目錄。', '検索語は選択したディレクトリに送信されます。', '검색어는 선택한 디렉터리로 전송됩니다.',
        'Les mots recherchés vont à l\'annuaire choisi.', 'Suchbegriffe gehen an das gewählte Verzeichnis.', 'Los términos van al directorio elegido.', 'Le parole cercate vanno alla directory scelta.',
        'คำค้นหาจะถูกส่งไปยังไดเรกทอรีที่เลือก', 'Szukane słowa trafiają do wybranego katalogu.', 'Слова запроса отправляются в выбранный каталог.', 'Слова запиту надсилаються до вибраного каталогу.'),
-    # Battery Percentage (patch/battery.c, docs/modules/battery.md): Settings > System > Battery
+    # Battery Percentage (patch/battery.c, docs/modules/battery.md): Settings > Battery
     _t('Battery Percentage', '电量百分比', '電量百分比', 'バッテリー残量', '배터리 잔량', 'Pourcentage', 'Akkustand',
        'Porcentaje', 'Percentuale', 'เปอร์เซ็นต์แบต', 'Poziom baterii', 'Процент заряда', 'Відсоток заряду'),
     _t('The exact charge beside the battery icon', '电池图标旁显示精确电量', '電池圖示旁顯示精確電量', 'バッテリーアイコンの横に正確な残量を表示', '배터리 아이콘 옆에 정확한 잔량 표시',
@@ -576,7 +584,7 @@ TEXT = dict([
        'Reproduce el siguiente álbum en el orden de Álbumes, del artista o de Cover Flow', 'Riproduce l’album successivo nell’ordine di Album, artista o Cover Flow',
        'เล่นอัลบั้มถัดไปตามลำดับของอัลบั้ม ศิลปิน หรือ Cover Flow', 'Odtwarza następny album w kolejności Albumów, wykonawcy lub Cover Flow',
        'Играет следующий альбом в порядке списка, исполнителя или Cover Flow', 'Грає наступний альбом у порядку списку, виконавця або Cover Flow'),
-    # Charge Limit (patch/charging.c, docs/modules/charging.md): Settings > System > Battery
+    # Charge Limit (patch/charging.c, docs/modules/charging.md): Settings > Battery
     _t('Battery', '电池', '電池', 'バッテリー', '배터리', 'Batterie', 'Batterie',
        'Batería', 'Batteria', 'แบตเตอรี่', 'Bateria', 'Аккумулятор', 'Акумулятор'),
     _t('Charge Limit', '充电上限', '充電上限', '充電上限', '충전 한도', 'Limite de charge', 'Ladelimit',
@@ -587,7 +595,7 @@ TEXT = dict([
     _t('Resumes a little below the limit', '略低于上限时恢复充电', '略低於上限時恢復充電', '上限を少し下回ると再開', '한도보다 조금 낮아지면 재개',
        'Reprend un peu sous la limite', 'Lädt knapp unter dem Limit weiter', 'Se reanuda algo por debajo del límite', 'Riprende poco sotto il limite',
        'ชาร์จต่อเมื่อต่ำกว่าขีดจำกัดเล็กน้อย', 'Wznawia nieco poniżej limitu', 'Возобновится чуть ниже предела', 'Відновиться трохи нижче межі'),
-    # Settings > System > Display (patch/display.c, docs/modules/display.md): our page's rows and the pickers' rows that are new. Our own short labels: stock's English for the backlight time is
+    # Settings > Display (patch/display.c, docs/modules/display.md): our page's rows and the pickers' rows that are new. Our own short labels: stock's English for the backlight time is
     # "Screen Off" with the choice "Off", its LED row is "Atmosphere Lamp Settings", and its Follow Screen is English in every table but the Chinese ones. The other four backlight choices (15s .. 5min) are
     # stock's plain texts, the same in every language (BRANDS). (Lock Screen, Off and Orange are above.)
     _t('Follow Screen', '跟随屏幕', '跟隨螢幕', '画面に連動', '화면과 연동', 'Suivre l’écran', 'Bildschirm folgen',
@@ -632,7 +640,7 @@ TEXT = dict([
        'Luz LED', 'Luce LED', 'ไฟ LED', 'Dioda LED', 'Светодиод', 'Світлодіод'),
     _t('Never', '常亮', '常亮', 'しない', '안 함', 'Jamais', 'Nie',
        'Nunca', 'Mai', 'ไม่เลย', 'Nigdy', 'Никогда', 'Ніколи'),
-    # Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md). Our own short labels, as Display's: stock's long texts do not fit the switch row, and some of its translations are wrong
+    # Settings > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md). Our own short labels, as Display's: stock's long texts do not fit the switch row, and some of its translations are wrong
     # (keylock_volume is "album" in Korean, powerm_saver the screen saver in Thai). The Tap to Wake row's room is the switch row's 173 px: test/pod/i18n.py measures every language. (Button Lock and Off are above.)
     _t('Buttons & Power', '按键与电源', '按鍵與電源', 'ボタンと電源', '버튼 및 전원', 'Touches et énergie', 'Tasten & Energie',
        'Botones y energía', 'Tasti e energia', 'ปุ่มและพลังงาน', 'Przyciski i zasilanie', 'Кнопки и питание', 'Кнопки й живлення'),
@@ -1107,7 +1115,7 @@ TEXT = dict([
        'Restablecer', 'Ripristina', 'รีเซ็ต', 'Resetuj', 'Сброс', 'Скидання'),
     _t('Screenshot failed','截图失败', '截圖失敗', 'スクリーンショット失敗', '스크린샷 실패', 'Échec de la capture', 'Screenshot fehlgeschlagen',
        'Error en la captura', 'Screenshot non riuscito', 'ถ่ายภาพหน้าจอไม่สำเร็จ', 'Zrzut nieudany', 'Не удалось снять экран', 'Не вдалося зробити знімок'),
-    # Settings > Keyboards (iOS style: English always on, Chinese (Pinyin) a switch; patch/keyboard.c)
+    # Settings > General > Keyboards (iOS style: English always on, Chinese (Pinyin) a switch; patch/keyboard.c)
     _t('Keyboards', '键盘', '鍵盤', 'キーボード', '키보드', 'Claviers', 'Tastaturen',
        'Teclados', 'Tastiere', 'แป้นพิมพ์', 'Klawiatury', 'Клавиатуры', 'Клавіатури'),
     _t('English', '英语', '英語', '英語', '영어', 'Anglais', 'Englisch',
@@ -1319,12 +1327,12 @@ TEXT = dict([
        'Nieve', 'Neve', 'หิมะ', 'Śnieg', 'Снег', 'Сніг'),
     _t('Applies the next time Vinyl Mode opens.', '下次打开黑胶模式时生效。', '下次開啟黑膠模式時生效。', '次回レコードモード起動時に反映', '다음에 바이닐 모드를 열 때 적용됩니다.', "S'applique à la prochaine ouverture.", 'Gilt beim nächsten Öffnen.',
        'Se aplica la próxima vez que se abre.', 'Si applica alla prossima apertura.', 'มีผลเมื่อเปิดครั้งถัดไป', 'Zastosowane przy następnym otwarciu.', 'Применится при следующем открытии.', 'Застосується при наступному відкритті.'),
-    # Settings > System > Appearance > Background (patch/palette.c, docs/modules/accent.md): the row and its picker's title, and the Tinted value (Black is the key above)
+    # Settings > Appearance > Background (patch/palette.c, docs/modules/accent.md): the row and its picker's title, and the Tinted value (Black is the key above)
     _t('Background', '背景', '背景', '背景', '배경', 'Arrière-plan', 'Hintergrund',
        'Fondo', 'Sfondo', 'พื้นหลัง', 'Tło', 'Фон', 'Тло'),
     _t('Tinted', '着色', '著色', 'ティント', '색조', 'Teinté', 'Getönt',
        'Teñido', 'Colorato', 'ปรับสี', 'Zabarwione', 'Тонированный', 'Тонований'),
-    # Settings > System > Appearance > Lock Screen (patch/lockscreen.c, docs/modules/lockscreen.md): the row and its picker's title, the two layouts and the note
+    # Settings > Appearance > Lock Screen (patch/lockscreen.c, docs/modules/lockscreen.md): the row and its picker's title, the two layouts and the note
     _t('Lock Screen', '锁屏', '鎖定畫面', 'ロック画面', '잠금 화면', 'Écran de verrouillage', 'Sperrbildschirm',
        'Pantalla de bloqueo', 'Schermata di blocco', 'หน้าจอล็อก', 'Ekran blokady', 'Экран блокировки', 'Екран блокування'),
     _t('Enable', '启用', '啟用', '有効', '사용', 'Activer', 'Aktivieren',
@@ -1369,7 +1377,7 @@ TEXT = dict([
     # the heading above them (the Release Notes page's "Version x.y.z" style, 22 px in 288 px: the Russian and Ukrainian are the short "photos" wording to fit)
     _t('Add Your Own Pictures', '添加自己的图片', '加入自己的圖片', '自分の画像を追加', '내 사진 추가', 'Ajouter vos images', 'Eigene Bilder hinzufügen', 'Añadir tus imágenes',
        'Aggiungi le tue immagini', 'เพิ่มรูปภาพของคุณ', 'Dodaj własne obrazy', 'Добавьте свои фото', 'Додайте власні фото'),
-    # Settings > System > Accent (patch/palette.c, docs/modules/accent.md): the row and its picker's title, then the seven accents (the picker's rows and the row's value)
+    # Settings > Appearance > Accent (patch/palette.c, docs/modules/accent.md): the row and its picker's title, then the seven accents (the picker's rows and the row's value)
     _t('Accent', '强调色', '強調色', 'アクセント', '강조 색상', 'Couleur', 'Akzentfarbe',
        'Color de énfasis', 'Accento', 'สีเน้น', 'Akcent', 'Акцент', 'Акцент'),
     _t('Neutral', '中性', '中性', 'ニュートラル', '중립', 'Neutre', 'Neutral',
@@ -1872,12 +1880,97 @@ TEXT.update([
        'Metti il token di listenbrainz.org in scrobble.ini sulla scheda.', 'ใส่โทเค็นจาก listenbrainz.org ไว้ใน scrobble.ini บนการ์ด',
        'Umieść token z listenbrainz.org w scrobble.ini na karcie.', 'Запишите токен с listenbrainz.org в scrobble.ini на карте.',
        'Запишіть токен із listenbrainz.org у scrobble.ini на картці.'),
+    # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): our own labels (the pages' numbers are plain texts). Year is above.
+    _t('Date & Time', '日期与时间', '日期與時間', '日付と時刻', '날짜 및 시간', 'Date et heure', 'Datum & Uhrzeit',
+       'Fecha y hora', 'Data e ora', 'วันที่และเวลา', 'Data i godzina', 'Дата и время', 'Дата й час'),
+    _t('Set Automatically', '自动设置', '自動設定', '自動設定', '자동으로 설정', 'Réglage auto', 'Automatisch',
+       'Automático', 'Automatico', 'ตั้งค่าอัตโนมัติ', 'Automatycznie', 'Автоматически', 'Автоматично'),
+    _t('Time Zone', '时区', '時區', 'タイムゾーン', '시간대', 'Fuseau horaire', 'Zeitzone',
+       'Zona horaria', 'Fuso orario', 'เขตเวลา', 'Strefa czasowa', 'Часовой пояс', 'Часовий пояс'),
+    _t('Date', '日期', '日期', '日付', '날짜', 'Date', 'Datum',
+       'Fecha', 'Data', 'วันที่', 'Data', 'Дата', 'Дата'),
+    _t('Time', '时间', '時間', '時刻', '시간', 'Heure', 'Uhrzeit',
+       'Hora', 'Ora', 'เวลา', 'Godzina', 'Время', 'Час'),
+    _t('24-Hour Time', '24 小时制', '24 小時制', '24時間表示', '24시간제', 'Format 24 h', '24-Stunden-Format',
+       'Formato 24 horas', 'Formato 24 ore', 'รูปแบบ 24 ชั่วโมง', 'Zegar 24-godzinny', 'Формат 24 ч', 'Формат 24 год'),
+    _t('Month', '月份', '月份', '月', '월', 'Mois', 'Monat',
+       'Mes', 'Mese', 'เดือน', 'Miesiąc', 'Месяц', 'Місяць'),
+    _t('Day', '日', '日', '日', '일', 'Jour', 'Tag',
+       'Día', 'Giorno', 'วัน', 'Dzień', 'День', 'День'),
+    _t('Hour', '小时', '小時', '時', '시', 'Heure', 'Stunde',
+       'Hora', 'Ora', 'ชั่วโมง', 'Godzina', 'Час', 'Година'),
+    _t('Minute', '分钟', '分鐘', '分', '분', 'Minute', 'Minute',
+       'Minuto', 'Minuto', 'นาที', 'Minuta', 'Минута', 'Хвилина'),
+    _t('Set Date', '设置日期', '設定日期', '日付を設定', '날짜 설정', 'Régler la date', 'Datum einstellen',
+       'Ajustar fecha', 'Imposta data', 'ตั้งวันที่', 'Ustaw datę', 'Установить дату', 'Встановити дату'),
+    _t('Set Time', '设置时间', '設定時間', '時刻を設定', '시간 설정', "Régler l'heure", 'Uhrzeit einstellen',
+       'Ajustar hora', 'Imposta ora', 'ตั้งเวลา', 'Ustaw godzinę', 'Установить время', 'Встановити час'),
+])
+# Sleep Timer page (patch/sleeptimer.c, docs/modules/sleeptimer.md): the check rows' times and the note under them. (Off and the page title, stock's powerm_sleep, are above.) Machine translations, checked for fit only.
+TEXT.update([
+    _t('15 minutes', '15 分钟', '15 分鐘', '15分', '15분', '15 min', '15 Min.', '15 min', '15 min', '15 นาที', '15 min', '15 мин', '15 хв'),
+    _t('30 minutes', '30 分钟', '30 分鐘', '30分', '30분', '30 min', '30 Min.', '30 min', '30 min', '30 นาที', '30 min', '30 мин', '30 хв'),
+    _t('45 minutes', '45 分钟', '45 分鐘', '45分', '45분', '45 min', '45 Min.', '45 min', '45 min', '45 นาที', '45 min', '45 мин', '45 хв'),
+    _t('1 hour', '1 小时', '1 小時', '1時間', '1시간', '1 heure', '1 Stunde', '1 hora', '1 ora', '1 ชั่วโมง', '1 godzina', '1 час', '1 година'),
+    _t('1.5 hours', '1.5 小时', '1.5 小時', '1.5時間', '1.5시간', '1,5 heure', '1,5 Stunden', '1,5 horas', '1,5 ore', '1.5 ชั่วโมง', '1,5 godziny', '1,5 часа', '1,5 години'),
+    _t('2 hours', '2 小时', '2 小時', '2時間', '2시간', '2 heures', '2 Stunden', '2 horas', '2 ore', '2 ชั่วโมง', '2 godziny', '2 часа', '2 години'),
+    _t('The player turns off when the time is up', '时间到后播放器将关机', '時間到後播放器將關機', '時間になるとプレーヤーの電源が切れます', '시간이 되면 플레이어가 꺼집니다', 'Le lecteur s’éteint à la fin du délai',
+       'Der Player schaltet sich nach Ablauf aus', 'El reproductor se apaga al terminar el tiempo', 'Il lettore si spegne allo scadere del tempo', 'เครื่องจะปิดเมื่อหมดเวลา',
+       'Odtwarzacz wyłączy się po upływie czasu', 'Плеер выключится по истечении времени', 'Програвач вимкнеться після завершення часу'),
+    _t('Time Left', '剩余时间', '剩餘時間', '残り時間', '남은 시간', 'Temps restant', 'Verbleibend',
+       'Tiempo restante', 'Tempo rimasto', 'เวลาที่เหลือ', 'Pozostały czas', 'Осталось', 'Залишилось'),
+])
+# Settings > Network Services and its Wi-Fi Transfer page (patch/netservice.c, docs/modules/netservice.md). The page title and the row are stock's sset_netservice ("Network Service") made plural, the transfer row stock's netservice_wifitrans
+# ("Wi-Fi file transfer") shortened; the Transfer page's description and footer note replace stock's wifits_info1 + wifits_info2 (crowded on the 320 px screen). Machine translations, checked for fit only.
+TEXT.update([
+    _t('Network Services', '网络服务', '網絡服務', 'ネットワークサービス', '네트워크 서비스', 'Services réseau', 'Netzdienste',
+       'Servicios de red', 'Servizi di rete', 'บริการเครือข่าย', 'Usługi sieciowe', 'Сетевые службы', 'Мережеві служби'),
+    _t('Wi-Fi Transfer', 'Wi-Fi 传输', 'Wi-Fi 傳輸', 'Wi-Fi 転送', 'Wi-Fi 전송', 'Transfert Wi-Fi', 'WLAN-Übertragung',
+       'Transferencia Wi-Fi', 'Trasferimento Wi-Fi', 'โอนไฟล์ผ่าน Wi-Fi', 'Transfer Wi-Fi', 'Передача по Wi-Fi', 'Передача по Wi-Fi'),
+    _t('On the same Wi-Fi, open this address in a browser to manage your music.', '在同一 Wi-Fi 下，用浏览器打开此地址即可管理音乐。', '在同一 Wi-Fi 下，用瀏覽器開啟此位址即可管理音樂。',
+       '同じ Wi-Fi で、このアドレスをブラウザで開くと音楽を管理できます。', '같은 Wi-Fi에서 이 주소를 브라우저로 열어 음악을 관리하세요.',
+       'Sur le même Wi-Fi, ouvrez cette adresse dans un navigateur pour gérer la musique.', 'Öffne diese Adresse im Browser eines Geräts im selben WLAN.',
+       'Con el mismo Wi-Fi, abre esta dirección en un navegador para gestionar tu música.', 'Sulla stessa rete Wi-Fi, apri questo indirizzo in un browser per gestire la tua musica.',
+       'ใช้ Wi-Fi เดียวกัน แล้วเปิดที่อยู่นี้ในเบราว์เซอร์เพื่อจัดการเพลงของคุณ', 'W tej samej sieci Wi-Fi otwórz ten adres w przeglądarce, aby zarządzać muzyką.',
+       'В той же сети Wi-Fi откройте этот адрес в браузере, чтобы управлять музыкой.', 'У тій самій мережі Wi-Fi відкрийте цю адресу в браузері, щоб керувати музикою.'),
+    _t('Playback is paused while this page is open. Leave the page to turn it off.', '此页面打开时播放会暂停，离开页面即关闭。', '此頁面開啟時播放會暫停，離開頁面即關閉。',
+       'このページを開いている間は再生が一時停止します。ページを離れるとオフになります。', '이 페이지가 열려 있는 동안 재생이 일시 중지됩니다. 페이지를 나가면 꺼집니다.',
+       'La lecture est en pause tant que cette page est ouverte. Quittez la page pour la désactiver.', 'Die Wiedergabe pausiert, solange diese Seite offen ist. Verlasse sie zum Beenden.',
+       'La reproducción se pausa mientras esta página está abierta. Sal de la página para desactivarlo.', 'La riproduzione è in pausa finché questa pagina è aperta. Esci dalla pagina per disattivarlo.',
+       'การเล่นจะหยุดชั่วคราวขณะเปิดหน้านี้ ออกจากหน้านี้เพื่อปิด', 'Odtwarzanie jest wstrzymane, gdy ta strona jest otwarta. Wyjdź ze strony, aby wyłączyć.',
+       'Пока эта страница открыта, воспроизведение приостановлено. Покиньте страницу, чтобы выключить.', 'Поки ця сторінка відкрита, відтворення призупинено. Залиште сторінку, щоб вимкнути.'),
 ])
 DPAGE_KEYS = ('Updated today', 'Updated yesterday', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')   # the Daily Mix page's keys
 DAILY_KEYS =('Made for You', 'Daily Mix', 'Regenerate Daily Mix', '%s and more', '%s, %s')     # the card's keys (tools/pod_dailymix.py TEXT)
 
 # Keys a built asset or payload text does not use yet (test/pod/i18n.py exempts them from the orphan check). None: the 10-Band editor's strings are all used (phase 2).
 PENDING_KEYS = ()
+
+# Settings > Display > Screen Rotation and Buttons & Power > Car Mode (patch/display.c, patch/keyspower.c). Short labels of ours for the switch rows (173 px): stock's system_scrotate is "Rotación de la
+# pantalla" in Spanish (190 px) and sset_carmode reads "In-Vehicle mode", "En-Vehiculo Modo" in Spanish and "Режим бортового функционирования" in Russian.
+TEXT.update([
+    _t('Screen Rotation', '屏幕旋转', '螢幕旋轉', '画面の回転', '화면 회전', 'Rotation écran', 'Bildschirm drehen', 'Girar pantalla', 'Rotazione schermo', 'หมุนหน้าจอ', 'Obrót ekranu', 'Поворот экрана', 'Поворот екрана'),
+    _t('Car Mode', '车载模式', '車載模式', '車載モード', '차량 모드', 'Mode voiture', 'Fahrzeugmodus', 'Modo coche', 'Modalità auto', 'โหมดรถยนต์', 'Tryb samochodowy', 'Режим авто', 'Режим авто'),
+    _t('Turns the screen upside down', '将屏幕旋转 180 度', '將螢幕旋轉 180 度', '画面を上下逆にします', '화면을 거꾸로 돌립니다', 'Retourne l’écran', 'Dreht den Bildschirm um', 'Gira la pantalla', 'Capovolge lo schermo',
+       'พลิกหน้าจอกลับด้าน', 'Obraca ekran do góry nogami', 'Переворачивает экран', 'Перевертає екран'),
+    _t('Resumes the last track at start. Auto-Standby, Auto-Shutdown and USB connections are ignored.',
+       '开机时继续播放上次的曲目。自动待机、自动关机和 USB 连接将被忽略。', '開機時繼續播放上次的曲目。自動待機、自動關機和 USB 連接將被忽略。',
+       '起動時に前回の曲を再開します。自動スタンバイ、自動電源オフ、USB接続は無視されます。', '시작할 때 마지막 곡을 이어서 재생합니다. 자동 대기, 자동 종료, USB 연결은 무시됩니다.',
+       'Reprend le dernier titre au démarrage. Veille auto, arrêt auto et connexions USB sont ignorés.', 'Setzt beim Start den letzten Titel fort. Auto-Standby, Auto-Abschaltung und USB-Verbindungen werden ignoriert.',
+       'Reanuda la última pista al iniciar. Espera auto, autoapagado y conexiones USB se ignoran.', 'Riprende l’ultimo brano all’avvio. Standby auto, spegni auto e connessioni USB sono ignorati.',
+       'เล่นเพลงล่าสุดต่อเมื่อเปิดเครื่อง และจะไม่สนใจสแตนด์บายอัตโนมัติ ปิดเครื่องอัตโนมัติ และการเชื่อมต่อ USB',
+       'Wznawia ostatni utwór po uruchomieniu. Auto-gotowość, auto-wyłączanie i połączenia USB są pomijane.', 'Продолжает последний трек при запуске. Автоожидание, автовыключение и USB-подключения игнорируются.',
+       'Відновлює останній трек під час запуску. Автоочікування, автовимкнення та USB-підключення ігноруються.'),
+])
+
+# Settings > General's direct rows for stock's pages (docs/modules/settings.md "General"). USB Mode, CD Ripping (STOCK system_rippingset) and SyncLink (STOCK wifiset_synclink) use stock's own words. The other three
+# are short English labels of ours (stock's say "System Update", Chinese only for Regulatory, "Formatting Card"); each language takes stock's word where stock has one that fits (zh and ja Regulatory, the zh Format card,
+# the system-update words), else the card-format words of STOCK_FIX (system_formatcard) or a short text of ours (Regulatory: certification marks and approvals).
+TEXT.update([
+    _t('Firmware Update', '系统升级', '系統升級', 'ファームウェア更新', '시스템 업데이트', 'Mise à jour système', 'Systemupdate', 'Actualizar sistema', 'Aggiornamento sistema', 'อัพเดทระบบ', 'Aktualizacja systemu', 'Обновление системы', 'Оновлення системи'),
+    _t('Regulatory', '技术证明', '技術證明', '技術証明', '인증 정보', 'Réglementation', 'Zulassungen', 'Normativa', 'Normative', 'ข้อมูลการรับรอง', 'Informacje prawne', 'Сертификация', 'Сертифікація'),
+    _t('Format Storage', '格式化存储卡', '格式化記憶卡', 'カードをフォーマット', '카드 포맷', 'Formater la carte', 'Karte formatieren', 'Formatear tarjeta', 'Formatta scheda', 'ฟอร์แมตการ์ด', 'Formatuj kartę', 'Форматировать карту', 'Форматувати картку'),
+])
 
 KEYS = sorted(TEXT)
 
@@ -1888,12 +1981,13 @@ def english(key):
 
 
 import pod_pages
-BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',)   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button)
+BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',) + pod_pages.TZ_LABELS + pod_pages.DT_NUMBERS   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button; the time zones' English names and the date pickers' numbers)
 
 
 def key_for(english):
     """The tr_text key of an English text we show: itself (our keys), the stock key whose en_US text it is, or None
     for a brand name, which stays a plain text."""
+    if getattr(english, 'stock_key', None): return english.stock_key   # a label that is a stock key's own text (pod_pages.StockText)
     if english in TEXT: return english
     for k, v in STOCK.items():
         if v == english: return k
@@ -2067,6 +2161,8 @@ STOCK_FIX = dict([
     _f('dsdmode_native', th_TH='Native'),
     _own('songer', 'Artist', 'it_IT', 'po_PL', 'ru_RU'),
     _own('fav', 'Favorites', 'it_IT'),
+    # the Sleep Timer page's title (stock's Spanish "Temporizador de apagado" is 7 px wider than the navbar title's room, tools/pod_pages.py SLEEP_PAGE); the same key is the More sheet row, the Control Center tile and the Power page's row
+    _f('powerm_sleep', sp_ES='Temporizador'),
 ])
 
 

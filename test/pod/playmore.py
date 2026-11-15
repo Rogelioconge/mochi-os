@@ -158,6 +158,8 @@ class PM(pulldown.SM):
             self.calls.append(('albums_open_artist', tuple(rows), a1, a2))
             if self.am_ret == 0 and not self.no_window: self.page('m1plus_albums')
             u.reg_write(UC_MIPS_REG_V0, self.am_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'window_open' and self.read_cstr(a0) == 'm1plus_sleeptimer' and self.windows.get('m1plus_sleeptimer', 1) and not self.no_window:
+            self.page('m1plus_sleeptimer_page')   # open_page's window_open: our page's window on top of the stack (before the harness records the open)
         if name == 'navigator_to' and not self.nav_ret:   # the stock navigator opens a NEW window every time (the Power page has no single_instance property)
             self.calls.append(('navigator_to', self.read_cstr(a0))); self.page(self.read_cstr(a0).split('/')[-1])
             u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
@@ -804,55 +806,57 @@ def run(ctx):
     m = PM(); m.play([m.record(path='/mnt/mmc/Music/a.flac', rid=7)], 0); m.open(); m.click_more()
     expect(m.live(ART), 'a local track (not in the queue map): the row is live as before')
 
-    # Sleep Timer (pm_on_sleep, page 2, under Playback speed): the stock Power page by a plain navigator_to, the page first, the sheet closed once it is up
+    # Sleep Timer (pm_on_sleep, page 2, under Playback speed): our Sleep Timer page (m1plus_sleeptimer), the page first, the sheet closed once it is up
     m = PM(); m.open()
     expect(m.handlers_of(m.rows[SLEEP], O['EVT_CLICK']) == [(PSYMS['pm_on_sleep'], m.dialog)] and m.dead(SLEEP) and ('widget_set_tr_text', m.nodes['pod_sleep_label'], 'powerm_sleep') in m.calls,
            'the Sleep Timer row has our click handler alone, the stock key powerm_sleep as its label; on page 1 it is hidden and insensitive')
     m.click_more()
     expect(m.live(SLEEP) and 'pod_sleep' in m.tap_row(SLEEP) and m.shown()[2] == SLEEP, f'page 2: Sleep Timer is the third row, live, and a touch on it reaches it ({m.tap_row(SLEEP)})')
     m.calls = []; m.click_row(SLEEP)
-    expect([c[0] for c in m.calls] == ['navigator_to', 'window_close'] and m.calls[0] == ('navigator_to', 'systemset/powermanager_page') and ('window_close', m.dialog) in m.calls,
-           f'a tap opens the stock Power page, then closes the sheet ({m.calls})')
-    m = PM(); m.open(); m.click_more(); m.nav_ret = 1; m.calls = []; m.click_row(SLEEP)
-    expect([c[0] for c in m.calls] == ['navigator_to'] and m.shown() == PAGE2 and m.top() == SHEET2_Y and m.size(m.dialog) == (320, 300),
-           'a page that will not open leaves the sheet as it was, on page 2, nothing closed')
-    # the window stack the way the device keeps it: navigator_to always adds a window, the to-player button restacks the player and leaves the Power page under it
+    expect([c[0] for c in m.calls if c[0] in ('window_open', 'navigator_to', 'window_close')] == ['window_open', 'window_close'] and ('window_open', 'm1plus_sleeptimer') in m.calls and ('window_close', m.dialog) in m.calls
+           and 'navigator_to' not in m.names() and m.stack_names() == ['m1plus_sleeptimer_page'],
+           f'a tap opens our Sleep Timer page (never the stock Power page), then closes the sheet ({m.calls})')
+    m = PM(); m.open(); m.click_more(); m.windows = {'m1plus_sleeptimer': 0}; m.calls = []; m.click_row(SLEEP)
+    expect([c[0] for c in m.calls if c[0] in ('window_open', 'navigator_to', 'window_close')] == ['window_open'] and m.shown() == PAGE2 and m.top() == SHEET2_Y and m.size(m.dialog) == (320, 300),
+           'a page that will not open leaves the sheet as it was, on page 2, nothing closed, no stock page instead')
+    # the window stack the way the device keeps it: the page's top-right Now Playing button restacks the player and leaves the page under it
     def sleep_from_player(m):
         """Now Playing on top, the More sheet open on page 2, a tap on Sleep Timer."""
-        m.calls = []; m.click_more(); m.click_row(SLEEP); return [c for c in m.calls if c[0] in ('navigator_to', 'switch_to', 'to_fg', 'fg_refresh', 'stock_power_refresh', 'window_close')]
+        m.calls = []; m.click_more(); m.click_row(SLEEP); return [c for c in m.calls if c[0] in ('window_open', 'navigator_to', 'switch_to', 'to_fg', 'fg_refresh', 'stock_power_refresh', 'window_close')]
+    SL = 'm1plus_sleeptimer_page'
     m = PM(); m.page('home_page'); m.page('playing_page'); m.open()
     for cycle in range(5):
         calls = sleep_from_player(m)
-        want = [('navigator_to', 'systemset/powermanager_page'), ('window_close', m.dialog)] if cycle == 0 else [('switch_to', 'powermanager_page', 0), ('to_fg', 'powermanager_page'), ('fg_refresh', 'powermanager_page'), ('window_close', m.dialog)]
-        expect(calls == want and m.stack_names().count('powermanager_page') == 1 and m.stack_names()[-1] == 'powermanager_page',
-               f'Sleep Timer cycle {cycle + 1}: {"a new Power window" if cycle == 0 else "the Power window in the stack restacked, refreshed by its own stock foreground handler"}, then the sheet closed, no direct refresh call from us; one Power window, on top ({calls}, {m.stack_names()})')
+        want = [('window_open', 'm1plus_sleeptimer'), ('window_close', m.dialog)] if cycle == 0 else [('switch_to', SL, 0), ('to_fg', SL), ('window_close', m.dialog)]
+        expect(calls == want and m.stack_names().count(SL) == 1 and m.stack_names()[-1] == SL,
+               f'Sleep Timer cycle {cycle + 1}: {"a new page" if cycle == 0 else "the page in the stack restacked (stock delivers EVT_WINDOW_TO_FG, which refreshes our checks)"}, then the sheet closed, no call of stock\'s Power page refresh; one page, on top ({calls}, {m.stack_names()})')
         m.to_player()
-        expect(m.stack_names() == ['home_page', 'powermanager_page', 'playing_page'], f'the to-player button leaves the Power page under the player ({m.stack_names()})')
+        expect(m.stack_names() == ['home_page', SL, 'playing_page'], f'the to-player button leaves the page under the player ({m.stack_names()})')
         m.open()    # the next More sheet over Now Playing
-    expect(m.stack_names().count('powermanager_page') == 1 and len(m.navs) == 3, f'five cycles: still exactly one Power window ({m.stack_names()})')
-    # Back from the restacked page: stock's btn_return0 stores the time and calls navigator_back (pops the top window): the player is below the Power page again
+    expect(m.stack_names().count(SL) == 1 and len(m.navs) == 3, f'five cycles: still exactly one Sleep Timer window ({m.stack_names()})')
+    # Back from the restacked page pops the top window: the player is below the page again
     m = PM(); m.page('home_page'); m.page('playing_page'); m.open(); sleep_from_player(m); m.to_player(); m.open(); sleep_from_player(m)
-    expect(m.stack_names() == ['home_page', 'playing_page', 'powermanager_page'], f'a restacked Power page sits directly over the player, so Back (stock pops the top window) lands on Now Playing ({m.stack_names()})')
-    # Power already in the stack under other windows, and not at the top: restacked from wherever it is
-    m = PM(); m.page('home_page'); m.page('powermanager_page'); m.page('playing_page'); m.page('m1plus_lyrics'); m.open(); calls = sleep_from_player(m)
-    expect(calls == [('switch_to', 'powermanager_page', 0), ('to_fg', 'powermanager_page'), ('fg_refresh', 'powermanager_page'), ('window_close', m.dialog)] and m.stack_names() == ['home_page', 'playing_page', 'm1plus_lyrics', 'powermanager_page'],
-           f'a Power window already in the stack is reused, whatever lies above it ({calls}, {m.stack_names()})')
-    # the restack fails: stock's open instead, still a closed sheet; the lookup finds a closing window: the same; the lookup finds nothing: stock's open
-    m = PM(); m.page('playing_page'); m.page('powermanager_page'); m.page('playing_page'); m.open(); m.switch_fail = True; calls = sleep_from_player(m)
-    expect([c[0] for c in calls] == ['switch_to', 'navigator_to', 'window_close'],
-           f'a failed restack falls back to stock navigator_to and closes the sheet once it is up, no foreground event, no refresh ({calls})')
-    m = PM(); m.page('powermanager_page'); m.page('playing_page'); m.open(); m.closing.add(m.navs[0][1]); calls = sleep_from_player(m)
-    expect([c[0] for c in calls] == ['navigator_to', 'window_close'], f'a Power window that is closing is not restacked ({calls})')
+    expect(m.stack_names() == ['home_page', 'playing_page', SL], f'a restacked page sits directly over the player, so Back (it pops the top window) lands on Now Playing ({m.stack_names()})')
+    # the page already in the stack under other windows, and not at the top: restacked from wherever it is
+    m = PM(); m.page('home_page'); m.page(SL); m.page('playing_page'); m.page('m1plus_lyrics'); m.open(); calls = sleep_from_player(m)
+    expect(calls == [('switch_to', SL, 0), ('to_fg', SL), ('window_close', m.dialog)] and m.stack_names() == ['home_page', 'playing_page', 'm1plus_lyrics', SL],
+           f'a Sleep Timer window already in the stack is reused, whatever lies above it ({calls}, {m.stack_names()})')
+    # the restack fails: our open instead, still a closed sheet; the lookup finds a closing window: the same; the lookup finds nothing: our open
+    m = PM(); m.page('playing_page'); m.page(SL); m.page('playing_page'); m.open(); m.switch_fail = True; calls = sleep_from_player(m)
+    expect([c[0] for c in calls] == ['switch_to', 'window_open', 'window_close'],
+           f'a failed restack falls back to opening the page and closes the sheet once it is up, no foreground event ({calls})')
+    m = PM(); m.page(SL); m.page('playing_page'); m.open(); m.closing.add(m.navs[0][1]); calls = sleep_from_player(m)
+    expect([c[0] for c in calls] == ['window_open', 'window_close'], f'a window that is closing is not restacked ({calls})')
     m = PM(); m.page('playing_page'); m.open(); m.no_wm = True; calls = sleep_from_player(m)
-    expect([c[0] for c in calls] == ['navigator_to', 'window_close'], f'no window manager: stock navigator_to ({calls})')
-    m = PM(); m.page('playing_page'); m.page('powermanager_page'); m.page('playing_page'); m.open(); m.switch_fail = True; m.nav_ret = 1; calls = sleep_from_player(m)
-    expect([c[0] for c in calls] == ['switch_to', 'navigator_to'] and m.shown() == PAGE2 and m.size(m.dialog) == (320, 300),
+    expect([c[0] for c in calls] == ['window_open', 'window_close'], f'no window manager: the page is opened ({calls})')
+    m = PM(); m.page('playing_page'); m.page(SL); m.page('playing_page'); m.open(); m.switch_fail = True; m.windows = {'m1plus_sleeptimer': 0}; calls = sleep_from_player(m)
+    expect([c[0] for c in calls] == ['switch_to', 'window_open'] and m.shown() == PAGE2 and m.size(m.dialog) == (320, 300),
            f'a failed restack and a refused page leave the sheet as it was ({calls})')
     m = PM(); m.open(); m.click_more(); m.wifi = -1; m.click_back(); m.click_more()
     expect(m.live(SLEEP), 'Sleep Timer needs no Wi-Fi: live with the Wi-Fi off')
     m = PM(); m.open(); m.calls = []
     stale = m.alloc(0x80); m.call(PSYMS['pm_on_sleep'], a0=stale, a1=0, count=100000)
-    expect('navigator_to' not in [c[0] for c in m.calls], 'a Sleep Timer click handler left behind for another dialog does nothing')
+    expect('window_open' not in [c[0] for c in m.calls], 'a Sleep Timer click handler left behind for another dialog does nothing')
 
     # -- 7c. an episode is playing: page 1 is Go to Podcasts and More (patch/playmore.c pm_set, pm_on_goep) ------------------------------
     EP = '/mnt/mmc/Podcasts/Show One/ep1.mp3'

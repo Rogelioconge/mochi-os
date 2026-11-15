@@ -1,4 +1,4 @@
-"""The pull-down's tiles (patch/pulldown.c, docs/modules/pulldown.md): the hook on dialog_dropdown_dialog_init, the saved file and the Settings > System > Appearance > Control Center page.
+"""The pull-down's tiles (patch/pulldown.c, docs/modules/pulldown.md): the hook on dialog_dropdown_dialog_init, the saved file and the Settings > Appearance > Control Center page.
 
 The hook runs the real compiled payload under the harness machine with the stock init mocked at its resume point (the dialog's handlers
 and the tiles' clicks are bound by stock code, which the hook never touches); the dialog's geometry is the built asset's own
@@ -170,7 +170,7 @@ def hook_tests(ctx):
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
-# The Settings > System > Appearance > Control Center page (patch/pulldown.c pulldown_page_opened), tested as menu.py tests the Main Menu page
+# The Settings > Appearance > Control Center page (patch/pulldown.c pulldown_page_opened), tested as menu.py tests the Main Menu page
 
 def page_tests(ctx):
     expect, P = ctx.expect, pod_pages
@@ -183,10 +183,10 @@ def page_tests(ctx):
     s_i = next(i for i, r in enumerate(P.APPEARANCE_PAGE.rows) if r.action == P.ACT_PAGE and r.arg == P.PULLDOWN_PAGE_INDEX)
     sysrows = [r.label for r in P.SETTINGS_PAGE.rows]
     a_i = next(i for i, r in enumerate(P.SETTINGS_PAGE.rows) if r.action == P.ACT_PAGE and r.arg == P.APPEARANCE_PAGE_INDEX)
-    expect(P.SETTINGS_PAGE.rows[a_i].label == 'Appearance' and sysrows[sysrows.index('Display') + 2] == 'Appearance' and sysrows[sysrows.index('Display') + 3] == 'Keyboards'
+    expect(P.SETTINGS_PAGE.rows[a_i].label == 'Appearance' and sysrows[sysrows.index('Display') + 1] == 'Appearance' and sysrows[sysrows.index('Display') + 2] == 'Buttons & Power'
            and P.PAGES[P.APPEARANCE_PAGE_INDEX] is P.APPEARANCE_PAGE and P.APPEARANCE_PAGE.title == 'Appearance' and [r.label for r in P.APPEARANCE_PAGE.rows] == ['Background', 'Accent', 'Control Center']
            and P.PAGES[P.PULLDOWN_PAGE_INDEX] is P.PULLDOWN_PAGE and P.PULLDOWN_PAGE.title == 'Control Center' and P.PULLDOWN_PAGE.rows == [] and P.PULLDOWN_PAGE.kind == 'pdcfg',
-           'Settings > System has an Appearance link row after Display and Buttons & Power; its page has Background and Accent, then the Control Center row in a card of its own, which opens the page of that title (Lock Screen is on Display)')
+           'Settings has an Appearance link row after Display; its page has Background and Accent, then the Control Center row in a card of its own, which opens the page of that title (Lock Screen is on Display)')
     arrow = lambda m, i: m.click(f'pod_row{i}', x=ZX + ZW // 2)
 
     def open_page(data=None):
@@ -696,23 +696,23 @@ def own_tests(ctx):
         expect(m.touched() == [], f'an asset without {gone} (not our dialog): the stock layout, nothing moved')
 
     # -- a tap quits the dialog the way stock's tile handlers do (dialog_quit(dialog, 0xd)); the page opens after the modal call returns
-    H, P_, SET, PEQ, PW = 'home_page', 'playing_page', 'm1plus_settings_page', 'm1plus_peq_page', 'powermanager_page'
+    H, P_, SET, PEQ, SL = 'home_page', 'playing_page', 'm1plus_settings_page', 'm1plus_peq_page', 'm1plus_sleeptimer_page'
     pages = lambda c: [x for x in c if x[0] in ('window_open', 'navigator_to', 'switch_to', 'window_close')]
     for img, _, _, _, tid in OWN:
         m = PT([H]); m.swipe(b'0123456' + P.PULLDOWN_CHARS[tid].encode() + b'\n')
         calls = m.tap(img)
         expect(calls == [('dialog_quit', m.dlg, QUIT)], f'{img}: the tap quits the dialog with 0xd and opens nothing itself ({calls})')
     m = PT([H]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
-    expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('navigator_to', 'systemset/powermanager_page')] and m.names_() == [H, PW],
-           f'Sleep: after the modal call the stock Power page opens, as Now Playing\'s Sleep Timer row opens it ({pages(calls)})')
+    expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_sleeptimer')],
+           f'Sleep: after the modal call our Sleep Timer page opens (open_page(POD_SLEEPTIMER_PAGE)), never the stock Power page ({pages(calls)})')
     ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')], 'the action runs once: the next modal call (a stock tile) opens nothing of ours')
-    m = PT([H, PW, P_]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
-    expect(pages(calls)[1:] == [('switch_to', P_, PW, 0)] and m.names_() == [H, P_, PW], f'a Power page left behind the player is brought to the front, not stacked twice ({pages(calls)})')
-    m = PT([H, PW]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
-    expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')] and m.names_() == [H, PW], 'the Power page already in front is left alone')
-    m = PT([H]); m.nav_fail = True; m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
-    expect(ret == QUIT and m.names_() == [H], 'a Power page that will not open: nothing else happens, the result is the dialog\'s')
+    m = PT([H, SL, P_]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
+    expect(pages(calls)[1:] == [('switch_to', P_, SL, 0)] and m.names_() == [H, P_, SL], f'a Sleep Timer page left behind the player is brought to the front, not stacked twice ({pages(calls)})')
+    m = PT([H, SL]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
+    expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')] and m.names_() == [H, SL], 'the Sleep Timer page already in front is left alone')
+    m = PT([H]); m.swipe(b'8\n'); m.windows = {'m1plus_sleeptimer': 0}; m.tap('pod_tile_sleep'); ret, calls = m.modal()
+    expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_sleeptimer')] and m.names_() == [H], 'a Sleep Timer page that will not open: nothing else happens, the result is the dialog\'s')
     m = PT([H]); m.swipe(b'9\n'); m.tap('pod_tile_settings'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_settings')], f'Settings: our Settings page is opened (open_page(POD_SETTINGS_PAGE)) ({pages(calls)})')
     m = PT([H, SET, 'm1plus_display_page', P_]); m.swipe(b'9\n'); m.tap('pod_tile_settings'); ret, calls = m.modal()
@@ -858,8 +858,9 @@ def stockopen_tests(ctx):
 
     kinds = lambda m: [c for c in m.calls if c[0] in ('navigator_to', 'switch_to', 'to_fg')]
     names = [(path, window) for path, _, window in P.STOCK_PAGES]
-    expect(len(names) == 2 and all(window is None for path, window in names) and {p for p, _ in names} == {'systemset/bluetooth_page', 'systemset/wifi_page'},
-           'both stock pages a Settings row opens are opened afresh each time: Bluetooth (its background handler stops discovery and only init restarts it) and Wi-Fi (init scans on every open, the foreground handler only rebuilds the list)')
+    fresh = {'systemset/bluetooth_page', 'systemset/wifi_page', 'systemset/rippingset_page'}
+    expect(len(names) == 8 and {p for p, w in names if w is None} == fresh and {w for p, w in names if w} == {'usbset_page', 'synclink_page', 'fwupdate_page', 'prove_page', 'reset_page'},
+           'the stock pages a Settings row opens: Bluetooth (its background handler stops discovery and only init restarts it), Wi-Fi (init scans on every open, the foreground handler only rebuilds the list) and CD Ripping (its init binds both window events) are opened afresh each time; the five pages of General\'s other rows (no window event bound) are restacked')
     for path, window in names + [('systemset/display_page', 'display_page')]:   # (a page that names its window, the last component of its path: stock\'s Display list, which no row of ours opens now, as the model of the restack)
         if window is None: continue
         m = SF([H, PL])
@@ -904,7 +905,7 @@ def stockopen_tests(ctx):
 
     # -- every page: what init does per open (STOCK_LIFE: wifi_scan with Wi-Fi on, btStartSearch with Bluetooth on) has happened again after open, Now Playing button, reopen,
     #    whether through a fresh init or through the foreground handler
-    per_open = {'wifi_page': 'wifi_scan', 'bluetooth_page': 'bt_search'}
+    per_open = {'wifi_page': 'wifi_scan', 'bluetooth_page': 'bt_search', 'rippingset_page': None, 'usbset_page': None, 'synclink_page': None, 'fwupdate_page': None, 'prove_page': None, 'reset_page': None}
     for path, _, window in P.STOCK_PAGES:
         page = path.split('/')[-1]
         m = SF([H, PL]); m.bt_on = True

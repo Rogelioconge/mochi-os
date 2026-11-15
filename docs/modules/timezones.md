@@ -1,6 +1,6 @@
 # Time zones
 
-The Settings > Date & Time zone picker lists 43 zones (stock: 27) west to east, and the saved
+The Settings > General > Date & Time zone picker lists 43 zones (stock: 27) west to east, and the saved
 zone maps to a `TZ` value from our table. After q2-pod (`tools/build.py` `TIMEZONES`,
 `TIMEZONE_ORDER`; `patch/navigation.c` `ringnav_timezone`). Table, order and pins:
 `tools/timezones.py`; code: `patch/timezones.c`; build wiring: `tools/pod.py patch_timezones`.
@@ -14,7 +14,7 @@ Prompted by a user report that GMT+5:30 (India) was missing.
   the index through a 27-way jump table to a zoneinfo name and calls `toolsSetTimeZone` `0x5e3288`
   (`setenv("TZ", name, 1)`; no `tzset`). Any index of 27 or more gives `Asia/Shanghai`.
 - The picker is the "autosynctime" page: the page builder `0x4a2424` makes rows 0 (auto time switch),
-  1 (header) and, only while auto time is off, rows 2..28, one per zone (`timezone_listitem_layout`
+  1 (header) and, only while auto time is on (`movz` at `0x4a2474`), rows 2..28, one per zone (`timezone_listitem_layout`
   `0x4a21c8`). A zone row is named `"%d"` (its row number), its tick image `image_choice<index>`
   (ticked when `index == time_zone`), and its text is `widget_set_tr_text` of an i18n key
   (`timezone_gmt-12` ... `timezone_gmt+12`, pointer array `0x97c810`, copied to the stack: 27 entries,
@@ -80,7 +80,8 @@ header rows, and every other page, keep their words. Preview: `tools/preview/pre
   `ringnav_timezone_row` shows the live `tm_gmtoff`; not ported).
 - Like stock, no `tzset` follows `setenv`; `localtime` re-reads `TZ`, `localtime_r` does not.
 - A device whose saved index is 27 or more (set by this build) boots on a stock build with Shanghai.
-- Rows exist only while auto time is off, as stock.
+- Rows exist only while auto time is on, as stock (layout only: the click handler does not test the byte). Our Date & Time page
+  ([datetime](datetime.md)) lets the zone be chosen always, with auto time on or off.
 
 ## Validation
 

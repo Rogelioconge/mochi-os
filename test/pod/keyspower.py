@@ -1,4 +1,4 @@
-"""Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): our page for stock's key lock, Tap to Wake, Auto-Standby and Auto-Shutdown. Every state is stock's own and is written the way
+"""Settings > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): our page for stock's key lock, Tap to Wake, Auto-Standby and Auto-Shutdown. Every state is stock's own and is written the way
 stock's own pages write it, which the tests check by running stock's click handlers under the emulator on the same state and comparing the stored values, the saves and the countdown calls, in order, with ours."""
 import os
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
@@ -9,9 +9,10 @@ LOCK_SWITCH, LOCK_CHOICE = 0x4a7a04, {1: 0x4a7a7c, 2: 0x4a7ab8, 3: 0x4a7af4}   #
 SYSSET_CLICK = 0x4ad7b0                                                       # stock's shared sysset list click handler (the row item in a0; its name is the row's number)
 STANDBY_SWITCH, SHUTDOWN_SWITCH = 0x4a97c4, 0x4a966c                           # stock's systemset/powermanager_page switches
 SHUTDOWN_CHOICE = {1: 0x4a9cb4, 2: 0x4a9c50, 3: 0x4a9bec, 4: 0x4a9b88}        # ... and its four durations (1, 3, 5, 10 min)
+CAR, CARSTART = pod.DATA['CAR_MODE'][0], pod.DATA['CAR_STARTFLAG'][0]
 WIN = 0x30000000
 LEAVES = {0x742da0: 'memset', 0x70f8d8: 'tk_snprintf', 0x7435b0: 'atoi'}   # (the PLT stubs stock's code calls through)
-STOCK_WIDGETS = ('img_switch', 'listitem1', 'listitem2', 'listitem3', 'listitem4', 'img_choice1', 'img_choice2', 'img_choice3', 'img_doublewake7', 'imgswitch_standby', 'imgswitch_saver',
+STOCK_WIDGETS = ('img_switch', 'listitem1', 'listitem2', 'listitem3', 'listitem4', 'img_choice1', 'img_choice2', 'img_choice3', 'img_doublewake7', 'img_carmode6', 'imgswitch_standby', 'imgswitch_saver',
                  'standby_listitem2', 'standby_listitem3', 'standby_listitem4', 'standby_listitem5', 'standby_listitem6') + tuple(f'standby_imgchoice{i}' for i in range(1, 6))   # the widgets stock's refreshes look up
 KINDS = ('pod_value', 'pod_label', 'pod_switch', 'pod_check')
 
@@ -39,6 +40,15 @@ class KM(Machine):
     def stock_widgets(self):
         for n in STOCK_WIDGETS: self.widget(n)
         return self
+
+
+class CM(KM):
+    """The same machine with Car Mode's byte and word in the state every call records."""
+    def __init__(self, car=0, start=0, **kw):
+        super().__init__(**kw)
+        self.u.mem_write(CAR, bytes([car])); self.setword(CARSTART, start)
+
+    def state(self): return super().state() + (self.byte(CAR), self.word(CARSTART))
 
 
 def saves(m):
@@ -110,6 +120,31 @@ def tap_tests(ctx):
         expect(KM(tap=v).call(PSYMS['kp_tap'], count=200000) == want, f'the byte {v}: the switch shows {want} (the low bit, as the toggle)')
 
 
+def car_tests(ctx):
+    """kp_car / kp_car_toggle against the case of stock's sysset click handler for the Car Mode row (row 6)."""
+    expect = ctx.expect
+    expect(pod.DATA['CAR_MODE'] == (0xa05aa6, 'car_mode') and pod.DATA['CAR_STARTFLAG'] == (0xa059dc, 'carmode_startflag'), 'the byte and the word are stock\'s (checked against demo\'s dynsym by the build)')
+    pins = {a: w for a, w, _ in pod.KEYSPOWER_PINS}
+    expect(all(a in pins for a in (0x748af8, 0x97c8d8, 0x4ad84c, 0x4ad860, 0x4ad864, 0x4ad868, 0x4ad870, 0x4ad874, 0x4ad878, 0x4ad8d8, 0x4ad91c, 0x4ad8e8, 0x4ad8f4, 0x4ad8f8, 0x4e5f14, 0x4e5f2c, 0x4e5f34,
+                                 0x4ce62c, 0x4ce6f4, 0x4ce218, 0x4cdf74, 0x534e74, 0x4e33cc)),
+           'the case\'s byte, xor, key, save, image and word, config_init\'s clamp and the byte\'s readers (the countdowns, the USB checks, the start-up resume) are pinned')
+    for st in (0, 1):
+        for start in (0, 1, 2, 3):
+            ms = CM(car=st, start=start).stock_widgets()
+            node = ms.alloc(0x40); ms.setword(node + 0x10, ms.cstr('6'))   # the row item: its name is the row's number
+            expect(ms.word(0x97c8c0 + 4 * 6) == 6, 'the sysset list\'s table maps the row number 6 to the case 6 (Car Mode)')
+            ms.call(SYSSET_CLICK, a0=node, count=3000000)
+            mo = CM(car=st, start=start); r = mo.call(PSYMS['kp_car_toggle'], count=2000000)
+            want = [('write_int_config', 1 - st, 'SYSSET', 'CARMODE')]
+            expect(r == 1 - st and mo.byte(CAR) == ms.byte(CAR) == 1 - st and mo.word(CARSTART) == ms.word(CARSTART) == 0 and saves(mo) == saves(ms) == want,
+                   f'Car Mode from {st} (start flag {start}): the byte, the one save and the start flag cleared are stock\'s ({saves(mo)} / {saves(ms)}, {mo.word(CARSTART)} / {ms.word(CARSTART)})')
+            same(expect, mo, ms, f'Car Mode from {st}, start flag {start}')
+            other = {c[0] for c in ms.calls} - {'memset', 'tk_snprintf', 'widget_lookup', 'image_base_set_image', 'atoi', 'write_int_config'}
+            expect(not other and {c[0] for c in mo.calls} == {'write_int_config'}, f'stock\'s handler only saves, looks up and sets the row\'s image ({sorted(other)}); ours calls nothing but the save')
+    for v, want in ((0, 0), (1, 1), (2, 1), (0xff, 1)):
+        expect(CM(car=v).call(PSYMS['kp_car'], count=200000) == want, f'the byte {v}: the switch shows {want} (non-zero, as stock\'s image test)')
+
+
 def power_tests(ctx):
     """kp_standby / kp_standby_toggle / kp_shutdown / kp_shutdown_set against stock's two switches and four durations."""
     expect = ctx.expect
@@ -164,15 +199,16 @@ def settings_tests(ctx):
     V, K, L, S = P.SETTINGS_PAGE, P.KEYSPOWER_PAGE, P.KEYLOCK_PAGE, P.SHUTDOWN_PAGE
     labels = [r.label for r in V.rows]
     ki = labels.index('Buttons & Power')
-    expect(V.rows[ki].action == P.ACT_PAGE and V.rows[ki].arg == P.KEYSPOWER_PAGE_INDEX and P.PAGES[P.KEYSPOWER_PAGE_INDEX] is P.KEYSPOWER_PAGE and P.row_kind(V.rows[ki]) == 'link' and labels[ki - 1] == 'Display' and labels[ki + 1] == 'Appearance',
-           'Settings > System > Buttons & Power: after Display, opens our page')
-    expect(P.PAGES[P.KEYSPOWER_PAGE_INDEX] is K and P.PAGES[P.KEYLOCK_PAGE_INDEX] is L and P.PAGES[P.SHUTDOWN_PAGE_INDEX] is S and (P.KEYLOCK_PAGE_INDEX, P.SHUTDOWN_PAGE_INDEX) == (74, 75)
+    expect(V.rows[ki].action == P.ACT_PAGE and V.rows[ki].arg == P.KEYSPOWER_PAGE_INDEX and P.PAGES[P.KEYSPOWER_PAGE_INDEX] is P.KEYSPOWER_PAGE and P.row_kind(V.rows[ki]) == 'link' and labels[ki - 1] == 'Appearance' and labels[ki + 1] == 'Battery',
+           'Settings > Buttons & Power: after Appearance, opens our page')
+    expect(P.PAGES[P.KEYSPOWER_PAGE_INDEX] is K and P.PAGES[P.KEYLOCK_PAGE_INDEX] is L and P.PAGES[P.SHUTDOWN_PAGE_INDEX] is S
            and (K.key, K.title, L.key, L.title, S.key, S.title) == ('m1plus_keyspower', 'Buttons & Power', 'm1plus_keylock', 'Button Lock', 'm1plus_shutdown', 'Auto-Shutdown'), 'the three pages')
     expect([(r.label, r.action, r.arg) for r in K.rows] == [('Button Lock', P.ACT_KEYLOCK, P.KEYLOCK_PAGE_INDEX), ('Tap to Wake', P.ACT_TAPWAKE, 0), ('Auto-Standby', P.ACT_STANDBY, 0),
-                                                           ('Auto-Shutdown', P.ACT_SHUTDOWN, P.SHUTDOWN_PAGE_INDEX)] and [P.row_kind(r) for r in K.rows] == ['value', 'switch', 'switch', 'value'], 'the page\'s rows and their kinds')
+                                                           ('Auto-Shutdown', P.ACT_SHUTDOWN, P.SHUTDOWN_PAGE_INDEX), ('Car Mode', P.ACT_CARMODE, 0)] and [P.row_kind(r) for r in K.rows] == ['value', 'switch', 'switch', 'value', 'switch'], 'the page\'s rows and their kinds')
     kl = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in K.layout]
-    expect(kl == ['Button Lock', 'Only effective when the screen is off', 'Tap to Wake', P.GAP, 'Auto-Standby', 'Auto-Shutdown', 'Only one of Auto-Standby and Auto-Shutdown is on at a time'],
-           f'three cards: Button Lock with its note; Tap to Wake; Auto-Standby + Auto-Shutdown with its note ({kl})')
+    expect(kl == ['Button Lock', 'Only effective when the screen is off', 'Tap to Wake', P.GAP, 'Auto-Standby', 'Auto-Shutdown', 'Only one of Auto-Standby and Auto-Shutdown is on at a time', P.GAP,
+                 'Car Mode', 'Resumes the last track at start. Auto-Standby, Auto-Shutdown and USB connections are ignored.'],
+           f'four cards: Button Lock with its note; Tap to Wake; Auto-Standby + Auto-Shutdown with its note; Car Mode with its note ({kl})')
     expect([(r.label, r.action, r.arg) for r in L.rows] == [('Off', P.ACT_KEYLOCKSET, 0), ('Lock Volume Only', P.ACT_KEYLOCKSET, 1), ('Lock Buttons Only', P.ACT_KEYLOCKSET, 2), ('Lock Volume & Buttons', P.ACT_KEYLOCKSET, 3)]
            and all(P.row_kind(r) == 'check' for r in L.rows) and [x.text for x in L.layout if isinstance(x, P.Note)] == ['Only effective when the screen is off'] and P.KEYLOCK_VALUES == ('Off', 'Volume', 'Buttons', 'Both'),
            'the Button Lock picker: Off and stock\'s three modes in stock\'s numbers, the note repeated')
@@ -275,9 +311,20 @@ def settings_tests(ctx):
     lt = awtk_ui.parse(open(os.path.join(raw, 'm1plus_keylock.bin'), 'rb').read())
     st = awtk_ui.parse(open(os.path.join(raw, 'm1plus_shutdown.bin'), 'rb').read())
     se = awtk_ui.parse(open(os.path.join(raw, 'm1plus_settings.bin'), 'rb').read())
-    expect([kt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(4)] == ['pod_ci_lock_keyhole', 'pod_ci_pointer', 'pod_ci_moon', 'pod_ci_power'] and kt.find('label_title').get('tr_text') == 'Buttons & Power'
-           and se.find(f'pod_row{ki}').find('pod_icon').get('image') == 'pod_ci_power', 'the page asset: the four glyphs and the title; the Settings row\'s glyph')
-    expect([kt.find(f'pod_label{i}').get('tr_text') for i in range(4)] == ['Button Lock', 'Tap to Wake', 'Auto-Standby', 'Auto-Shutdown'], 'the row labels are our short keys')
+    expect([kt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(5)] == ['pod_ci_lock_keyhole', 'pod_ci_pointer', 'pod_ci_moon', 'pod_ci_power', 'pod_ci_car'] and kt.find('label_title').get('tr_text') == 'Buttons & Power'
+           and se.find(f'pod_row{ki}').find('pod_icon').get('image') == 'pod_ci_power', 'the page asset: the five glyphs and the title; the Settings row\'s glyph')
+    expect([kt.find(f'pod_label{i}').get('tr_text') for i in range(5)] == ['Button Lock', 'Tap to Wake', 'Auto-Standby', 'Auto-Shutdown', 'Car Mode'], 'the row labels are our short keys')
+    # Car Mode: the switch follows the byte and a tap is stock's click (the byte, the save, the start flag cleared)
+    for car, img in ((0, 'sset_off'), (1, 'sset_on')):
+        m = page(P.KEYSPOWER_PAGE_INDEX, 5, PK, tap=0)
+        m.u.mem_write(CAR, bytes([car])); m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
+        expect(sw_images(m, 4)[-1] == img and not saves(m), f'the byte {car}: the Car Mode switch shows {img} when the page is back in front, nothing written')
+    m = page(P.KEYSPOWER_PAGE_INDEX, 5, PK)
+    m.setword(CARSTART, 3); m.calls = []; m.click('pod_row4')
+    expect(m.byte(CAR) == 1 and m.word(CARSTART) == 0 and saves(m) == [('write_int_config', 1, 'SYSSET', 'CARMODE')] and sw_images(m, 4)[-1] == 'sset_on', f'a tap turns Car Mode on: the byte, the save, the start flag cleared, the switch ({saves(m)})')
+    m.click('pod_row4')
+    expect(m.byte(CAR) == 0 and sw_images(m, 4)[-1] == 'sset_off' and saves(m)[-1] == ('write_int_config', 0, 'SYSSET', 'CARMODE'), 'and off again')
+    expect(P.ACT_CARMODE == 154 and P.ACT_CARMODE in P.SWITCH_ACTIONS and pod_i18n.key_for('Car Mode') == 'Car Mode' and mod_icons.CARD_GLYPHS['Car Mode'] == 'car', 'the action 154, a switch row; our short key and the car glyph')
     for tree, n, title, first in ((lt, 4, 'Button Lock', 'Off'), (st, 5, 'Auto-Shutdown', 'Off')):
         expect(all(tree.find(f'pod_check{i}').get('visible') == 'false' and tree.find(f'pod_check{i}').get('sensitive') == 'false' for i in range(n)) and tree.find('label_title').get('tr_text') == title
                and tree.find('pod_label0').get('tr_text') == first, f'the {title} picker asset: {n} rows, a hidden insensitive check each')
@@ -285,4 +332,4 @@ def settings_tests(ctx):
            'the durations as stock writes them; the lock choices translated')
 
 
-SECTIONS = [lock_tests, tap_tests, power_tests, settings_tests]
+SECTIONS = [lock_tests, tap_tests, power_tests, settings_tests, car_tests]

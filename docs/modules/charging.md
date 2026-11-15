@@ -1,6 +1,6 @@
 # Charge Limit
 
-Settings > System > **Battery** (with Battery Percentage, first on the page) > **Charge Limit** pauses charging at 80, 85, 90 or 95 %
+Settings > **Battery** (with Battery Percentage, first on the page) > **Charge Limit** pauses charging at 80, 85, 90 or 95 %
 while the player runs; 100 % (the default) is no limit. Charging resumes 5 points lower.
 Powered-off charging and the status bar's charging picture stay stock's. Not yet tested on
 the device: see [Validation limits](#validation-limits).

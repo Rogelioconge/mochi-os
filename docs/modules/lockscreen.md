@@ -84,7 +84,7 @@ The stock battery props are restored on `pgbar_battery` (no text readout of its 
 - **Not possible asset-only:** the cover instead of the wallpaper (`img_screensaver` gets its image once,
   in the init visitor).
 
-## Setting (Settings > System > Display > Lock Screen)
+## Setting (Settings > Display > Lock Screen)
 
 A **Lock Screen** link row (a plain `ACT_PAGE` row like Control Center: lock glyph, label, chevron, no value text; zh 锁屏) is on our Display page (`DISPLAY_PAGE`, [display](display.md)), under Screen Timeout in the same card. It opens **our Lock Screen page** `m1plus_lockscreen` (`LOCK_PAGE`), which replaces stock's `systemset/screensaver_page` completely; stock's own Lock Screen entry (the Display page's row) opens it too ("The Display row"). Four cards:
 

@@ -82,7 +82,7 @@ class TM(ListMachine):
 
 
 class TMZh(KB.PY.Engine, TM):
-    """TM over demo's real pinyin engine (Settings > Keyboards > Chinese on, the dictionary there), as test/pod/keyboard.py zh_machine."""
+    """TM over demo's real pinyin engine (Settings > General > Keyboards > Chinese on, the dictionary there), as test/pod/keyboard.py zh_machine."""
 
 
 def page(zh=False, **kw):

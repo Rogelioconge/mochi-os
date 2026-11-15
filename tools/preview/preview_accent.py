@@ -5,7 +5,7 @@ which test/pod/palette.py compares with the C of patch/palette.c) (row glyphs ti
 
   out/preview/accent-black.png    rows = the accents, columns = the screens: Settings (Library pressed), the M1+ Music menu (glyphs in the accent, Albums pressed), a song list (a row pressed, the playing wave),
                                   a card with switches, a picker row and a slider, Now Playing's progress bar
-  out/preview/accent-picker.png   the Appearance page and the Accent picker (Settings > System > Appearance > Accent) with each accent chosen, and the pressed row of the picker
+  out/preview/accent-picker.png   the Appearance page and the Accent picker (Settings > Appearance > Accent) with each accent chosen, and the pressed row of the picker
   out/preview/accent-tinted.png   Background Tinted x each accent: the M1+ Music menu, Settings, the Appearance page (Background row), a song list, the pull-down, Now Playing (its cover background untouched)
   out/preview/accent-tints.png    the images the accent tints, one row per accent (the mixed track / fill pixels of other_progress and datetime_back zoomed)
   out/preview/uic2/accent-*.png   the elements the second consistency pass made follow the accent (Neutral | Teal | Orange panels): tenband, band (the EQ pages' thumb, fill and curve), songs-select (selected mark),
@@ -231,12 +231,12 @@ def tinted_contrast():
 def picker_sheet(s, bg, path):
     """The Accent picker with each accent chosen (the check, the swatches), and the Appearance page with its Accent row; one pressed row (Teal) shows the pressed card piece in the accent."""
     pad, top = 14, 44
-    cols = [('Settings > System > Appearance', PS.draw_page(s, 'm1plus_appearance', pal=Palette(bg, 'teal'), state={'values': {'pod_value0': 'Teal'}}, pressed='Accent'))]
+    cols = [('Settings > Appearance', PS.draw_page(s, 'm1plus_appearance', pal=Palette(bg, 'teal'), state={'values': {'pod_value0': 'Teal'}}, pressed='Accent'))]
     for i, ac in enumerate(ACC):
         pal = Palette(bg, ac)
         cols.append((label_of(ac), PS.draw_page(s, 'm1plus_accent', pal=pal, state={'shown': {f'pod_check{i}'}}, pressed='Teal')))
     out = Image.new('RGB', (len(cols) * (W + pad) + pad, top + 450 + pad), (0x2A,) * 3); d = ImageDraw.Draw(out)
-    d.text((pad, 10), 'Settings > System > Appearance > Accent: the Appearance page (Accent pressed, Teal), then the picker with each accent chosen (Teal pressed)', fill=(0xEE,) * 3, font=PI.ANN_B)
+    d.text((pad, 10), 'Settings > Appearance > Accent: the Appearance page (Accent pressed, Teal), then the picker with each accent chosen (Teal pressed)', fill=(0xEE,) * 3, font=PI.ANN_B)
     for j, (t, im) in enumerate(cols):
         d.text((pad + j * (W + pad), 28), t, fill=(0xAA,) * 3, font=PI.ANN)
         out.paste(im.convert('RGB'), (pad + j * (W + pad), top))

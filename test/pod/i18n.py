@@ -36,8 +36,9 @@ SAME_AS_ENGLISH |= {'Sync Navidrome songs and artwork to the SD card now?', 'No 
 SAME_AS_ENGLISH |= {'A download is already queued', 'Artwork cache paused for download.', 'Artwork scan stopped; check SD card and server.',
                     'Download paused; tap Download to resume', 'Download queued; pausing artwork cache', 'Navidrome busy · download starting',
                     'Navidrome busy · updating SD library', 'Over 100k tracks; old index kept', 'Server rejected login or access'}
-SAME_AS_ENGLISH |= {'Version %s', 'Apple Podcasts', 'Podcast Index', 'Directory', 'Wi-Fi', 'Wi-Fi MAC', 'Bluetooth', 'EQ', 'System', 'Display', 'Firmware', 'Model', 'Device', 'Status', 'Auto'}    # brand and technical words (Wi-Fi, Bluetooth, EQ); System in German and Polish, Display in Italian
+SAME_AS_ENGLISH |= {'Version %s', 'Apple Podcasts', 'Podcast Index', 'Directory', 'Wi-Fi', 'Wi-Fi MAC', 'Bluetooth', 'EQ', 'System', 'General', 'Display', 'Firmware', 'Model', 'Device', 'Status', 'Auto'}    # brand and technical words (Wi-Fi, Bluetooth, EQ); System in German and Polish, Display in Italian
 SAME_AS_ENGLISH |= {'Enhanced Open', 'WEP', 'WPA/WPA2', 'WPA2/WPA3', 'WPA3', 'Enterprise'}    # the Wi-Fi page's security labels: the standards' names (Enterprise in German, Italian and Polish)
+SAME_AS_ENGLISH |= {'Date', 'Minute'}    # Date & Time: Date in French, Minute in French and German
 SAME_AS_ENGLISH |= {'Volume', 'Auto-Standby'}    # Buttons & Power: Volume in French and Italian, Auto-Standby in German (the hyphenated Standby is the German word too)
 SAME_AS_ENGLISH |= {'Password'}    # the password page's label: Password in Italian
 SAME_AS_ENGLISH |= {'Name'}    # the Other Network page's label: Name in German
@@ -270,7 +271,7 @@ def run(ctx):
     # the accepted overflows (the user's choice): the Control Center page's Playback row in Russian (Воспроизведение, the Settings header's word), and its Sleep Timer row (the stock text) in the languages where it is too long (the user's choice, 2026-11-13): each ends in an ellipsis and scrolls when focused
     cut = [o for o in over if o[:3] == (pod_pages.PULLDOWN_PAGE.key, 'Playback', 'ru_RU') or o[:2] == (pod_pages.PULLDOWN_PAGE.key, 'Sleep Timer')]
     over = [o for o in over if o not in cut]
-    expect(sorted(o[1:3] for o in cut) == sorted([('Playback', 'ru_RU'), ('Sleep Timer', 'ja_JP'), ('Sleep Timer', 'fr_FR'), ('Sleep Timer', 'sp_ES'), ('Sleep Timer', 'po_PL'), ('Sleep Timer', 'ru_RU')]), f'the Russian Playback row and the Sleep Timer row in ja, fr, es, pl and ru of Control Center are the labels cut with an ellipsis ({cut})')
+    expect(sorted(o[1:3] for o in cut) == sorted([('Playback', 'ru_RU'), ('Sleep Timer', 'ja_JP'), ('Sleep Timer', 'fr_FR'), ('Sleep Timer', 'po_PL'), ('Sleep Timer', 'ru_RU')]), f'the Russian Playback row and the Sleep Timer row in ja, fr, pl and ru of Control Center are the labels cut with an ellipsis (Spanish fits since STOCK_FIX shortened powerm_sleep for the Sleep Timer page title) ({cut})')
     expect(not over, f'every menu, Extras, Shuffle, Settings and Main Menu row and every page title fits its label in all 13 languages ({over[:40]})')
     hdr_over = []   # the section headers of the Extras and Settings > Extras pages: 16 px grey captions in labels of 274 px
     for page in (pod_pages.EXTRAS_PAGE, pod_pages.EXTRASCFG_PAGE):
@@ -375,6 +376,11 @@ def run(ctx):
                     need = width(tr_text(loc, pod_i18n.key_for(r.label)), row_px) + ST.VALUE_LABEL_GAP + min(width('99999', ST.VALUE_PX) + 6, ST.VALUE_MAX)
                     if need > room + ST.TEXT_X - ST.CM - ST.PAD: cards_over.append((page.key, r.label, '99999', loc, need, room))
                     continue
+                if r.action == pod_pages.ACT_LANG:   # the Language row: the language's own name at the right, in the shipped font (the same text in every UI language)
+                    for lk in pod_pages.LANGUAGE_KEYS:
+                        need = width(tr_text(loc, pod_i18n.key_for(r.label)), row_px) + ST.VALUE_LABEL_GAP + min(width(tr_text(loc, lk), ST.VALUE_PX) + 6, ST.VALUE_MAX)
+                        if need > room: cards_over.append((page.key, r.label, lk, loc, need, room))
+                    continue
                 if pod_pages.row_kind(r) != 'value': continue
                 vkeys = stock_values[pod_pages.STOCK_PAGES[r.arg][1]] if r.action == pod_pages.ACT_STOCK else pod_pages.BG_VALUES if r.action == pod_pages.ACT_BG else pod_pages.ACCENT_VALUES if r.action == pod_pages.ACT_ACCENT else pod_pages.IDLE_VALUES if r.action == pod_pages.ACT_IDLE else ('Large Cover', 'Mini Player') if r.action == pod_pages.ACT_LOCKSTYLE else ('Off', 'Albums') if r.action == pod_pages.ACT_NEXTALBUM else pod_pages.LIGHTTIME_VALUES if r.action == pod_pages.ACT_LIGHT else pod_pages.KEYLOCK_VALUES if r.action == pod_pages.ACT_KEYLOCK else pod_pages.SHUTDOWN_VALUES if r.action == pod_pages.ACT_SHUTDOWN else pod_pages.PLAYMODE_VALUES if r.action == pod_pages.ACT_PLAYMODE else pod_pages.MEMPLAY_VALUES if r.action == pod_pages.ACT_MEMPLAY else pod_pages.GAIN_VALUES if r.action == pod_pages.ACT_GAIN else pod_pages.REPLAYGAIN_VALUES if r.action == pod_pages.ACT_REPLAYGAIN else pod_pages.DSD_VALUES if r.action == pod_pages.ACT_DSD else pod_pages.USBVOL_VALUES if r.action == pod_pages.ACT_USBVOL else pod_pages.MAXVOL_VALUES if r.action == pod_pages.ACT_MAXVOL else pod_pages.BOOTVOL_VALUES if r.action == pod_pages.ACT_BOOTVOL else pod_pages.BALANCE_VALUES if r.action == pod_pages.ACT_BALANCE else pod_pages.XFEED_VALUES if r.action == pod_pages.ACT_XFEED else pod_pages.LYRSIZE_VALUES if r.action == pod_pages.ACT_LYRSIZE else () if r.action in (pod_pages.ACT_REGION, pod_pages.ACT_PCDIR) else ('Normal', 'Chrome', 'Metal', 'Auto')
                 vals = [(vk, tr_text(loc, vk)) for vk in vkeys] if r.action not in (pod_pages.ACT_REGION, pod_pages.ACT_PCDIR) else [('Automatic', tr_text(loc, 'Automatic'))] + [(n, n) for n in pcregion.NAMES] if r.action == pod_pages.ACT_REGION else [('Apple Podcasts', 'Apple Podcasts'), ('Podcast Index', 'Podcast Index')]   # (the Podcast Region's value: Automatic, or a storefront's English name)
@@ -394,9 +400,9 @@ def run(ctx):
     wrap_seen = 0
     for page in [p for p in pod_pages.PAGES if p.layout is not None]:
         tree = awtk_ui.parse(open(os.path.join(WORK, RAW, 'ui', page.key + '.bin'), 'rb').read())
-        for n, note in enumerate(x for x in page.layout if isinstance(x, pod_pages.Note)):
+        for n, note in enumerate(x for x in page.layout if isinstance(x, (pod_pages.Note, pod_pages.Hero))):   # (a Hero's description is numbered as a note; a centred Note and the description always wrap)
             node = tree.find(f'pod_note{n}_t')
-            if note.lines < 2:
+            if note.lines < 2 and not getattr(note, 'center', False):
                 if node.type != 'hscroll_label': cards_over.append((page.key, node.name, 'one-line note is not an hscroll_label'))
                 continue
             wrap_seen += 1

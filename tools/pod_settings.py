@@ -25,7 +25,13 @@ PAD, GLYPH_PX, ICON_PX, LABEL_GAP = 14, 20, 24, 14
 HDR_H, HDR_PX, HDR_LABEL_Y, HDR_LABEL_H = CAPTION_H, CAPTION_PX, CAPTION_LABEL_Y, CAPTION_LABEL_H   # the group caption (pod_roles)
 NOTE_H, NOTE_PX, NOTE_LABEL_Y, NOTE_LABEL_H = 34, 15, 6, 22
 WRAP_LINE = 21               # a wrapping note (Note.lines > 1, a plain label): each further line adds this
-GAP_H, END_H = 20, 10       # the space between two cards without a header or note; the list's bottom padding
+CENTRE_INSET = 20   # a Hero's description and a centred note: the label is the card column less this on each side, so two rows are about as long
+CNOTE_PX, CNOTE_PITCH, CNOTE_END =13, 15, 10   # a centred note (Note.center): 13 px, wrapped rows 15 px apart (a wrapped label's pitch is the font size + the style's spacer 2), 10 px under it
+HERO_TILE, HERO_TILE_Y, HERO_TILE_R, HERO_GLYPH = 64, 2, 16, 36   # a Hero's tile (a RAISED_RGB rounded square centred on the page, its top 2 px under the first item's) and its white glyph
+HERO_TITLE_Y, HERO_TITLE_H, HERO_TITLE_PX = 76, 30, 22          # its title: 22 px white, centred, 10 px under the tile
+HERO_DESC_Y, HERO_DESC_PX, HERO_DESC_PITCH, HERO_END = 108, 14, 16, 14   # its description: grey, 14 px, wrapped rows 16 px apart (font + spacer 2), 14 px between its last row and the next card
+BIG_H, BIG_CARD_H, BIG_PX, BIG_FACE = 66, 60, 22, 'lyrics'   # a BigCard: the item, its card (the tall single piece, 60 px) and the text size; the text is in the bold face (mod_font lyric_face; digits and Latin only: the payload writes the address)
+GAP_H, END_H = 20, 10      # the space between two cards without a header or note; the list's bottom padding
 REGION_H = 30               # the 10-Band editor's region line box (pod_regionbox): the 18 px line centred, 6 px clear above and below it, between the graph and the slider card
 GRAPH_H = 170                # the preset page's graph card (patch/offsets.inc PG_H): a view the width of the list, the card (x CM, CARD_W wide, rounded) baked into the bitmap the payload paints
 SEG_H, HSL_H = 58, 150       # the band page's Peak / Low shelf / High shelf control (a 40 px control with 10 px above it and 8 below: patch/offsets.inc BD_SEG_*) and its card of three 50 px slider rows (BD_HSL_*)
@@ -62,9 +68,29 @@ def row_h(row):
     return LIB_ROW_H if row.action == pod_pages.ACT_PEQ_LIB else ROW_H
 
 
+def hero_desc_h(lines):
+    """A Hero's description label: `lines` wrapped rows and the label's 2 px margins."""
+    return lines * HERO_DESC_PITCH + 4
+
+
+def hero_h(hero):
+    """A Hero item: the tile, the title, the description (its first row 2 px inside its label) and HERO_END under its last row."""
+    return HERO_DESC_Y + 2 + hero.lines * HERO_DESC_PITCH + HERO_END
+
+
+def cnote_label_h(note):
+    return note.lines * CNOTE_PITCH + 4
+
+
+def cnote_h(note):
+    """A centred note item: NOTE_LABEL_Y above the label, CNOTE_END under it."""
+    return NOTE_LABEL_Y + cnote_label_h(note) + CNOTE_END
+
+
 def item_h(item):
     """The height of a layout item: Hdr, Note, GAP, Row or TOP / END."""
-    return (HDR_H if isinstance(item, pod_pages.Hdr) else NOTE_H + (item.lines - 1) * WRAP_LINE if isinstance(item, pod_pages.Note) else GAP_H if item is pod_pages.GAP
+    return (HDR_H if isinstance(item, pod_pages.Hdr) else cnote_h(item) if isinstance(item, pod_pages.Note) and item.center else NOTE_H + (item.lines - 1) * WRAP_LINE if isinstance(item, pod_pages.Note)
+            else hero_h(item) if isinstance(item, pod_pages.Hero) else BIG_H if isinstance(item, pod_pages.BigCard) else GAP_H if item is pod_pages.GAP
             else REGION_H if item is pod_pages.REGION else GRAPH_H if isinstance(item, pod_pages.Graph) else SLIDERS_H if isinstance(item, pod_pages.Sliders) else SEG_H if isinstance(item, pod_pages.Segment) else ROW_H if isinstance(item, (pod_pages.Brightness, pod_pages.VolCard)) else HSL_H if isinstance(item, pod_pages.HSliders) else CM if item == TOP else END_H if item == END else row_h(item))
 
 

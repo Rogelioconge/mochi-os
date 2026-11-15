@@ -140,6 +140,8 @@ int disp_led(void); /* stock's lamp mode: 0 off, 1 green, 2 blue */
 int disp_led_set(int mode);
 int disp_follow(void); /* stock's Follow Screen switch */
 int disp_follow_toggle(void);
+int disp_rotate(void); /* Screen Rotation, stock's word rotate_mode: 1 = 180 degrees */
+int disp_rotate_toggle(void);
 void disp_opened(void *win); /* the Display page's brightness card */
 void disp_refresh(void *win);
 
@@ -150,8 +152,30 @@ int kp_tap(void); /* Tap to Wake, stock's byte */
 int kp_tap_toggle(void);
 int kp_standby(void); /* Auto-Standby, stock's byte */
 int kp_standby_toggle(void);
+int kp_car(void); /* Car Mode, stock's byte */
+int kp_car_toggle(void);
 int kp_shutdown(void); /* Auto-Shutdown, stock's word 0 .. 4 */
 int kp_shutdown_set(int v);
+
+/* patch/sleeptimer.c: the Sleep Timer page, stock's byte sleepflag and word sleep_time */
+int st_choice(void); /* the row to check: 0 Off, 1 .. 6 a time, -1 none of them */
+int st_set(int v);
+int st_left_text(char *buf, unsigned n); /* the Time Left value, H:MM rounded up; 0 (buf empty) while no timer runs */
+void st_opened(void *win, int page); /* the page's window is up: a refresh timer while it is in front */
+void st_front(void); /* back in front: the timer again */
+void st_gone(void); /* the window is destroyed: the timer is removed */
+
+/* patch/netservice.c: Settings > Network Services and Wi-Fi Transfer (stock's airplayflag, dlnaflag and the Wi-Fi file transfer page) */
+int ns_airplay(void);
+int ns_airplay_toggle(
+    void); /* stock's airplay_switch; the new state, with the Wi-Fi toast when it is on and Wi-Fi is not */
+int ns_dlna(void);
+int ns_dlna_toggle(void);
+int ns_transfer_ok(void); /* the Wi-Fi Transfer row: 1 when Wi-Fi is connected, else a toast and 0 */
+void wt_url_text(char *buf, unsigned n); /* "<ip>:8888", or "-" */
+void wt_opened(
+    void *win); /* the page's window is up: stop_player, switch_wifitransport(1), and the exits that stop it */
+void wt_front(void); /* back in front after the player: the server again */
 
 /* patch/playset.c: Settings > Playback Settings. A getter answers the shown state, a setter 0 or -1 (refused), a toggle the new state. */
 enum {
@@ -206,3 +230,22 @@ int ps_bootmem_toggle(void);
 /* patch/onlineart.c */
 int onlineart_open(void);
 int onlineart_open_artist(const char *name);
+
+/* patch/language.c: Settings > General > Language, stock's language word */
+int lang_get(void); /* the row of stock's language page that is loaded, 0 .. 12 */
+int lang_set(int v); /* stock's row handler: store, save, switch_language, the Home menu flags, back to Home */
+const char *lang_key(int v); /* the language's own name, stock's key lan_* */
+/* patch/datetime.c: Settings > General > Date & Time. Every state is stock's own. */
+int dt_auto(void); /* Set Automatically */
+int dt_auto_toggle(void);
+int dt_24h(void); /* 24-Hour Time */
+int dt_24h_toggle(void);
+int dt_zone(void); /* Time Zone: the saved index of our table */
+int dt_zone_set(int index);
+const char *tz_label_of(unsigned index); /* patch/timezones.c: the zone's English label */
+void dt_text(int which, char *buf, int n); /* the date (0) or the time (1) as the rows show it */
+void dt_edit_start(void); /* the date being typed from the clock */
+void dt_field_text(int field, char *buf, int n);
+int dt_chosen(int arg);
+int dt_set(int arg);
+int dt_apply(int which); /* Set Date (0) / Set Time (1) */

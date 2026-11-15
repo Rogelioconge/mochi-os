@@ -18,7 +18,7 @@ for commands, [UI](ui.md) for layout/assets, and [history](history.md) for recor
 | [Library list loading](modules/libload.md) | List ownership transfer and memory peaks |
 | [Home and boot guard](modules/home-guard.md) | Startup marker, grid entry, window stack and fallback |
 | [Settings](modules/settings.md) | Settings pages and persisted choices |
-| [Display](modules/display.md) | Settings > System > Display: brightness, Screen Timeout, LED Light, Follow Screen (stock's state) |
+| [Display](modules/display.md) | Settings > Display: brightness, Screen Timeout, LED Light, Follow Screen (stock's state) |
 | [Accent and palette](modules/accent.md) | The colour-mapping layer: three paint-time hooks, background (Black, Light), accent, image rules, exempt pages |
 | [Updater version compare](modules/version.md) | Why the official V2.1 package installs over the mod |
 | [Automatic time](modules/autotime.md) | RTC kept as UTC for stock's NTP sync (`hwclock -su` / `-wu`) |
@@ -46,11 +46,11 @@ for commands, [UI](ui.md) for layout/assets, and [history](history.md) for recor
 | [Shuffle](modules/shuffle.md) | Song, album and folder queues |
 | [Now Playing](modules/nowplaying.md) | Cover tint, remaining time and rounded artwork |
 | [Timed cover page](modules/bigcover.md) | The ten-second enlarged cover gets its own 320 px picture |
-| [Charge Limit](modules/charging.md) | Settings > System > Battery: charging pauses at 80-95 % while the player runs, on the status bar's battery hook |
+| [Charge Limit](modules/charging.md) | Settings > Battery: charging pauses at 80-95 % while the player runs, on the status bar's battery hook |
 | [Lyrics page](modules/lyrics.md) | Our own lyrics lines over the stock rows: anchor, opacity falloff, eased scroll |
 | [More sheet](modules/playmore.md) | Playback options, Display Mode (Cassette, Vinyl and Lyrics Mode) and Find Cover & Lyrics entries |
 | [Find Cover & Lyrics](modules/onlineart.md) | Online album covers (iTunes, Deezer) and lyrics (LRCLIB) for the playing track: page, worker, storage |
-| [Software Update](modules/update.md) | Settings > System > About > Software Update: the newest GitHub release downloaded to the card, then stock's TF card update (a pinned call); version rules, checks, page, popup |
+| [Software Update](modules/update.md) | Settings > General > About > Software Update: the newest GitHub release downloaded to the card, then stock's TF card update (a pinned call); version rules, checks, page, popup |
 | [Mini player](modules/minibar.md) | Home overlay, controls, blur and timer |
 | [Recently Played](modules/recent.md) | History file, covers and shelf layout |
 | [Scrobbling](modules/scrobble.md) | Offline .scrobbler.log of listens; the upload to ListenBrainz and Last.fm (manual, and automatic from the poll while music plays), the accounts (the card's scrobble.ini only, written on a computer: no entry and no sign-out on the device, nothing on flash) and settings (Library > ListenBrainz, Last.fm, Upload Scrobbles, Auto Upload) |

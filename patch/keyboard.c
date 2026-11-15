@@ -13,7 +13,7 @@
  * on_done with the text; Back closes it and calls on_cancel. A text too wide for the field shows its end after an ellipsis; the caret follows the measured width.
  * A touch on the pad that lands on no key (a gap, a margin) goes to the nearest key, as on an iPhone: the pad's own touch events resolve it and press that key.
  *
- * Keyboards (Settings > Keyboards): English is always there. With Chinese (Pinyin) on, a language key sits in row four and the Chinese layer composes pinyin with stock's Google
+ * Keyboards (Settings > General > Keyboards): English is always there. With Chinese (Pinyin) on, a language key sits in row four and the Chinese layer composes pinyin with stock's Google
  * Pinyin engine (the shipped gpinyin.dat, opened when the layer is first used and closed with the page): the letters build the pinyin in a candidate strip above the pad, the
  * candidates scroll sideways, a tap takes one (a long input in steps), space takes the first, and after a commit the strip offers the words that usually follow. A layer is a struct
  * of functions (struct kb_layer): key labels per page come from the page tables, compose / backspace / flush / pending are the layer's, so a Korean or kana composer can plug in.
@@ -721,7 +721,7 @@ static const struct kb_layer KB_LAYERS[2] = {
 
 static const struct kb_layer *kb_layer_of(int layer) { return &KB_LAYERS[layer]; }
 
-/* Settings > Keyboards > Chinese (Pinyin): "1" = on, anything else or no file = off. */
+/* Settings > General > Keyboards > Chinese (Pinyin): "1" = on, anything else or no file = off. */
 int kb_zh_setting(void) { return set_read(KBZH_FILE, 0) == '1'; }
 
 int kb_zh_toggle(void) {

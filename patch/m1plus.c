@@ -68,6 +68,14 @@ enum {
     ACT_ACCENTSET = 49,
     ACT_RADIO = 50,
     ACT_BOOKS = 144,
+    ACT_NETAIR = 166, /* Settings > Network Services: AirPlay, a switch row (patch/netservice.c) */
+    ACT_NETDLNA = 167, /* ... DLNA */
+    ACT_NETTRANS = 168, /* ... Wi-Fi Transfer, a link row: our page, or a toast without Wi-Fi */
+    ACT_FORMAT =
+        169, /* Settings > General > Format Storage: stock's own Format handler (the confirm, then the format dialog) */
+    ACT_SLEEPSET = 170, /* the Sleep Timer page's rows (arg = the row: 0 Off, 1 .. 6 the times; patch/sleeptimer.c) */
+    ACT_SLEEPLEFT =
+        171, /* the Sleep Timer page's Time Left: an information row in a card shown while a timer runs (patch/sleeptimer.c st_left_text) */
     ACT_SFDEL = 51,
     ACT_SFOLD = 52, /* Settings Files: Unsupported Files, a count (a chevron and the list only when it is not zero) */
     ACT_SFDELALL = 53, /* Settings Files: Delete Unsupported Files, an action row */
@@ -80,7 +88,7 @@ enum {
         78, /* Settings > Library > Section Headers: a switch row, on by default (patch/azlist.c azhead_toggle) */
     ACT_LOCKSET = 88,
     ACT_LOCKON = 79,
-    ACT_CHGLIM = 80, /* Settings > System > Battery: Charge Limit, a value row opening its picker */
+    ACT_CHGLIM = 80, /* Settings > Battery: Charge Limit, a value row opening its picker */
     ACT_CHGLIMSET = 81, /* the Charge Limit picker's rows (arg = the limit, 80 .. 100) */
     ACT_IDLE =
         82, /* Settings > Now Playing > Idle Display: a value row (Off, Album Cover, Cassette, Vinyl) opening its picker */
@@ -94,12 +102,12 @@ enum {
         87, /* Settings > Lock Screen > Custom Wallpaper: the instructions page (patch/relnotes.c lockinfo_open) */
     ACT_NEXTALBUM = 90, /* Settings > Playback: Continue Playing, a value row opening its picker */
     ACT_NASET = 91, /* the Continue Playing picker's rows (arg = NA_OFF or NA_ALBUMS) */
-    ACT_LIGHT = 97, /* Settings > System > Display: Screen Timeout, a value row opening its picker */
+    ACT_LIGHT = 97, /* Settings > Display: Screen Timeout, a value row opening its picker */
     ACT_LIGHTSET = 98, /* the Screen Timeout picker's rows (arg = stock's backlight time index, 0 .. 4) */
-    ACT_LED = 99, /* Settings > System > Display: LED Light, a value row opening its picker */
+    ACT_LED = 99, /* Settings > Display: LED Light, a value row opening its picker */
     ACT_LEDSET = 100, /* the LED Light picker's rows (arg = stock's lamp mode: 0 off, 1 green, 2 blue) */
-    ACT_LEDFOLLOW = 101, /* Settings > System > Display > LED Light: Follow Screen, a switch row, stock's own switch */
-    ACT_KEYLOCK = 102, /* Settings > System > Buttons & Power: Button Lock, a value row opening its picker */
+    ACT_LEDFOLLOW = 101, /* Settings > Display > LED Light: Follow Screen, a switch row, stock's own switch */
+    ACT_KEYLOCK = 102, /* Settings > Buttons & Power: Button Lock, a value row opening its picker */
     ACT_KEYLOCKSET =
         103, /* the Button Lock picker's rows (arg = 0 off, else stock's mode: 1 volume keys, 2 the other keys, 3 both) */
     ACT_TAPWAKE = 104, /* Buttons & Power: Tap to Wake, a switch row, stock's own byte */
@@ -111,6 +119,8 @@ enum {
     ACT_SHUTDOWNSET =
         107, /* the Auto-Shutdown picker's rows (arg = stock's word: 0 off, 1 .. 4 = 1, 3, 5, 10 minutes) */
     ACT_RGBTHEME = 140, /* the Theme picker's rows (arg = the theme 0 .. 5; patch/tracklamp.c) */
+    ACT_ROTATE = 153, /* Settings > Display: Screen Rotation, a switch row (stock's 0 / 180 degrees choices) */
+    ACT_CARMODE = 154, /* Settings > Buttons & Power: Car Mode, a switch row, stock's own byte */
     ACT_PLAYMODE = 129, /* Settings > Playback Settings: Play Mode, a value row opening its picker */
     ACT_PLAYMODESET =
         130, /* the Play Mode picker's rows (arg = the mode as shown: 0 List Play, 1 Repeat Track, 2 Shuffle, 3 Repeat All) */
@@ -152,7 +162,19 @@ enum {
         113, /* Settings > Library > Scrobbling > Last.fm: a value row (the account's user name) opening the Last.fm page */
     ACT_SCROBPAGE = 139, /* Settings > Library > Scrobbling: a value row (On or Off) opening the Scrobbling page */
     ACT_RGBROW =
-        143 /* Settings > Display > LED Light: Theme, a value row shown while Dynamic is chosen, opening the Theme page */
+        143, /* Settings > Display > LED Light: Theme, a value row shown while Dynamic is chosen, opening the Theme page */
+    ACT_LANG = 150, /* Settings > General: Language, a value row (the language's own name) opening its picker */
+    ACT_LANGSET = 151, /* the Language picker's rows (arg = stock's language word 0 .. 12; patch/language.c) */
+    ACT_DTAUTO = 157, /* Settings > General > Date & Time: Set Automatically, a switch row, stock's own switch */
+    ACT_DTZONE =
+        158, /* ... Time Zone, a value row opening the zone picker (always live, whatever Set Automatically says) */
+    ACT_DTZONESET = 159, /* the zone picker's rows (arg = stock's saved zone index) */
+    ACT_DTDATE = 160, /* Date, a value row opening the Date page (dimmed while Set Automatically is on) */
+    ACT_DTTIME = 161, /* Time, a value row opening the Time page (dimmed while Set Automatically is on) */
+    ACT_DT24 = 162, /* 24-Hour Time, a switch row, stock's own switch */
+    ACT_DTFIELD = 163, /* the Date and Time pages' Year, Month, Day, Hour, Minute: value rows opening their picker */
+    ACT_DTSET = 164, /* the field pickers' rows (arg = field * 4096 + value) */
+    ACT_DTAPPLY = 165 /* Set Date (arg 0) and Set Time (arg 1): stock's set_systime, then back */
 };
 
 struct pod_row {
@@ -232,7 +254,16 @@ enum {
     VK_PSBAL,
     VK_PCDIR,
     VK_RGBTHEME, /* the LED Light page's Theme row: the Dynamic lamp's theme's name */
-    VK_XFEED /* the Playback Settings Crossfeed row: Off, Low, Medium or High */
+    VK_XFEED, /* the Playback Settings Crossfeed row: Off, Low, Medium or High */
+    VK_LANG, /* the Language row: the loaded language's own name (stock's key lan_*) */
+    VK_DTZONE, /* Date & Time: the zone's label (our table, patch/datetime.c) */
+    VK_DTDATE, /* ... the date and the time of day */
+    VK_DTTIME,
+    VK_DTF0, /* the Date and Time pages' fields, VK_DTF0 + 0 .. 4: Year, Month, Day, Hour, Minute (the date being typed) */
+    VK_DTF1,
+    VK_DTF2,
+    VK_DTF3,
+    VK_DTF4
 };
 
 /* stock.h (generated by tools/pod.py) supplies the stock-function address macros, the libc GOT
@@ -482,9 +513,17 @@ static const struct pick_def {
     {ACT_USBVOL, VK_PSUSB, ACT_USBVOLSET, ps_usbvol, ps_usbvol_set},
     {ACT_MAXVOL, VK_PSMAXVOL, 0, (int (*)(void))0,
      (int (*)(int))0}, /* the loudness rows open their own slider pages: no picker */
+    {-1, VK_NONE, ACT_SLEEPSET, st_choice,
+     st_set}, /* the Sleep Timer page: a plain page of check rows, opened by the More sheet and the Control Center tile */
     {ACT_BOOTVOL, VK_PSBOOTVOL, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_BALANCE, VK_PSBAL, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_XFEED, VK_XFEED, ACT_XFEEDSET, stereo_crossfeed, stereo_crossfeed_set},
+    {ACT_LANG, VK_LANG, ACT_LANGSET, lang_get, lang_set},
+    {ACT_DTZONE, VK_DTZONE, ACT_DTZONESET, dt_zone, dt_zone_set}, /* Date & Time (patch/datetime.c) */
+    {ACT_DTDATE, VK_DTDATE, 0, (int (*)(void))0, (int (*)(int))0},
+    {ACT_DTTIME, VK_DTTIME, 0, (int (*)(void))0, (int (*)(int))0},
+    {ACT_DTFIELD, VK_DTF0, ACT_DTSET, (int (*)(void))0,
+     dt_set}, /* (the chosen row and the field's text: pick_chosen, row_value) */
 };
 
 static const struct pick_def *pick_value_of(int act) {
@@ -512,9 +551,18 @@ static int on_row(void *ctx, void *e) {
     if (!row) return RET_OK;
     if (row->action == ACT_HOME)
         home_open(row->arg);
+    else if (row->action == ACT_NETTRANS) {
+        if (ns_transfer_ok())
+            open_page(row->arg, 0); /* Wi-Fi Transfer: the page starts the server (patch/netservice.c) */
+    } else if (row->action == ACT_FORMAT)
+        stock_format_card(); /* stock's list handler: the msg_checkformat confirm (modal), then dialog/formatcard_dialog, or the No TF Card Found message */
     else if (row->action == ACT_SCROBUP)
         lb_upload_tap(); /* the scrobble log to the services now: a toast, no page */
-    else if (row->action == ACT_PAGE || pick_value_of(row->action)) /* the value rows open their picker page */
+    else if (
+        row->action ==
+        ACT_DTAPPLY) { /* Set Date / Set Time: stock's set_systime, then back to Date & Time, as stock's confirm does */
+        if (dt_apply(row->arg) == 0) m1_on_back((void *)0, (void *)0);
+    } else if (row->action == ACT_PAGE || pick_value_of(row->action)) /* the value rows open their picker page */
         open_page(row->arg, 0);
     else if (row->action == ACT_PLAYER)
         m1_open_now_playing();
@@ -612,7 +660,7 @@ static void switch_show(void *img, int on) {
  * there are none) while no mix can be made (the Daily Mix switch off, or a library under MIX_MIN_LIB songs); the Daily Mix switch updates them in place. The row is a card of its own
  * (a single piece) at the end of the page, so nothing else changes with it. They are the page's last row and fourth note (pod_note3; tools/pod_pages.py HOMESET_PAGE, pinned by test). */
 static void *regen_row __attribute__((section(".scratch"))), *regen_note __attribute__((section(".scratch")));
-#define KB_EN_DIM 153 /* 60 %: Settings > Keyboards > English, always on and not switchable */
+#define KB_EN_DIM 153 /* 60 %: Settings > General > Keyboards > English, always on and not switchable */
 
 /* Settings > Library > Podcasts: the Directory and Podcast Region rows are dimmed and take no tap while Podcast Discover is off (there is then no search to ask and no Discover to show). */
 static void *pcdir_row __attribute__((section(".scratch"))), *pcreg_row __attribute__((section(".scratch")));
@@ -654,6 +702,10 @@ static const struct pod_switch {
     {ACT_LEDFOLLOW, disp_follow, disp_follow_toggle},
     {ACT_TAPWAKE, kp_tap, kp_tap_toggle},
     {ACT_STANDBY, kp_standby, kp_standby_toggle},
+    {ACT_ROTATE, disp_rotate, disp_rotate_toggle},
+    {ACT_CARMODE, kp_car, kp_car_toggle},
+    {ACT_NETAIR, ns_airplay, ns_airplay_toggle}, /* Network Services (patch/netservice.c) */
+    {ACT_NETDLNA, ns_dlna, ns_dlna_toggle},
 
     {ACT_SCROBBLE, scrobble_setting, scrobble_toggle},
     {ACT_LBAUTO, scrobble_auto_setting, scrobble_auto_toggle},
@@ -663,6 +715,8 @@ static const struct pod_switch {
     {ACT_FOLDERCOVER, ps_foldercover, ps_foldercover_toggle},
     {ACT_BOOTMEM, ps_bootmem, ps_bootmem_toggle},
     {ACT_MONO, stereo_mono, stereo_mono_toggle},
+    {ACT_DTAUTO, dt_auto, dt_auto_toggle},
+    {ACT_DT24, dt_24h, dt_24h_toggle},
 };
 #define SW_N ((int)(sizeof sw_tab / sizeof *sw_tab))
 struct swctx {
@@ -692,6 +746,9 @@ static int on_switch(void *ctx, void *e) {
     if (s->sw->action == ACT_PCSEARCH) pcdir_show();
     if (s->sw->action == ACT_STANDBY) pod_page_refresh(POD_KEYSPOWER_PAGE); /* turning it on turned Auto-Shutdown off */
     if (s->sw->action == ACT_BOOTMEM) pod_page_refresh(POD_PSBOOTVOL_PAGE); /* the slider's cards follow the switch */
+    if (s->sw->action == ACT_DTAUTO || s->sw->action == ACT_DT24)
+        pod_page_refresh(
+            POD_DATETIME_PAGE); /* Date and Time are dimmed by Set Automatically, Time Zone never; the Time reads in 12 or 24 hours */
     return RET_OK;
 }
 
@@ -710,7 +767,7 @@ static void bind_switch(void *win, unsigned i, const struct pod_row *row) {
     if (r) widget_on(r, EVT_CLICK, on_switch, &sw_slot[k]);
 }
 
-/* The values (tr keys of the stock tables where the value is stock's own, so they follow Settings > Language): Wi-Fi and Bluetooth On / Off (the flags the status bar reads), the EQ (Off, or the preset's name from stock's own lookup), the album order and the
+/* The values (tr keys of the stock tables where the value is stock's own, so they follow Settings > General > Language): Wi-Fi and Bluetooth On / Off (the flags the status bar reads), the EQ (Off, or the preset's name from stock's own lookup), the album order and the
  * cassette theme (ours). */
 static const char *const idle_key[5] = {"Off", "Album Cover", "Cassette", "Vinyl", "Lyrics"};
 static const char *const lyrsize_key[3] = {"Small", "Medium", "Large"};
@@ -781,6 +838,19 @@ static void value_text(void *label, int kind) {
             return;
         }
         key = off[0];
+    } else if (kind == VK_LANG) { /* the language's own name: stock's key, the same text in every table */
+        key = lang_key(lang_get());
+    } else if (kind == VK_DTZONE) { /* our table's English label of stock's saved zone */
+        widget_set_text_utf8(label, tz_label_of((unsigned)dt_zone()));
+        return;
+    } else if (kind == VK_DTDATE || kind == VK_DTTIME) {
+        dt_text(kind == VK_DTTIME, buf, sizeof buf);
+        widget_set_text_utf8(label, buf);
+        return;
+    } else if (kind >= VK_DTF0 && kind <= VK_DTF4) { /* the date being typed (patch/datetime.c) */
+        dt_field_text(kind - VK_DTF0, buf, sizeof buf);
+        widget_set_text_utf8(label, buf);
+        return;
     } else if (kind == VK_SCROB) {
         key = scrobble_setting() ? "On" : "Off";
     } else if (kind == VK_LB ||
@@ -884,6 +954,10 @@ static void info_text(void *label, int kind) {
 static int row_value(const struct pod_row *row) {
     const struct pick_def *d;
     if (row->action == ACT_STOCK) return POD_STOCK[row->arg].value;
+    if (row->action == ACT_DTFIELD)
+        return VK_DTF0 +
+               (row->arg -
+                POD_DTYEAR_PAGE); /* the field is the picker page's place (tools/pod_pages.py DTFIELD_PAGES) */
     d = pick_value_of(row->action);
     return d ? d->vk : VK_NONE;
 }
@@ -891,6 +965,7 @@ static int row_value(const struct pod_row *row) {
 /* The chosen picker row: the one whose argument is the setting's saved value. */
 static int pick_chosen(const struct pod_row *row) {
     const struct pick_def *d = pick_set_of(row->action);
+    if (row->action == ACT_DTSET) return dt_chosen(row->arg);
     return d && row->arg == d->get();
 }
 
@@ -935,7 +1010,24 @@ static void page_refresh(void *win, const struct pod_page *page) {
             int on = tl_led() == 3;
             if (item) widget_set_visible(item, on, 0), widget_set_sensitive(item, on);
         }
-        if (switch_of(row->action) >= 0) {
+        if (row->action == ACT_DTDATE || row->action == ACT_DTTIME) {
+            /* stock disables its Manual (date and time) row while Set Automatically is on: Date and Time are dimmed and take no tap then
+               (Time Zone is always live: stock's zone list is only a layout choice, its click handler tests nothing) */
+            void *item = widget_lookup(win, row->name, 1);
+            int on = !dt_auto();
+            if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);
+        }
+        if (row->action == ACT_SLEEPLEFT) { /* Sleep Timer > Time Left: its own card, there only while a timer runs */
+            void *item = widget_lookup(win, row->name, 1);
+            char left[16];
+            int on = st_left_text(left, sizeof left);
+            snprintf(name, sizeof name, "pod_value%d", i);
+            w = widget_lookup(win, name, 1);
+            if (item) widget_set_visible(item, on, 0), widget_set_sensitive(item, 0);
+            if (w && on)
+                widget_set_text_utf8(w, left),
+                    value_fit(win, (unsigned)i, w, POD_INFO_RIGHT, POD_INFO_MAX, POD_INFO_LABEL_X);
+        } else if (switch_of(row->action) >= 0) {
             snprintf(name, sizeof name, "pod_switch%d", i);
             switch_show(widget_lookup(win, name, 1), sw_tab[switch_of(row->action)].state());
         } else if (row->action == ACT_CCLIST || row->action == ACT_SFOLD) {
@@ -1023,6 +1115,9 @@ static int on_page_fg(void *ctx, void *e) {
     if (pod_fg[i]) page_refresh(pod_fg[i], &POD_PAGES[i]);
     if (i == POD_SCROBBLING_PAGE || i == POD_LB_PAGE || i == POD_LF_PAGE)
         lb_on_front(); /* the scrobble.ini watch (patch/scrobpage.c) */
+    if (i == POD_SLEEPTIMER_PAGE) st_front(); /* the page's refresh timer runs again (patch/sleeptimer.c) */
+    if (i == POD_WIFITRANSFER_PAGE)
+        wt_front(); /* the file server again after the player was in front (patch/netservice.c) */
     return RET_OK;
 }
 
@@ -1031,6 +1126,7 @@ static int on_page_gone(void *ctx, void *e) {
     int k;
     (void)e;
     pod_fg[i] = (void *)0;
+    if (i == POD_SLEEPTIMER_PAGE) st_gone(); /* its refresh timer goes with the window */
     for (k = 0; k < POD_PAGES[i].count; k++)
         if (POD_PAGES[i].rows[k].action == ACT_PCDIR)
             pcdir_row = pcreg_row = (void *)0; /* the Podcasts page: its rows go with the window */
@@ -1051,6 +1147,8 @@ static int open_page(int index, int as_home) {
         if (page->rows[i].action == ACT_PCDIR)
             pcdir_row = pcreg_row = (void *)0; /* the rows of its last window are gone */
     if (index == POD_FILES_PAGE) setfiles_open(); /* the files, read once as the page opens */
+    if (index == POD_DTDATE_PAGE || index == POD_DTTIME_PAGE)
+        dt_edit_start(); /* the date being typed starts from the clock */
     for (i = 0; i < 32; i++)
         if (page->wrap_notes >> i & 1) { /* a note of more than one line is a plain label: its wrap is on at run time */
             char nm[16];
@@ -1070,9 +1168,10 @@ static int open_page(int index, int as_home) {
         if (switch_of(row->action) >= 0)
             bind_switch(win, i, row), refresh = 1;
         else {
-            if (row->action != ACT_INFO) m1_bind(win, row->name, on_row, row); /* an information row takes no tap */
-            if (row->action == ACT_INFO || row->action == ACT_SFDEL || row->action == ACT_CCLIST ||
-                row->action == ACT_SFOLD || row_value(row) || is_pick(row))
+            if (row->action != ACT_INFO && row->action != ACT_SLEEPLEFT)
+                m1_bind(win, row->name, on_row, row); /* an information row takes no tap */
+            if (row->action == ACT_INFO || row->action == ACT_SLEEPLEFT || row->action == ACT_SFDEL ||
+                row->action == ACT_CCLIST || row->action == ACT_SFOLD || row_value(row) || is_pick(row))
                 refresh = 1;
         }
         if (row->action == ACT_PCDIR) pcdir_row = widget_lookup(win, row->name, 1), pcrows = 1;
@@ -1088,12 +1187,19 @@ static int open_page(int index, int as_home) {
         refresh = 1; /* the loudness pages follow stock's words when they are back in front */
     if (index == POD_SCROBBLING_PAGE || index == POD_LB_PAGE || index == POD_LF_PAGE)
         refresh = 1; /* back in front: the page's rows and the scrobble.ini watch (on_page_fg) */
+    if (index == POD_WIFITRANSFER_PAGE)
+        refresh =
+            1; /* back in front: the address and the file server again (on_page_fg, patch/netservice.c wt_front) */
     if (refresh) { /* the state the page shows, now and each time it is back in front */
         pod_fg[index] = win;
         page_refresh(win, page);
         widget_on(win, EVT_WINDOW_TO_FG, on_page_fg, (void *)(long)index);
         widget_on(win, EVT_DESTROY, on_page_gone, (void *)(long)index);
     }
+    if (index == POD_WIFITRANSFER_PAGE)
+        wt_opened(win); /* stock's page init: the player stops, the file server starts (patch/netservice.c) */
+    if (index == POD_SLEEPTIMER_PAGE && refresh)
+        st_opened(win, index); /* Time Left follows the countdown while the page is in front (patch/sleeptimer.c) */
     if (index == POD_CACHE_PAGE)
         homecover_cache_open(win, index); /* counts the cache folder in steps while the page is open */
     if (index == POD_MENU_PAGE) {
@@ -1162,6 +1268,9 @@ int pod_open_settings(void) { return open_page(POD_SETTINGS_PAGE, 0); }
 
 /* The Equalizer page, for the All Playback Settings Equalizer row (patch/peq_ui.c peq_open): the normal instance, with Back. */
 int pod_open_peq(void) { return open_page(POD_PEQ_PAGE, 0); }
+
+/* The Sleep Timer page, for Now Playing's More sheet row and the pull-down's Sleep Timer tile (patch/playmore.c, patch/pulldown.c): the normal instance, with Back. */
+int pod_open_sleeptimer(void) { return open_page(POD_SLEEPTIMER_PAGE, 0); }
 
 /* The 10-Band editor and its Curve and Preamp pages (patch/tenband.c): the normal instance, with Back. */
 int pod_open_tenband(void) { return open_page(POD_TENBAND_PAGE, 0); }

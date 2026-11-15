@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * Settings > System > Battery > Charge Limit picks 80, 85, 90, 95 or 100 % (100, the default, is no limit). The stock kernel's AXP2101 driver has a
+ * Settings > Battery > Charge Limit picks 80, 85, 90, 95 or 100 % (100, the default, is no limit). The stock kernel's AXP2101 driver has a
  * charging request, /sys/class/power_supply/battery/charger: "0" sets its disable flag and zero charging current, "1" restores the configured current.
  * There is no timer of ours: bp_capacity (patch/battery.c, the hook on the status bar's 1 s call of get_battery_capacity) calls chg_tick after stock's
  * function, and chg_tick checks at most every CHG_PERIOD seconds (time(); a clock that went back checks at once).
@@ -40,7 +40,7 @@ static int chg_read(void) {
     return c >= '0' && c <= '0' + (CHG_OFF - CHG_MIN) / CHG_STEP - 1 ? CHG_MIN + (c - '0') * CHG_STEP : CHG_OFF;
 }
 
-/* Settings > System > Battery > Charge Limit: the saved limit, CHG_MIN .. CHG_OFF (CHG_OFF: no limit). */
+/* Settings > Battery > Charge Limit: the saved limit, CHG_MIN .. CHG_OFF (CHG_OFF: no limit). */
 int chg_limit(void) {
     if (!chg.limit) chg.limit = chg_read();
     return chg.limit;

@@ -138,13 +138,18 @@ DAILY = DAILY + VINYL
 # chevron (Lucide chevron-right fitted to 9 x 15, #777777, stroke 2) and the picker's check (20 px, white).
 CARD_GLYPH_PX, CARD_CHEVRON, CARD_CHECK = 20, ('pod_chev', 10, 16, (0x8A,) * 3), ('pod_check', 20)
 CARD_GLYPHS = {'Wi-Fi': 'wifi', 'Bluetooth': 'bluetooth', 'Home Screen': 'house', 'Library': 'disc-3', 'Now Playing': 'audio-lines',
-               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': 'gauge', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'usb', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'volume-2', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'Accent': 'palette', 'Background': '+contrast',
+               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': 'gauge', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'usb', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'volume-2', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'General': 'settings', 'Accent': 'palette', 'Background': '+contrast',
                'Control Center': 'layout-grid', 'Lock Screen': 'lock', 'Wallpaper': 'image', 'Enable': 'lock', 'Show Time': 'clock', 'Player Style': 'square-play', 'Custom Wallpaper': 'info',
                'Keyboards': '+keyboard', 'About': 'info', 'All System Settings': 'settings', 'Developer': 'code', 'Main Menu': 'list-checks', 'Extras': 'ellipsis',
                'Recent Albums': 'history', 'Daily Mix': 'shuffle', 'Regenerate Daily Mix': 'refresh-cw', 'Update Library': 'refresh-cw',
                'Landscape': 'rotate-cw-square', 'Volume Buttons': 'volume-2', 'Rebuild Covers': 'image-up', 'Rebuild Artist Photos': 'mic-vocal', 'Idle Display': 'timer', 'Lyrics Text Size': 'a-large-small', 'Theme': '+cassette-tape', 'Record': '+turntable', 'Base': 'palette', 'Boot to M1+ Music': 'power', 'Open Shanling Home': '@shanling', 'Equalizer': 'sliders-vertical',
                'Screenshot': 'camera', 'Clear Cover Cache': 'trash', 'Clear Track Durations': 'trash', 'Delete Unsupported Files': 'trash', 'Reset All Settings': 'rotate-ccw', 'Cache': 'hard-drive','Settings Files': 'file-cog', 'Download from AutoEq': 'download', 'Podcast Discover': 'compass', 'Podcasts': 'podcast', 'Scrobbling': 'list-music', 'ListenBrainz': '+musicbrainz:filled', 'Upload Scrobbles': 'upload', 'Last.fm': '+lastdotfm:filled', 'Auto Upload': 'clock', 'English': 'languages', 'Chinese (Pinyin)': 'languages', 'Battery Percentage': 'battery-charging', 'Battery': 'battery-full', 'Charge Limit': 'battery-medium',
-               'Index Rail': 'list', 'Section Headers': 'list-start', 'Continue Playing': 'skip-forward'}
+               'Index Rail': 'list', 'Section Headers': 'list-start', 'Continue Playing': 'skip-forward', 'Screen Rotation': 'rotate-ccw-square', 'Car Mode': 'car'}
+CARD_GLYPHS.update({'Network Services': 'network', 'AirPlay': 'airplay', 'DLNA': '+dlna:filled', 'Wi-Fi Transfer': 'folder-sync'})   # Settings > Network Services (docs/modules/netservice.md)
+CARD_GLYPHS['Language'] = 'languages'   # Settings > General > Language (the glyph of the Keyboards page's rows too)
+CARD_GLYPHS.update({'USB Mode': 'usb', 'CD Ripping': 'disc', 'SyncLink': 'link', 'Firmware Update': 'hard-drive-download', 'Regulatory': 'badge-check', 'Format Storage': 'eraser', 'Reset': 'rotate-ccw'})   # Settings > General's rows for stock's pages
+CARD_GLYPHS.update({'Date & Time': 'calendar-clock', 'Set Automatically': 'refresh-cw', 'Time Zone': 'globe', 'Date': 'calendar', 'Time': 'clock', '24-Hour Time': 'sun-moon',   # Settings > General > Date & Time (docs/modules/datetime.md)
+                    'Year': 'calendar', 'Month': 'calendar', 'Day': 'calendar', 'Hour': 'clock', 'Minute': 'clock', 'Set Date': '+check', 'Set Time': '+check'})
 
 
 def card_name(g):
@@ -168,6 +173,9 @@ CARD_IMAGES = sorted({card_name(g) for g in CARD_GLYPHS.values()}) + [CARD_CHEVR
 ES_ICONS = {'pod_es_timer': 'timer', 'pod_es_music': 'music', 'pod_es_image': 'image', 'pod_es_wifi': 'wifi-off', 'pod_es_calendar': 'calendar', 'pod_es_lock': 'lock', 'pod_es_plug': 'plug',
             'pod_es_info': 'info', 'pod_es_card': 'memory-stick', 'pod_es_drive': 'hard-drive', 'pod_es_download': 'download', 'pod_es_check': 'badge-check'}
 ES_PX, ES_RGB = 40, (0x8E, 0x8E, 0x93)
+# A page hero's glyph (tools/pod_pages.py Hero, tools/pod_ui.py cards_hero; the Wi-Fi Transfer page): white, HERO_PX px, stroke 2, centred in a rounded tile the page draws
+HERO_ICONS = {'pod_hero_wifi': 'wifi'}
+HERO_PX = 36
 # The Wi-Fi page's network rows (patch/wifipage.c, docs/modules/wifi.md): a Wi-Fi fan signal glyph (wf_sig0..3: Lucide's wifi drawn whole in the dim grey, the level's arcs white over it: 3 wifi, 2 wifi-high, 1 wifi-low, 0 all dim; 20 x 16), the lock (16 px) and info (22 px)
 # glyphs in the secondary grey (the connected network's check is the picker's pod_check, 20 px) and eight frames of a small grey spinner (wf_spin0..7, 14 px: the header's while scanning, the check's place while joining).
 WIFI_SIG_W, WIFI_SIG_H, WIFI_SIG_DIM, WIFI_GREY, WIFI_SPIN_PX = 20, 16, (0x55, 0x55, 0x59), (0xAA,) * 3, 14
@@ -196,7 +204,7 @@ def wifi_spinner(i, px=WIFI_SPIN_PX, ss=8):
     im = Image.new('RGBA', (px,) * 2, WIFI_GREY + (0,)); im.putalpha(big.resize((px,) * 2, Image.LANCZOS)); return im
 
 
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + ['drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + ['drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl: Now Playing's More sheet's Cassette Mode and Vinyl Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -393,7 +401,7 @@ def is_badge(g): return g.startswith('badge:')
 def used_glyphs():
     """(Lucide names, Tabler names) of every glyph the tables use; custom ones excluded."""
     gl = [e[2] for e in HOME + SETTINGS + LISTS] + list(PULLDOWN.values()) + list(STATUS.values()) + \
-        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [RM_DOTS[1]] + list(ES_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
+        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [RM_DOTS[1]] + list(ES_ICONS.values()) + list(HERO_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
         [g for _, g, _ in GLYPHS] + [v[0] for v in SONGS_IMAGES.values()] + [v[0] for v in KEYBOARD_IMAGES.values()] + [KB_CLEAR[1], DP_ADD_GLYPH] + list(PC_GLYPHS) + [g for _, g in DISCS] + [v[0] for v in NP.values() if not v[0].startswith('pil:')] + ['lock:filled'] + R3_GLYPHS
     names = {gname(g) for g in gl if g and not is_custom(g) and not is_badge(g)}
     return sorted(n for n in names if not n.startswith('T:')), sorted(n[2:] for n in names if n.startswith('T:'))
@@ -821,6 +829,7 @@ def generate_all(sizes):
     f[RM_REMOVE[0]] = glyph(RM_REMOVE[1], BARE_PX, 'bare')
     f[RM_DOTS[0]] = glyph(RM_DOTS[1], RM_DOTS_PX, 'bare')
     for n, g in ES_ICONS.items(): f[n] = glyph_fit(g, ES_PX, ES_PX, ES_RGB, 2, 2.0)
+    for n, g in HERO_ICONS.items(): f[n] = glyph_fit(g, HERO_PX, HERO_PX, WHITE, 1, 2.0)
     for n, g in NAV_VIEW.items():
         pos = NAV_VIEW_POS[n]
         f[n] = capsule_piece(pos, g, False)

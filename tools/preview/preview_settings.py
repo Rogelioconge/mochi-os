@@ -7,27 +7,34 @@ needs and the row's label gets the rest, as patch/m1plus.c value_fit does. Appro
 
 Usage: uv run python -I tools/preview/preview_settings.py WORKDIR [OUT.png]     (en_US; WORKDIR e.g. work/mod-release after a build)
 """
-import os, sys
+import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PIL import Image, ImageDraw
 import awtk_ui, build, palette, preview_icons as PI, pod_settings as ST
+from stb_raster import StbFont
 
 W, NAV, SCREEN = 320, 50, 450
+WRAP_UNIT = re.compile(r'[^\s⺀-鿿＀-￯฀-๿]+\s*|[⺀-鿿＀-￯฀-๿]\s*|\s+')
 RAW = PI.RAW
 
 # What a typical device shows: widget name -> text (values), name -> on (switches), name -> shown (checks, the hidden card), per page key.
+WT_STATE = {'values': {'pod_big0_t': '192.168.100.100:8888'}}   # Wi-Fi Transfer: the big card's text, four three-digit groups (the digits are tabular: 255.255.255.255 is as wide)
 STATE = {
-    'm1plus_settings': {'values': {'pod_value0': 'Off', 'pod_value1': 'Off', 'pod_value5': 'Rock'}},   # Wi-Fi, Bluetooth and EQ (the 10-Band EQ's curve name, or Off)
+    'm1plus_settings': {'values': {'pod_value0': 'Off', 'pod_value1': 'Off', 'pod_value6': 'Rock'}},   # Wi-Fi, Bluetooth and EQ (the 10-Band EQ's curve name, or Off)
     'm1plus_appearance': {'values': {'pod_value0': 'Neutral'}},
+    'm1plus_general': {'values': {'pod_value3': 'English'}},   # Language
     'm1plus_background': {'shown': {'pod_check1'}},
     'm1plus_accent': {'shown': {'pod_check0'}},
     'm1plus_battery': {'values': {'pod_value1': '80%'}, 'switches': {'pod_switch0': True}},
     'm1plus_chargelimit': {'shown': {'pod_check0'}},
-    'm1plus_display': {'values': {'pod_value0': '30s', 'pod_value2': 'Green'}, 'switches': {'pod_switch3': True}},
+    'm1plus_display': {'values': {'pod_value0': '30s', 'pod_value3': 'Green'}, 'switches': {'pod_switch2': True}},   # Screen Timeout, LED Light; Screen Rotation on
+    'm1plus_sleeptimer': {'shown': {'pod_check0'}, 'hidden': {'pod_row7'}},   # a timer off: no Time Left card
+    'm1plus_language': {'shown': {'pod_check0'}},
+    'm1plus_datetime': {'values': {'pod_value1': 'Auckland', 'pod_value2': '2026-11-15', 'pod_value3': '14:05'}, 'switches': {'pod_switch0': False, 'pod_switch4': True}},
     'm1plus_lighttime': {'shown': {'pod_check2'}},
-    'm1plus_keyspower': {'values': {'pod_value0': 'Both', 'pod_value3': '5min'}, 'switches': {'pod_switch1': True, 'pod_switch2': False}},
-    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off', 'pod_value5': 'Low', 'pod_value6': '80', 'pod_value7': 'Memory', 'pod_value8': 'L3', 'pod_value10': 'Medium', 'pod_value11': 'Off', 'pod_value13': 'D2P', 'pod_value14': 'Variable'}, 'switches': {'pod_switch1': False, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch15': False}},
+    'm1plus_keyspower': {'values': {'pod_value0': 'Both', 'pod_value3': '5min'}, 'switches': {'pod_switch1': True, 'pod_switch2': False, 'pod_switch4': True}},
+    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off', 'pod_value5': 'Low', 'pod_value6': '80', 'pod_value7': 'Memory', 'pod_value8': 'L3', 'pod_value10': 'Medium', 'pod_value11': 'Off', 'pod_value13': 'D2P', 'pod_value15': 'Variable'}, 'switches': {'pod_switch1': False, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch16': False}},
     'm1plus_psxfeed': {'shown': {'pod_check2'}},
     'm1plus_psmaxvol': {'vol_text': '80', 'vol': 80},
     'm1plus_psbootvol': {'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}},
@@ -93,6 +100,8 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
             draw_row(s, im, d, c, y, values, switches, shown, ink, img, pal, pal is not None and pressed is not None and s.shown(lab) == pressed)
         if c.name == 'pod_bright': draw_brightness(im, c, y, img, st.get('brightness', 60))
         elif c.name in ('pod_vsval', 'pod_vsctl'): draw_volcard(s, im, c, y, img, ink, st.get('vol_text', ''), st.get('vol', 0), st.get('vol_dim', False))
+        elif c.name == 'pod_hero': draw_hero(s, im, c, y, ink, img)
+        elif c.name.startswith('pod_big'): draw_bigcard(s, im, c, y, ink, img, values)
         else: draw_text_item(s, im, c, y, ink, st.get('texts'))
         y += c.h
     d.rectangle((0, 0, W - 1, NAV - 1), fill=base)   # the list is under the navbar: it clips at its top
@@ -143,6 +152,43 @@ def draw_volcard(s, im, c, y, img, ink, text, value, dim=False):
     im.alpha_composite(layer)
 
 
+def draw_centred(s, im, t, y, ink, text=None, font=None):
+    """A centred label (a Hero's title and description, a centred note, a big card's text): wrapped by words to the label's width less its 2 px margins, each row centred on the label,
+    the first row 2 px under its top, rows font size + 2 px apart (the label paint's pitch: the font size and the style's spacer, docs/modules/addresses.md); font: the face (default: the tree's)."""
+    font = font or s.font
+    px, rows, line = int(style(t, 'font_size')), [], ''
+    for u in WRAP_UNIT.findall(text if text is not None else s.shown(t)):   # a word, or one CJK / Thai character, with the space after it (test/pod/i18n.py's rule)
+        if line and font.width((line + u).rstrip(), px) > t.w - 4: rows.append(line.rstrip()); line = u
+        else: line += u
+    rows.append(line.rstrip())
+    top = y + t.y + (2 if style(t, 'text_align_v') == 'top' else (t.h - len(rows) * (px + 2)) / 2)
+    for k, r in enumerate(rows):
+        font.draw(im, int(t.x + t.w / 2 - font.width(r, px) // 2), int(top + k * (px + 2)), r, px, ink(rgb(style(t, 'text_color'))) + (255,))
+    return len(rows)
+
+
+def draw_hero(s, im, c, y, ink, img):
+    """A Hero (tools/pod_ui.py cards_hero): the rounded tile (drawn at 4x and reduced for the edge) with its glyph, the title and the wrapped description, all centred."""
+    for t in c.children:
+        if t.name == 'pod_hero_tile':
+            fill = ink(rgb(style(t, 'bg_color'))); r = int(style(t, 'round_radius'))
+            tile = Image.new('RGBA', (t.w * 4, t.h * 4), (0, 0, 0, 0))
+            ImageDraw.Draw(tile).rounded_rectangle((0, 0, t.w * 4 - 1, t.h * 4 - 1), r * 4, fill=fill + (255,))
+            im.alpha_composite(tile.resize((t.w, t.h), Image.LANCZOS), (t.x, y + t.y))
+            for g in t.children: im.alpha_composite(img(g.get('image')), (t.x + g.x, y + t.y + g.y))
+        elif t.type == 'label': draw_centred(s, im, t, y, ink)
+
+
+def draw_bigcard(s, im, c, y, ink, img, values):
+    """A BigCard (tools/pod_ui.py cards_bigcard): the tall card piece and its text in the bold face, centred in the card (the payload's text: the state's value of the label)."""
+    card = c.children[0]
+    im.alpha_composite(img(card.get('style:normal:bg_image')), (0, y))
+    for t in card.children:
+        if not hasattr(s, 'bold'): s.bold = StbFont(os.path.join(s.tree, RAW, 'fonts/lyrics.ttf'))
+        px = int(style(t, 'font_size')); text = values.get(t.name) or s.shown(t)
+        s.bold.draw(im, int(t.x + t.w / 2 - s.bold.width(text, px) // 2), int(y + card.y + t.y + (t.h - px) / 2), text, px, ink(rgb(style(t, 'text_color'))) + (255,))
+
+
 def draw_text_item(s, im, c, y, ink=lambda c: c, texts=None):
     """A header or a note (a view holding a grey label) at y."""
     shown = lambda t: s.strings.get(texts[t.name], texts[t.name]) if texts and t.name in texts else s.shown(t)   # texts: the notes the payload sets at run time, by widget name
@@ -150,6 +196,7 @@ def draw_text_item(s, im, c, y, ink=lambda c: c, texts=None):
         if c.type == 'view' and t.type == 'hscroll_label':
             px = int(style(t, 'font_size'))
             s.text(im, t.x, y + t.y + t.h / 2, s.clip(shown(t), px, t.w), px, ink(rgb(style(t, 'text_color'))))
+        elif c.type == 'view' and t.type == 'label' and style(t, 'text_align_h') == 'center': draw_centred(s, im, t, y, ink)   # a centred note
         elif c.type == 'view' and t.type == 'label':   # a wrapping note: by words, from the top, ST.WRAP_LINE apart
             px, line, k = int(style(t, 'font_size')), '', 0
             for word in shown(t).split():
@@ -184,7 +231,7 @@ def draw_row(s, im, d, row, y, values, switches, shown, ink=lambda c: c, img=Non
             d.rectangle((c.x, y + c.y, c.x + c.w - 1, y + c.y), fill=ink(rgb(style(c, 'bg_color'))))
     sub = next((c for c in row.children if c.name.startswith('pod_sub')), None)   # a two line row (the Presets page's files): the name on the first line, the grey line under it
     own = values.get(label.name + '.color') or style(label, 'text_color')   # a label with a colour of its own (the red Sign Out; a page's state may grey it as the payload does)
-    s.text(im, label.x, y + (label.y + label.h / 2 if sub else row.h / 2), s.clip(s.shown(label), 21, lab_w), 21, ink(rgb(own) if own else (255, 255, 255)))
+    s.text(im, label.x, y + (label.y + label.h / 2 if sub else row.h / 2), s.clip(values.get(label.name + '.text') or s.shown(label), 21, lab_w), 21, ink(rgb(own) if own else (255, 255, 255)))
     if sub: s.text(im, sub.x, y + sub.y + sub.h / 2, s.clip(s.shown(sub), int(style(sub, 'font_size', 18)), sub.w), int(style(sub, 'font_size', 18)), ink(rgb(style(sub, 'text_color', '#AAAAAA'))))
 
 
@@ -404,8 +451,9 @@ def main():
            ('Cache > Missing',draw_covlist(s, 'Missing Covers', [('Kind of Blue', 'Miles Davis'), ('Music Has the Right to Children', 'Boards of Canada'), ('Homogenic', 'Björk'), ('Selected Ambient Works 85-92', 'Aphex Twin'), ('Dummy', 'Portishead'), ('Blue in Green (Remastered, Mono Version)', 'Miles Davis'), ('Mezzanine', 'Massive Attack')])),
            ('Cache > No art', draw_covlist(s, 'No Art', [('Pastel Blues', 'Nina Simone'), ('Kid A', 'Radiohead')])),
            ('Cache > empty',draw_covlist(s, 'No Art', [])),
-           ('Settings > Keyboards', draw_page(s, 'm1plus_keyboards')),
-           ('Settings > About (first screen)', draw_page(s, 'm1plus_about')),
+           ('Settings > General', draw_page(s, 'm1plus_general')),
+           ('Settings > General > Keyboards', draw_page(s, 'm1plus_keyboards')),
+           ('Settings > General > About (first screen)', draw_page(s, 'm1plus_about')),
            ('Settings > Wi-Fi', draw_wifi(s, True, WIFI_NETS)),
            ('Settings > Wi-Fi, scrolled', draw_wifi(s, True, WIFI_NETS, scroll=116)),
            ('Settings > Wi-Fi, long names', draw_wifi(s, True, [('TwentyCharactersLong 5G', 4, True, True, True), ('A very long network name of 32 b', 3, True, True, False), ('一个很长的无线网络名字', 3, True, False, False)] + WIFI_NETS[3:])),
@@ -449,7 +497,7 @@ def main():
         tr = lambda k: t.strings.get(k, k)
         sheet([('Settings, whole list', draw_page(t, 'm1plus_settings', full=True, state={'values': {'pod_value0': tr('Off'), 'pod_value1': tr('Off'), 'pod_value5': tr('Rock')}})),
                ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value2': tr('Location'), 'pod_value4': tr('Off'), 'pod_value5': tr('Low'), 'pod_value6': '80', 'pod_value7': tr('Memory'), 'pod_value8': 'L3',
-                                                                                          'pod_value10': tr('Medium'), 'pod_value11': tr('Off'), 'pod_value13': tr('D2P'), 'pod_value14': tr('Variable')}, 'switches': {'pod_switch1': True, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch15': False}})),
+                                                                                          'pod_value10': tr('Medium'), 'pod_value11': tr('Off'), 'pod_value13': tr('D2P'), 'pod_value15': tr('Variable')}, 'switches': {'pod_switch1': True, 'pod_switch3': True, 'pod_switch9': True, 'pod_switch16': False}})),
                ('Max Volume', draw_page(t, 'm1plus_psmaxvol', state={'vol_text': '80', 'vol': 80})),
                ('Default Volume (Volume Memory off)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}})),
                ('Default Volume (Volume Memory on)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'vol_dim': True, 'switches': {'pod_switch0': True}})),
@@ -466,6 +514,22 @@ def main():
                ('Theme: Reference', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Red to blue to green as the sample rate rises', 2))),
                ('Theme: Heartbeat', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Rose to lavender to lime as the sample rate rises', 4))),
                ('Theme: Candle', draw_page(t, 'm1plus_rgbtheme', full=True, state=theme('Warm amber, the same for every file', 0)))], os.path.join(os.path.dirname(out), 'rgb', f'rgb-{tag}.png'))
+    # The pages of the second stock-settings round (docs/modules/settings.md): System list, Sleep Timer (off, running), Language, Display, Buttons & Power, Date & Time and its pickers (out/preview/stock2/)
+    dim = {'pod_label2.color': '#606060', 'pod_label3.color': '#606060'}   # Set Automatically on: Date and Time dimmed (approximate grey)
+    on = {'values': {'pod_value1': 'Auckland', 'pod_value2': '2026-11-15', 'pod_value3': '14:05', **dim}, 'switches': {'pod_switch0': True, 'pod_switch4': True}}
+    run = {'shown': {'pod_check3'}, 'values': {'pod_value7': '0:23'}}
+    s2 = os.path.join(os.path.dirname(out), 'stock2')
+    for name, im in (('settings', draw_page(s, 'm1plus_settings', full=True)), ('general', draw_page(s, 'm1plus_general', full=True)), ('developer', draw_page(s, 'm1plus_developer', full=True)), ('sleeptimer-off', draw_page(s, 'm1plus_sleeptimer', full=True)), ('sleeptimer-running', draw_page(s, 'm1plus_sleeptimer', full=True, state=run)),
+                     ('language', draw_page(s, 'm1plus_language', full=True)), ('display', draw_page(s, 'm1plus_display')), ('keyspower', draw_page(s, 'm1plus_keyspower', full=True)),
+                     ('datetime-manual', draw_page(s, 'm1plus_datetime')), ('datetime-auto', draw_page(s, 'm1plus_datetime', state=on)), ('timezone', draw_page(s, 'm1plus_timezone', state={'shown': {'pod_check0'}})),
+                     ('dtdate', draw_page(s, 'm1plus_dtdate', state={'values': {'pod_value0': '2026', 'pod_value1': '11', 'pod_value2': '15'}})),
+                     ('dttime', draw_page(s, 'm1plus_dttime', state={'values': {'pod_value0': '14', 'pod_value1': '05'}})), ('dtyear', draw_page(s, 'm1plus_dtyear', state={'shown': {'pod_check4'}})),
+                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
+        os.makedirs(s2, exist_ok=True); im.save(os.path.join(s2, name + '.png')); print('wrote', os.path.join(s2, name + '.png'))
+    for loc, tag in (('ge_DE', 'de'), ('ru_RU', 'ru'), ('zh_CN', 'zh'), ('th_TH', 'th'), ('fr_FR', 'fr')):   # the Wi-Fi Transfer page in the long languages (out/preview/stock2/wifitransfer-<tag>.png)
+        t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
+        draw_page(t, 'm1plus_wifitransfer', full=True, state=WT_STATE).save(os.path.join(s2, f'wifitransfer-{tag}.png')); print('wrote', os.path.join(s2, f'wifitransfer-{tag}.png'))
+        draw_page(t, 'm1plus_general', full=True).save(os.path.join(s2, f'general-{tag}.png')); print('wrote', os.path.join(s2, f'general-{tag}.png'))   # General's long labels (Firmware Update, Format Storage ...)
     # Light Mode (docs/modules/accent.md): the same pages with the hooks' colours and images (tools/palette.py); the Settings page with Light Mode On, and the picker
     lit = os.path.join(os.path.dirname(out), 'settings-light.png')
     sheet([('Light Mode: Settings, first screen', draw_page(s, 'm1plus_settings', lit=True)),
@@ -473,8 +537,8 @@ def main():
            ('Settings > Appearance > Background', draw_page(s, 'm1plus_background', lit=True)),
            ('Settings > Home Screen', draw_page(s, 'm1plus_homeset', lit=True)),
            ('Settings > Library', draw_page(s, 'm1plus_library', lit=True)),
-           ('Settings > Keyboards', draw_page(s, 'm1plus_keyboards', lit=True)),
-           ('Settings > About (first screen)', draw_page(s, 'm1plus_about', lit=True)),
+           ('Settings > General > Keyboards', draw_page(s, 'm1plus_keyboards', lit=True)),
+           ('Settings > General > About (first screen)', draw_page(s, 'm1plus_about', lit=True)),
            ], lit)
 
 

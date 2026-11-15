@@ -63,7 +63,6 @@ int m1_free_kb(const char *path, unsigned *kb);
 void *m1_restack_window(const char *name);
 /* A stock page: its opened window called window (the asset's root name; NULL: none) restacked as m1_restack_window does, else stock's navigator_to(path) (always, for NULL: a page whose init a restack would not redo). RET_OK, or navigator_to's result. */
 int m1_open_stock(const char *path, const char *window);
-int m1_open_sleep(void); /* m1_open_stock of the stock Power page (Sleep Timer): RET_OK, or navigator_to's result */
 int m1_is_type(void *w, const char *type); /* w is a widget of exactly this type name */
 /* The navbar's small title (docs/modules/navbar.md "Small titles"): m1_title_gone(off, head) is 1 once the page's heading has scrolled away (head 0: the large title, SG_COLLAPSE;
  * else the offset a header's name is gone at); m1_title_set shows or hides w when on differs from *cur. */

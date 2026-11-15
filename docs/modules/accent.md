@@ -40,7 +40,7 @@ the accent.
   call `pal_map` (was `light_flip`); `ui_ink` / `ui_fill_color` too. Renames: `light_on` -> `pal_light`, `light_mode` / `light_set` -> `pal_bg_mode` / `pal_bg_set`, `light_tone` -> `pal_tone`,
   `tools/light.py` -> `tools/palette.py`, `test/pod/light.py` -> `test/pod/palette.py`. `LIGHT_*` constants and the Light flip functions (`light_flip`, `light_is_neutral`, `light_image`) keep their names:
   they are the Light background's mapping.
-- The Light Mode row is hidden from Settings > System (the picker page, its actions and strings stay; `test/pod/palette.py` opens the picker through a row it builds itself).
+- The Light Mode row is hidden from Settings (the picker page, its actions and strings stay; `test/pod/palette.py` opens the picker through a row it builds itself).
 - The mock-up (`tools/preview/preview_accent.py`, `preview_settings.draw_page(pal=..., pressed=...)`).
 - No visible change with the defaults.
 
@@ -134,7 +134,7 @@ Models: `tools/palette.py` (`ROLE_FILL`, `ROLE_SHEET_PRESS`, `SHEET_A`, `ring_pi
 
 ## Picker, row glyphs, previews
 
-- **Picker.** Settings > System > **Appearance** (`ACT_PAGE`, a link row with glyph `palette`, between Display and Keyboards where the hidden Light row sat) opens `m1plus_appearance` (`APPEARANCE_PAGE`): one card with the **Accent** value row (`ACT_ACCENT` 48, the accent's name, glyph `palette`; the shared value refresh sets it on whichever page it sits). The hidden Light row will become a "Background" row on this page. The Accent row opens `m1plus_accent`
+- **Picker.** Settings > **Appearance** (`ACT_PAGE`, a link row with glyph `palette`, between Display and Keyboards where the hidden Light row sat) opens `m1plus_appearance` (`APPEARANCE_PAGE`): one card with the **Accent** value row (`ACT_ACCENT` 48, the accent's name, glyph `palette`; the shared value refresh sets it on whichever page it sits). The hidden Light row will become a "Background" row on this page. The Accent row opens `m1plus_accent`
   (`ACCENT_PAGE`; back returns to Appearance): Neutral, Red, Orange, Green, Teal, Purple, Champagne (`ACT_ACCENTSET` 49, arg = the saved index), one check row each with a round swatch (`pod_sw<i>`, 20 px disc in a
   24 px canvas, the child `pod_swatch` at the glyph's place; Neutral `#EEEEEC`) and the check on `pal_accent_saved()`. A tap calls `pal_accent_set` (saved atomically, applied at once; a failed save changes
   nothing). The swatches are in `KEEP` (never flipped) and in no accent list (never tinted). Strings are in `tools/pod_i18n.py` (all tables). The Light row stays hidden.

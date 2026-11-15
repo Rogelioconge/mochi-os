@@ -48,6 +48,8 @@ no `hctosys` or RTC driver strings, the rootfs has no init script or module that
 `hctosys` did exist it would run before the player, which sets the clock again. So `-su` is
 required for `-wu` to be consistent.
 
+The Settings > General > Date & Time page ([datetime](datetime.md)) drives the same switch and the manual clock.
+
 ## Default and existing devices
 
 `config_init` copies `/release/assets/default/raw/config.ini` to `/mnt/data/config.ini` only when

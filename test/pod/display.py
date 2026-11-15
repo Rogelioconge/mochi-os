@@ -1,4 +1,4 @@
-"""Settings > System > Display (patch/display.c, docs/modules/display.md): our page in place of stock's Display list and its four pages. The brightness card (stock's own slider
+"""Settings > Display (patch/display.c, docs/modules/display.md): our page in place of stock's Display list and its four pages. The brightness card (stock's own slider
 handlers bound to our slider), Screen Timeout (stock's backlight time), LED Light and Follow Screen (stock's lamp mode and switch): each state is stock's and is written the way stock's
 own page writes it, which the tests check by running stock's handlers under the emulator on the same state."""
 import os
@@ -9,6 +9,8 @@ MODE, LED, FOLLOW, LIGHTNESS, CHANGEFLAG = pod.DATA['LIGHT_MODE'][0], pod.DATA['
 STOCK_ROWS = (0x4a8708, 0x4a86a4, 0x4a8640, 0x4a85dc, 0x4a8578)   # stock's systemset/lighttime_page click handlers, row 1 (index 0) .. row 5 (index 4)
 LED_SWITCH, LED_ORANGE, LED_BLUE, LED_FOLLOW = 0x4a1c30, 0x4a1e14, 0x4a1d8c, 0x4a1940   # stock's systemset/atmosphereled_page click handlers (the window in a0); stock's "orange" (img_orange) is the green lamp
 B_REFRESH, B_CHANGED, B_CHANGING = (pod.DATA[n][0] for n in ('BRIGHT_REFRESH', 'BRIGHT_CHANGED', 'BRIGHT_CHANGING'))
+ROT, ROTFLAG = pod.DATA['ROTATEMODE'][0], pod.DATA['ROTATE_FLAG'][0]
+ROT_CHOICE = {0: 0x4ab03c, 1: 0x4aafd0}   # stock's systemset/screenrotate_page click handlers, 0 degrees and 180 degrees (the window in a0)
 TEXTS = ('Never', '15s', '30s', '1min', '5min')
 WIN = 0x30000000
 # leaves stock's handlers reach that the base machine does not mock: (address, name)
@@ -23,7 +25,7 @@ class DM(Machine):
 
     def _hook(self, u, address, size, _):
         name = self.handlers.get(address)
-        if name not in ('tk_snprintf', 'widget_set_enable', 'toolSetBackLight', 'slider_set_value', 'reset_atmosphereled_rgb'): return super()._hook(u, address, size, _)
+        if name not in ('tk_snprintf', 'widget_set_enable', 'toolSetBackLight', 'slider_set_value', 'reset_atmosphereled_rgb', 'tk_set_lcd_orientation'): return super()._hook(u, address, size, _)
         a0, a1, a2, a3 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3))
         ret = 0
         if name == 'tk_snprintf':   # (buffer, size, format, one integer)
@@ -31,7 +33,7 @@ class DM(Machine):
             u.mem_write(a0, text.encode() + b'\0'); ret = len(text)
         elif name == 'slider_set_value': self.calls.append((name, a0, struct.unpack('<d', struct.pack('<II', a2, a3))[0]))   # (widget, a double in a2 / a3)
         elif name == 'reset_atmosphereled_rgb': self.calls.append((name, self.u.mem_read(LED, 1)[0]))   # the lamp follows the byte as it is at the call
-        elif name == 'toolSetBackLight': self.calls.append((name, a0))   # (one argument)
+        elif name in ('toolSetBackLight', 'tk_set_lcd_orientation'): self.calls.append((name, a0))   # (one argument)
         else: self.calls.append((name, a0, a1))
         u.reg_write(UC_MIPS_REG_V0, ret); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
 
@@ -177,16 +179,17 @@ def settings_tests(ctx):
     V, D, L, E = P.SETTINGS_PAGE, P.DISPLAY_PAGE, P.LIGHTTIME_PAGE, P.LED_PAGE
     labels = [r.label for r in V.rows]
     di = labels.index('Display')
-    expect(V.rows[di].action == P.ACT_PAGE and V.rows[di].arg == P.DISPLAY_PAGE_INDEX and P.PAGES[P.DISPLAY_PAGE_INDEX] is P.DISPLAY_PAGE and P.row_kind(V.rows[di]) == 'link' and labels[di + 1] == 'Buttons & Power',
-           'Settings > System > Display opens our page')
+    expect(V.rows[di].action == P.ACT_PAGE and V.rows[di].arg == P.DISPLAY_PAGE_INDEX and P.PAGES[P.DISPLAY_PAGE_INDEX] is P.DISPLAY_PAGE and P.row_kind(V.rows[di]) == 'link' and labels[di + 1] == 'Appearance',
+           'Settings > Display opens our page')
     lay = [x.label if isinstance(x, P.Row) else x for x in V.layout]
-    expect(lay[-4:] == ['About', P.GAP, 'All System Settings', 'Developer'], f'the last card: All System Settings, then Developer ({lay[-4:]})')
+    expect(lay[-3:] == ['Battery', P.GAP, 'Developer'], f'the last card: Developer on its own ({lay[-3:]})')
     expect(P.PAGES[P.DISPLAY_PAGE_INDEX] is D and P.PAGES[P.LIGHTTIME_PAGE_INDEX] is L and P.PAGES[P.LED_PAGE_INDEX] is E and (P.LIGHTTIME_PAGE_INDEX, P.LED_PAGE_INDEX) == (71, 72)
            and (D.key, D.title, L.key, L.title, E.key, E.title) == ('m1plus_display', 'Display', 'm1plus_lighttime', 'Screen Timeout', 'm1plus_ledlight', 'LED Light'), 'the three pages')
-    expect([(r.label, r.action, r.arg) for r in D.rows] == [('Screen Timeout', P.ACT_LIGHT, P.LIGHTTIME_PAGE_INDEX), ('Lock Screen', P.ACT_PAGE, P.LOCK_PAGE_INDEX), ('LED Light', P.ACT_LED, P.LED_PAGE_INDEX)]
-           and [P.row_kind(r) for r in D.rows] == ['value', 'link', 'value'], 'the Display page\'s rows: Screen Timeout, Lock Screen, LED Light')
-    dl = [x.label if isinstance(x, P.Row) else 'brightness' if isinstance(x, P.Brightness) else x for x in D.layout]
-    expect(dl == ['brightness', P.GAP, 'Screen Timeout', 'Lock Screen', P.GAP, 'LED Light'], f'three cards: the brightness slider; Screen Timeout + Lock Screen; LED Light alone ({dl})')
+    expect([(r.label, r.action, r.arg) for r in D.rows] == [('Screen Timeout', P.ACT_LIGHT, P.LIGHTTIME_PAGE_INDEX), ('Lock Screen', P.ACT_PAGE, P.LOCK_PAGE_INDEX), ('Screen Rotation', P.ACT_ROTATE, 0), ('LED Light', P.ACT_LED, P.LED_PAGE_INDEX)]
+           and [P.row_kind(r) for r in D.rows] == ['value', 'link', 'switch', 'value'], 'the Display page\'s rows: Screen Timeout, Lock Screen, Screen Rotation, LED Light')
+    dl = [x.label if isinstance(x, P.Row) else 'brightness' if isinstance(x, P.Brightness) else x.text if isinstance(x, P.Note) else x for x in D.layout]
+    expect(dl == ['brightness', P.GAP, 'Screen Timeout', 'Lock Screen', P.GAP, 'Screen Rotation', 'Turns the screen upside down', P.GAP, 'LED Light'],
+           f'four cards: the brightness slider; Screen Timeout + Lock Screen; Screen Rotation with its note; LED Light alone ({dl})')
     expect([(r.label, r.action, r.arg) for r in L.rows] == [(t, P.ACT_LIGHTSET, i) for i, t in enumerate(TEXTS)] and all(P.row_kind(r) == 'check' for r in L.rows) and P.LIGHTTIME_VALUES == TEXTS,
            'the Screen Timeout picker: stock\'s five choices in stock\'s order, the argument is stock\'s index')
     expect([(r.label, r.action, r.arg) for r in E.rows] == [('Off', P.ACT_LEDSET, 0), ('Green', P.ACT_LEDSET, 1), ('Blue', P.ACT_LEDSET, 2), ('Dynamic', P.ACT_LEDSET, 3), ('Follow Screen', P.ACT_LEDFOLLOW, 0), ('Theme', P.ACT_RGBROW, P.RGB_THEME_PAGE_INDEX)] and all(P.row_kind(r) == 'check' for r in E.rows[:4]) and [P.row_kind(r) for r in E.rows[4:]] == ['switch', 'value'],
@@ -195,7 +198,7 @@ def settings_tests(ctx):
     expect(el == ['Off', 'Green', 'Blue', 'Dynamic', P.GAP, 'Follow Screen', 'The light is off while the screen is off', 'Theme'], f'LED Light: the choices; Follow Screen in a card of its own with its note under it; Theme in the card after the note, last (hidden, it leaves nothing to move) ({el})')
     expect((P.ACT_LIGHT, P.ACT_LIGHTSET, P.ACT_LED, P.ACT_LEDSET, P.ACT_LEDFOLLOW) == (97, 98, 99, 100, 101) and {P.ACT_LIGHT, P.ACT_LED} <= set(P.VALUE_ACTIONS) and {P.ACT_LIGHTSET, P.ACT_LEDSET} <= set(P.CHECK_ACTIONS)
            and P.ACT_LEDFOLLOW in P.SWITCH_ACTIONS, 'the actions')
-    expect(len(P.STOCK_PAGES) == 2 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
+    expect(len(P.STOCK_PAGES) == 8 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
            and not [r for r in D.rows if r.action == P.ACT_STOCK] and not any(r.label == 'Lock Screen' for r in P.APPEARANCE_PAGE.rows),
            'no row opens stock\'s Display list or any of its four pages; Lock Screen is on Display only')
     stock_ui = os.path.join(paths.find_stock(), 'rootfs/release/assets/default/raw/ui')
@@ -252,7 +255,7 @@ def settings_tests(ctx):
         got, tr = value(page(P.DISPLAY_PAGE_INDEX, 4, DK, mode=mode), 0)
         expect(tr == (['Never'] if mode == 0 else []) and got[-1][1] == TEXTS[mode] and len(got) == 1 + len(tr), f'the word {mode}: the Screen Timeout row shows {got}')
     for led, want in ((0, 'Off'), (1, 'Green'), (2, 'Blue'), (7, 'Off')):
-        got, tr = value(page(P.DISPLAY_PAGE_INDEX, 4, DK, led=led), 2)
+        got, tr = value(page(P.DISPLAY_PAGE_INDEX, 4, DK, led=led), 3)
         expect(tr == [want], f'the byte {led}: the LED Light row shows {tr}')
 
     def sw_images(m): return [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets['pod_switch4']]
@@ -279,8 +282,8 @@ def settings_tests(ctx):
     et = awtk_ui.parse(open(os.path.join(raw, 'm1plus_ledlight.bin'), 'rb').read())
     st = awtk_ui.parse(open(os.path.join(raw, 'm1plus_settings.bin'), 'rb').read())
     pd = awtk_ui.parse(open(os.path.join(raw, 'dialog/dropdown_dialog.bin'), 'rb').read())
-    expect([dt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(3)] == ['pod_ci_timer', 'pod_ci_lock', 'pod_ci_lightbulb'] and dt.find('label_title').get('tr_text') == 'Display'
-           and st.find(f'pod_row{di}').find('pod_icon').get('image') == 'pod_ci_sun', 'the page asset: the three glyphs and the title')
+    expect([dt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(4)] == ['pod_ci_timer', 'pod_ci_lock', 'pod_ci_rotate_ccw_square', 'pod_ci_lightbulb'] and dt.find('label_title').get('tr_text') == 'Display'
+           and st.find(f'pod_row{di}').find('pod_icon').get('image') == 'pod_ci_sun', 'the page asset: the four glyphs and the title')
     fr = et.find('pod_row4')
     expect(fr is not None and fr.find('pod_icon') is None and fr.find('pod_switch4') is not None and fr.find('pod_label4').x == et.find('pod_label5').x == et.find('pod_label0').x,
            'the LED Light asset: Follow Screen is a glyph-less switch row, its label where the Theme row\'s and the choices\' are')
@@ -307,4 +310,73 @@ def settings_tests(ctx):
            'the times as stock writes them; the lamp modes translated')
 
 
-SECTIONS = [timeout_tests, led_tests, brightness_tests, settings_tests]
+class RM(DM):
+    """Stock's rotation handlers run for real; every save and every tk_set_lcd_orientation call records the word and the flag as they are at that moment (the order of the stores)."""
+    def __init__(self, word=0, flag=0):
+        super().__init__()
+        self.setword(ROT, word & 0xffffffff); self.u.mem_write(ROTFLAG, bytes([flag])); self.snap = []
+
+    def _hook(self, u, address, size, _):
+        if self.handlers.get(address) in ('write_int_config', 'tk_set_lcd_orientation'): self.snap.append((self.word(ROT), self.byte(ROTFLAG)))
+        return super()._hook(u, address, size, _)
+
+    def state(self): return self.word(ROT), self.byte(ROTFLAG)
+
+
+def rot_calls(m):
+    """What reaches stock's state: the save and the orientation call, in order."""
+    return [c[:4] if c[0] == 'write_int_config' else c[:2] for c in m.calls if c[0] in ('write_int_config', 'tk_set_lcd_orientation')]
+
+
+def rotate_tests(ctx):
+    """disp_rotate / disp_rotate_toggle against stock's two rows of systemset/screenrotate_page, run for real on the same state, then the switch on the page."""
+    expect, P = ctx.expect, pod_pages
+    expect(pod.DATA['ROTATEMODE'] == (0xa05a9c, None) and pod.DATA['ROTATE_FLAG'] == (0xa05a58, 'scr_rotateflag') and pod.FUNCTIONS['tk_set_lcd_orientation'][2] == 0x5f35e8,
+           'the word, the flag byte and the orientation call are stock\'s (the flag checked against demo\'s dynsym by the build)')
+    pins = {a: w for a, w, _ in pod.LOCKSCREEN_PINS}
+    expect(all(a in pins for a in (0x4aadd8, 0x4aae0c, 0x4ab04c, 0x4ab05c, 0x4ab06c, 0x4ab070, 0x4ab07c, 0x4ab080, 0x4ab08c, 0x4ab084, 0x4ab090, 0x4aafe0, 0x4aafec, 0x4aaff8, 0x4ab004, 0x4ab008, 0x4ab014, 0x4ab018,
+                                 0x4ab020, 0x4ab024, 0x4aaf10, 0x4aaf14, 0x4aaf18, 0x4aaf8c, 0x4aaf98, 0x4aaf9c, 0x4aafa0, 0x4aafa4, 0x5f35e8, 0x4e64a0, 0x4e64a4, 0x4e64bc, 0x4ccbdc, 0x4ccbe4)),
+           'the two handlers (the guard, the shared save, the orientation call and its argument, the flag), the row bindings, config_init\'s clamp and the boot application are pinned')
+    for word, want in ((0, 0), (1, 1), (2, 0), (-1, 0), (0x7fffffff, 0)):
+        expect(RM(word).call(PSYMS['disp_rotate'], count=200000) == want, f'the word {word}: the switch shows {want} (on only for 180 degrees)')
+    for old in (0, 1):
+        for flag in (0, 1):
+            new = 1 - old
+            ms = RM(old, flag); ms.call(ROT_CHOICE[new], a0=WIN, count=2000000)   # stock's row for the other angle (the window in a0; its row images are mocked lookups)
+            mo = RM(old, flag); r = mo.call(PSYMS['disp_rotate_toggle'], count=2000000)
+            want = [('write_int_config', new, 'SYSSET', 'ROTATEMODE'), ('tk_set_lcd_orientation', 180 if new else 0)]
+            expect(r == new and mo.state() == ms.state() == (new, 1) and rot_calls(mo) == rot_calls(ms) == want and mo.snap == ms.snap == [(new, flag), (new, flag)],
+                   f'{old} -> {new} (flag {flag}): the word, the flag, the save and the orientation call are stock\'s in stock\'s order ({rot_calls(mo)} / {rot_calls(ms)}, {mo.snap} / {ms.snap})')
+            ms = RM(old, flag); ms.call(ROT_CHOICE[old], a0=WIN, count=2000000)
+            expect(ms.state() == (old, flag) and not rot_calls(ms), f'stock\'s row for the angle already set ({old}) does nothing; ours never calls it')
+            expect(not [c for c in mo.calls if c[0] not in ('write_int_config', 'tk_set_lcd_orientation')], 'ours calls nothing but the save and the orientation')
+    # the page: the switch follows the word and a tap is stock's row for the other angle
+    D = P.DISPLAY_PAGE
+    expect([(r.label, r.action, r.arg) for r in D.rows if r.action == P.ACT_ROTATE] == [('Screen Rotation', P.ACT_ROTATE, 0)] and P.ACT_ROTATE == 153 and P.ACT_ROTATE in P.SWITCH_ACTIONS
+           and P.row_kind(next(r for r in D.rows if r.action == P.ACT_ROTATE)) == 'switch', 'Screen Rotation is a switch row on the Display page, action 153')
+    import pod_i18n
+    import mod_icons
+    expect(pod_i18n.key_for('Screen Rotation') == 'Screen Rotation' and all(pod_i18n.TEXT['Screen Rotation'][loc] for loc in pod_i18n.LOCALES) and mod_icons.CARD_GLYPHS['Screen Rotation'] == 'rotate-ccw-square',
+           'the label is our short key (stock\'s system_scrotate is 190 px in Spanish, a switch row has 173), the glyph rotate-ccw-square')
+
+    def page(**state):
+        m = RM(**state)
+        m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(['btn_return', 'btn_backtoplayer'] + [f'{k}{i}' for k in ('pod_row', 'pod_value', 'pod_label', 'pod_switch') for i in range(4)])}
+        row = m.alloc(12)
+        m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, P.ACT_PAGE); m.setword(row + 8, P.DISPLAY_PAGE_INDEX)
+        m.call(PSYMS['on_row'], a0=row, count=6000000)
+        return m
+
+    def images(m): return [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets['pod_switch2']]
+    for word, img in ((0, 'sset_off'), (1, 'sset_on')):
+        m = page(word=word)
+        expect(images(m) == [img] and not rot_calls(m), f'the word {word}: the switch opens {img}, nothing written')
+    m = page(word=0); m.calls = []; m.click('pod_row2')
+    expect(m.state() == (1, 1) and rot_calls(m) == [('write_int_config', 1, 'SYSSET', 'ROTATEMODE'), ('tk_set_lcd_orientation', 180)] and images(m)[-1] == 'sset_on', f'a tap turns 180 degrees on: the word, the save, the orientation, the flag, the switch ({rot_calls(m)})')
+    m.calls = []; m.click('pod_row2')
+    expect(m.state() == (0, 1) and rot_calls(m) == [('write_int_config', 0, 'SYSSET', 'ROTATEMODE'), ('tk_set_lcd_orientation', 0)] and images(m)[-1] == 'sset_off', 'and back to 0 degrees')
+    m = page(word=0); m.setword(ROT, 1); m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
+    expect(images(m)[-1] == 'sset_on' and not rot_calls(m), 'back in front: the switch shows the word stock\'s page set, nothing written')
+
+
+SECTIONS = [timeout_tests, led_tests, brightness_tests, settings_tests, rotate_tests]

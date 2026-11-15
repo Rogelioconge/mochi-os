@@ -420,7 +420,7 @@ def paint_tests(ctx):
     # another language
     m.set_language('ru_RU')
     t2 = rows_of(m.paint()[0])
-    expect(t2[:2] == [pod_i18n.TEXT[k]['ru_RU'] for k in MAIN_KEYS[:2]], f'the rows follow Settings > Language ({t2[:3]})')
+    expect(t2[:2] == [pod_i18n.TEXT[k]['ru_RU'] for k in MAIN_KEYS[:2]], f'the rows follow Settings > General > Language ({t2[:3]})')
 
 
 def wheel_tests(ctx):

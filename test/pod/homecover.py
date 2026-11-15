@@ -1321,7 +1321,7 @@ def reset_tests(ctx):
     DEV = P.DEVELOPER_PAGE
     labels = [r.label for r in DEV.rows]
     i = labels.index('Settings Files')
-    expect(labels[i + 1] == 'Reset All Settings' and labels[i + 1:] == ['Reset All Settings'] and DEV.rows[i + 1].action == P.ACT_RESETALL == 54 and P.ACT_SFDELALL == 53,
+    expect(labels[i + 1:] == ['Reset All Settings'] and DEV.rows[i + 1].action == P.ACT_RESETALL == 54 and P.ACT_SFDELALL == 53,
            'Developer > Reset holds Reset All Settings alone, after Settings Files (action 54, the earlier ids unchanged)')
     D, S, MMC = '/mnt/data/', '/mnt/data/m1plus/', '/mnt/mmc/.m1plus/durations'
     CONFIRM = 'Reset all settings to their defaults?'
@@ -1346,7 +1346,7 @@ def reset_tests(ctx):
     def tap(m, yes):
         m.confirm_yes = yes
         m.calls.clear()
-        m.call(PSYMS['on_row'], a0=PSYMS[f'pod_rows_{P.DEVELOPER_PAGE_INDEX}'] + 12 * (i + 1), count=3000000)
+        m.call(PSYMS['on_row'], a0=PSYMS[f'pod_rows_{P.DEVELOPER_PAGE_INDEX}'] + 12 * labels.index('Reset All Settings'), count=3000000)
 
     m = machine()
     tap(m, False)

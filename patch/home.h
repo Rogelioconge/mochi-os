@@ -118,7 +118,7 @@
     "/cache-stamp" /* what the library was when Home's last pass finished: "covers <albums> <hash>" and "tracks <albums> <hash>" lines (patch/homecover.c); on the card, like the cache it describes */
 #define STAMP_TMP CARD_DIR "/cache-stamp.tmp"
 #define KBZH_FILE \
-    "/mnt/data/m1plus/keyboard-pinyin" /* the on-screen keyboard's Chinese (Pinyin) layer: "1" = on, anything else or missing = off (Settings > Keyboards; patch/keyboard.c) */
+    "/mnt/data/m1plus/keyboard-pinyin" /* the on-screen keyboard's Chinese (Pinyin) layer: "1" = on, anything else or missing = off (Settings > General > Keyboards; patch/keyboard.c) */
 #define KBZH_TMP "/mnt/data/m1plus/keyboard-pinyin.tmp"
 #define PCSEARCH_FILE \
     "/mnt/data/m1plus/podcast-online-search" /* Podcast Discover: "0" = off, anything else or missing = on (Settings > Library > Podcasts; patch/podcasts.c) */
@@ -246,6 +246,7 @@ extern void pod_page_refresh(int index); /* patch/m1plus.c: the page's values ar
 extern int pod_open_lock(void); /* patch/m1plus.c */
 extern int pod_open_settings(void); /* patch/m1plus.c: open_page(POD_SETTINGS_PAGE); 0 once its window is up */
 extern int pod_open_peq(void); /* patch/m1plus.c: open_page(POD_PEQ_PAGE) */
+extern int pod_open_sleeptimer(void); /* patch/m1plus.c: open_page(POD_SLEEPTIMER_PAGE); 0 once its window is up */
 extern int pod_open_playset(void); /* patch/m1plus.c: open_page(POD_PLAYSET_PAGE); 0 once its window is up */
 extern int pod_open_peqlib(void); /* patch/m1plus.c: open_page(POD_PEQLIB_PAGE) */
 extern int pod_open_peqpage(void); /* patch/m1plus.c: open_page(POD_PEQP_PAGE) */
@@ -290,8 +291,8 @@ extern void dailymix_regen(
 extern int dailymix_can_regen(
     void); /* Regenerate can make a mix: the switch is on and the last job did not find the library too small */
 extern int recent_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
-extern int
-kb_zh_setting(void); /* patch/keyboard.c: Settings > Keyboards > Chinese (Pinyin): 1 on, 0 off (the default) */
+extern int kb_zh_setting(
+    void); /* patch/keyboard.c: Settings > General > Keyboards > Chinese (Pinyin): 1 on, 0 off (the default) */
 extern int kb_zh_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int pcsearch_setting(
     void); /* patch/podcasts.c: Settings > Library > Podcasts > Podcast Discover: 1 on (the default), 0 off */
@@ -302,8 +303,8 @@ extern int
 pcdir_set(int dir); /* choose one, saved atomically; the choice, or -1 when it is not one or could not be saved */
 #define PCDIR_APPLE 0
 #define PCDIR_INDEX 1
-extern int battpct_setting(
-    void); /* patch/battery.c: Settings > System > Battery > Battery Percentage: 1 on, 0 off (the default) */
+extern int
+battpct_setting(void); /* patch/battery.c: Settings > Battery > Battery Percentage: 1 on, 0 off (the default) */
 extern int battpct_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int azrail_setting(void); /* patch/azlist.c: Settings > Library > Index Rail: 1 on (the default), 0 off */
 extern int azrail_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */

@@ -2,7 +2,7 @@
 
 ## About
 
-The stock System Settings > About page is untouched (`tools/mod_about.py`, which added an `M1+ Music:<TAG>` row to it, is gone). Settings > System > About is our own cards page that shows everything the stock page does plus the build tag: [settings](settings.md) "About". FW. Version is still the literal `V2.1` in demo's `.rodata` (0x74773c), which this tree never patches; the package tag in `firmware_v20.info` is not shown. Product name: the user sees "M1+ Music"; internal names (`m1plus-*` files, `m1plus_*.bin`,
+The stock System Settings > General > About page is untouched (`tools/mod_about.py`, which added an `M1+ Music:<TAG>` row to it, is gone). Settings > General > About is our own cards page that shows everything the stock page does plus the build tag: [settings](settings.md) "About". FW. Version is still the literal `V2.1` in demo's `.rodata` (0x74773c), which this tree never patches; the package tag in `firmware_v20.info` is not shown. Product name: the user sees "M1+ Music"; internal names (`m1plus-*` files, `m1plus_*.bin`,
 widget and C identifiers) are `m1plus`.
 ## Polish (`tools/mod_polish.py`)
 

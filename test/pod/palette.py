@@ -512,7 +512,7 @@ def setting_tests(ctx):
 
 
 def settings_tests(ctx):
-    """The Background picker (Settings > System > Appearance > Background, m1plus_background): Black and Tinted (Light stays out of the picker), a tap saves, applies and moves the check."""
+    """The Background picker (Settings > Appearance > Background, m1plus_background): Black and Tinted (Light stays out of the picker), a tap saves, applies and moves the check."""
     expect, P = ctx.expect, pod_pages
     B, W, V = P.BG_PAGE, P.APPEARANCE_PAGE, P.SETTINGS_PAGE
     expect(not any(r.action in (P.ACT_BG, P.ACT_BGSET) for p in P.PAGES for r in p.rows if p not in (B, W)) and 'Light Mode' not in [r.label for r in V.rows], 'only the Appearance page links the picker; no Light Mode row anywhere')
@@ -857,7 +857,7 @@ def roles_tests(ctx):
 
 
 def accent_picker_tests(ctx):
-    """The Accent picker (Settings > System > Accent, m1plus_accent): the row, the page, a swatch per row, the check, a tap saves and applies at once."""
+    """The Accent picker (Settings > Appearance > Accent, m1plus_accent): the row, the page, a swatch per row, the check, a tap saves and applies at once."""
     expect, P = ctx.expect, pod_pages
     A, V, W = P.ACCENT_PAGE, P.SETTINGS_PAGE, P.APPEARANCE_PAGE
     names = ['Neutral', 'Red', 'Orange', 'Green', 'Teal', 'Purple', 'Champagne']
@@ -865,8 +865,8 @@ def accent_picker_tests(ctx):
     expect([(r.label, r.action, r.arg) for r in A.rows] == [(n, P.ACT_ACCENTSET, i) for i, n in enumerate(names)] and A.title == 'Accent' and A.key == 'm1plus_accent' and P.ACCENT_VALUES == tuple(names)
            and tuple(n.capitalize() for n in L.ACCENTS) == tuple(names) and P.PAGES[P.ACCENT_PAGE_INDEX] is A and all(P.row_kind(r) == 'check' for r in A.rows),
            'the picker: Neutral and the six accents in the saved order, titled Accent, a check each')
-    expect(V.rows[row_i].arg == P.APPEARANCE_PAGE_INDEX and V.rows[row_i].action == P.ACT_PAGE and P.row_kind(V.rows[row_i]) == 'link' and [r.label for r in V.rows[row_i - 1:row_i + 2]] == ['Buttons & Power', 'Appearance', 'Keyboards']
-           and 'Light Mode' not in [r.label for r in V.rows] and 'Accent' not in [r.label for r in V.rows], 'Settings > System: an Appearance link (a chevron, no value) between Buttons & Power and Keyboards; the Light row still hidden')
+    expect(V.rows[row_i].arg == P.APPEARANCE_PAGE_INDEX and V.rows[row_i].action == P.ACT_PAGE and P.row_kind(V.rows[row_i]) == 'link' and [r.label for r in V.rows[row_i - 1:row_i + 2]] == ['Display', 'Appearance', 'Buttons & Power']
+           and 'Light Mode' not in [r.label for r in V.rows] and 'Accent' not in [r.label for r in V.rows], 'Settings: an Appearance link (a chevron, no value) after Display; the Light row still hidden')
     expect([(r.label, r.action, r.arg) for r in W.rows][1:2] == [('Accent', P.ACT_ACCENT, P.ACCENT_PAGE_INDEX)] and P.row_kind(W.rows[1]) == 'value' and W.title == 'Appearance' and W.key == 'm1plus_appearance'
            and P.PAGES[P.APPEARANCE_PAGE_INDEX] is W, 'the Appearance page: an Accent value row opening the picker')
 

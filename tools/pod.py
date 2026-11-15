@@ -46,7 +46,7 @@ LD = os.path.join(LLD, 'ld.lld')
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'recent.c', 'dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
            'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'charging.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c',
-           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c']
+           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c']
 
 # LibriVox (patch/bknet.c, patch/bkdl.c): kept by the linker until the Audiobooks pages that call them exist; the Book level's download row (phase 3b) takes the rest; test/pod/bkdl.py calls these
 BN_KEEP = ['bd_fat', 'bd_present']
@@ -224,6 +224,7 @@ FUNCTIONS = {
     'airplayGetFlag':          ('int', 'void', 0x5cfc4c),
     'airplay_switch':          ('int', 'void', 0x5076a8),   # the AirPlay / DLNA tiles' tap: stock's own switch flips the setting byte (AIRPLAY_FLAG / DLNA_FLAG) and writes [SYSSET] AIRPLAY / DLNA to the settings ini; the network-status timer (on_wm_timer_networkstatus 0x4cfd94) starts or stops the service to match
     'dlna_switch':             ('int', 'void', 0x507674),
+    'switch_wifitransport':    ('int', 'int', 0x5075e4),   # Wi-Fi Transfer's server (docs/modules/netservice.md): 1 runs "thttpd -C /etc/thttpd.conf" and sets WIFITRANSPORT_FLAG, 0 runs "killall -9 thttpd", removes /tmp/thttpd.log and .pid and clears it
     'awake_screen':            ('int', 'void', 0x4e721c),   # the power key's long press lights the screen first (on_wm_keylong_fun 0x4cdd9c); the Power Off tile does the same
     'getFormatString':         ('int', 'const char *, char *, int', 0x4ccc18),   # key, buffer, size: the app's-language text of a stock string key
     'window_close':            ('int', 'void *', 0x675b70),   # "Shanling Home" closes the menu under the Settings page
@@ -410,6 +411,7 @@ FUNCTIONS.update({
     # Podcast downloads (patch/podcasts.c pg_awake_tick): stock's reset_poweroptions_timer(standby, auto_off, screen): a non-zero argument sets that countdown again (standby via setstandby_time, auto power-off via setsavepower_time, the screen's light via setlight_time); the page passes (1, 1, 0)
     'reset_poweroptions_timer': ('void', 'int, int, int', 0x4d7874),
     'reset_atmosphereled_rgb': ('void', 'void', 0x4e6b9c),   # Settings > Display > LED Light (patch/display.c): the lamp follows the byte atmosphereled_mode
+    'tk_set_lcd_orientation':  ('int', 'int', 0x5f35e8),   # Settings > Display > Screen Rotation (patch/display.c disp_rotate_toggle): 0 or 180, as stock's screenrotate_page handlers call it
 })
 # Settings (patch/m1plus.c, docs/modules/settings.md "Stock pages", "Stock state"): navigator_to opens the stock pages; the EQ preset's name is stock's table lookup (a tr key).
 FUNCTIONS.update({
@@ -571,6 +573,7 @@ DATA = {
     'STANDBY_MODE':       (0xa059e0, None),   # standby_mode: 1 while the power key's shutdown confirm is up, 2 once poweroff_page runs; the key (on_wm_keylong_fun 0x4cdd9c) and the Power Off tile ignore a nonzero value
     'POWERKEY_BLOCK':     (0xa059dc, None),   # the key's long press does nothing while it is 2 (the same function)
     'AIRPLAY_FLAG':       (0xa05abd, None),   # byte: the AirPlay setting ([SYSSET] AIRPLAY, 1 = on; Network Service page); airplay_switch (0x5076a8) flips it
+    'WIFITRANSPORT_FLAG': (0xa05abc, None),   # byte: 1 while Wi-Fi Transfer's server runs (switch_wifitransport 0x5075e4); the pull-down gate and the standby / shutdown countdown do nothing while it is set (patch/netservice.c)
     'DLNA_FLAG':          (0xa05abe, None),   # byte: the DLNA setting ([SYSSET] DLNA); dlna_switch (0x507674) flips it
     'DROPDOWN_BUSY':      (0xa05a00, None),   # the pull-down tile handlers (0x4754c8, 0x475558) do nothing while it is 2, as for POWER_USBSTATE and airplayGetFlag
     'POWER_FLAG':         (0xa05aa8, None),
@@ -691,12 +694,18 @@ DATA.update({
     'LIGHT_MODE':         (0xa05a7c, 'backlighttime_mode'),   # int: stock's backlight time index, 0 never .. 4 five minutes ([SYSSET] LIGHTTIME; patch/display.c disp_light)
     'LED_MODE':           (0xa05a75, 'atmosphereled_mode'),   # byte: stock's lamp mode, 0 off, 1 green, 2 blue ([SYSSET] ATMOSPHERELEDMODE; patch/display.c disp_led)
     'LED_FOLLOW':         (0xa05a74, 'ledfollowscreen_flag'),   # byte: stock's Follow Screen switch ([SYSSET] LEDFOLLOWSCREEN; patch/display.c disp_follow)
-    # Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): stock's own state words
+    # Settings > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): stock's own state words
     'KEY_LOCK_FLAG':      (0xa05aa0, 'keylock_flag'),   # byte: Button Lock on ([SYSSET] LOCKFLAG; the Control Center tile system_keylock writes it too)
     'KEY_LOCK_MODE':      (0x97caec, 'keylock_mode'),   # int: the lock's mode, 1 volume keys, 2 the other keys, 3 both ([SYSSET] LOCKMODE)
     'TAP_WAKE':           (0xa05aa1, 'doublewake_flag'),   # byte: Tap to Wake ([SYSSET] DOUBLEWAKE)
     'STANDBY_FLAG':       (0xa05a8c, 'standbyflag'),   # byte: Auto-Standby on ([SYSSET] STANDBYMODE)
+    'SLEEP_FLAG':         (0xa05a94, 'sleepflag'),   # byte: stock's Sleep Timer is on (patch/sleeptimer.c, docs/modules/sleeptimer.md; stock's Power page switch and the countdown read it)
+    'SLEEP_TIME':         (0xa05a90, 'sleep_time'),   # int: the Sleep Timer's seconds left (stock's page stores (hours * 60 + minutes) * 60; the countdown takes one per tick)
     'SHUTDOWN_MODE':      (0xa05a84, 'savepowermode'),   # int: Auto-Shutdown, 0 off, 1 .. 4 = 1, 3, 5, 10 minutes ([SYSSET] SAVEPOWERMODE)
+    # Settings > Display > Screen Rotation and Buttons & Power > Car Mode (patch/display.c, patch/keyspower.c): stock's own state (ROTATEMODE above is rotate_mode)
+    'ROTATE_FLAG':        (0xa05a58, 'scr_rotateflag'),   # byte: set to 1 by stock's rotation handlers after tk_set_lcd_orientation; the open dialogs' 200 ms timers (0x4707f4 ..) move themselves and clear it
+    'CAR_MODE':           (0xa05aa6, 'car_mode'),   # byte: Car Mode ([SYSSET] CARMODE; the standby / shutdown countdown, USB / OTG detection, the start-up resume read it)
+    'CAR_STARTFLAG':      (0xa059dc, 'carmode_startflag'),   # int: the idle code's car-power state; stock's Car Mode handler clears it
     # stock's brightness page code, bound to our slider (patch/display.c; no symbols: the entries and stock's own bindings are pinned, LOCKSCREEN_PINS)
     'BRIGHT_REFRESH':     (0x4a4450, None),   # int (window): label_brightness and slider_brightness from the word lightness
     'BRIGHT_CHANGED':     (0x4a4678, None),   # int (window, event): the slider's EVT_VALUE_CHANGED handler
@@ -808,6 +817,29 @@ DATA.update({
 FUNCTIONS['window_manager_switch_to'] = ('int', 'void *, void *, void *, int', 0x67891c)   # (wm, current window, target window, close current): stock's own restack of a window already in the stack
 PULLDOWN_PINS += PULLDOWN_FLAG_PINS + TSDOWN_PINS
 PULLDOWN_SITE_WORDS = ((PULLDOWN_OPEN_SITES[0], 0x0411113a), (PULLDOWN_OPEN_SITES[1], 0x04111130), (PULLDOWN_DIALOG_SITE, 0x04111146))   # the two `bal navigator_to` (0x4d1d80) words the hook replaces
+
+# Settings > General > Language (patch/language.c, docs/modules/language.md): stock's language word and the two flags its page's row handler 0x4a7cb0 sets for the Home screen, with the two calls it ends with
+DATA.update({
+    'LANGUAGE_WORD':      (0xa05ab8, 'language'),             # int: the language, 0 .. 12 (the row of stock's language page; [SYSSET] LANGUAGE); anything else loads zh_CN
+    'LANGUAGE_CHANGED':   (0xa05a39, 'change_lanflag'),       # byte: 1 after a language change, read by the Home foreground callback 0x534858 (resets the main menu's index)
+    'HOMEMENU_CHANGED':   (0xa05a50, 'homemenu_changeflag'),  # int: 2 after a language change: the Home foreground callback rebuilds the menu from the new language's texts
+})
+FUNCTIONS.update({
+    'switch_language':         ('int', 'int', 0x4cca40),      # (the word): loads the locale table, then set_jplanguage
+    'navigator_back_to_home':  ('int', 'void', 0x4d20a0),     # window_manager_back_to_home: closes every window above Home
+})
+# Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): stock's own functions and words behind the Date & Time pages
+FUNCTIONS.update({
+    'get_systime':         ('void', 'int *, int *, int *, int *, int *', 0x4d76e4),   # (&minute, &hour, &day, &month, &year): the local time, as stock's manual time page reads it
+    'set_systime':         ('int', 'int, int, int, int, int', 0x4d7770),   # (year, month, day, hour, minute): date -s, then hwclock -wu (docs/modules/autotime.md)
+    'select_timezone':     ('int', 'void', 0x4d6b2c),   # reads time_zone: setenv("TZ") (hooked: patch/timezones.c tz_select)
+    'change_time24h_12h':  ('int', 'int', 0x544ab0),   # (flag): the status bar clock's format
+})
+DATA.update({
+    'AUTO_TIME':          (0xa05ab1, 'auto_sync_nettime'),   # byte: Set Automatically ([SYSSET] AUTOSYNCTIME)
+    'SYNC_NEED':          (0xa05a66, 'sync_nettime_flag'),   # byte: a network sync is wanted (networktime_adjust_thd syncs once Wi-Fi is up and clears it)
+    'TIME_24H':           (0xa05ab0, 'time24hflag'),   # byte: 24-Hour Time ([SYSSET] TIME24H)
+})
 
 
 def patch_pulldown(image, ps, payload_len):
@@ -945,6 +977,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define stock_playlist_export ((int (*)(void *, void *))0x{PLAYLIST_EXPORT:x}u)')
     h.append(f'#define stock_tidal_search ((int (*)(void *, void *))0x{TIDALKB_SEARCH:x}u)')   # the stock Tidal search page's search routine (patch/tidalkb.c; TIDALKB_PINS)
     h.append(f'#define tf_update_click ((int (*)(void *, void *))0x{TF_UPDATE:x}u)')   # the stock TF card update's click handler (patch/update.c; TFUPDATE_PINS)
+    h.append(f'#define stock_format_card ((int (*)(void))0x{FORMAT_CARD:x}u)')   # the stock Settings list's Format row handler (confirm, then the format dialog; no argument; STOCKROWS_PINS)
     # the engine's dictionary members (patch/search.c pinyin initials; not exported, pinned by PINYIN_PINS): DictList::get_lemma_id(this, char16 *, len), get_splids_for_hanzi(this, hanzi, half_splid, splids, max), SpellingTrie::get_spelling_str(this, id)
     h.append('#define py_lemma_id ((unsigned (*)(void *, const unsigned short *, unsigned))0x5c01a4u)')
     h.append('#define py_splids ((unsigned short (*)(void *, unsigned short, unsigned short, unsigned short *, unsigned short))0x5bffd4u)')
@@ -1036,7 +1069,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define POD_ENTRY_ID {pod_pages.HOME_ENTRY}')
     h.append('#define POD_ENTRY_PAGE 0')
     h.append('#define POD_MENU_PAGE 0')
-    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
+    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
         h.append(f'#define POD_{macro}_PAGE {getattr(pod_pages, macro + "_PAGE_INDEX")}')
     (out / 'pages.h').write_text('\n'.join(h) + '\n')
     return slots
@@ -1310,8 +1343,9 @@ def patch_demo(raw, payload, ps, demo_path):
     patch_timezones(patched, ps, len(payload))
     patch_pulldown(patched, ps, len(payload))
     check_pins(patched, RADIO_PINS)
+    check_pins(patched, LANGUAGE_PINS)
     patch_radio(patched, ps, len(payload))
-    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS)   # stock code the Playlists and Songs pages call: checked, not written
+    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS + DATETIME_PINS + SLEEPTIMER_PINS + NETSERVICE_PINS + STOCKROWS_PINS)   # stock code the Playlists and Songs pages call: checked, not written
     for at, text in ((0x74bad8, ALBUM_SQL.replace('songtable', '%s')), (0x74ba4c, 'songtable')):   # the strings getAllAlbum fills: the payload's STOCK_ALBUM_SQL is their sprintf
         want = text.encode() + b'\0'
         check(bytes(patched[fileoff(patched, at):fileoff(patched, at) + len(want)]) == want, f'{at:#x}: not the string "{text}" the album cover map reproduces')

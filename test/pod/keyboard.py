@@ -647,7 +647,7 @@ DICT_DATA = open(PY.DICT, 'rb').read()
 
 
 def zh_machine(setting=True, dictionary=True):
-    """The keyboard's machine over the real engine; setting: Settings > Keyboards > Chinese (Pinyin) is on; dictionary: gpinyin.dat is there."""
+    """The keyboard's machine over the real engine; setting: Settings > General > Keyboards > Chinese (Pinyin) is on; dictionary: gpinyin.dat is there."""
     m = keyboard_machine(ZhMachine({PY.SYS_PATH: DICT_DATA} if dictionary else {}))
     if setting: m.fs[KBZH] = b'1\n'
     if dictionary: m.present.add(PY.SYS_PATH)

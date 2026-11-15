@@ -35,6 +35,9 @@ void *tz_row(void *item, int row) {
     return timezone_listitem_layout(item, p < TZ_COUNT ? (int)tz_order[p] + 2 : row);
 }
 
+/* The zone's literal label (the Date & Time page's Time Zone row, patch/datetime.c). */
+const char *tz_label_of(unsigned index) { return index < TZ_COUNT ? tz_labels[index] : ""; }
+
 /* The row builder's strcpy(buf, key): buf is its 0x80 byte label buffer, index the zone (row - 2). */
 void tz_label(char *buf, unsigned index) {
     const char *s = index < TZ_COUNT ? tz_labels[index] : "";

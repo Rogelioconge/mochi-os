@@ -188,7 +188,7 @@ def run(ctx):
     expect(m.call(PSYMS['battpct_toggle'], count=4000000) == 0xffffffff and m.fs[FILE] == b'1\n' and FILE + '.tmp' not in m.fs and tick(m) == 87,
            'a failed save: -1, the file and the behaviour are unchanged')
 
-    # 6. The row: Settings > System > Battery > Battery Percentage (a switch, off by default)
+    # 6. The row: Settings > Battery > Battery Percentage (a switch, off by default)
     H = P.BATTERY_PAGE
     lay = lambda pg: [type(x).__name__ + (':' + x.label if isinstance(x, P.Row) else ':' + x.text if hasattr(x, 'text') else '') for x in pg.layout]
     layout = lay(H)

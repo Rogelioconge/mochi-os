@@ -294,6 +294,7 @@ class Machine:
         self.watch.update({PSYMS[n]: n for n in ('set_value', 'set_offset') if n in PSYMS})
         self.handlers[pod.HOME_INIT + 12] = 'stock_init_resume'
         self.handlers[pod.TF_UPDATE] = 'tf_update_click'
+        self.handlers[pod.FORMAT_CARD] = 'stock_format_card'
         self.handlers[pod.PLAYLIST_IMPORT] = 'stock_playlist_import'   # the stock Playlists page's Import / Export click handlers
         self.handlers[pod.PLAYLIST_EXPORT] = 'stock_playlist_export'
         self.handlers[pod.GLYPH_CACHE_LOOKUP] = 'glyph_cache_lookup'   # the stb font's glyph path (patch/textgamma.c wraps it): mocked, test/pod/textgamma.py
@@ -978,6 +979,8 @@ class Machine:
             self.calls.append(('navigator_to', self.read_cstr(a0))); ret = 0
         elif name == 'tf_update_click':   # the stock TF card update's click handler (its confirmation, the battery check, the flash): called with no event
             self.calls.append(('tf_update_click', a0, a1)); ret = 0
+        elif name == 'stock_format_card':   # the stock Settings list's Format handler (the confirm, then dialog/formatcard_dialog): called with no argument
+            self.calls.append(('stock_format_card',)); ret = 0
         elif name == 'getDiskMemoryInfo':   # (path, &capacity, &free) in G as floats, the card's numbers a test sets in self.disk
             cap, rem = getattr(self, 'disk', (0.0, 0.0)); self.calls.append(('getDiskMemoryInfo', self.read_cstr(a0)))
             self.u.mem_write(a1, struct.pack('<f', cap)); self.u.mem_write(a2, struct.pack('<f', rem)); ret = 0

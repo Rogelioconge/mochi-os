@@ -243,16 +243,13 @@ static int pm_on_art(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* Sleep Timer (the row is pod_sleep, page 2): the stock Settings > Power page (powermanager_page: the Sleep Timer switch and its hour / minute selectors), opened over Now Playing. The page has no single_instance property,
- * so a plain navigator_to stacks a new one every time. The pile-up needs the page's top-right Now Playing button, which restacks the player and leaves the Power page under it, and then reopening Sleep Timer; a plain
- * Back closes the page. A Power window already in the stack is brought to the front (m1_open_stock, which restacks as the Settings tiles do); otherwise stock's open. The restacked page refreshes itself: stock's restack delivers
- * EVT_WINDOW_TO_FG, and the handler the page's init bound for it (0x4a9b2c) runs the page refresh (0x4a9924: switch and selectors from the timer), so nothing here refreshes it (pinned in tools/pod.py PLAYMORE_PINS).
- * Back (0x4a91d0) saves the picker values and calls navigator_back; with Now Playing directly below the page that returns to Now Playing. The page FIRST, the sheet closed once it is up (a window below the top one);
- * a page that cannot open leaves the sheet. */
+/* Sleep Timer (the row is pod_sleep, page 2): our Sleep Timer page (m1plus_sleeptimer, patch/sleeptimer.c) over Now Playing. A page of ours keeps one window: an opened one in the stack is brought to the front (m1_restack_window; stock's
+ * restack delivers EVT_WINDOW_TO_FG, which refreshes our page's checks), else it is opened afresh. The page FIRST, the sheet closed once it is up (a window below the top one); a page that cannot open leaves the sheet.
+ * Its top-right Now Playing button restacks the player over it, which a later tap here reuses; a plain Back closes it and returns to Now Playing. */
 static int pm_on_sleep(void *ctx, void *e) {
     (void)e;
     if (!pm.dlg || ctx != pm.dlg) return RET_OK;
-    if (m1_open_sleep() != RET_OK) return RET_OK;
+    if (!m1_restack_window("m1plus_sleeptimer_page") && pod_open_sleeptimer() != 0) return RET_OK;
     window_close(ctx);
     return RET_OK;
 }

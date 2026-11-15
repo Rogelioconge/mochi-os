@@ -1,4 +1,4 @@
-/* M1+ Music Settings > System > Display (docs/modules/display.md): the state behind our Display page's Screen Timeout row and its picker.
+/* M1+ Music Settings > Display (docs/modules/display.md): the state behind our Display page's Screen Timeout row and its picker.
  *
  * The state is stock's own: the word backlighttime_mode (LIGHT_MODE), an index 0 .. 4 (never, 15 s, 30 s, 1 min, 5 min), loaded from [SYSSET] LIGHTTIME by config_init (anything else becomes 0)
  * and shown by stock's systemset/lighttime_page, which stays reachable through All System Settings and reads the same word. Nothing of ours is saved.
@@ -56,6 +56,20 @@ int disp_follow_toggle(void) {
     *(volatile signed char *)LED_FOLLOW = (signed char)next;
     write_int_config(next, "SYSSET", "LEDFOLLOWSCREEN");
     return next;
+}
+
+/* Screen Rotation: stock's word rotate_mode (ROTATEMODE, [SYSSET] ROTATEMODE; config_init keeps 0 or 1): 0 = 0 degrees, 1 = 180 degrees, two rows of systemset/screenrotate_page. Each row's handler (0x4ab03c for 0,
+ * 0x4aafd0 for 180) returns when the word is the choice already, else calls the shared 0x4aae68 (the row images; the word stored in the delay slot of write_int_config(choice, "SYSSET", "ROTATEMODE")), then
+ * tk_set_lcd_orientation(0 or 180) and stores 1 in the byte scr_rotateflag (the open dialogs' timers use it to move themselves). The switch is on for 180. The new state (tools/pod_pins.py LOCKSCREEN_PINS). */
+int disp_rotate(void) { return *(volatile int *)ROTATEMODE == 1; }
+
+int disp_rotate_toggle(void) {
+    int to = *(volatile int *)ROTATEMODE == 1 ? 0 : 1;
+    *(volatile int *)ROTATEMODE = to;
+    write_int_config(to, "SYSSET", "ROTATEMODE");
+    tk_set_lcd_orientation(to ? 180 : 0);
+    *(volatile unsigned char *)ROTATE_FLAG = 1;
+    return to;
 }
 
 /* The brightness card. Its slider has the name of stock's (slider_brightness), so stock's own two handlers are bound to it with the window as their context, as stock's page binds them (tools/pod.py

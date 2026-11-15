@@ -55,8 +55,8 @@ def layout_tests(ctx):
     """Every cards page under demo's own layouter, plus the asset against the model."""
     expect, P = ctx.expect, pod_pages
     pages = [p for p in P.PAGES if p.kind in ('cards', 'peq')]   # (the Equalizer page is a cards page its payload binds itself: its layout is the asset's, every row shown)
-    expect([p.key for p in pages] == ['m1plus_settings', 'm1plus_library', 'm1plus_homeset', 'm1plus_developer', 'm1plus_npset', 'm1plus_keyboards', 'm1plus_tapetheme', 'm1plus_about', 'm1plus_vinylrec', 'm1plus_vinyltheme', 'm1plus_cache', 'm1plus_files', 'm1plus_background', 'm1plus_accent', 'm1plus_appearance', 'm1plus_podcastregion', 'm1plus_peq', 'm1plus_battery', 'm1plus_chargelimit', 'm1plus_idleview', 'm1plus_lockscreen', 'm1plus_lockstyle', 'm1plus_nextalbum', 'm1plus_display', 'm1plus_lighttime', 'm1plus_ledlight', 'm1plus_keyspower', 'm1plus_keylock', 'm1plus_shutdown', 'm1plus_listenbrainz', 'm1plus_lastfm', 'm1plus_scrobbling', 'm1plus_playset', 'm1plus_psmode', 'm1plus_psmem', 'm1plus_psgain', 'm1plus_psrg', 'm1plus_psfilter', 'm1plus_psdsd', 'm1plus_psusb', 'm1plus_psmaxvol', 'm1plus_psbootvol', 'm1plus_psbal', 'm1plus_lyrsize', 'm1plus_podcastsettings', 'm1plus_podcastdirectory', 'm1plus_rgbtheme', 'm1plus_psxfeed'],
-           'the cards pages: Settings, Library, Home Screen, Developer, Now Playing, Keyboards, the three pickers, About, Cache, Settings Files, the Background picker, the Accent picker, Appearance and the Podcast Region picker, Equalizer, Battery, the Charge Limit picker, the Idle Display picker, the Lock Screen page, the Player Style picker, the Continue Playing picker, the Display page and its Screen Timeout and LED Light pickers, the Buttons & Power page and its Button Lock and Auto-Shutdown pickers, the ListenBrainz, Last.fm and Scrobbling pages, and the Playback Settings page, its seven pickers and the three loudness pages, then the Lyrics Text Size picker, then the Podcasts page and the Podcast Directory picker, then the Theme picker and the Crossfeed picker last')
+    expect([p.key for p in pages] == ['m1plus_settings', 'm1plus_library', 'm1plus_homeset', 'm1plus_developer', 'm1plus_npset', 'm1plus_keyboards', 'm1plus_tapetheme', 'm1plus_about', 'm1plus_vinylrec', 'm1plus_vinyltheme', 'm1plus_cache', 'm1plus_files', 'm1plus_background', 'm1plus_accent', 'm1plus_appearance', 'm1plus_podcastregion', 'm1plus_peq', 'm1plus_battery', 'm1plus_chargelimit', 'm1plus_idleview', 'm1plus_lockscreen', 'm1plus_lockstyle', 'm1plus_nextalbum', 'm1plus_display', 'm1plus_lighttime', 'm1plus_ledlight', 'm1plus_keyspower', 'm1plus_keylock', 'm1plus_shutdown', 'm1plus_listenbrainz', 'm1plus_lastfm', 'm1plus_scrobbling', 'm1plus_playset', 'm1plus_psmode', 'm1plus_psmem', 'm1plus_psgain', 'm1plus_psrg', 'm1plus_psfilter', 'm1plus_psdsd', 'm1plus_psusb', 'm1plus_psmaxvol', 'm1plus_psbootvol', 'm1plus_psbal', 'm1plus_lyrsize', 'm1plus_podcastsettings', 'm1plus_podcastdirectory', 'm1plus_rgbtheme', 'm1plus_psxfeed', 'm1plus_language', 'm1plus_datetime', 'm1plus_timezone', 'm1plus_dtdate', 'm1plus_dttime', 'm1plus_dtyear', 'm1plus_dtmonth', 'm1plus_dtday', 'm1plus_dthour', 'm1plus_dtminute', 'm1plus_sleeptimer', 'm1plus_general', 'm1plus_netservice', 'm1plus_wifitransfer'],
+           'the cards pages: Settings, Library, Home Screen, Developer, Now Playing, Keyboards, the three pickers, About, Cache, Settings Files, the Background picker, the Accent picker, Appearance and the Podcast Region picker, Equalizer, Battery, the Charge Limit picker, the Idle Display picker, the Lock Screen page, the Player Style picker, the Continue Playing picker, the Display page and its Screen Timeout and LED Light pickers, the Buttons & Power page and its Button Lock and Auto-Shutdown pickers, the ListenBrainz, Last.fm and Scrobbling pages, and the Playback Settings page, its seven pickers and the three loudness pages, then the Lyrics Text Size picker, then the Podcasts page and the Podcast Directory picker, then the Theme picker and the Crossfeed picker, then the Language picker, then the Date & Time pages and their pickers, then the Sleep Timer page the General page, then the Network Services and Wi-Fi Transfer pages last')
     expect(mod_icons.CARD_PIECE == {'ROW_W': ST.ROW_W, 'ROW_H': ST.ROW_H, 'CARD_X': ST.CM, 'CARD_W': ST.CARD_W, 'CARD_R': ST.CARD_R, 'FILL': (0x1C, 0x1C, 0x1E), 'LIT': (0x2C, 0x2C, 0x2E)}
            and ST.CARD_RGB == '#1C1C1E' and ST.PRESSED_RGB == '#2C2C2E', 'the pieces\' geometry in tools/mod_icons.py is the layout model\'s')
     expect(mod_icons.CARD_TALL == ST.LIB_ROW_H == 60 and ST.piece_images('top', tall=True) == ('pod_cdl_top', 'pod_cdl_top_down') and ST.piece_images('mid') == ('pod_cd_mid', 'pod_cd_mid_down')
@@ -74,13 +74,15 @@ def layout_tests(ctx):
         expect(not [c for c in sv.children if c.name.startswith('pod_card')] and all(c.w == ST.LIST_W for c in sv.children), f'{page.key}: no card views: the scroll_view holds only the items of the column')
         # the asset's own order, names and heights are the model's column
         names = []
-        n_h = n_n = n_g = n_r = 0
+        n_h = n_n = n_g = n_r = n_b = 0
         for it, y in placed:
             if it == ST.TOP: names.append(('pod_top', y, ST.CM))
             elif it == ST.END: names.append(('pod_end', y, ST.END_H))
             elif it is P.GAP: names.append((f'pod_gap{n_g}', y, ST.GAP_H)); n_g += 1
             elif isinstance(it, P.Hdr): names.append((f'pod_sec{n_h}', y, ST.HDR_H)); n_h += 1
             elif isinstance(it, P.Note): names.append((f'pod_note{n_n}', y, ST.item_h(it))); n_n += 1
+            elif isinstance(it, P.Hero): names.append(('pod_hero', y, ST.hero_h(it))); n_n += 1   # (its description is numbered as a note)
+            elif isinstance(it, P.BigCard): names.append((f'pod_big{n_b}', y, ST.BIG_H)); n_b += 1
             elif isinstance(it, P.Brightness): names.append(('pod_bright', y, ST.ROW_H))   # the Display page's brightness card: a row's height
             elif isinstance(it, P.VolCard): names.append(('pod_vsval' if it.part == 'value' else 'pod_vsctl', y, ST.ROW_H))   # the loudness pages' cards: a row's height
             else: names.append((f'pod_row{n_r}', y, ST.ROW_H)); n_r += 1
@@ -99,7 +101,7 @@ def layout_tests(ctx):
             r, kind = rows[n], P.row_kind(it)
             last = kinds[n] in ('single', 'bot')
             swatch = it.action == P.ACT_ACCENTSET   # the Accent picker's rows: a round swatch where a glyph goes (pod_swatch)
-            has_icon = swatch or (kind not in ('check', 'info', 'preset', 'delete') and it.action not in (P.ACT_CCLIST, P.ACT_SFOLD, P.ACT_UPDATE, P.ACT_REGION, P.ACT_PCDIR, P.ACT_RGBROW, P.ACT_LEDFOLLOW, P.ACT_PEQ_PRESETS, P.ACT_PEQ_TENBAND))   # (the ListenBrainz page's rows have no glyph: Token, Account, the red Sign Out and the Auto Upload switch)
+            has_icon = swatch or (kind not in ('check', 'info', 'preset', 'delete', 'plain') and it.action not in (P.ACT_CCLIST, P.ACT_SFOLD, P.ACT_UPDATE, P.ACT_REGION, P.ACT_PCDIR, P.ACT_RGBROW, P.ACT_LEDFOLLOW, P.ACT_PEQ_PRESETS, P.ACT_PEQ_TENBAND))   # (the ListenBrainz page's rows have no glyph: Token, Account, the red Sign Out and the Auto Upload switch)
             lab = next(c for c in r.children if c.name == f'pod_label{n}')
             lx, lw = ST.label_box(kind, has_icon)
             if it.action == P.ACT_PEQ_PICK and it.label: lw = ST.curve_box()[0] - ST.VALUE_LABEL_GAP - lx   # the 10-Band EQ row's grey curve name
@@ -132,6 +134,7 @@ def layout_tests(ctx):
         for item in ('pod_sec', 'pod_note'):
             for v in [c for c in sv.children if c.name.startswith(item)]:
                 lab = v.children[0]
+                if lab.get('style:normal:text_align_h') == 'center': continue   # a centred note (Note.center): test/pod/netservice.py checks the Wi-Fi Transfer page's
                 expect(v.type == 'view' and v.get('sensitive') == 'false' and len(v.children) == 1 and lab.name == v.name + '_t' and lab.x == ST.HDR_X + (lab.type == 'label') * 2 == 24 + (lab.type == 'label') * 2 and lab.w == ST.HDR_W - (lab.type == 'label') * 4
                        and lab.get('sensitive') == 'false' and lab.get('style:normal:text_color') == ST.GREY and lab.get('style:normal:text_align_h') == 'left'
                        and int(lab.get('style:normal:font_size')) == (ST.HDR_PX if item == 'pod_sec' else ST.NOTE_PX),
@@ -187,20 +190,20 @@ def layout_tests(ctx):
 def settings_page_machine(page, daily=None):
     P = pod_pages
     m = Machine()
-    m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(['btn_return', 'btn_backtoplayer'] + [f'pod_note{i}' for i in range(5)] + [f'pod_row{i}' for i in range(len(page.rows))] + [f'pod_switch{i}' for i in range(len(page.rows))])}
+    m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(['btn_return', 'btn_backtoplayer'] + [f'pod_note{i}' for i in range(5)] + [f'pod_row{i}' for i in range(len(page.rows))] + [f'pod_switch{i}' for i in range(len(page.rows))] + [f'pod_value{i}' for i in range(len(page.rows))])}
     if daily is not None: m.fs['/mnt/data/m1plus/home-daily-mix'] = daily
     m.call(PSYMS['on_row'], a0=PSYMS['pod_rows_%d' % P.SETTINGS_PAGE_INDEX] + 12 * next(i for i, r in enumerate(P.SETTINGS_PAGE.rows) if r.action == P.ACT_PAGE and r.arg == P.PAGES.index(page)), count=3000000)
     return m
 
 
 def about_tests(ctx):
-    """Settings > System > About: our own page, the stock About page's values read the stock way, laid out in sections; the stock page is no longer linked."""
+    """Settings > General > About: our own page, the stock About page's values read the stock way, laid out in sections; the stock page is no longer linked."""
     expect, P = ctx.expect, pod_pages
     A = P.ABOUT_PAGE
-    S = P.SETTINGS_PAGE
+    S = P.GENERAL_PAGE
     ab_i = next(i for i, r in enumerate(S.rows) if r.label == 'About')
     expect((S.rows[ab_i].action, S.rows[ab_i].arg) == (P.ACT_PAGE, P.ABOUT_PAGE_INDEX) and A.title == 'About' and A.key == 'm1plus_about' and all(P.row_kind(r) == 'info' for r in A.rows if r.action != P.ACT_UPDATE) and [r.label for r in A.rows][:2] == ['M1+ Music', 'Software Update'] and P.row_kind(A.rows[1]) == 'link'
-           and not any(n == 'systemset/about_page' for n, *_ in P.STOCK_PAGES), 'Settings > About opens our own page of information rows; the stock About page is not linked')
+           and not any(n == 'systemset/about_page' for n, *_ in P.STOCK_PAGES), 'Settings > General > About opens our own page of information rows; the stock About page is not linked')
     sections = [x.text if isinstance(x, P.Hdr) else x.label if isinstance(x, P.Row) else None for x in A.layout]
     expect(sections == ['M1+ Music', 'Software Update', 'Firmware', 'Device', 'Model', 'Serial Number', 'Wi-Fi MAC', 'IP Address', 'Storage', 'Capacity', 'Available'], f'the sections: build and firmware, Device, Storage ({sections})')
     names = {r.label: i for i, r in enumerate(A.rows)}
@@ -212,7 +215,7 @@ def about_tests(ctx):
         m.u.mem_write(pod.DATA['PRODUCT_SN'][0], sn.ljust(16, b'\0')); m.u.mem_write(pod.DATA['WIFI_MAC'][0], mac.ljust(32, b'\0'))
         m.disk, m.net, m.ip = disk, net, ip
         if card: m.present.add('/tmp/mmc_add')
-        m.call(PSYMS['on_row'], a0=PSYMS[f'pod_rows_{P.SETTINGS_PAGE_INDEX}'] + 12 * ab_i, count=4000000)
+        m.call(PSYMS['on_row'], a0=PSYMS[f'pod_rows_{P.GENERAL_PAGE_INDEX}'] + 12 * ab_i, count=4000000)
         return m
 
     utf8 = lambda t: t.encode('latin-1').decode('utf-8')
@@ -276,12 +279,38 @@ def stock_tests(ctx):
         opened = [c[1] for c in m.calls if c[0] == 'window_open']
         expect([c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names() and opened == (['m1plus_wifi'] if label == 'Wi-Fi' else []),
                f'{label}: one plain navigator_to("{name}"), no context, no window of ours' + (' but the Wi-Fi page, which opens first and (here, an asset without its widgets) hands over to the stock page' if label == 'Wi-Fi' else ''))
-    m = settings_machine()
-    m.click(f'pod_row{rows["All System Settings"]}')
     # (the Home dispatcher's ids 16 and 17 are bound to the two rows: tests/pod/menu.py checks the table)
-    expect(len(P.STOCK_PAGES) == 2 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
-           'two stock pages, each opened by an ACT_STOCK row (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests)')
-    expect(not [r for r in P.DEVELOPER_PAGE.rows if r.action == P.ACT_STOCK] and 'systemset/fwupdate_page' not in [n for n, *_ in P.STOCK_PAGES], 'no Developer row is a stock page: the firmware update page is not in STOCK_PAGES (About > Software Update is ours)')
+    expect(len(P.STOCK_PAGES) == 8 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
+           'eight stock pages; Settings opens two of them by ACT_STOCK rows (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests), General six (below)')
+    expect(not [r for r in P.DEVELOPER_PAGE.rows if r.action in (P.ACT_STOCK, P.ACT_HOME)], 'no Developer row is a stock page or opens stock\'s list (All System Settings is General\'s last row)')
+    # General's direct rows: each page by the plain navigator_to name read from the stock image at the string stock's own list or hub passes (STOCKROWS_PINS), no context
+    G = P.GENERAL_PAGE
+    gi = {r.label: i for i, r in enumerate(G.rows)}
+    # (USB Mode, CD Ripping and SyncLink are General's former rows: now on Playback Settings, Library and Network Services; Back returns to the page the row is on)
+    homes = {'USB Mode': P.PLAYSET_PAGE, 'CD Ripping': P.LIBRARY_PAGE, 'SyncLink': P.NETSERVICE_PAGE}
+    for label, at in (('USB Mode', 0x749f14), ('CD Ripping', 0x749e70), ('SyncLink', 0x748ee8)):
+        H = homes[label]
+        hi = [r.label for r in H.rows].index(label)
+        m = settings_page_machine(H); m.calls = []
+        m.click(f'pod_row{hi}')
+        name = P.STOCK_PAGES[H.rows[hi].arg][0]
+        expect(label not in gi and H.rows[hi].action == P.ACT_STOCK and name == m.read_cstr(at) and [c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names(),
+               f'{H.title} > {label}: one plain navigator_to("{name}"), the string stock\'s own caller loads, no context; no row on General')
+    stock_names = {'Firmware Update': 0x748a68, 'Regulatory': 0x748a1c, 'Reset': 0x748a80}   # (the list's fwupdate, prove, reset)
+    for label, at in stock_names.items():
+        m = settings_page_machine(G); m.calls = []
+        m.click(f'pod_row{gi[label]}')
+        name = P.STOCK_PAGES[G.rows[gi[label]].arg][0]
+        expect(G.rows[gi[label]].action == P.ACT_STOCK and name == m.read_cstr(at) and [c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names(),
+               f'General > {label}: one plain navigator_to("{name}"), the string stock\'s own caller loads, no context')
+    # Format Storage calls stock's own list handler (0x4ad678, mocked here: it is the confirm "msg_checkformat", then dialog/formatcard_dialog, or the stock message without the card): once, with no argument, nothing else of ours
+    fr = G.rows[gi['Format Storage']]
+    expect(fr.action == P.ACT_FORMAT == 169 and P.row_kind(fr) == 'action' and pod.FORMAT_CARD == 0x4ad678, 'Format Storage is the action row ACT_FORMAT (169) over the stock handler 0x4ad678')
+    m = settings_page_machine(G); m.calls = []
+    m.click(f'pod_row{gi["Format Storage"]}')
+    expect([c for c in m.calls if c[0] in ('stock_format_card', 'navigator_to', 'navigator_to_with_context', 'confirm', 'toast')] == [('stock_format_card',)]
+           and m.read_cstr(0x748910) == 'msg_checkformat' and m.read_cstr(0x748930) == 'dialog/formatcard_dialog' and m.read_cstr(0x744570) == 'dialog/confirminfo_dialog',
+           'Format Storage: one call of stock\'s handler and nothing else; the strings its steps load are the confirm text, the confirm dialog and the format dialog (pinned, STOCKROWS_PINS)')
     m = settings_machine()
     m.click(f'pod_row{rows["EQ"]}')
     expect(('window_open', P.PEQ_PAGE.key) in m.calls and 'navigator_to' not in m.names(), 'EQ opens our Equalizer page (ACT_PEQ), not stock\'s')
@@ -309,4 +338,26 @@ def stock_tests(ctx):
     expect(value(m, 'Wi-Fi') == 'On', 'back in front: Wi-Fi On, read again')
 
 
-SECTIONS = [layout_tests, stock_tests, about_tests]
+def general_tests(ctx):
+    """Settings > General: one link row on Settings, three cards: About, Date & Time, Keyboards, Language; Firmware Update, Regulatory, Format Storage, Reset; All System Settings."""
+    expect, P = ctx.expect, pod_pages
+    S, G = P.SETTINGS_PAGE, P.GENERAL_PAGE
+    lay = [x.label if isinstance(x, P.Row) else x for x in S.layout]
+    gi = lay.index('General')
+    expect(lay[gi - 1] is P.GAP and lay[gi + 1:gi + 5] == ['Display', 'Appearance', 'Buttons & Power', 'Battery'] and lay[gi + 5] is P.GAP and lay[-1] == 'Developer' and not any(isinstance(x, P.Hdr) and x.text == 'System' for x in S.layout),
+           'Settings: a card of General, Display, Appearance, Buttons & Power, Battery (no System header), then Developer')
+    r = S.rows[[x.label for x in S.rows].index('General')]
+    expect((r.action, r.arg, P.row_kind(r)) == (P.ACT_PAGE, P.GENERAL_PAGE_INDEX, 'link') and P.PAGES[P.GENERAL_PAGE_INDEX] is G and P.PAGE_ORDER.index('m1plus_general') == len(P.PAGE_ORDER) - 3
+           and (G.key, G.title) == ('m1plus_general', 'General'), 'the General row is a link to m1plus_general, the page before the two Network Services pages')
+    expect([(x.label, x.action, x.arg) for x in G.rows] == [('About', P.ACT_PAGE, P.ABOUT_PAGE_INDEX), ('Date & Time', P.ACT_PAGE, P.DATETIME_PAGE_INDEX), ('Keyboards', P.ACT_PAGE, P.KEYBOARDS_PAGE_INDEX),
+                                                              ('Language', P.ACT_LANG, P.LANGUAGE_PAGE_INDEX),
+                                                              ('Firmware Update', P.ACT_STOCK, P.STOCK_FWUPDATE), ('Regulatory', P.ACT_STOCK, P.STOCK_PROVE), ('Format Storage', P.ACT_FORMAT, 0), ('Reset', P.ACT_STOCK, P.STOCK_RESET), ('All System Settings', P.ACT_HOME, P.HOME_SYSSET)]
+           and [P.row_kind(x) for x in G.rows] == ['link', 'link', 'link', 'value'] + ['link', 'link', 'action', 'link', 'link'] and G.layout[4] is P.GAP and G.layout[9] is P.GAP and len(G.layout) == 11
+           and not any(x.label in ('USB Mode', 'CD Ripping', 'SyncLink') for x in G.rows), 'the General page: About, Date & Time, Keyboards, Language (a value row), a gap, Firmware Update, Regulatory, Format Storage, Reset, a gap, All System Settings; no USB Mode, CD Ripping or SyncLink')
+    m = settings_page_machine(G)
+    expect(('window_open', G.key) in m.calls, 'the Settings row opens the General page')
+    vals = [c[2] for c in m.calls if c[0] == 'widget_set_tr_text' and c[1] == m.widgets['pod_value3']]
+    expect(vals, 'the Language value is filled on the General page')
+
+
+SECTIONS = [layout_tests, stock_tests, about_tests, general_tests]

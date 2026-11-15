@@ -1,4 +1,4 @@
-/* The pull-down's tiles: which of the eight show and in what order, and the Settings > System > Appearance > Control Center page that edits it.
+/* The pull-down's tiles: which of the eight show and in what order, and the Settings > Appearance > Control Center page that edits it.
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
@@ -189,13 +189,13 @@ static void pd_poweroff(void) {
     *(int *)STANDBY_MODE = 0; /* No, Back, or a page that will not open */
 }
 
-/* The action of tile id (PD_SLEEP ..): the same pages as Now Playing's Sleep Timer row (m1_open_sleep), the Settings root and the Equalizer page the All Playback Settings row opens, or the Power Off
+/* The action of tile id (PD_SLEEP ..): our Sleep Timer page (as Now Playing's Sleep Timer row opens it), the Settings root and the Equalizer page the All Playback Settings row opens, or the Power Off
  * confirm. A page that will not open leaves nothing to show (the dialog is gone by now, as stock's own tile when navigator_to fails). */
 static void pd_run(unsigned id) {
     if (id == PD_POWER)
         pd_poweroff();
     else if (id == PD_SLEEP) {
-        if (!pd_front("powermanager_page")) m1_open_sleep();
+        pd_open_own("m1plus_sleeptimer_page", pod_open_sleeptimer);
     } else if (id == PD_SETTINGS)
         pd_open_own("m1plus_settings_page", pod_open_settings);
     else if (id == PD_EQ)

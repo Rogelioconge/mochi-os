@@ -1,5 +1,5 @@
 """Charge Limit (patch/charging.c, docs/modules/charging.md): the controller bp_capacity runs on the status bar's tick (hold at the limit, release CHG_RESUME
-lower, stock's USB DAC choice, unplug, kill switch, bad gauge, failed writes, the CHG_PERIOD rate), the saved limit, and Settings > System > Battery with its picker."""
+lower, stock's USB DAC choice, unplug, kill switch, bad gauge, failed writes, the CHG_PERIOD rate), the saved limit, and Settings > Battery with its picker."""
 import os
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 import cdefs
@@ -210,12 +210,12 @@ def release_tests(ctx):
 
 
 def settings_tests(ctx):
-    """Settings > System > Battery, the Charge Limit picker, the Settings Files row, the assets."""
+    """Settings > Battery, the Charge Limit picker, the Settings Files row, the assets."""
     expect, P = ctx.expect, pod_pages
     V, B, L = P.SETTINGS_PAGE, P.BATTERY_PAGE, P.CHGLIMIT_PAGE
     labels = [r.label for r in V.rows]
-    expect(labels[labels.index('Keyboards') + 1] == 'Battery' and labels[labels.index('Battery') + 1] == 'About' and V.rows[labels.index('Battery')].action == P.ACT_PAGE and V.rows[labels.index('Battery')].arg == P.BATTERY_PAGE_INDEX,
-           'Settings > System: Battery between Keyboards and About')
+    expect(labels[labels.index('Buttons & Power') + 1] == 'Battery' and labels[labels.index('Battery') + 1] == 'Developer' and V.rows[labels.index('Battery')].action == P.ACT_PAGE and V.rows[labels.index('Battery')].arg == P.BATTERY_PAGE_INDEX,
+           'Settings: Battery after Buttons & Power')
     expect(P.PAGES[P.BATTERY_PAGE_INDEX] is B and P.PAGES[P.CHGLIMIT_PAGE_INDEX] is L and B.title == 'Battery' and L.title == 'Charge Limit'
            and [(r.label, r.action, r.arg) for r in B.rows] == [('Battery Percentage', P.ACT_BATTPCT, 0), ('Charge Limit', P.ACT_CHGLIM, P.CHGLIMIT_PAGE_INDEX)]
            and [P.row_kind(r) for r in B.rows] == ['switch', 'value'],

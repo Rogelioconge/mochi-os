@@ -1,4 +1,4 @@
-/* Sample Rate: the stock lamp shows the playing track's sample rate (Settings > System > Display > LED Light > Sample Rate; docs/modules/display.md
+/* Sample Rate: the stock lamp shows the playing track's sample rate (Settings > Display > LED Light > Sample Rate; docs/modules/display.md
  * "Sample Rate"; contributed in PR #5).
  *
  * Opt in: with the setting off the hook is one cached compare. With it on the hook only keeps one timer of ours alive; the timer asks the player

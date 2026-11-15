@@ -1,12 +1,12 @@
 # Buttons & Power
 
-Settings > System > Buttons & Power is one own cards page (`m1plus_keyspower`, `KEYSPOWER_PAGE`, `patch/keyspower.c`) that replaces four stock controls the way
+Settings > Buttons & Power is one own cards page (`m1plus_keyspower`, `KEYSPOWER_PAGE`, `patch/keyspower.c`) that replaces four stock controls the way
 [Display](display.md) replaced stock's Display list: our own rows, stock's own state words and config saves, no row opening a stock
 page, nothing of ours saved. Sections 1 to 3 are the static analysis of V2.1 `demo` and what our setters do (all addresses are `demo`
 virtual addresses; disassembly by `tools/disasm.py`, cache `work/cache/demo.dis`). Not run on a device; the emulator tests run stock's
 own handlers (`test/pod/keyspower.py`).
 
-Sleep Timer (`view_sleep`) and Screen Rotation are out of scope and stay stock-only. Stock's pages stay under All System Settings
+Sleep Timer (`view_sleep`) is [its own page](sleeptimer.md); Screen Rotation is on [Display](display.md). Stock's pages stay under All System Settings
 and show the same state.
 
 ## Summary
@@ -147,8 +147,7 @@ side effect: no sleep timer touch, no key or driver write.
 shutdown off. Our rows must repeat both writes (above), in that order. (b) Init registers `0x12d` (EVT_WINDOW_TO_FG) handler `0x4a9b2c`
 at `0x4a9d34..0x4a9d50`: it only repeats the two refreshes (`0x4a9924` sleep switch and selectors from the sleep timer words, then
 `0x4a92a4(win, word)`), so the stock page redraws when it comes back to the front. It changes no state. Our page needs the same
-re-read on return to the foreground (the Now Playing More sheet's Sleep Timer row opens this stock page over everything and can change
-the same state: `docs/modules/playmore.md`). No other writer of `0xa05a8c` / `0xa05a84` exists in `demo` (xrefs: this page,
+re-read on return to the foreground (stock's page, reached through All System Settings, can change the same state). No other writer of `0xa05a8c` / `0xa05a84` exists in `demo` (xrefs: this page,
 config_init, `reset_poweroptions_timer`, `to_poweroptions`).
 
 **Our setters** (`kp_standby_toggle`, `kp_shutdown_set(v)`, v = stock's word 0..4) repeat stock's clicks one at a time, with the same
@@ -165,7 +164,7 @@ Never both on holds after every operation from every state stock can be in.
 
 ## The page
 
-Settings > System, the row after Display (`Row('Buttons & Power', ACT_PAGE, KEYSPOWER_PAGE_INDEX)`, glyph `power`). `m1plus_keyspower`
+Settings > Buttons & Power, in the Display, Appearance, Buttons & Power, Battery card (`Row('Buttons & Power', ACT_PAGE, KEYSPOWER_PAGE_INDEX)`, glyph `power`). `m1plus_keyspower`
 (`KEYSPOWER_PAGE`), three cards:
 
 | Card | Row | Kind | Action |

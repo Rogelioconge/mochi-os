@@ -57,8 +57,8 @@ ACT_PODCASTS = 23   # open the Podcasts page: the shows in /mnt/mmc/Podcasts and
 ACT_RADIO = 50    # open the Radio page: Stations, Recently Played, Radio Browser (the directory's top stations, countries and genres, a station's search) (patch/radiopage.c radio_open)
 ACT_SUBSONIC = 93 # the Navidrome root page (patch/ndroot.c)
 ACT_SEARCH = 35   # open the library search page (patch/search.c search_open; the stock search_page where ours will not open), the Search item of the menu and Extras
-ACT_KB_EN = 27  # switch row (Settings > Keyboards): English, always on and not switchable (the row's switch is shown on and the row is dimmed)
-ACT_KB_ZH = 28  # switch row (Settings > Keyboards): Chinese (Pinyin), off by default; on gives the on-screen keyboard a language key and the pinyin layer (patch/keyboard.c kb_zh_toggle)
+ACT_KB_EN = 27  # switch row (Settings > General > Keyboards): English, always on and not switchable (the row's switch is shown on and the row is dimmed)
+ACT_KB_ZH = 28  # switch row (Settings > General > Keyboards): Chinese (Pinyin), off by default; on gives the on-screen keyboard a language key and the pinyin layer (patch/keyboard.c kb_zh_toggle)
 ACT_CTHEME = 24  # value row: the Cassette Mode theme, Normal, Chrome, Metal or Auto; opens its picker page (arg = the page index); the payload shows the saved theme (patch/tape.c tape_theme)
 ACT_STOCK = 29   # open a stock page by name (arg = index in STOCK_PAGES; patch/m1plus.c navigator_to, no context); some show a value of the stock state at the right
 ACT_THEMESET = 31  # picker row (Cassette Theme): choose the theme (arg 0 Normal, 1 Chrome, 2 Metal, 3 Auto); a check shows on the chosen row (patch/tape.c tape_theme_set)
@@ -72,15 +72,15 @@ ACT_FOLDERS = 37  # open the Folders page: the card's folders and audio files in
 ACT_CLEARCACHE = 42  # action row (Settings > Developer > Tools): a confirm dialog, then every cached cover but Cover Flow's position is deleted in steps (patch/homecover.c homecover_clear)
 ACT_CLEARDUR = 44  # action row (Settings > Developer > Cache): a confirm dialog, then the track durations table is deleted (patch/durations.c dur_clear); Home measures the songs again
 ACT_CCLIST = 43    # value row (Settings > Developer > Cache: No art, Missing): a count, and when it is not zero a chevron and a tap that opens the plain list of those albums (arg = the INFO_CC_* of its count; patch/covlist.c)
-ACT_BATTPCT = 36  # switch row (Settings > System > Battery): Battery Percentage, off by default; on shows the gauge's exact charge beside the battery outline (patch/battery.c battpct_toggle, /mnt/data/m1plus/battery-percentage)
+ACT_BATTPCT = 36  # switch row (Settings > Battery): Battery Percentage, off by default; on shows the gauge's exact charge beside the battery outline (patch/battery.c battpct_toggle, /mnt/data/m1plus/battery-percentage)
 ACT_VREC = 38     # value row (Settings > Now Playing > Vinyl Mode): the record colour, Black or Cover (tinted from the cover); opens its picker page (arg = the page index; patch/vinyl.c vinyl_record)
 ACT_RECSET = 39   # picker row (Record): choose the colour (arg = its index in vinyl_art.RECORD_NAMES); a check shows on the chosen row (patch/vinyl.c vinyl_record_set)
 ACT_VTHEME = 40   # value row (Settings > Now Playing > Vinyl Mode): the plinth theme, Graphite or White; opens its picker page (arg = the page index; patch/vinyl.c vinyl_theme)
 ACT_VTHSET = 41   # picker row (Base): choose the theme (arg = its index in vinyl_art.THEME_NAMES); a check shows on the chosen row (patch/vinyl.c vinyl_theme_set)
-ACT_UPDATE = 45   # link row (Settings > System > About): Software Update, our own page (patch/update.c update_open): check GitHub for a newer release, download it to the card, hand over to the stock TF card update
-ACT_BG = 46       # value row (Settings > System > Appearance > Background): Black or Tinted; opens its picker page (arg = the page index); the payload shows the saved background (patch/palette.c pal_bg_mode)
+ACT_UPDATE = 45   # link row (Settings > General > About): Software Update, our own page (patch/update.c update_open): check GitHub for a newer release, download it to the card, hand over to the stock TF card update
+ACT_BG = 46       # value row (Settings > Appearance > Background): Black or Tinted; opens its picker page (arg = the page index); the payload shows the saved background (patch/palette.c pal_bg_mode)
 ACT_BGSET = 47    # picker row (Background): choose the background (arg 0 Black, 1 Tinted); a check shows on the chosen row, and the choice applies at once (patch/palette.c pal_bg_set)
-ACT_ACCENT = 48    # value row (Settings > System > Accent): the accent's name; opens its picker page (arg = the page index); the payload shows the saved accent (patch/palette.c pal_accent_saved)
+ACT_ACCENT = 48    # value row (Settings > Appearance > Accent): the accent's name; opens its picker page (arg = the page index); the payload shows the saved accent (patch/palette.c pal_accent_saved)
 ACT_PEQ_SWITCH = 58  # the Equalizer page's rows (PEQ_PAGE.layout, not exported to the payload: patch/peq_ui.c binds them itself): stock's Equalizer switch ...
 ACT_PEQ_PICK = 59    # ... and a picker row (10-Band EQ, a preset), a check on the one that plays
 ACT_PEQ_AUTOEQ = 60  # ... and the Presets page's Download from AutoEq row (patch/autoeq.c autoeq_open)
@@ -114,7 +114,7 @@ ACT_AREBUILD = 92  # action row (Settings > Library): Rebuild Artist Photos, a c
 ACT_REGIONSET = 56 # picker row (Podcast Region): choose Automatic (arg 0) or a storefront (arg = its index in pcregion.CODES + 1); a check shows on the chosen row (patch/pcregion.c pcregion_set)
 ACT_NDVALUE = 94  # value row of the Navidrome Server page (patch/ndserver.c, tools/pod_ndserver.py): a grey value and the chevron, no glyph; that page binds its own rows, so no table of patch/m1plus.c has it
 ACT_NDACT = 95    # action row of the Navidrome Server page: Sync Now, Sign Out (no accessory, no glyph)
-ACT_CHGLIM = 80     # value row (Settings > System > Battery): Charge Limit, the saved limit ("80%" .. "100%"); opens its picker page (arg = the page index; patch/charging.c chg_limit)
+ACT_CHGLIM = 80     # value row (Settings > Battery): Charge Limit, the saved limit ("80%" .. "100%"); opens its picker page (arg = the page index; patch/charging.c chg_limit)
 ACT_CHGLIMSET = 81  # picker row (Charge Limit): choose the limit (arg = 80, 85, 90, 95 or 100, no limit); a check shows on the chosen row (patch/charging.c chg_set)
 ACT_IDLE = 82       # value row (Settings > Now Playing > Idle Display): where Now Playing goes after ten seconds, Off, Album Cover, Cassette, Vinyl or Lyrics (the payload shows stock's Cover mode byte and the saved destination); opens its picker page (arg = the page index; patch/bigcover.c idle_choice)
 ACT_LYRSIZE = 135   # value row (Settings > Now Playing > Lyrics Text Size): Small, Medium or Large (the saved file nowplaying-lyrics-size); opens its picker page (arg = the page index; patch/lyrics.c ly_size)
@@ -128,12 +128,12 @@ ACT_NEXTALBUM = 90  # value row (Settings > Playback): Continue Playing, Off (th
 ACT_NASET = 91      # picker row (Continue Playing): choose the mode (arg = 0 Off, 1 Next Albums; 2 Auto Mix is planned); a check shows on the chosen row (patch/nextalbum.c na_set)
 ACT_LOCKTIME = 86   # switch row (Settings > Lock Screen): Show Time, stock's lock screen clock switch, the byte screensaver_timeshow saved as [SYSSET] SSAVERTIMESHOW (patch/lockscreen.c lk_time_toggle)
 ACT_SCROBBLE = 96   # switch row (Settings > Library): the scrobble log, off by default; on, listens go to /mnt/mmc/.scrobbler.log (patch/scrobble.c scrobble_toggle, /mnt/data/m1plus/scrobbling)
-ACT_LIGHT = 97      # value row (Settings > System > Display): Screen Timeout, stock's backlight time (Never, 15s, 30s, 1min, 5min: the word lighttime_index saved as [SYSSET] LIGHTTIME); opens its picker page (arg = the page index; patch/display.c disp_light)
+ACT_LIGHT = 97      # value row (Settings > Display): Screen Timeout, stock's backlight time (Never, 15s, 30s, 1min, 5min: the word lighttime_index saved as [SYSSET] LIGHTTIME); opens its picker page (arg = the page index; patch/display.c disp_light)
 ACT_LIGHTSET = 98   # picker row (Screen Timeout): choose the time (arg = stock's index, 0 Never .. 4 5min); a check shows on the chosen row (patch/display.c disp_light_set)
-ACT_LED = 99        # value row (Settings > System > Display): LED Light, stock's lamp mode (Off, Green, Blue: the byte atmosphereled_mode saved as [SYSSET] ATMOSPHERELEDMODE); opens its picker page (arg = the page index; patch/display.c disp_led)
+ACT_LED = 99        # value row (Settings > Display): LED Light, stock's lamp mode (Off, Green, Blue: the byte atmosphereled_mode saved as [SYSSET] ATMOSPHERELEDMODE); opens its picker page (arg = the page index; patch/display.c disp_led)
 ACT_LEDSET = 100    # picker row (LED Light): choose the mode (arg = stock's value, 0 off, 1 green, 2 blue); a check shows on the chosen row (patch/display.c disp_led_set)
-ACT_LEDFOLLOW = 101 # switch row (Settings > System > Display > LED Light): Follow Screen, stock's switch of the same name (the byte ledfollowscreen_flag saved as [SYSSET] LEDFOLLOWSCREEN; patch/display.c disp_follow_toggle)
-ACT_KEYLOCK = 102     # value row (Settings > System > Buttons & Power): Button Lock, stock's key lock (Off, Volume, Buttons, Both: the byte keylock_flag saved as [SYSSET] LOCKFLAG and the word keylock_mode as LOCKMODE); opens its picker page (arg = the page index; patch/keyspower.c kp_lock)
+ACT_LEDFOLLOW = 101 # switch row (Settings > Display > LED Light): Follow Screen, stock's switch of the same name (the byte ledfollowscreen_flag saved as [SYSSET] LEDFOLLOWSCREEN; patch/display.c disp_follow_toggle)
+ACT_KEYLOCK = 102     # value row (Settings > Buttons & Power): Button Lock, stock's key lock (Off, Volume, Buttons, Both: the byte keylock_flag saved as [SYSSET] LOCKFLAG and the word keylock_mode as LOCKMODE); opens its picker page (arg = the page index; patch/keyspower.c kp_lock)
 ACT_KEYLOCKSET = 103  # picker row (Button Lock): choose Off (arg 0) or stock's mode (1 volume keys, 2 the other keys, 3 both); a check shows on the chosen row (patch/keyspower.c kp_lock_set)
 ACT_TAPWAKE = 104     # switch row (Buttons & Power): Tap to Wake, stock's switch (the byte doublewake_flag saved as [SYSSET] DOUBLEWAKE; patch/keyspower.c kp_tap_toggle)
 ACT_STANDBY = 105     # switch row (Buttons & Power): Auto-Standby, stock's switch (the byte standbyflag saved as [SYSSET] STANDBYMODE; turning it on turns Auto-Shutdown off; patch/keyspower.c kp_standby_toggle)
@@ -141,6 +141,8 @@ ACT_SHUTDOWN = 106    # value row (Buttons & Power): Auto-Shutdown, stock's save
 ACT_SHUTDOWNSET = 107 # picker row (Auto-Shutdown): choose the word (arg = stock's savepowermode, 0 off .. 4 10min); a check shows on the chosen row (patch/keyspower.c kp_shutdown_set)
 ACT_RGBROW = 143      # value row (LED Light, a card of its own under the choices, shown only while Dynamic is chosen): Theme, the Dynamic lamp's theme name; opens the Theme page (arg = its page index; patch/tracklamp.c tl_theme)
 ACT_RGBTHEME = 140    # picker row (Theme, opened by the LED Light page's Theme row): choose the theme (arg = 0 .. 5, patch/tracklamp.h TL_REFERENCE ..; patch/tracklamp.c tl_theme_set)
+ACT_ROTATE = 153      # switch row (Settings > Display): Screen Rotation, stock's two choices of systemset/screenrotate_page as one switch (the word rotate_mode, 0 = 0 degrees, 1 = 180 degrees, saved as [SYSSET] ROTATEMODE, then tk_set_lcd_orientation; patch/display.c disp_rotate_toggle)
+ACT_CARMODE = 154     # switch row (Settings > Buttons & Power): Car Mode, stock's row 6 of systemset/sysset_page (the byte car_mode saved as [SYSSET] CARMODE, then carmode_startflag cleared; patch/keyspower.c kp_car_toggle)
 ACT_LB = 108       # value row (Settings > Library): ListenBrainz, the account's user name (Not Set, Invalid Token, or nothing until a check); opens the ListenBrainz page (arg = its page index; patch/scrobpage.c lb_row_text)
 ACT_SCROBUP = 109  # action row (Settings > Library): Upload Scrobbles, the card's .scrobbler.log sent to ListenBrainz now (patch/scrobpage.c lb_upload_tap)
 ACT_LF = 113       # value row (Settings > Library): Last.fm, the account's user name (Not Set, Sign-in Failed); opens the Last.fm page (arg = its page index; patch/scrobpage.c lf_row_text)
@@ -169,23 +171,54 @@ ACT_MONO = 145        # switch row (Playback Settings, Volume card): Mono Audio,
 ACT_XFEED = 146       # value row (Playback Settings, Volume card): Crossfeed (Off, Low, Medium, High); opens its picker page (patch/stereoset.c stereo_crossfeed)
 ACT_XFEEDSET = 147    # picker row (Crossfeed): choose the level (arg = 0 .. 3; patch/stereoset.c stereo_crossfeed_set); a check shows on the chosen row
 ACT_BOOTMEM = 128    # switch row (the Default Volume page): Volume Memory, stock's byte boot_volflag (saved as [PLAYSET] BOOTVOLFLAG; patch/playset.c ps_bootmem_toggle)
+ACT_LANG = 150       # value row (Settings > General): Language, stock's language word (the language's own name; opens its picker page, arg = the page index; patch/language.c lang_get)
+ACT_LANGSET = 151    # picker row (Language): choose the language (arg = stock's word 0 .. 12, the order of stock's language page); stock's click handler's changes, then Home (patch/language.c lang_set)
+ACT_DTAUTO = 157      # switch row (Settings > General > Date & Time): Set Automatically, stock's switch (the byte auto_sync_nettime saved as [SYSSET] AUTOSYNCTIME, and the sync request sync_nettime_flag; patch/datetime.c dt_auto_toggle)
+ACT_DTZONE = 158      # value row (Date & Time): Time Zone, the saved zone's label of our 43-zone table; opens its picker page (arg = the page index), always live, whatever Set Automatically says (patch/datetime.c dt_zone)
+ACT_DTZONESET = 159   # picker row (Time Zone): choose the zone (arg = the saved index, [SYSSET] TIMEZONE; patch/datetime.c dt_zone_set)
+ACT_DTDATE = 160      # value row (Date & Time): Date, the local date; opens the Date page (arg = the page index), dimmed while Set Automatically is on
+ACT_DTTIME = 161      # value row (Date & Time): Time, the local time (12 or 24 hours as 24-Hour Time says); opens the Time page, dimmed while Set Automatically is on
+ACT_DT24 = 162        # switch row (Date & Time): 24-Hour Time, stock's switch (the byte time24hflag saved as [SYSSET] TIME24H, the status bar clock's format; patch/datetime.c dt_24h_toggle)
+ACT_DTFIELD = 163     # value row (the Date and Time pages): Year, Month, Day, Hour or Minute of the date being set; opens its picker page (arg = the page index; the field is the page's place among DTFIELD_PAGES)
+ACT_DTSET = 164       # picker row (Year, Month, Day, Hour, Minute): choose a value of the date being set (arg = field * 4096 + value; patch/datetime.c dt_set)
+ACT_DTAPPLY = 165     # action row (the Date and Time pages): Set Date / Set Time (arg 0 / 1): stock's set_systime, then back (patch/datetime.c dt_apply)
+ACT_NETAIR = 166       # switch row (Settings > Network Services): AirPlay, stock's switch (the byte airplayflag, [SYSSET] AIRPLAY; patch/netservice.c ns_airplay_toggle)
+ACT_NETDLNA = 167      # switch row (Network Services): DLNA, stock's switch (the byte dlnaflag, [SYSSET] DLNA; patch/netservice.c ns_dlna_toggle)
+ACT_NETTRANS = 168     # link row (Network Services): Wi-Fi Transfer, our page (arg = its page index) unless Wi-Fi is off: then a toast (patch/netservice.c ns_transfer_open)
+ACT_FORMAT = 169      # action row (Settings > General): Format Storage, stock's own Format handler of the system list (the confirm, then the format dialog; patch/m1plus.c stock_format_card, STOCKROWS_PINS)
+ACT_SLEEPSET = 170    # picker row (the Sleep Timer page, opened by Now Playing's More sheet and the Control Center tile): choose the time (arg = an index of SLEEP_VALUES, 0 off; stock's sleepflag byte and sleep_time word; patch/sleeptimer.c st_set)
+ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own under the choices, shown only while a timer runs): Time Left, H:MM rounded up to the minute (patch/sleeptimer.c st_left_text); no chevron, no touch
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
 SWITCH_ACTIONS = (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO)
+SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA)
 NO_CHEVRON_ACTIONS = (ACT_PLAYER, ACT_SHUFFLE, ACT_REGEN)   # rows that play or act in place (a switch or a value row has none either)
 VALUE_ACTIONS = (ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
-CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, ACT_ACCENTSET, ACT_LOCKSET, ACT_REGIONSET, ACT_CHGLIMSET, ACT_PEQ_PICK, ACT_PEQ_CPICK, ACT_PEQ_PAUTO, ACT_PEQ_PVAL, ACT_IDLESET, ACT_LYRSIZESET, ACT_NASET, ACT_LIGHTSET, ACT_LEDSET, ACT_KEYLOCKSET, ACT_SHUTDOWNSET, ACT_RGBTHEME, ACT_PLAYMODESET, ACT_MEMPLAYSET, ACT_GAINSET, ACT_RGSET, ACT_FILTERSET, ACT_DSDSET, ACT_USBVOLSET, ACT_XFEEDSET)   # picker rows: a check at the right of the chosen one (the image pod_check<row>), no icon
+CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, ACT_ACCENTSET, ACT_LOCKSET, ACT_REGIONSET, ACT_CHGLIMSET, ACT_PEQ_PICK, ACT_PEQ_CPICK, ACT_PEQ_PAUTO, ACT_PEQ_PVAL, ACT_IDLESET, ACT_LYRSIZESET, ACT_NASET, ACT_LIGHTSET, ACT_LEDSET, ACT_KEYLOCKSET, ACT_SHUTDOWNSET, ACT_RGBTHEME, ACT_PLAYMODESET, ACT_MEMPLAYSET, ACT_GAINSET, ACT_RGSET, ACT_FILTERSET, ACT_DSDSET, ACT_USBVOLSET, ACT_XFEEDSET, ACT_SLEEPSET)   # picker rows: a check at the right of the chosen one (the image pod_check<row>), no icon
 ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron (Update Library, an ACT_HOME row, is one too: row_kind)
 VALUE_INIT = {ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
+VALUE_ACTIONS += (ACT_LANG,)
+CHECK_ACTIONS += (ACT_LANGSET,)
+VALUE_INIT[ACT_LANG] = ''   # the language's own name: the payload sets it as the page opens
+SWITCH_ACTIONS += (ACT_DTAUTO, ACT_DT24)   # Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md)
+VALUE_ACTIONS += (ACT_DTZONE, ACT_DTDATE, ACT_DTTIME, ACT_DTFIELD)
+CHECK_ACTIONS += (ACT_DTZONESET, ACT_DTSET)
+ACTION_ACTIONS += (ACT_DTAPPLY, ACT_FORMAT)
+VALUE_INIT.update({ACT_DTZONE: 'GMT+8 Shanghai', ACT_DTDATE: '', ACT_DTTIME: '', ACT_DTFIELD: '2026'})   # (the payload writes the date and the time)
 # The stock pages ACT_STOCK opens: (the name navigator_to takes = ui/<name>.bin, the value the row shows at the right: the payload reads the stock state, patch/m1plus.c VK_*, or None).
 # Each is a plain navigator_to(name) with no context in stock (docs/modules/settings.md "Stock pages"): the Settings list's rows, the Wi-Fi hub's two; Back returns to our page.
 # (The EQ row is ACT_PEQ: our Equalizer page, docs/modules/peq.md; stock's playset/equalizer_page is retired: its one caller opens the 10-Band editor, tools/pod.py EQ_ROW.)
-STOCK_WIFI, STOCK_BLUETOOTH = range(2)
+STOCK_WIFI, STOCK_BLUETOOTH, STOCK_USB, STOCK_RIPPING, STOCK_SYNCLINK, STOCK_FWUPDATE, STOCK_PROVE, STOCK_RESET = range(8)
 # (navigator path, value shown, window name): the window name is the asset's root widget name, which m1_open_stock restacks an opened window of instead of stacking a second one; None: always a new window.
-# Only a page whose init does nothing that a restack would not redo has one (docs/modules/settings.md "Stock pages"); none has now. Wi-Fi: its init scans (wifi_scan) on every open and the foreground handler only rebuilds the list from the old results.
+# Only a page whose init does nothing that a restack would not redo has one (docs/modules/settings.md "Stock pages"); the five pages of the direct rows (USB Mode, SyncLink, Firmware Update, Regulatory, Reset) have one (below). Wi-Fi: its init scans (wifi_scan) on every open and the foreground handler only rebuilds the list from the old results.
 # Bluetooth: its background handler stops discovery (btStopSearch) and the foreground handler does not restart it, only init does.
 # Stock's Display list (systemset/display_page) and its four pages are not linked: Settings > Display is our own page (DISPLAY_PAGE); they stay under All System Settings.
-STOCK_PAGES = (('systemset/wifi_page', 'wifi', None), ('systemset/bluetooth_page', 'bluetooth', None))
+# The direct rows (USB Mode on Playback Settings, CD Ripping on Library, SyncLink on Network Services, Firmware Update .. Reset on General) are plain navigator_to rows too (STOCKROWS_PINS in tools/pod_pins.py). The pages whose init binds no EVT_WINDOW_TO_FG / TO_BG handler (usbset, synclink, fwupdate, prove, reset:
+# read off the inits' widget_on calls, only EVT_CLICK) name their window: the top-right Now Playing button leaves such a page in the stack, and a restack of it is a plain bring-to-front, so a second tap does not stack a second window.
+# rippingset's init binds both events (0x12d / 0x12c), so it is opened afresh like Wi-Fi and Bluetooth.
+STOCK_PAGES = (('systemset/wifi_page', 'wifi', None), ('systemset/bluetooth_page', 'bluetooth', None),
+               ('systemset/usbset_page', None, 'usbset_page'), ('systemset/rippingset_page', None, None), ('systemset/synclink_page', None, 'synclink_page'),
+               ('systemset/fwupdate_page', None, 'fwupdate_page'), ('systemset/prove_page', None, 'prove_page'), ('systemset/reset_page', None, 'reset_page'))
 STOCK_VALUES = ('wifi', 'bluetooth', 'eq')   # the VK_* of patch/m1plus.c, in this order ('eq': the EQ row's value, ACT_PEQ)
 
 # ACT_SHUFFLE arguments (mirror the enum in patch/shuffle.c)
@@ -217,7 +250,7 @@ def row_kind(row):
     if row.action in WIDE_VALUE_ACTIONS: return 'wvalue'
     if row.action in VALUE_ACTIONS or (row.action == ACT_STOCK and STOCK_PAGES[row.arg][1]): return 'value'
     if row.action in CHECK_ACTIONS: return 'check'
-    if row.action in (ACT_INFO, ACT_SFDEL): return 'info'
+    if row.action in (ACT_INFO, ACT_SFDEL, ACT_SLEEPLEFT): return 'info'
     if row.action in ACTION_ACTIONS or (row.action == ACT_HOME and row.arg == HOME_UPDATE): return 'action'
     return 'link'
 
@@ -228,8 +261,19 @@ class Hdr:
 
 
 class Note:
-    """A grey note under a card; lines > 1: a wrapping label that tall (the Equalizer page's hint)."""
-    def __init__(self, text, lines=1): self.text, self.lines = text, lines
+    """A grey note under a card; lines > 1: a wrapping label that tall (the Equalizer page's hint). center: a small (13 px) note centred across the page, always a wrapping label `lines` high
+    (the Wi-Fi Transfer page's footer)."""
+    def __init__(self, text, lines=1, center=False): self.text, self.lines, self.center = text, lines, center
+
+
+class Hero:
+    """A page's header block, centred: a rounded tile holding a white glyph (mod_icons HERO_ICONS), the page title in 22 px under it and a grey wrapping description of `lines` lines (tools/pod_pages.py WIFITRANSFER_PAGE,
+    tools/pod_ui.py cards_hero). title and text are translated keys."""
+    def __init__(self, glyph, title, text, lines=2): self.glyph, self.title, self.text, self.lines = glyph, title, text, lines
+
+
+class BigCard:
+    """A one-line card of large centred text (a card piece 60 px high, the text written by the payload as the page opens: the label pod_big<n>_t; the Wi-Fi Transfer page's address)."""
 
 
 class Sliders:
@@ -368,6 +412,20 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_rgbtheme',
     'm1plus_books',
     'm1plus_psxfeed',
+    'm1plus_language',
+    'm1plus_datetime',
+    'm1plus_timezone',
+    'm1plus_dtdate',
+    'm1plus_dttime',
+    'm1plus_dtyear',
+    'm1plus_dtmonth',
+    'm1plus_dtday',
+    'm1plus_dthour',
+    'm1plus_dtminute',
+    'm1plus_sleeptimer',
+    'm1plus_general',
+    'm1plus_netservice',
+    'm1plus_wifitransfer',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -397,9 +455,9 @@ class Page:
 
     def wrap_notes(self):
         """Bit n set: the page's nth Note (pod_note<n>_t, in layout order) has lines > 1, a plain label whose wrap open_page turns on (patch/m1plus.c)."""
-        notes = [x for x in (self.layout or ()) if isinstance(x, Note)]
+        notes = [x for x in (self.layout or ()) if isinstance(x, (Note, Hero))]   # (a Hero's description is numbered as a note, and always wraps; so is a centred Note)
         assert len(notes) <= 32
-        return sum(1 << n for n, x in enumerate(notes) if x.lines > 1)
+        return sum(1 << n for n, x in enumerate(notes) if isinstance(x, Hero) or x.lines > 1 or x.center)
 
 
 # The M1+ Music menu, the Classic iPod main menu adapted to the 320x480 touch screen (q2-pod
@@ -427,6 +485,9 @@ VTHEME_PAGE_INDEX = page_index('m1plus_vinyltheme')
 BG_PAGE_INDEX = page_index('m1plus_background')
 ACCENT_PAGE_INDEX = page_index('m1plus_accent')
 APPEARANCE_PAGE_INDEX = page_index('m1plus_appearance')
+GENERAL_PAGE_INDEX = page_index('m1plus_general')
+NETSERVICE_PAGE_INDEX = page_index('m1plus_netservice')
+WIFITRANSFER_PAGE_INDEX = page_index('m1plus_wifitransfer')
 PULLDOWN_PAGE_INDEX = page_index('m1plus_pulldown')
 REGION_PAGE_INDEX = page_index('m1plus_podcastregion')
 PEQ_PAGE_INDEX = page_index('m1plus_peq')   # after the Wi-Fi pages
@@ -437,7 +498,7 @@ TENCURVE_PAGE_INDEX = page_index('m1plus_tencurve')
 TENPREAMP_PAGE_INDEX = page_index('m1plus_tenpreamp')
 AUTOEQ_PAGE_INDEX = page_index('m1plus_autoeq')
 PEQBAND_PAGE_INDEX = page_index('m1plus_peqband')   # the band page
-BATTERY_PAGE_INDEX = page_index('m1plus_battery')   # Settings > System > Battery, then its Charge Limit picker
+BATTERY_PAGE_INDEX = page_index('m1plus_battery')   # Settings > Battery, then its Charge Limit picker
 CHGLIMIT_PAGE_INDEX = page_index('m1plus_chargelimit')
 IDLE_PAGE_INDEX = page_index('m1plus_idleview')   # the Idle Display picker
 LOCK_PAGE_INDEX = page_index('m1plus_lockscreen')   # the Lock Screen picker
@@ -448,10 +509,10 @@ NEXTALBUM_PAGE_INDEX = page_index('m1plus_nextalbum')   # Settings > Playback > 
 NDLOGIN_PAGE_INDEX = page_index('m1plus_ndlogin')   # the Navidrome Sign In page
 NDSERVER_PAGE_INDEX = page_index('m1plus_ndserver')   # the Navidrome Server page
 NDROOT_PAGE_INDEX = page_index('m1plus_ndroot')   # the Navidrome root
-DISPLAY_PAGE_INDEX = page_index('m1plus_display')   # Settings > System > Display, then its Screen Timeout picker
+DISPLAY_PAGE_INDEX = page_index('m1plus_display')   # Settings > Display, then its Screen Timeout picker
 LIGHTTIME_PAGE_INDEX = page_index('m1plus_lighttime')
 LED_PAGE_INDEX = page_index('m1plus_ledlight')
-KEYSPOWER_PAGE_INDEX = page_index('m1plus_keyspower')   # Settings > System > Buttons & Power, then its Button Lock and Auto-Shutdown pickers
+KEYSPOWER_PAGE_INDEX = page_index('m1plus_keyspower')   # Settings > Buttons & Power, then its Button Lock and Auto-Shutdown pickers
 KEYLOCK_PAGE_INDEX = page_index('m1plus_keylock')
 SHUTDOWN_PAGE_INDEX = page_index('m1plus_shutdown')
 RGB_THEME_PAGE_INDEX = page_index('m1plus_rgbtheme')   # the Theme picker, opened by the LED Light page's Theme row
@@ -474,6 +535,7 @@ PSXFEED_PAGE_INDEX = page_index('m1plus_psxfeed')   # the Crossfeed picker (last
 LYRSIZE_PAGE_INDEX = page_index('m1plus_lyrsize')   # the Lyrics Text Size picker
 PCSET_PAGE_INDEX = page_index('m1plus_podcastsettings')   # Settings > Library > Podcasts
 PCDIR_PAGE_INDEX = page_index('m1plus_podcastdirectory')   # Settings > Library > Podcasts > Podcast Directory picker
+LANGUAGE_PAGE_INDEX = page_index('m1plus_language')   # Settings > General > Language picker
 ITEMS = [   # item id = index; the default order, essentials first (iPod classic style)
     Row('Now Playing', ACT_PLAYER),
     Row('Cover Flow', ACT_COVER),
@@ -593,6 +655,7 @@ SHUFFLE_PAGE = Page('m1plus_shuffle', 'm1plus_shuffle_page', 'Shuffle', rows=[
 SETTINGS_PAGE = Page('m1plus_settings', 'm1plus_settings_page', 'Settings', layout=[
     Row('Wi-Fi', ACT_STOCK, STOCK_WIFI),
     Row('Bluetooth', ACT_STOCK, STOCK_BLUETOOTH),
+    Row('Network Services', ACT_PAGE, NETSERVICE_PAGE_INDEX),
     GAP,
     Row('Home Screen', ACT_PAGE, HOMESET_PAGE_INDEX),
     Row('Library', ACT_PAGE, LIBRARY_PAGE_INDEX),
@@ -600,19 +663,33 @@ SETTINGS_PAGE = Page('m1plus_settings', 'm1plus_settings_page', 'Settings', layo
     Hdr('Playback'),
     Row('EQ', ACT_PEQ, PEQ_PAGE_INDEX),
     Row('Playback Settings', ACT_PAGE, PLAYSET_PAGE_INDEX),
-    Hdr('System'),
-    Row('Display', ACT_PAGE, DISPLAY_PAGE_INDEX),
-    Row('Buttons & Power', ACT_PAGE, KEYSPOWER_PAGE_INDEX),
-    Row('Appearance', ACT_PAGE, APPEARANCE_PAGE_INDEX),
-    Row('Keyboards', ACT_PAGE, KEYBOARDS_PAGE_INDEX),
-    Row('Battery', ACT_PAGE, BATTERY_PAGE_INDEX),
-    Row('About', ACT_PAGE, ABOUT_PAGE_INDEX),
     GAP,
-    Row('All System Settings', ACT_HOME, HOME_SYSSET),
+    Row('General', ACT_PAGE, GENERAL_PAGE_INDEX),
+    Row('Display', ACT_PAGE, DISPLAY_PAGE_INDEX),
+    Row('Appearance', ACT_PAGE, APPEARANCE_PAGE_INDEX),
+    Row('Buttons & Power', ACT_PAGE, KEYSPOWER_PAGE_INDEX),
+    Row('Battery', ACT_PAGE, BATTERY_PAGE_INDEX),
+    GAP,
     Row('Developer', ACT_PAGE, DEVELOPER_PAGE_INDEX),
 ])
 
-# Settings > System > About (our own page: the stock About page's seven values in sections, read the way stock reads them; docs/modules/settings.md "About"). INFO_* say where patch/m1plus.c reads
+# Settings > General: About, Date & Time, Keyboards and Language (links to their own pages), then the stock pages stock's System Settings list holds, one row each (Firmware Update, Regulatory, Format Storage, Reset; USB Mode sits on Playback Settings, CD Ripping on Library,
+# SyncLink on Network Services): the pages stay stock for now (ACT_STOCK, the Format row stock's own handler) and are replaced one by one. The whole stock list is a fallback row on Developer.
+GENERAL_PAGE = Page('m1plus_general', 'm1plus_general_page', 'General', layout=[
+    Row('About', ACT_PAGE, ABOUT_PAGE_INDEX),
+    Row('Date & Time', ACT_PAGE, page_index('m1plus_datetime')),
+    Row('Keyboards', ACT_PAGE, KEYBOARDS_PAGE_INDEX),
+    Row('Language', ACT_LANG, LANGUAGE_PAGE_INDEX),
+    GAP,
+    Row('Firmware Update', ACT_STOCK, STOCK_FWUPDATE),
+    Row('Regulatory', ACT_STOCK, STOCK_PROVE),
+    Row('Format Storage', ACT_FORMAT),
+    Row('Reset', ACT_STOCK, STOCK_RESET),
+    GAP,
+    Row('All System Settings', ACT_HOME, HOME_SYSSET),   # the last card: stock's whole system list, the fallback to every stock page
+])
+
+# Settings > General > About (our own page: the stock About page's seven values in sections, read the way stock reads them; docs/modules/settings.md "About"). INFO_* say where patch/m1plus.c reads
 # a row's value: the build tag, the stock firmware version literal, the model literal, the serial number, the Wi-Fi MAC, the IP address (while connected), the card's capacity and free space.
 INFO_TAG, INFO_FW, INFO_MODEL, INFO_SN, INFO_MAC, INFO_IP, INFO_CAP, INFO_FREE = range(8)
 ABOUT_PAGE = Page('m1plus_about', 'm1plus_about_page', 'About', layout=[
@@ -685,7 +762,7 @@ FILES_PAGE = Page('m1plus_files', 'm1plus_files_page', 'Settings Files', layout=
 
 # Settings > Developer: Startup (the Boot to M1+ Music switch, patch/home.c, and the way out to the stock grid) and the developer's tools. Screenshot: a confirm dialog, then a 5 s
 # countdown (cancellable), then the screen is written to the card (patch/shot.c). Reset All Settings (under Reset): a confirm, then every settings file is deleted (restart to apply).
-# The stock firmware update page is not linked here (About > Software Update is ours; it stays under All System Settings).
+# Tools holds Screenshot, Cache and Settings Files (All System Settings, stock's whole system list, is General's last card). About > Software Update is ours; General's Firmware Update is stock's TF card update page.
 DEVELOPER_PAGE = Page('m1plus_developer', 'm1plus_developer_page', 'Developer', layout=[
     Hdr('Startup'),
     Row('Boot to M1+ Music', ACT_STARTUP),
@@ -825,6 +902,8 @@ LIBRARY_PAGE = Page('m1plus_library', 'm1plus_library_page', 'Library', layout=[
     Note('In Cover Flow, the volume buttons move between albums.', lines=2),
     Row('Podcasts', ACT_PAGE, PCSET_PAGE_INDEX),   # the last card (after a note): a plain page link (ACT_PAGE), no value
     Row('Scrobbling', ACT_SCROBPAGE, SCROBBLING_PAGE_INDEX),   # On or Off; opens the Scrobbling page
+    GAP,
+    Row('CD Ripping', ACT_STOCK, STOCK_RIPPING),   # a card of its own: stock's rippingset page (always opened afresh); Back returns here
 ])
 # The album page (patch/albumpage.c, docs/modules/album-page.md): an album's tracks under the glass controls; opened by cc_open_album, never from a menu row.
 ALBUM_PAGE = Page('m1plus_album', 'm1plus_album_page', 'Album', kind='album')
@@ -866,7 +945,7 @@ VINYL_WHITE.theme = 'white'
 # More dialog, not from a menu row).
 ONLINEART = Page('m1plus_onlineart', 'm1plus_onlineart_page', 'Cover & Lyrics', kind='onlineart')
 
-# Software Update (patch/update.c, docs/modules/update.md): the stock navbar over one centred block the payload fills (a glyph, a title, an explanation, a progress bar and one pill); opened by the Settings > System row.
+# Software Update (patch/update.c, docs/modules/update.md): the stock navbar over one centred block the payload fills (a glyph, a title, an explanation, a progress bar and one pill); opened by the Settings > General > About row.
 UPDATE = Page('m1plus_update', 'm1plus_update_page', 'Software Update', kind='update')
 
 # Release Notes (patch/relnotes.c): the offered release's notes behind the Software Update page's second pill; the stock navbar over a scrolling text, opened from that page only.
@@ -927,7 +1006,7 @@ VTHEME_VALUES = ('Graphite', 'Snow')   # the value the Base row shows, in the or
 RECORD_VALUES = ('Black', 'Cover')   # the value the Record row shows, in the order of the saved index (tools/vinyl_art.py RECORD_NAMES)
 CTHEME_VALUES = ('Normal', 'Chrome', 'Metal', 'Auto')   # the value shown for the setting's four states, in the order of the saved index (tools/tape_art.py THEME_NAMES, then Auto: by the track)
 
-# Settings > System > Appearance > Background (docs/modules/accent.md): the picker, a check on the chosen row. The choice applies at once (patch/palette.c pal_bg_set: cached images dropped, the screen
+# Settings > Appearance > Background (docs/modules/accent.md): the picker, a check on the chosen row. The choice applies at once (patch/palette.c pal_bg_set: cached images dropped, the screen
 # repainted). The saved file also knows 2 Light and 3 Light Auto (patch/palette.c); they are not offered.
 BG_PAGE = Page('m1plus_background', 'm1plus_background_page', 'Background', layout=[
     Row('Black', ACT_BGSET, 0),
@@ -937,12 +1016,12 @@ BG_PAGE = Page('m1plus_background', 'm1plus_background_page', 'Background', layo
 REGION_PAGE = Page('m1plus_podcastregion', 'm1plus_podcastregion_page', 'Podcast Region', layout=[Row('Automatic', ACT_REGIONSET, 0)] + [Row(n, ACT_REGIONSET, i + 1) for i, n in enumerate(pcregion.NAMES)])
 BG_VALUES = ('Black', 'Tinted')   # the value the Background row shows for the saved background 0, 1
 
-# Settings > System > Accent (docs/modules/accent.md): the picker, one row per accent with its round swatch where a row's glyph goes (the image pod_sw<arg>, tools/mod_icons.py) and a check on the
+# Settings > Appearance > Accent (docs/modules/accent.md): the picker, one row per accent with its round swatch where a row's glyph goes (the image pod_sw<arg>, tools/mod_icons.py) and a check on the
 # chosen one. The choice applies at once (patch/palette.c pal_accent_set). ACCENT_VALUES is tools/palette.py ACCENTS in the saved order, as the names the rows show.
 ACCENT_VALUES = ('Neutral', 'Red', 'Orange', 'Green', 'Teal', 'Purple', 'Champagne')
 ACCENT_PAGE = Page('m1plus_accent', 'm1plus_accent_page', 'Accent', layout=[Row(n, ACT_ACCENTSET, i) for i, n in enumerate(ACCENT_VALUES)])
 
-# Settings > System > Appearance > Lock Screen (patch/lockscreen.c, docs/modules/lockscreen.md): it replaces stock's systemset/screensaver_page (the Display page's Lock Screen row opens this page, tools/pod.py LOCKROW).
+# Settings > Appearance > Lock Screen (patch/lockscreen.c, docs/modules/lockscreen.md): it replaces stock's systemset/screensaver_page (the Display page's Lock Screen row opens this page, tools/pod.py LOCKROW).
 # Four cards: Enable (stock's lock screen switch); Wallpaper (our picker) and Show Time (stock's clock switch; our own short label, as the page already says Lock Screen); Player Style (a value row, its picker); and
 # the Custom Wallpaper instructions (LOCKINFO_PAGE).
 LOCK_PAGE = Page('m1plus_lockscreen', 'm1plus_lockscreen_page', 'Lock Screen', layout=[
@@ -967,12 +1046,12 @@ LOCKWALL_PAGE = Page('m1plus_lockwall', 'm1plus_lockwall_page', 'Wallpaper', kin
 # The Custom Wallpaper instructions: a Release Notes page (the same asset, tools/pod_ui.py build_relnotes_page, and painter, patch/relnotes.c lockinfo_open): the heading "Add Your Own Pictures" and three paragraphs.
 LOCKINFO_PAGE = Page('m1plus_lockinfo', 'm1plus_lockinfo_page', 'Custom Wallpaper', kind='relnotes')
 
-# Settings > System > Appearance: one card with the Background value row (Black or Tinted) and the Accent value row (the accent's name), each opening its picker; then a card
+# Settings > Appearance: one card with the Background value row (Black or Tinted) and the Accent value row (the accent's name), each opening its picker; then a card
 # with the Control Center link row (the pull-down's tiles, PULLDOWN_PAGE).
 APPEARANCE_PAGE = Page('m1plus_appearance', 'm1plus_appearance_page', 'Appearance', layout=[Row('Background', ACT_BG, BG_PAGE_INDEX), Row('Accent', ACT_ACCENT, ACCENT_PAGE_INDEX),
                                                                                          GAP, Row('Control Center', ACT_PAGE, PULLDOWN_PAGE_INDEX)])
 
-# Settings > System > Battery (patch/charging.c, docs/modules/charging.md): the Charge Limit value row and its note; the picker lists the limits, a check on the chosen one
+# Settings > Battery (patch/charging.c, docs/modules/charging.md): the Charge Limit value row and its note; the picker lists the limits, a check on the chosen one
 # (100%, the default, is no limit). The labels are numbers, shown as they are (tools/pod_i18n.py BRANDS).
 CHGLIMIT_VALUES = (80, 85, 90, 95, 100)   # patch/charging.h CHG_MIN .. CHG_OFF by CHG_STEP
 BATTERY_PAGE = Page('m1plus_battery', 'm1plus_battery_page', 'Battery', layout=[
@@ -984,7 +1063,7 @@ BATTERY_PAGE = Page('m1plus_battery', 'm1plus_battery_page', 'Battery', layout=[
 CHGLIMIT_PAGE = Page('m1plus_chargelimit', 'm1plus_chargelimit_page', 'Charge Limit', layout=[Row(f'{p}%', ACT_CHGLIMSET, p) for p in CHGLIMIT_VALUES] + [Note('Resumes a little below the limit')])
 
 # Settings > Playback > Continue Playing (patch/nextalbum.c, docs/modules/nextalbum.md): Off or Next Albums, a check on the chosen one; Auto Mix is planned as a third (file value '2').
-# Settings > System > Display (patch/display.c, docs/modules/display.md): our page in place of stock's systemset/display_page list and its four pages. A brightness card (a slider, stock's own handlers);
+# Settings > Display (patch/display.c, docs/modules/display.md): our page in place of stock's systemset/display_page list and its four pages. A brightness card (a slider, stock's own handlers);
 # Screen Timeout, stock's backlight time (a value row and its picker: stock's five choices in stock's order, the index is stock's), and Lock Screen (LOCK_PAGE) in a card; LED Light (a value row and its picker: stock's lamp mode,
 # off, a stock colour, or the Dynamic lamp; Follow Screen is on the LED Light page, in a card of its own above Theme, so a hidden Theme row leaves no double gap). Every remaining setting keeps its
 # stock state.
@@ -994,6 +1073,9 @@ DISPLAY_PAGE = Page('m1plus_display', 'm1plus_display_page', 'Display', layout=[
     GAP,
     Row('Screen Timeout', ACT_LIGHT, LIGHTTIME_PAGE_INDEX),
     Row('Lock Screen', ACT_PAGE, LOCK_PAGE_INDEX),
+    GAP,
+    Row('Screen Rotation', ACT_ROTATE),
+    Note('Turns the screen upside down'),
     GAP,
     Row('LED Light', ACT_LED, LED_PAGE_INDEX),
 ])
@@ -1008,7 +1090,7 @@ RGB_THEME_PAGE = Page('m1plus_rgbtheme', 'm1plus_rgbtheme_page', 'Theme', layout
     [Note(RGB_NOTES[0], lines=2)] + [Hdr('Ambient')] + [Row(name, ACT_RGBTHEME, RGB_RATE_THEMES + i) for i, name in enumerate(RGB_THEMES[RGB_RATE_THEMES:])]
     + [Hdr('Sample Rate')] + [Row(name, ACT_RGBTHEME, i) for i, name in enumerate(RGB_THEMES[:RGB_RATE_THEMES])])
 LIGHTTIME_PAGE = Page('m1plus_lighttime', 'm1plus_lighttime_page', 'Screen Timeout', layout=[Row(v, ACT_LIGHTSET, i) for i, v in enumerate(LIGHTTIME_VALUES)])
-# Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): Button Lock (a value row and its picker, stock's switch and three choices merged: Off, or one of the three modes) with its note,
+# Settings > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): Button Lock (a value row and its picker, stock's switch and three choices merged: Off, or one of the three modes) with its note,
 # Tap to Wake (stock's switch) in a card, and Auto-Standby (stock's switch) with Auto-Shutdown (a value row and its picker: stock's switch and four durations merged, Off or the duration) in a card. Every state is stock's own.
 KEYLOCK_VALUES = ('Off', 'Volume', 'Buttons', 'Both')   # the value row's text, by the picker's argument: 0 off, else stock's keylock_mode 1 volume keys, 2 the other keys, 3 both
 SHUTDOWN_VALUES = ('Off', '1min', '3min', '5min', '10min')   # stock's savepowermode 0 .. 4 (the times are stock's plain texts, the same in every language)
@@ -1020,6 +1102,9 @@ KEYSPOWER_PAGE = Page('m1plus_keyspower', 'm1plus_keyspower_page', 'Buttons & Po
     Row('Auto-Standby', ACT_STANDBY),
     Row('Auto-Shutdown', ACT_SHUTDOWN, SHUTDOWN_PAGE_INDEX),
     Note('Only one of Auto-Standby and Auto-Shutdown is on at a time', lines=2),
+    GAP,
+    Row('Car Mode', ACT_CARMODE),
+    Note('Resumes the last track at start. Auto-Standby, Auto-Shutdown and USB connections are ignored.', lines=3),
 ])
 KEYLOCK_PAGE = Page('m1plus_keylock', 'm1plus_keylock_page', 'Button Lock', layout=[
     Row('Off', ACT_KEYLOCKSET, 0), Row('Lock Volume Only', ACT_KEYLOCKSET, 1), Row('Lock Buttons Only', ACT_KEYLOCKSET, 2), Row('Lock Volume & Buttons', ACT_KEYLOCKSET, 3),
@@ -1054,6 +1139,7 @@ PLAYSET_PAGE = Page('m1plus_playset', 'm1plus_playset_page', 'Playback', layout=
     Hdr('Output'),
     Row('Digital Filter', ACT_PAGE, PSFILTER_PAGE_INDEX),
     Row('DSD Output Mode', ACT_DSD, PSDSD_PAGE_INDEX),
+    Row('USB Mode', ACT_STOCK, STOCK_USB),   # stock's usbset page (no widget of ours on it); Back returns here
     Row('USB Volume', ACT_USBVOL, PSUSB_PAGE_INDEX),
     Row('Digital Output', ACT_DIGITAL),
 ])
@@ -1089,7 +1175,7 @@ NEXTALBUM_PAGE = Page('m1plus_nextalbum', 'm1plus_nextalbum_page', 'Continue Pla
 # The keyboard page (patch/keyboard.c, docs/modules/keyboard.md): the navbar, a search field and our own QWERTY pad; opened by keyboard_open (the Developer row, later podcast search), no menu row.
 KEYBOARD = Page('m1plus_keyboard', 'm1plus_keyboard_page', 'Keyboard', kind='keyboard')
 
-# Settings > Keyboards (iOS style): the keyboards the on-screen keyboard offers. English is always on (its switch is shown on and cannot be turned off); Chinese (Pinyin) is off by default.
+# Settings > General > Keyboards (iOS style): the keyboards the on-screen keyboard offers. English is always on (its switch is shown on and cannot be turned off); Chinese (Pinyin) is off by default.
 # With it on, the keyboard page has a language key and a pinyin layer with a candidate strip (docs/modules/keyboard.md). The choice is saved in /mnt/data/m1plus/keyboard-pinyin (patch/keyboard.c).
 KEYBOARDS_PAGE = Page('m1plus_keyboards', 'm1plus_keyboards_page', 'Keyboards', layout=[
     Row('English', ACT_KB_EN),
@@ -1239,6 +1325,73 @@ LF_PAGE = Page('m1plus_lastfm', 'm1plus_lastfm_page', 'Last.fm', layout=[
     Row('Account', ACT_INFO, INFO_LFACCT),
     Note(LF_NOTE, lines=5),
 ])
+
+# Settings > General > Language (patch/language.c, docs/modules/language.md): one card of stock's own thirteen languages in the order of stock's language page (systemset/language_page; its table at 0x97c880,
+# the word 0 .. 12 of the config key [SYSSET] LANGUAGE). Each row reads the language's own name by stock's key lan_* (the same text in every table, so the list does not follow the UI language).
+LANGUAGE_KEYS = ('lan_simplified', 'lan_traditional', 'lan_english', 'lan_japanese', 'lan_korean', 'lan_french', 'lan_german', 'lan_spanish', 'lan_italian', 'lan_thai', 'lan_polish', 'lan_russian', 'lan_ukrainian')
+LANGUAGE_NAMES = ('简体中文', '繁體中文', 'English', '日本語', '한국어', 'Français', 'Deutsch', 'español', 'Italiano', 'ภาษาไทย', 'Polski', 'Русский', 'Українська')   # the same text in all 16 stock tables (lan_english is 'English' here, where our own key English also exists)
+
+
+class StockText(str):
+    """A label that is a stock key's own text: pod_i18n.key_for gives `stock_key` even where our TEXT holds the same English (the language list's English)."""
+    def __new__(cls, text, stock_key):
+        s = super().__new__(cls, text); s.stock_key = stock_key
+        return s
+
+
+LANGUAGE_PAGE = Page('m1plus_language', 'm1plus_language_page', 'Language', layout=[Row(StockText(n, k), ACT_LANGSET, i) for i, (k, n) in enumerate(zip(LANGUAGE_KEYS, LANGUAGE_NAMES))])
+# Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): stock's three date and time pages as cards, every state stock's own. Set Automatically (stock's switch) and Time Zone (a value row
+# and its picker of our 43 zones, west to east, patch/timezones.c), Date and Time (value rows opening the two entry pages, each with its Set row: stock's set_systime), 24-Hour Time (stock's switch).
+import timezones as _tz
+DATETIME_PAGE_INDEX = page_index('m1plus_datetime')
+TIMEZONE_PAGE_INDEX = page_index('m1plus_timezone')
+DTDATE_PAGE_INDEX = page_index('m1plus_dtdate')
+DTTIME_PAGE_INDEX = page_index('m1plus_dttime')
+DTFIELD_PAGES = tuple(page_index(k) for k in ('m1plus_dtyear', 'm1plus_dtmonth', 'm1plus_dtday', 'm1plus_dthour', 'm1plus_dtminute'))   # the fields' picker pages, in the order of the field numbers 0 .. 4
+DTYEAR_PAGE_INDEX = DTFIELD_PAGES[0]
+assert DTFIELD_PAGES == tuple(range(DTYEAR_PAGE_INDEX, DTYEAR_PAGE_INDEX + 5)), 'the five field pickers are consecutive (patch/m1plus.c takes the field from the page number)'
+DT_YEARS = (2022, 2050)   # stock's manual time page: the year selector's range (its init clamps anything else to 2022, 0x4a5aa8)
+TZ_LABELS = tuple(label for label, _ in _tz.TIMEZONES)   # the picker's row labels: English zone names in every language (tools/pod_i18n.py BRANDS)
+DT_NUMBERS = tuple(str(y) for y in range(DT_YEARS[0], DT_YEARS[1] + 1)) + tuple(str(i) for i in range(1, 32)) + tuple(f'{i:02d}' for i in range(60))   # the pickers' number labels, shown as they are
+DATETIME_PAGE = Page('m1plus_datetime', 'm1plus_datetime_page', 'Date & Time', layout=[
+    Row('Set Automatically', ACT_DTAUTO),
+    Row('Time Zone', ACT_DTZONE, TIMEZONE_PAGE_INDEX),
+    GAP,
+    Row('Date', ACT_DTDATE, DTDATE_PAGE_INDEX),
+    Row('Time', ACT_DTTIME, DTTIME_PAGE_INDEX),
+    GAP,
+    Row('24-Hour Time', ACT_DT24),
+])
+TIMEZONE_PAGE = Page('m1plus_timezone', 'm1plus_timezone_page', 'Time Zone', layout=[Row(_tz.TIMEZONES[i][0], ACT_DTZONESET, i) for i in _tz.ORDER])
+DTDATE_PAGE = Page('m1plus_dtdate', 'm1plus_dtdate_page', 'Date', layout=[
+    Row('Year', ACT_DTFIELD, DTFIELD_PAGES[0]), Row('Month', ACT_DTFIELD, DTFIELD_PAGES[1]), Row('Day', ACT_DTFIELD, DTFIELD_PAGES[2]),
+    GAP,
+    Row('Set Date', ACT_DTAPPLY, 0),
+])
+DTTIME_PAGE = Page('m1plus_dttime', 'm1plus_dttime_page', 'Time', layout=[
+    Row('Hour', ACT_DTFIELD, DTFIELD_PAGES[3]), Row('Minute', ACT_DTFIELD, DTFIELD_PAGES[4]),
+    GAP,
+    Row('Set Time', ACT_DTAPPLY, 1),
+])
+DT_FIELD_VALUES = (range(DT_YEARS[0], DT_YEARS[1] + 1), range(1, 13), range(1, 32), range(24), range(60))   # the values of fields 0 .. 4
+DT_FIELD_TITLES = ('Year', 'Month', 'Day', 'Hour', 'Minute')
+for _f, (_title, _values) in enumerate(zip(DT_FIELD_TITLES, DT_FIELD_VALUES)):
+    Page(f'm1plus_dt{_title.lower()}', f'm1plus_dt{_title.lower()}_page', _title,
+         layout=[Row(f'{v:02d}' if _f >= 3 else str(v), ACT_DTSET, _f * 4096 + v) for v in _values])
+# The Sleep Timer page (patch/sleeptimer.c, docs/modules/sleeptimer.md): one card of check rows, stock's Sleep Timer (the byte sleepflag and the word sleep_time, the seconds left) as stock's Power page sets it. Opened by Now Playing's More sheet row and
+# the Control Center's Sleep Timer tile, not from the Settings list. The times are the presets stock's selectors (hours 0 .. 3, minutes 0 .. 59) can hold; the argument is the index.
+SLEEP_VALUES = ('Off', '15 minutes', '30 minutes', '45 minutes', '1 hour', '1.5 hours', '2 hours')
+SLEEP_SECONDS = (0, 900, 1800, 2700, 3600, 5400, 7200)   # the word sleep_time each row sets (the Off row clears the byte)
+SLEEP_NOTE = 'The player turns off when the time is up'
+SLEEP_PAGE = Page('m1plus_sleeptimer', 'm1plus_sleeptimer_page', 'Sleep Timer', layout=[Row(v, ACT_SLEEPSET, i) for i, v in enumerate(SLEEP_VALUES)] + [Note(SLEEP_NOTE, lines=2), Row('Time Left', ACT_SLEEPLEFT)])
+SLEEPTIMER_PAGE_INDEX = page_index('m1plus_sleeptimer')
+
+# Settings > Network Services (patch/netservice.c, docs/modules/netservice.md): stock's Network Service page as our own cards. AirPlay and DLNA are stock's two switches (the Control Center tiles' bytes), Wi-Fi Transfer opens
+# our page of the same name: it stops the player and starts the file server as stock's Wi-Fi file transfer page does, shows the address and stops the server when the window goes.
+NETSERVICE_PAGE = Page('m1plus_netservice', 'm1plus_netservice_page', 'Network Services', layout=[Row('AirPlay', ACT_NETAIR), Row('DLNA', ACT_NETDLNA), GAP, Row('SyncLink', ACT_STOCK, STOCK_SYNCLINK), Row('Wi-Fi Transfer', ACT_NETTRANS, WIFITRANSFER_PAGE_INDEX)])   # SyncLink: stock's synclink page (ACT_STOCK; Back returns here)
+WT_INFO = 'On the same Wi-Fi, open this address in a browser to manage your music.'
+WT_NOTE = 'Playback is paused while this page is open. Leave the page to turn it off.'
+WIFITRANSFER_PAGE = Page('m1plus_wifitransfer', 'm1plus_wifitransfer_page', 'Wi-Fi Transfer', layout=[Hero('wifi', 'Wi-Fi Transfer', WT_INFO), BigCard(), Note(WT_NOTE, lines=3, center=True)])
 
 # PAGES[0] is the entry page. The order is PAGE_ORDER's; a key with no page, or a page missing from PAGE_ORDER, stops the import.
 _missing = [k for k in PAGE_ORDER if k not in _REGISTRY]

@@ -110,6 +110,23 @@ LOCKSCREEN_PINS = (   # (address, stock word, what it proves)
     (0x4a1964, 0x24c677ec, 'follow screen 0x4a1940: a2 = "LEDFOLLOWSCREEN"'), (0x4a197c, 0x38420001, 'follow screen: xori v0, v0, 1'), (0x4a1980, 0x0002202b, 'follow screen: sltu a0, zero, v0: the new state, 0 or 1'),
     (0x4a1984, 0x0320f809, 'follow screen: jalr write_int_config'), (0x4a1988, 0xa0640000, 'follow screen: sb a0, (v1) in the delay slot: the byte first'),
     (0x4e6718, 0x2c440003, 'config_init: sltiu a0, v0, 3: the saved lamp mode is 0 .. 2'), (0x4e6b9c, 0x3c1c0052, 'reset_atmosphereled_rgb: prologue'),
+    # Screen Rotation (patch/display.c disp_rotate_toggle): stock's systemset/screenrotate_page (0x4ab0a4). listitem0 is bound to 0x4ab03c (0 degrees), listitem1 to 0x4aafd0 (180 degrees). Each returns when rotate_mode is
+    # the choice already (0x4ab05c, 0x4aaff8), else calls the shared 0x4aae68(win, choice) (unmarks the old row; stores the word in the delay slot of write_int_config(choice, "SYSSET", "ROTATEMODE") unless it is the
+    # word already), then tk_set_lcd_orientation(0 / 0xb4) and stores 1 in the byte scr_rotateflag (0xa05a58). config_init keeps 0 or 1 and awtk_configinit (0x4ccb5c, at 0x4ccbd4) applies the word at boot.
+    (0x4aadd8, 0x24c6b03c, 'rotate page visitor: listitem0 -> handler 0x4ab03c (0 degrees)'), (0x4aae0c, 0x24c6afd0, 'rotate page visitor: listitem1 -> handler 0x4aafd0 (180 degrees)'),
+    (0x4ab04c, 0x8f82ab4c, 'rotate 0 handler 0x4ab03c: lw v0, GOT rotate_mode (0xa05a9c)'), (0x4ab05c, 0x1040000e, 'rotate 0 handler: beqz v0: already 0 does nothing'),
+    (0x4ab06c, 0x0411ff7e, 'rotate 0 handler: bal 0x4aae68'), (0x4ab070, 0x00002825, 'rotate 0 handler: a1 = 0'), (0x4ab07c, 0x0320f809, 'rotate 0 handler: jalr tk_set_lcd_orientation'),
+    (0x4ab080, 0x00002025, 'rotate 0 handler: a0 = 0'), (0x4ab08c, 0x8f82a828, 'rotate 0 handler: lw v0, GOT scr_rotateflag (0xa05a58)'), (0x4ab084, 0x24030001, 'rotate 0 handler: v1 = 1'),
+    (0x4ab090, 0xa0430000, 'rotate 0 handler: sb v1 (1), (v0): the flag after the orientation call'),
+    (0x4aafe0, 0x8f82ab4c, 'rotate 180 handler 0x4aafd0: lw v0, GOT rotate_mode'), (0x4aafec, 0x24100001, 'rotate 180 handler: s0 = 1'), (0x4aaff8, 0x1050000b, 'rotate 180 handler: beq v0, s0: already 1 does nothing'),
+    (0x4ab004, 0x0411ff98, 'rotate 180 handler: bal 0x4aae68'), (0x4ab008, 0x24050001, 'rotate 180 handler: a1 = 1'), (0x4ab014, 0x0320f809, 'rotate 180 handler: jalr tk_set_lcd_orientation'),
+    (0x4ab018, 0x240400b4, 'rotate 180 handler: a0 = 0xb4 (180)'), (0x4ab020, 0x8f82a828, 'rotate 180 handler: lw v0, GOT scr_rotateflag'), (0x4ab024, 0xa0500000, 'rotate 180 handler: sb s0 (1), (v0): the flag after the orientation call'),
+    (0x4aaf10, 0x8f82ab4c, 'rotate shared 0x4aae68: lw v0, GOT rotate_mode'), (0x4aaf14, 0x8c520000, 'rotate shared: lw s2, (v0): the old word'), (0x4aaf18, 0x12500023, 'rotate shared: beq s2, s0: the same word saves nothing'),
+    (0x4aaf8c, 0x02002025, 'rotate shared: a0 = the choice'), (0x4aaf98, 0x24c68608, 'rotate shared: a2 = "ROTATEMODE"'), (0x4aaf9c, 0xae700000, 'rotate shared: sw s0, (s3) in the save\'s delay slot: the word first'),
+    (0x4aafa0, 0x0320f809, 'rotate shared: jalr write_int_config'), (0x4aafa4, 0x24a54540, 'rotate shared: a1 = "SYSSET"'),
+    (0x5f35e8, 0x3c1c0041, 'tk_set_lcd_orientation: prologue (1/2)'), (0x5f35ec, 0x279c08e8, 'tk_set_lcd_orientation: prologue (2/2)'),
+    (0x4e64a0, 0x2c430002, 'config_init: ROTATEMODE sltiu v1, v0, 2'), (0x4e64a4, 0x0003100a, 'config_init: ROTATEMODE movz v0, zero, v1: 2 and up become 0'), (0x4e64bc, 0xac620000, 'config_init: ROTATEMODE stored as a word'),
+    (0x4ccbdc, 0x10400002, 'awtk_configinit 0x4ccb5c: beqz rotate_mode: 0 keeps orientation 0'), (0x4ccbe4, 0x240400b4, 'awtk_configinit: a0 = 180 for a non-zero word, then tk_set_lcd_orientation'),
     (0x53f32c, 0x8f82b000, 'lock screen visitor: lw v0, GOT screensaver_timeshow'), (0x53f330, 0x90420000, 'lock screen visitor: lbu v0, (v0): view_timeinfo is shown (and enabled) from the byte'), (0x53f334, 0x1040000b, 'lock screen visitor: beqz v0: hidden'),
 )
 # The Display page's Lock Screen row (docs/modules/lockscreen.md "The Display row"): systemset_display_page_init (0x4a5f58) installs the row click handler 0x4a5c10 (atoi of the row's name: 0 brightness, 1 light time,
@@ -124,7 +141,7 @@ LOCKROW_PINS = (   # (address, stock word, what it proves)
     (LOCKROW_NAV, 0x8f99a704, 'Display row: lw t9, GOT navigator_to'), (LOCKROW_NAV + 4, 0x0320f809, 'its jalr navigator_to'), (LOCKROW_DONE, 0x1000fff2, 'Display row epilogue: b 0x4a5c60'), (LOCKROW_DONE + 4, 0x8fbf001c, 'its delay slot: lw ra, 0x1c(sp)'),
     (0x4a5c60, 0x00001025, 'Display row: move v0, zero'), (0x4a5c68, 0x27bd0020, 'Display row: addiu sp, sp, 0x20'), (0x4a5f58, 0x26525c10, 'display page init: the row handler is 0x4a5c10 (its one reference)'),
 )
-# Settings > System > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): the four controls of stock's systemset/keylock_page, the sysset list's row 7 and systemset/powermanager_page, as their click handlers
+# Settings > Buttons & Power (patch/keyspower.c, docs/modules/keyspower.md): the four controls of stock's systemset/keylock_page, the sysset list's row 7 and systemset/powermanager_page, as their click handlers
 # do them. Button Lock: the switch 0x4a7a04 xors the byte keylock_flag and saves LOCKFLAG after the refresh 0x4a770c (which saves nothing for the unchanged mode); a choice 0x4a7a7c / 0x4a7ab8 / 0x4a7af4 calls the
 # refresh with 1 / 2 / 3, which stores the word keylock_mode (the store sits in the delay slot of the save) and saves LOCKMODE only when the word differs. Which keys the mode locks is read off the gates: the volume
 # keys (0x47e3a4, 0x4cdc20) pass only for mode 2, the play / prev / next keys (0x4cda60) only for mode 1. Tap to Wake: the case of the shared sysset click handler 0x4ad930 saves DOUBLEWAKE with the byte xor 1 stored in
@@ -162,6 +179,22 @@ KEYSPOWER_PINS = (   # (address, stock word, what it proves)
     (0x4a9cd4, 0x24020001, 'duration choice 0x4a9cb4: v0 = 1 (1min)'), (0x4a9cec, 0x24050001, 'duration choice: refresh(win, 1)'), (0x4a9cf8, 0x24050001, 'duration choice 1min: a1 = 1'),
     (0x4a9c70, 0x24020002, 'duration choice 0x4a9c50: v0 = 2 (3min)'), (0x4a9c0c, 0x24020003, 'duration choice 0x4a9bec: v0 = 3 (5min)'),
     (0x4e5fd4, 0x2c430002, 'config_init: STANDBYMODE sltiu v1, v0, 2'), (0x4e5fec, 0x30420001, 'config_init: STANDBYMODE andi v0, v0, 1'), (0x4e6034, 0x2c430005, 'config_init: SAVEPOWERMODE sltiu v1, v0, 5: 0 .. 4'),
+    # Car Mode (patch/keyspower.c kp_car_toggle): row 6 of the sysset list. The click handler 0x4ad7b0 maps the row's name (atoi) through the table 0x97c8c0 and jumps through 0x748ae0; entry 6 is the case 0x4ad84c: the byte car_mode
+    # (0xa05aa6) xor 1 stored in the delay slot of write_int_config(byte, "SYSSET", "CARMODE") (the byte first), then the row's switch image (img_carmode%d: sset_on or sset_off), then 0 into the word carmode_startflag
+    # (0xa059dc) on both image paths (0x4ad918 joins 0x4ad8e8). config_init keeps 0 or 1 (a byte). What the byte does is read off its readers: to_poweroptions (the standby and shutdown countdowns run only for 0), check_usb_status
+    # and check_otg_status (return at once for non-zero), home_page_init and save_memoryplay_info / memeory_startplayer (the last track is saved and resumed at start for non-zero, as Memory Playback does).
+    (0x748af8, 0xffaa997c, 'sysset click jump table 0x748ae0: entry 6 is 0x4ad84c (Car Mode)'), (0x97c8d8, 0x00000006, 'sysset row table 0x97c8c0: row 6 maps to case 6'),
+    (0x4ad84c, 0x8f92b064, 'car mode case 0x4ad84c: lw s2, GOT car_mode (0xa05aa6)'), (0x4ad860, 0x92440000, 'car mode: lbu a0, (s2)'), (0x4ad864, 0x24c68980, 'car mode: a2 = "CARMODE"'), (0x4ad868, 0x24a54540, 'car mode: a1 = "SYSSET"'),
+    (0x4ad870, 0x38840001, 'car mode: xori a0, a0, 1'), (0x4ad874, 0x0320f809, 'car mode: jalr write_int_config'), (0x4ad878, 0xa2440000, 'car mode: sb a0, (s2) in the delay slot: the byte first'),
+    (0x4ad8d8, 0x1040000f, 'car mode: beqz: the image is sset_off for 0 (0x4ad918 joins 0x4ad8e8), else sset_on'), (0x4ad91c, 0x1000fff2, 'car mode: sset_off path branches back to 0x4ad8e8'),
+    (0x4ad8e8, 0x0320f809, 'car mode: jalr image_base_set_image (both paths)'), (0x4ad8f4, 0x8f82b068, 'car mode: lw v0, GOT carmode_startflag (0xa059dc)'), (0x4ad8f8, 0xac400000, 'car mode: sw zero, (v0): cleared after the image'),
+    (0x4e5f14, 0x2c430002, 'config_init: CARMODE sltiu v1, v0, 2'), (0x4e5f2c, 0x30420001, 'config_init: CARMODE andi v0, v0, 1'), (0x4e5f34, 0xa0620000, 'config_init: CARMODE stored as a byte'),
+    (0x4ce624, 0x8f82b064, 'to_poweroptions: lw v0, GOT car_mode (standby countdown)'), (0x4ce62c, 0x1440002b, 'to_poweroptions: bnez car_mode skips the standby countdown'),
+    (0x4ce6ec, 0x8f82b064, 'to_poweroptions: lw v0, GOT car_mode (shutdown countdown)'), (0x4ce6f4, 0x14400024, 'to_poweroptions: bnez car_mode skips the shutdown countdown'),
+    (0x4ce214, 0x90420000, 'check_usb_status: lbu v0, (car_mode)'), (0x4ce218, 0x10400003, 'check_usb_status: beqz: only non-zero car mode returns 0 at once'),
+    (0x4cdf70, 0x90420000, 'check_otg_status: lbu v0, (car_mode)'), (0x4cdf74, 0x1440002b, 'check_otg_status: bnez: non-zero car mode returns 0 at once'),
+    (0x534e6c, 0x8f82b064, 'home_page_init: lw v0, GOT car_mode (after the Memory Playback word 0xa05ac4)'), (0x534e74, 0x10400036, 'home_page_init: beqz car_mode: without Memory Playback and Car Mode nothing is resumed'),
+    (0x4e33c4, 0x8f82b064, 'save_memoryplay_info: lw v0, GOT car_mode (after the Memory Playback word)'), (0x4e33cc, 0x1040fff4, 'save_memoryplay_info: beqz car_mode: the position is saved for Car Mode too'),
 )
 # Playback settings (patch/playset.c, docs/modules/playset.md): the rows of stock's playset/playset_page and its sub-pages as their click handlers do them. The list's click handler 0x49ffec reads the row number
 # from the item's name (atoi), maps it through the table 0x97c7d0 and jumps by id; the cases pinned here are Gapless 0x4a015c, Gain 0x4a021c (nothing at all while the Line Out byte output_way is set), Digital Output
@@ -840,6 +873,22 @@ TFUPDATE_PINS = (   # (address, stock word, what it proves)
     (0x4a6cf4, 0x24a57e80, 'widget walk: a1 = "listitem_sd"'), (0x4a6d10, 0x8f86add4, 'widget walk: lw a2, GOT page 0x4a0000'), (0x4a6d14, 0x1000ffde, 'widget walk: b 0x4a6c90 (widget_on EVT_CLICK)'),
     (0x4a6d18, 0x24c67160, 'widget walk: a2 = 0x4a7160 (the delay slot): the row\'s click handler is the one called here'),
 )
+# Settings > General's direct rows (docs/modules/settings.md "General"): the stock pages ACT_STOCK opens (a plain navigator_to of the name, no context; the payload's own table holds the names, these pins
+# prove each name is the one stock's own list or hub uses) and Format Storage, whose handler is called: the sysset list's case 12 (the jump table 0x748ae0, row 12 of 0x97c8c0) does `bal 0x4ad678` with no argument.
+# The handler is self-contained: the confirm dialog (msg_checkformat, navigator_to_with_context "dialog/confirminfo_dialog"; only the answer 10 goes on), toolsCheckMount("/mnt/mmc"), then navigator_to
+# ("dialog/formatcard_dialog") or, without the card, the msg_nottf message box. The usbset and rippingset pages have no opener in V2.1 other than the page registry (0x4d0c10, 0x4d0464: the init dispatcher by name).
+FORMAT_CARD = 0x4ad678
+STOCKROWS_PINS = (   # (address, stock word, what it proves)
+    (FORMAT_CARD, 0x3c1c0055, 'format handler prologue'), (FORMAT_CARD + 4, 0x279c6858, 'format handler prologue'), (FORMAT_CARD + 8, 0x0399e021, 'format handler prologue'),
+    (0x4ad6fc, 0x0320f809, 'format: jalr navigator_to_with_context (the modal confirm)'), (0x4ad700, 0x24844570, 'format: a0 = "dialog/confirminfo_dialog"'),
+    (0x4ad708, 0x1443000b, 'format: bne v0, 0xa: only Yes goes on'), (0x4ad71c, 0x24844bd0, 'format: a0 = "/mnt/mmc" (toolsCheckMount)'),
+    (0x4ad730, 0x0320f809, 'format: jalr navigator_to'), (0x4ad734, 0x24848930, 'format: a0 = "dialog/formatcard_dialog"'),
+    (0x4ada3c, 0x8f99afb4, 'sysset list: the Format row: lw t9, GOT 0x4b0000'), (0x4ada40, 0x2739d678, 'sysset list: the Format row: t9 = 0x4ad678'), (0x4ada44, 0x0411ff0c, 'sysset list: the Format row: bal 0x4ad678'),
+    (0x4ada14, 0x24848a1c, 'sysset list: the Regulatory row: a0 = "systemset/prove_page" (the shared jalr navigator_to 0x4ad830)'),
+    (0x4ada5c, 0x24848a80, 'sysset list: the Reset row: a0 = "systemset/reset_page" (the shared jalr navigator_to 0x4ad830)'),
+    (0x4b13f0, 0x0320f809, 'the SyncLink hub row (0x4b13d0): jalr navigator_to'), (0x4b13f4, 0x24848ee8, 'its delay slot: a0 = "systemset/synclink_page"'),
+    (0x4d0c10, 0x24a59f14, 'page registry: a1 = "systemset/usbset_page" (strcmp, then systemset_usbset_page_init)'), (0x4d0464, 0x24a59e70, 'page registry: a1 = "systemset/rippingset_page" (strcmp, then systemset_rippingset_page_init)'),
+)
 PLAYLIST_IMPORT, PLAYLIST_EXPORT = 0x53dedc, 0x53dd34
 PLAYLIST_PINS = (   # (address, stock word, what it proves)
     (PLAYLIST_IMPORT, 0x3c1c004c, 'import click handler prologue'), (PLAYLIST_IMPORT + 4, 0x279c5ff4, 'import click handler prologue'),
@@ -991,10 +1040,8 @@ PLAYMORE_PINS = (   # (address, stock word, what it proves)
     (0x668ae4, 0x0320f809, 'widget_foreach: visit(widget) first'),
     (0x668af0, 0x1440000b, 'widget_foreach: then its children, if the visit returned RET_OK (the dialog before its list_view)'),
     (0x60c53c, 0x1443fff6, 'list_view_on_event: RET_OK for an event it does not handle (0x12c reaches the list_view\'s emitter)'),
-    # why a restacked Power page needs no refresh of ours (pm_on_sleep): stock's restack delivers EVT_WINDOW_TO_FG to it, and the handler its init bound for that event runs the page's refresh
+    # why a restacked Sleep Timer page of ours needs no refresh from pm_on_sleep: stock's restack delivers EVT_WINDOW_TO_FG to it, and our page's own handler (patch/m1plus.c page_refresh) re-reads the state
     (0x6789e8, 0x2405012d, 'window_manager_switch_to (animation 0): a1 = EVT_WINDOW_TO_FG 0x12d ...'), (0x6789f4, 0x0411ff88, '... window_manager_dispatch_window_event(new window, 0x12d)'),
-    (0x4a9d34, 0x2405012d, 'powermanager_page init: widget_on(win, 0x12d, ...)'), (0x4a9d44, 0x24c69b2c, 'its handler is 0x4a9b2c'), (0x4a9d50, 0x0320f809, 'jalr widget_on'),
-    (0x4a9b48, 0x27399924, 'handler 0x4a9b2c: t9 = 0x4a9924, the page refresh'), (0x4a9b50, 0x0411ff74, 'bal 0x4a9924, with a0 = the window (the delay slot move s0, a0)'),
 )
 PULLDOWN_OPEN_SITES = (0x4cd894, 0x4cd8bc)
 PULLDOWN_DIALOG_SITE = 0x4cd864   # on_wm_tsmove_fun: the `bal navigator_to` that opens the pull-down dialog (modal: it returns once the dialog is quit)
@@ -1064,3 +1111,126 @@ TSDOWN_PINS = (   # (address, stock word, what it proves)
     (0x4751ec, 0x0320f809, 'pointer-down handler: jalr value_set_uint32(&v, -1)'), (0x475204, 0x0320f809, 'pointer-down handler: jalr widget_set_prop(dlg, "timer_idex", &v)'),
 )
 TSDOWN_PROLOGUE = (0x3c1c0053, 0x279c67e8, 0x0399e021)   # on_wm_tsdown_fun's PIC prologue (lui gp, 0x53; addiu gp, gp, 0x67e8; addu gp, gp, t9)
+
+# Settings > General > Language (patch/language.c, docs/modules/language.md): stock's row handler of systemset/language_page (0x4a7cb0, bound to each of its 13 rows by the init 0x4a80b0): the word is stored,
+# [SYSSET] LANGUAGE saved, switch_language(word) loads the locale (the window manager re-translates every open window and our font forms follow EVT_LOCALE_CHANGED), then change_lanflag = 1,
+# homemenu_changeflag = 2 and navigator_back_to_home(): the Home foreground callback 0x534858 resets the menu index and rebuilds the menu in the new language. The same word is nothing.
+LANGUAGE_PINS = (   # (address, stock word, what it proves)
+    (0x4a7cf0, 0x8f92afa4, 'row handler 0x4a7cb0: lw s2, GOT language (0xa05ab8)'),
+    (0x4a7d00, 0x8e540000, 'row handler: lw s4, (s2): the current word'),
+    (0x4a7d04, 0x1282004d, "row handler: beq s4, v0 (the row's number): the same language does nothing"),
+    (0x4a7df8, 0x24c64918, 'row handler: a2 = "LANGUAGE"'),
+    (0x4a7dfc, 0xae500000, 'row handler: sw s0, (s2): the word is stored first'),
+    (0x4a7e00, 0x0320f809, 'row handler: jalr write_int_config(word, "SYSSET", "LANGUAGE")'),
+    (0x4a7e04, 0x24a54540, 'row handler: a1 = "SYSSET" (the delay slot)'),
+    (0x4a7e0c, 0x8f99afa8, 'row handler: lw t9, GOT switch_language'),
+    (0x4a7e10, 0x0320f809, 'row handler: jalr switch_language(word)'),
+    (0x4a7e14, 0x8e440000, 'row handler: a0 = the stored word (the delay slot)'),
+    (0x4a7e18, 0x24030001, 'row handler: v1 = 1'),
+    (0x4a7e20, 0x8f82afac, 'row handler: lw v0, GOT change_lanflag (0xa05a39)'),
+    (0x4a7e28, 0xa0430000, 'row handler: sb 1, change_lanflag'),
+    (0x4a7e2c, 0x24030002, 'row handler: v1 = 2'),
+    (0x4a7e30, 0x8f82aa18, 'row handler: lw v0, GOT homemenu_changeflag (0xa05a50)'),
+    (0x4a7e34, 0x0320f809, 'row handler: jalr navigator_back_to_home (the last call)'),
+    (0x4a7e38, 0xac430000, 'row handler: sw 2, homemenu_changeflag (the delay slot: stored before the call)'),
+    (0x4cca54, 0x2484ffff, 'switch_language: a0 - 1'),
+    (0x4cca5c, 0x2c82000c, 'switch_language: sltiu a0, 12: the words 1 .. 12 index the locale table'),
+    (0x4cca64, 0x10400009, 'switch_language: anything else loads zh_CN (the default)'),
+    (0x4cca90, 0x24849998, 'switch_language default: a0 = "zh_CN"'),
+    (0x4d20bc, 0x0320f809, 'navigator_back_to_home: jalr window_manager'),
+    (0x4d20d0, 0x8f99b6b4, 'navigator_back_to_home: lw t9, GOT window_manager_back_to_home'),
+    (0x4d20d4, 0x03200008, 'navigator_back_to_home: jr t9 (a tail call)'),
+    (0x534888, 0x8f93afac, 'Home foreground callback 0x534858: lw s3, GOT change_lanflag'),
+    (0x53488c, 0x92620000, 'Home callback: lbu v0, (s3)'),
+    (0x534890, 0x10400008, 'Home callback: beqz v0: no language change'),
+    (0x534898, 0x8f99aa2c, 'Home callback: lw t9, GOT reset_homemenu_index'),
+    (0x5348a0, 0x24040001, 'Home callback: reset_homemenu_index(1)'),
+    (0x5348a4, 0x24020002, 'Home callback: v0 = 2'),
+    (0x5348ac, 0xae420000, 'Home callback: sw 2, homemenu_changeflag'),
+    (0x5348b0, 0xa2600000, 'Home callback: sb zero, change_lanflag'),
+    (0x4e6528, 0x8f83afa4, 'config_init: lw v1, GOT language'),
+    (0x4e6534, 0xac620000, 'config_init: sw v0, (v1): the word is atoi of [SYSSET] LANGUAGE, not clamped'),
+    (0x744918, 0x474e414c, 'the string "LANG(UAGE)"'),
+    (0x74491c, 0x45474155, 'the string "(LANG)UAGE"'),
+    (0x97c880, 0x00747fb4, "language page's key table 0x97c880: row 0"),
+    (0x97c884, 0x00747fc4, "language page's key table 0x97c880: row 1"),
+    (0x97c888, 0x00747fd4, "language page's key table 0x97c880: row 2"),
+    (0x97c88c, 0x00747fe0, "language page's key table 0x97c880: row 3"),
+    (0x97c890, 0x00747ff0, "language page's key table 0x97c880: row 4"),
+    (0x97c894, 0x00747ffc, "language page's key table 0x97c880: row 5"),
+    (0x97c898, 0x00748008, "language page's key table 0x97c880: row 6"),
+    (0x97c89c, 0x00748014, "language page's key table 0x97c880: row 7"),
+    (0x97c8a0, 0x00748020, "language page's key table 0x97c880: row 8"),
+    (0x97c8a4, 0x0074802c, "language page's key table 0x97c880: row 9"),
+    (0x97c8a8, 0x00748038, "language page's key table 0x97c880: row 10"),
+    (0x97c8ac, 0x00748044, "language page's key table 0x97c880: row 11"),
+    (0x97c8b0, 0x00748050, "language page's key table 0x97c880: row 12"),
+)
+# Settings > General > Date & Time (patch/datetime.c, docs/modules/datetime.md): the three stock pages behind System list row 5 (system_time). typedatetime_page (init 0x4aed58) holds the Auto row
+# (-> autosynctime_page), the Manual row (-> datetime_page; disabled while auto time is on, 0x4aec74) and the 24-hour switch 0x4aeb50. autosynctime_page's click handler 0x4a25b8 is the switch (row 0) and
+# the zone rows (row n is the zone n - 2); its page builder 0x4a2424 makes the zone rows only while auto time is ON (movz at 0x4a2474: the byte 0 leaves the one switch row). datetime_page's confirm 0x4a576c
+# reads the five selectors and calls set_systime, then navigator_back.
+DATETIME_PINS = (   # (address, stock word, what it proves)
+    (0x4a2468, 0x90530000, 'zone page builder 0x4a2424: lbu s3, (auto_sync_nettime)'), (0x4a2474, 0x0073100a, 'zone page builder: movz v0, v1 (1), s3: auto time off leaves the one switch row; on shows the zone rows'),
+    (0x4a2610, 0x14400020, 'zone page click 0x4a25b8: bnez row, 0x4a2694: row 0 is the switch'), (0x4a2618, 0x8f83aea8, 'auto switch: lw v1, GOT auto_sync_nettime'), (0x4a261c, 0x90640000, 'auto switch: lbu a0, (v1)'),
+    (0x4a2620, 0x10800018, 'auto switch: beqz a0: from off'), (0x4a2624, 0x8f82aebc, 'auto switch: lw v0, GOT sync_nettime_flag'), (0x4a2628, 0xa0400000, 'auto switch, from on: sb zero, (v0): no sync wanted'),
+    (0x4a262c, 0xa0600000, 'auto switch, from on: sb zero, (v1): the byte off'), (0x4a2640, 0x24c67a2c, 'auto switch: a2 = "AUTOSYNCTIME"'), (0x4a2644, 0x0320f809, 'auto switch: jalr write_int_config(byte, "SYSSET", ...)'),
+    (0x4a2648, 0x24a54540, 'auto switch: a1 = "SYSSET"'), (0x4a2684, 0x24040001, 'auto switch, from off: a0 = 1'), (0x4a2688, 0xa0440000, 'auto switch, from off: sb a0, (v0): a sync is wanted (networktime_adjust_thd runs it)'),
+    (0x4a2690, 0xa0640000, 'auto switch, from off: sb a0, (v1): the byte on, in the delay slot of the branch back to the save'),
+    (0x4a269c, 0x2450fffe, 'zone click: s0 = row - 2'), (0x4a26a4, 0x1290ffee, 'zone click: beq s4, s0: the zone that is chosen already does nothing'), (0x4a2790, 0x24c67a3c, 'zone click: a2 = "TIMEZONE"'),
+    (0x4a2794, 0xae700000, 'zone click: sw s0, (time_zone) in the delay slot of the save: the word first'), (0x4a2798, 0x0320f809, 'zone click: jalr write_int_config(index, "SYSSET", "TIMEZONE")'),
+    (0x4a279c, 0x24a54540, 'zone click: a1 = "SYSSET"'),
+    (0x4aeb74, 0x8f91b094, '24-hour switch 0x4aeb50: lw s1, GOT time24hflag'), (0x4aeb80, 0x38440001, '24-hour switch: xori a0, v0, 1'), (0x4aeb84, 0x0320f809, '24-hour switch: jalr change_time24h_12h(new)'),
+    (0x4aeb88, 0xa2240000, '24-hour switch: sb a0, (s1) in the delay slot: the byte first'), (0x4aeba0, 0x24c68c54, '24-hour switch: a2 = "TIME24H"'), (0x4aeba4, 0x0320f809, '24-hour switch: jalr write_int_config(byte, "SYSSET", "TIME24H")'),
+    (0x4aeba8, 0x24a54540, '24-hour switch: a1 = "SYSSET"'),
+    (0x4e6648, 0x2c430002, 'config_init: TIME24H sltiu v1, v0, 2'), (0x4e664c, 0x0043200b, 'config_init: movn a0, v0, v1: 0 and 1 kept, else 1'),
+    (0x4aec74, 0x8f82aea8, 'Manual row refresh 0x4aebd8: lw v0, GOT auto_sync_nettime'), (0x4aec7c, 0x10400017, 'Manual row refresh: beqz: the row is enabled only while auto time is off'),
+    (0x4a5970, 0x0320f809, 'manual time page init 0x4a58fc: jalr get_systime(&minute, &hour, &day, &month, &year)'), (0x4a5aa8, 0x240507e6, 'manual time page: a1 = 2022 (the year selector clamp)'),
+    (0x4a5aac, 0x2c42001d, 'manual time page: sltiu v0, v0, 29: 2022 .. 2050 kept, else 2022'), (0x4a5acc, 0x2ca5000c, 'manual time page: sltiu a1, a1, 12 (month - 1)'), (0x4a5aec, 0x2ca5001f, 'manual time page: sltiu a1, a1, 31 (day - 1)'),
+    (0x4a58c0, 0x8fa60024, 'confirm 0x4a576c: a2 = the day selector'), (0x4a58cc, 0x0320f809, 'confirm: jalr set_systime(year, month, day, hour, minute): the call that sets the clock'), (0x4a58d8, 0x8f99aad8, 'confirm: t9 = navigator_back (0x4d20dc)'),
+    (0x4a58f4, 0x03200008, 'confirm: jr t9: navigator_back'), (0x4d7728, 0x8fa2001c, 'get_systime: the minute from the tm'), (0x4d7770, 0x3c1c0053, 'set_systime 0x4d7770: PIC prologue'),
+    (0x4d77bc, 0x8f99b770, 'set_systime: lw t9, GOT toolsSetRtcTime'), (0x4d77cc, 0x0320f809, 'set_systime: jalr toolsSetRtcTime(0, minute, hour, day, month, year): date -s, then hwclock -w(u)'),
+)
+# Sleep Timer (patch/sleeptimer.c, docs/modules/sleeptimer.md): systemset/powermanager_page's view_sleep as its handlers write it. The switch 0x4a9ae0 xors the byte sleepflag and stores 0 in the word sleep_time (in the delay
+# slot of the refresh 0x4a9924), saving nothing and calling no timer reset; Back (0x4a91d0) and the top-right Now Playing button (0x4a8d98) store (hour * 60 + minute) * 60 from the two selectors (hours 0 .. 3, minutes
+# 0 .. 59: the options set at 0x4a8f84 / 0x4a8ffc) and save nothing either. The countdown (to_poweroptions's tail, 0x4ce784): while the byte is set and the word is above 0, one is taken per tick; at 0 the byte is
+# cleared and poweroff_page opens. So the word is the count left, not the time that was chosen. The refresh shows the selectors from the word (hours = word / 3600, minutes = word % 3600 / 60).
+SLEEPTIMER_PINS = (   # (address, stock word, what it proves)
+    (0x4a9af0, 0x8f83afe0, 'sleep switch 0x4a9ae0: lw v1, GOT sleepflag (0xa05a94)'), (0x4a9b00, 0x90620000, 'sleep switch: lbu v0, (v1)'), (0x4a9b08, 0x38420001, 'sleep switch: xori v0, v0, 1'),
+    (0x4a9b0c, 0xa0620000, 'sleep switch: sb v0, (v1): the byte first'), (0x4a9b10, 0x8f82afd0, 'sleep switch: lw v0, GOT sleep_time (0xa05a90)'), (0x4a9b14, 0x0411ff83, 'sleep switch: bal refresh 0x4a9924'),
+    (0x4a9b18, 0xac400000, 'sleep switch: sw zero, (v0): the word 0 in the refresh call\'s slot (no save, no reset_poweroptions_timer call anywhere in the handler)'),
+    (0x4a9258, 0x2403003c, 'Back 0x4a91d0: v1 = 60'), (0x4a9260, 0x72032002, 'Back: mul a0, s0, v1 (the hour selector * 60)'), (0x4a9268, 0x00821021, 'Back: addu v0, a0, v0 (+ the minute selector)'),
+    (0x4a926c, 0x70431002, 'Back: mul v0, v0, v1 (* 60: seconds)'), (0x4a9270, 0x8f83afd0, 'Back: lw v1, GOT sleep_time'), (0x4a9274, 0xac620000, 'Back: sw v0, (v1): the one store, whatever the byte is'),
+    (0x4a9264, 0x8f99aad8, 'Back: lw t9, GOT navigator_back (the tail call: no save)'), (0x4a9284, 0x03200008, 'Back: jr t9 (navigator_back)'),
+    (0x4a8f84, 0x24050003, 'page init walk: the hour selector\'s options end at 3 (hours 0 .. 3)'), (0x4a8ffc, 0x2405003b, 'page init walk: the minute selector\'s options end at 59'),
+    (0x4a99ec, 0x8f82afe0, 'refresh 0x4a9924: lw v0, GOT sleepflag'), (0x4a99f0, 0x90420000, 'refresh: lbu v0, (v0)'), (0x4a99f4, 0x1040002a, 'refresh: beqz: a zero byte is off (anything else is on)'),
+    (0x4a9a34, 0x24050e10, 'refresh: a1 = 3600 (hours = the word / 3600)'), (0x4a9a40, 0x8f82afd0, 'refresh: lw v0, GOT sleep_time'),
+    (0x4ce784, 0x8f83afe0, 'countdown (to_poweroptions tail): lw v1, GOT sleepflag'), (0x4ce788, 0x90620000, 'countdown: lbu v0, (v1)'), (0x4ce78c, 0x1040000d, 'countdown: beqz: nothing while the byte is 0'),
+    (0x4ce794, 0x8f84afd0, 'countdown: lw a0, GOT sleep_time'), (0x4ce798, 0x8c820000, 'countdown: lw v0, (a0)'), (0x4ce79c, 0x18400009, 'countdown: blez: nothing while the word is 0'),
+    (0x4ce7a0, 0x2442ffff, 'countdown: addiu v0, v0, -1 (one per tick)'), (0x4ce7a4, 0x14400006, 'countdown: bnez: not yet 0'), (0x4ce7a8, 0xac820000, 'countdown: sw v0, (a0)'),
+    (0x4ce7b4, 0xa0600000, 'countdown: sb zero, (v1): at 0 the byte is cleared'), (0x4ce7b8, 0x04110d71, 'countdown: bal navigator_to("poweroff_page")'),
+)
+# Network Services and Wi-Fi Transfer (patch/netservice.c, docs/modules/netservice.md): systemset/netservice_page and systemset/wifitransport_page as stock's code does them. The three rows' handlers
+# (listitem0 DLNA 0x4a8b14, listitem1 AirPlay 0x4a8a84, listitem2 Wi-Fi transfer 0x4a8c2c, bound at 0x4a8920 / 0x4a8954 / 0x4a8980): the two switches look up their image, call dlna_switch / airplay_switch with no
+# test in between (only the lookup's null check) and show the byte; the third asks networkGetConnectStatus (nonzero: navigator_to the transfer page). The transfer page's init (0x4b1664) asks networkGetIPAddr,
+# stop_player and switch_wifitransport(1) (0x5075e4: toolsSystemd "thttpd -C /etc/thttpd.conf", the byte wifitransport_flag 0xa05abc = 1; with 0: "killall -9 thttpd", remove the log and the pid file, the byte 0),
+# prints "http://%s:8888", and binds the window's EVT_KEY_UP (0x113: 0x4b14d0 answers RET_STOP for the keys 0xd5 .. 0xd7 and RET_OK for any other) and EVT_WINDOW_CLOSE (0x12e: 0x4b14ec calls switch_wifitransport(0)). The byte
+# is read by the pull-down gate (on_wm_tsmove_fun) and by the standby / shutdown countdown (to_poweroptions), which do nothing while it is set. Nothing else calls switch_wifitransport.
+NETSERVICE_PINS = (   # (address, stock word, what it proves)
+    (0x4a8920, 0x24c68b14, 'netservice_page: listitem0 (DLNA) click = 0x4a8b14'), (0x4a8954, 0x24c68a84, 'netservice_page: listitem1 (AirPlay) click = 0x4a8a84'), (0x4a8980, 0x24c68c2c, 'netservice_page: listitem2 (Wi-Fi transfer) click = 0x4a8c2c'),
+    (0x4a8abc, 0x1080000f, 'AirPlay click 0x4a8a84: beqz a0: the only test, the image lookup'), (0x4a8ac4, 0x8f99afc4, 'AirPlay click: lw t9, GOT airplay_switch'), (0x4a8ac8, 0x0320f809, 'AirPlay click: jalr airplay_switch'),
+    (0x4a8ad8, 0x8f82afc0, 'AirPlay click: lw v0, GOT airplayflag: the image follows the byte'),
+    (0x4a8b4c, 0x1080000f, 'DLNA click 0x4a8b14: beqz a0: the only test, the image lookup'), (0x4a8b54, 0x8f99afc8, 'DLNA click: lw t9, GOT dlna_switch'), (0x4a8b58, 0x0320f809, 'DLNA click: jalr dlna_switch'),
+    (0x4a8c48, 0x0320f809, 'Wi-Fi transfer click 0x4a8c2c: jalr networkGetConnectStatus'), (0x4a8c50, 0x14400009, 'Wi-Fi transfer click: bnez: a nonzero status goes on to navigator_to'), (0x4a8c80, 0x0320f809, 'Wi-Fi transfer click: jalr navigator_to("systemset/wifitransport_page")'),
+    (0x4b1710, 0x0320f809, 'transfer init 0x4b1664: jalr networkGetIPAddr(0, buf)'), (0x4b1720, 0x0320f809, 'transfer init: jalr stop_player'), (0x4b172c, 0x8f99b0f4, 'transfer init: lw t9, GOT switch_wifitransport'),
+    (0x4b1730, 0x0320f809, 'transfer init: jalr switch_wifitransport'), (0x4b1734, 0x24040001, 'transfer init: a0 = 1 in the delay slot'), (0x4b1794, 0x24c68f6c, 'transfer init: a2 = "http://%s:8888"'), (0x748f6c, 0x70747468, 'the format string starts "http"'),
+    (0x4b16ac, 0x24050113, 'transfer init: widget_on(window, 0x113 EVT_KEY_UP, ...)'), (0x4b16c8, 0x24c614d0, 'transfer init: ... the key filter 0x4b14d0'), (0x4b16cc, 0x2405012e, 'transfer init: widget_on(window, 0x12e EVT_WINDOW_CLOSE, ...)'),
+    (0x4b16e8, 0x24c614ec, 'transfer init: ... the close handler 0x4b14ec'),
+    (0x4b14d4, 0x2403000b, 'key filter: v1 = RET_STOP'), (0x4b14d8, 0x2442ff2b, 'key filter: v0 = key code - 0xd5'), (0x4b14dc, 0x2c420003, 'key filter: sltiu v0, v0, 3'), (0x4b14e0, 0x0002180a, 'key filter: movz v1, zero, v0: RET_OK unless the key is 0xd5 .. 0xd7'),
+    (0x4b14fc, 0x8f99b0f4, 'close handler 0x4b14ec: lw t9, GOT switch_wifitransport'), (0x4b1508, 0x0320f809, 'close handler: jalr switch_wifitransport'), (0x4b150c, 0x00002025, 'close handler: a0 = 0 in the delay slot'),
+    (0x507600, 0x1080000c, 'switch_wifitransport 0x5075e4: beqz a0: 0 stops'), (0x507604, 0x8f90b340, 'switch_wifitransport: lw s0, GOT wifitransport_flag (0xa05abc)'), (0x507610, 0x0320f809, 'switch_wifitransport: jalr toolsSystemd'),
+    (0x507614, 0x2484e9c4, 'switch_wifitransport: a0 = "thttpd -C /etc/thttpd.conf"'), (0x50761c, 0xa2020000, 'switch_wifitransport: sb v0, (s0): the byte 1'), (0x507640, 0x2484e9e0, 'switch_wifitransport: a0 = "killall -9 thttpd"'),
+    (0x507650, 0x0320f809, 'switch_wifitransport: jalr remove (the log)'), (0x507670, 0xa2000000, 'switch_wifitransport: sb zero, (s0): the byte 0'),
+    (0x4cd7f0, 0x8f82b340, 'on_wm_tsmove_fun: lw v0, GOT wifitransport_flag'), (0x4cd7f8, 0x14400032, 'on_wm_tsmove_fun: bnez: no pull-down while the byte is set'),
+    (0x4ce668, 0x8f82b340, 'to_poweroptions: lw v0, GOT wifitransport_flag'), (0x4ce670, 0x1440001a, 'to_poweroptions: bnez: no countdown while the byte is set'),
+)

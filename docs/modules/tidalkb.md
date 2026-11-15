@@ -48,7 +48,7 @@ One call-site hook ([payload](payload.md) hook 27): the `jalr edit_set_focus` at
 
 **Fallback cleanup.** The asset starts `kb_pad` visible and `kb_field` sensitive, so every path that returns to stock's T9 (a keyboard up, no `kb_pad` etc., a missing navbar button, a handler that will not bind) hides both and makes them insensitive (`tk_hide_ours(win)`, looked up by name; no window: nothing to hide). Otherwise the unbound pad would cover the bottom 180 px and the field would take taps meant for the stock edit. Test `fallback_tests` checks it on each path.
 
-No fallback state is needed after the init: nothing of the embedded path can fail later (no kill-switch check: a tap-only hook on a stock page relies on its stock fallback). Pinyin and the other keyboard features come from the shared keyboard (Settings > Keyboards). Not at boot, no new import or thread; stock functions called by address: `edit_set_focus`, `widget_get_window` (`FUNCTIONS`) and `0x4c4740` as `stock_tidal_search`.
+No fallback state is needed after the init: nothing of the embedded path can fail later (no kill-switch check: a tap-only hook on a stock page relies on its stock fallback). Pinyin and the other keyboard features come from the shared keyboard (Settings > General > Keyboards). Not at boot, no new import or thread; stock functions called by address: `edit_set_focus`, `widget_get_window` (`FUNCTIONS`) and `0x4c4740` as `stock_tidal_search`.
 
 ## Re-search (device report: search "a", tap the bar, type "b", Search: the results did not refresh)
 

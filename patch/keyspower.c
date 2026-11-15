@@ -1,4 +1,4 @@
-/* M1+ Music Settings > System > Buttons & Power (docs/modules/keyspower.md): the state behind our page's four controls and their two pickers.
+/* M1+ Music Settings > Buttons & Power (docs/modules/keyspower.md): the state behind our page's four controls and their two pickers.
  *
  * Every state is stock's own, loaded by config_init (anything out of range becomes its default) and shown by stock's pages, which stay reachable through All System Settings and read the same words:
  * systemset/keylock_page (the byte keylock_flag, the word keylock_mode), the row 7 of systemset/sysset_page (the byte doublewake_flag) and systemset/powermanager_page (the byte standbyflag, the word
@@ -53,6 +53,21 @@ int kp_tap_toggle(void) {
     tap_wake = (unsigned char)next;
     write_int_config(next, "SYSSET", "DOUBLEWAKE");
     return next;
+}
+
+/* Car Mode: stock's byte car_mode (the sysset list's row 6, case 0x4ad84c; config_init keeps 0 or 1) and the word carmode_startflag. The handler stores the byte xor 1 in the delay slot of the save (the byte first),
+ * then sets the row's switch image, then clears carmode_startflag (the idle code's car-power state, on both paths). The byte is read by the standby and shutdown countdown (to_poweroptions), check_usb_status,
+ * check_otg_status, home_page_init and the memory-play code, each time they run, so a change is live at once (docs/modules/keyspower.md). The new state. */
+#define car_mode (*(volatile unsigned char *)CAR_MODE)
+#define car_startflag (*(volatile int *)CAR_STARTFLAG)
+int kp_car(void) { return car_mode != 0; }
+
+int kp_car_toggle(void) {
+    int next = car_mode ^ 1;
+    car_mode = (unsigned char)next;
+    write_int_config(next, "SYSSET", "CARMODE");
+    car_startflag = 0;
+    return next != 0;
 }
 
 /* Auto-Standby: stock's byte; Auto-Shutdown and Auto-Standby are never both on. */

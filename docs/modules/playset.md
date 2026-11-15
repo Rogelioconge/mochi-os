@@ -25,6 +25,7 @@ The Settings row **Playback Settings** (Settings > Playback, after EQ; `ACT_PAGE
 | | ReplayGain | value row (116), picker `m1plus_psrg`: Off, Track, Album (117) | `mclGetReplayGain()` | `mclSetReplayGain(i)`, `write_int_config(i, "PLAYSET", "REPLAYGAIN")` |
 | Output | Digital Filter | link row (`ACT_PAGE`), picker `m1plus_psfilter`, eight rows (118) | `mclGetfilter()` | `mclSetFilter(i)`, `write_int_config(i, "PLAYSET", "FILTER")` |
 | | DSD Output Mode | value row (119), picker `m1plus_psdsd`: D2P, DOP, Native (120) | `mclGetDsdMode()` | `write_int_config(i, "SYSSET", "DSDMODE")`; with `mclGetOutputWay() == 2` (USB audio) `save_stop_player()`; `mclSetDsdMode(i)`; with the output still 2 `save_start_player(0)` |
+| | USB Mode | link row (`ACT_STOCK` `STOCK_USB`), stock's usbset page | - | stock's page, no code of ours (docs/modules/settings.md General) |
 | | USB Volume | value row (122), picker `m1plus_psusb`: Fixed, Variable (123) | word `usbvol_mode` `0xa05aac` | the word, `set_devicevolume(volume)`, `write_int_config(i, "SYSSET", "USBVOLMODE")` |
 | | Digital Output | switch (121) | byte `digital_flag` `0xa05ac1` | the byte xor 1 (stored as the save's call starts), `write_int_config(byte, "PLAYSET", "DIGITALMODE")`, `mclSetLineOut(byte)` |
 

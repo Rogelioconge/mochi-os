@@ -179,7 +179,7 @@ def switch_image(name, w, h, on):
         ('name', name), ('image', 'sset_on' if on else 'sset_off'), ('draw_type', 'default'), ('sensitive', 'false')])
 
 
-VALUE_W, VALUE_PX = 110, 19                      # a value row's grey value (Settings > System > Appearance > Background): right aligned, 12 px margin
+VALUE_W, VALUE_PX = 110, 19                      # a value row's grey value (Settings > Appearance > Background): right aligned, 12 px margin
 
 
 def value_x(w): return w - SWITCH_MARGIN - VALUE_W
@@ -2264,6 +2264,58 @@ def cards_text(name, y, h, text, px, item_h, wrap=False):
     return v
 
 
+def _centred_label(name, x, y, w, h, prop, px, rgb, valign='middle', face=None):
+    """An insensitive label with a centred text of its own (prop: the text property)."""
+    lab = Widget('label', x, y, w, h, [('name', name), prop, ('sensitive', 'false')])
+    for st in ('normal', 'disable', 'focused'):
+        styled(lab, (st,), 'font_size', str(px))
+        styled(lab, (st,), 'text_color', rgb)
+        styled(lab, (st,), 'text_align_h', 'center')
+        styled(lab, (st,), 'text_align_v', valign)
+        if face: styled(lab, (st,), 'font_name', face)
+    return lab
+
+
+def cards_hero(hero, n_note):
+    """A Hero (tools/pod_pages.py): the glyph tile centred on the page (a RAISED_RGB rounded square, the white glyph image pod_hero_<glyph> in it), the 22 px title under it and the grey wrapping description (pod_note<n>_t: a
+    note by its number, so that the wrap bit of Page.wrap_notes is the page's), all centred on the card column (x CM .. CM + CARD_W)."""
+    import pod_settings as ST
+    v = cards_spacer('pod_hero', ST.hero_h(hero))
+    tile = Widget('view', ST.CM + (ST.CARD_W - ST.HERO_TILE) // 2, ST.HERO_TILE_Y, ST.HERO_TILE, ST.HERO_TILE, [('name', 'pod_hero_tile'), ('sensitive', 'false')])
+    for st in STATES:
+        styled(tile, (st,), 'bg_color', RAISED_RGB)
+        styled(tile, (st,), 'round_radius', str(ST.HERO_TILE_R))
+        styled(tile, (st,), 'border_width', '0')
+    g = (ST.HERO_TILE - ST.HERO_GLYPH) // 2
+    tile.children.append(Widget('image', g, g, ST.HERO_GLYPH, ST.HERO_GLYPH, [('name', 'pod_hero_icon'), ('image', 'pod_hero_' + hero.glyph.replace('-', '_')), ('draw_type', 'default'), ('sensitive', 'false')]))
+    v.children.append(tile)
+    v.children.append(_centred_label('pod_hero_title', ST.CM, ST.HERO_TITLE_Y, ST.CARD_W, ST.HERO_TITLE_H, pod_i18n.text_prop(hero.title), ST.HERO_TITLE_PX, INK_RGB))
+    v.children.append(_centred_label(f'pod_note{n_note}_t', ST.CM + ST.CENTRE_INSET, ST.HERO_DESC_Y, ST.CARD_W - 2 * ST.CENTRE_INSET, ST.hero_desc_h(hero.lines), pod_i18n.text_prop(hero.text), ST.HERO_DESC_PX, ST.GREY, 'top'))
+    return v
+
+
+def cards_bigcard(n):
+    """A BigCard: one tall single card piece with a large centred label pod_big<n>_t (empty: the payload writes it as the page opens) in the bold face."""
+    import pod_settings as ST
+    v = cards_spacer(f'pod_big{n}', ST.BIG_H)
+    card = Widget('view', 0, 0, ST.LIST_W, ST.BIG_CARD_H, [('name', f'pod_big{n}_card'), ('sensitive', 'false')])
+    for st in STATES:
+        styled(card, (st,), 'bg_color', '#00000000')
+        styled(card, (st,), 'bg_image', ST.piece_images('single', True)[0])
+        styled(card, (st,), 'bg_image_draw_type', 'default')
+    card.children.append(_centred_label(f'pod_big{n}_t', ST.CM + 8, 0, ST.CARD_W - 16, ST.BIG_CARD_H, ('text', ''), ST.BIG_PX, INK_RGB, face=ST.BIG_FACE))
+    v.children.append(card)
+    return v
+
+
+def cards_cnote(name, note):
+    """A centred note (Note.center): a view holding the 13 px grey wrapping label pod_note<n>_t, centred on the card column."""
+    import pod_settings as ST
+    v = cards_spacer(name, ST.cnote_h(note))
+    v.children.append(_centred_label(name + '_t', ST.CM + ST.CENTRE_INSET, ST.NOTE_LABEL_Y, ST.CARD_W - 2 * ST.CENTRE_INSET, ST.cnote_label_h(note), pod_i18n.text_prop(note.text), ST.CNOTE_PX, ST.GREY, 'top'))
+    return v
+
+
 def build_cards_page(page):
     import pod_settings as ST
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
@@ -2273,7 +2325,7 @@ def build_cards_page(page):
     sv = lv.children[0]
     placed, end = ST.layout(page.layout)
     pieces = ST.pieces(page.layout)
-    n_hdr = n_note = n_gap = i = pos = 0   # i: the number the next row without a rid gets; pos: its place among the rows (its card piece)
+    n_hdr = n_note = n_gap = n_big = i = pos = 0  # i: the number the next row without a rid gets; pos: its place among the rows (its card piece)
     for it, y in placed:
         if it == ST.TOP: sv.children.append(cards_spacer('pod_top', ST.CM))
         elif it == ST.END: sv.children.append(cards_spacer('pod_end', ST.END_H))
@@ -2286,6 +2338,9 @@ def build_cards_page(page):
         elif isinstance(it, pod_pages.Brightness): sv.children.append(cards_brightness())
         elif isinstance(it, pod_pages.VolCard): sv.children.append(cards_volcard(it))
         elif isinstance(it, pod_pages.Hdr): sv.children.append(cards_text(f'pod_sec{n_hdr}', ST.HDR_LABEL_Y, ST.HDR_LABEL_H, it.text, ST.HDR_PX, ST.HDR_H)); n_hdr += 1
+        elif isinstance(it, pod_pages.Hero): sv.children.append(cards_hero(it, n_note)); n_note += 1
+        elif isinstance(it, pod_pages.BigCard): sv.children.append(cards_bigcard(n_big)); n_big += 1
+        elif isinstance(it, pod_pages.Note) and it.center: sv.children.append(cards_cnote(f'pod_note{n_note}', it)); n_note += 1
         elif isinstance(it, pod_pages.Note):
             sv.children.append(cards_text(f'pod_note{n_note}', ST.NOTE_LABEL_Y, ST.NOTE_LABEL_H + (it.lines - 1) * ST.WRAP_LINE, it.text, ST.NOTE_PX, ST.item_h(it), it.lines > 1)); n_note += 1
         else:

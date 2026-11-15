@@ -5,6 +5,9 @@ Stock runs `thttpd -C /etc/thttpd.conf` when Wi-Fi Transfer is on (port 8888, `d
 replaces what thttpd serves: one CGI, `/cgi-bin/api.cgi`, and a page. No hook, no payload change, nothing at
 boot or paint. The page is one hand-written vanilla-JS file, `assets/webapp/index.html` (see "The page").
 
+How the server is started on the device: **Settings → Network Services → Wi-Fi Transfer** (our page, [netservice](netservice.md)) stops the player and calls stock's `switch_wifitransport(1)` (that is the `thttpd` command above), and stops it
+with `switch_wifitransport(0)` when the page goes (Back, Home, the Now Playing button). Stock's own page (All System Settings → Network Service) still starts it the same way.
+
 ## Stock web app (removed)
 
 A Chinese GCDWebUploader port: jQuery 1.7.2 + Bootstrap 3 (about 330 KB of css/js/fonts) and five cgic CGIs
