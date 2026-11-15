@@ -368,7 +368,7 @@ SYSBAR = pod.DATA['SYSTEM_BAR'][0]
 OUT = os.path.join(ROOT, 'out', 'preview')
 LABELS = ('vu_title', 'vu_artist', 'vu_times', 'vu_status')
 K_NONE, K_CLOSE, K_PREV, K_PLAY, K_NEXT, K_BODY = range(6)
-OFF_M, SIZE_M = 144, 64   # patch/vupage.c: the offset of vu.m[] in the page's state, and sizeof(vp_meter): x, v, tgt, ad (doubles), drawn, r[4], lit, lit_drawn, until
+OFF_M, SIZE_M = 144, 72   # patch/vupage.c: the offset of vu.m[] in the page's state, and sizeof(vp_meter): x, v, tgt, ad (doubles), drawn, r[4], lit, lvl, lvl_drawn, until
 FULL = 10 ** (-11 / 20)   # the rms at +3 VU with the reference pinned at -14 dBFS rms (the default of every test but the auto level's: VUM.pin)
 FS = 10 ** (-0.1 / 20)    # the PEAK lamp always lights from here, -0.1 dBFS (digital full scale)
 REF0, REF_MIN, REF_MAX = -12.0, -24.0, -6.0   # the reference (dBFS rms at 0 VU): the start value on page open and the clamps
@@ -376,7 +376,7 @@ LT = lambda ref: 10 ** ((ref - 3) / 10)       # the long-term power that gives t
 
 
 def lamp_at(ref): return 10 ** ((ref + 8) / 20)   # the PEAK lamp's relative threshold: 8 dB above 0 VU
-TICK_MAX = 2300000        # instructions of the heaviest tick: the Vinyl page's playing-tick budget (test/pod/vinyl.py motion_tests, 2.3 M)
+TICK_MAX = 1500000        # instructions of the heaviest tick: the Vinyl page's playing-tick budget (2.3 M per 50 ms, test/pod/vinyl.py motion_tests) at VU_TICK_MS, 2.3 M x 33 / 50
 TOL_MAX, TOL_MANY = 2, 0  # the C frame against the reference renderer: no channel off by more than TOL_MAX, at most TOL_MANY channels off by more than 2
 
 
@@ -535,8 +535,12 @@ class VUM(Machine):
         at = PSYMS['vu'] + OFF_M + SIZE_M * i
         x, v, tgt, ad = struct.unpack('<4d', bytes(self.u.mem_read(at, 32)))
         drawn, *r = struct.unpack('<5i', bytes(self.u.mem_read(at + 32, 20)))
-        lit, lit_drawn = struct.unpack('<2i', bytes(self.u.mem_read(at + 52, 8)))
-        return dict(x=x, v=v, tgt=tgt, ad=ad, drawn=drawn, r=tuple(r), lit=lit, lit_drawn=lit_drawn)
+        lit, lvl, lvl_drawn = struct.unpack('<3i', bytes(self.u.mem_read(at + 52, 12)))
+        return dict(x=x, v=v, tgt=tgt, ad=ad, drawn=drawn, r=tuple(r), lit=lit, lvl=lvl, lvl_drawn=lvl_drawn)
+
+    def unkick(self):
+        """The needles' opening kick taken away (speed 0), so a test can start from a still needle."""
+        for i in (0, 1): self.u.mem_write(PSYMS['vu'] + OFF_M + SIZE_M * i + 8, struct.pack('<d', 0.0))
 
     def text_of(self, name):
         t = [c[2] for c in self.calls_all if c[0] == 'widget_set_text_utf8' and c[1] == self.widgets[name]]
@@ -563,13 +567,14 @@ def machine(playing=True, status=2, pin=-14.0, **kw):
     return m
 
 
-def opened(settle=False, **kw):
-    """The page open and drawn once; settle: the needles already parked (the first look) and the clock moved on."""
+def opened(settle=False, kick=False, **kw):
+    """The page open and drawn once (the opening kick taken off the needles unless kick: tests that start from a still needle)."""
     m = machine(**kw)
     assert m.open() == 0
     m.timers = []
     m.calls_all = []
     m.first(); m.calls_all += m.calls
+    if not kick: m.unkick()
     return m
 
 
@@ -762,6 +767,42 @@ def step_tests(ctx):
     expect(n['x'] == A.REST and n['v'] == 0.0, 'parked: the needle is at the rest exactly, speed 0 (never a denormal tail)')
 
 
+def kick_tests(ctx):
+    """The needles' swing when the page opens: a kick of VP_KICK through the ballistics."""
+    expect = ctx.expect
+    K = 13.62
+    wd = 14.05 * math.sqrt(1 - 0.826 ** 2); tp = math.atan2(wd, 0.826 * 14.05) / wd
+    want = math.radians(-46 + 10 ** (-13 / 20) * 92) - A.REST   # the -10 VU mark above the rest
+    expect(abs(K * math.exp(-0.826 * 14.05 * tp) * math.sin(wd * tp) / wd - want) < 0.001 and abs(tp - 0.0756) < 0.0005, f'VP_KICK {K}: the peak of the damped swing is the -10 VU mark ({math.degrees(want):.1f} degrees above the rest) at {tp * 1000:.0f} ms')
+    for path in ('open', 'open_idle'):
+        m = machine(status=3); m.signal(None)
+        expect(getattr(m, path)() == 0, f'{path} opens')
+        m.timers = []; m.first()
+        n = [m.needle(0), m.needle(1)]
+        expect(all(q['x'] == A.REST and abs(q['v'] - K) < 1e-9 for q in n), f'{path}: both needles at the rest with the kick speed {K} rad/s')
+        xs, drawn = [], []
+        for _ in range(100):
+            m.tick(10); xs.append(m.needle(0)['x']); drawn.append(m.needle(1)['ad'])
+        peak = max(xs); at = (xs.index(peak) + 1) * 10
+        expect(abs(peak - A.REST - want) < 0.01 and 70 <= at <= 80, f'{path}: no signal: the needle peaks {math.degrees(peak - A.REST):.1f} degrees above the rest (the -10 VU mark: {math.degrees(want):.1f}) at {at} ms')
+        back = next(i for i, x in enumerate(xs) if i > 10 and x == A.REST) * 10 + 10
+        expect(back <= 700 and min(xs) >= A.REST and min(drawn) >= A.REST and all(x == A.REST for x in xs[back // 10:]), f'{path}: back at the rest at {back} ms (within 700), never under it, still afterwards')
+        q = m.needle(0)
+        expect(q['v'] == 0.0 and q['ad'] == A.REST and q['r'] == tuple(A.needle_rect(0, A.REST)), f'{path}: drawn at the rest, speed 0 (no denormal tail)')
+        expect(m.needle(1)['x'] == A.REST, f'{path}: both meters swing')
+    # the kick is in the ballistics, not an animation: the speed halves the rise to a signal
+    a, b = opened(kick=True), opened()
+    for q in (a, b): q.signal(0.2818); q.tick(30)
+    expect(a.needle(0)['x'] > b.needle(0)['x'] + 0.05, 'with a signal the kick joins the level: it rises faster than from standing')
+    for _ in range(200): a.tick(10); b.tick(10)
+    expect(abs(a.needle(0)['x'] - b.needle(0)['x']) < 0.001 and abs(a.needle(0)['x'] - ang(0.2818)) < 0.005, 'and ends on the same level')
+    # the rest as the clamp: a needle falling past it stops on it
+    m = opened(); m.signal(0.2818); settle(m, 100, 10); m.signal(None); m.vufile = bytearray(MAGIC)
+    xs = []
+    for _ in range(100): m.tick(10); xs.append(m.needle(0)['x'])
+    expect(min(xs) >= A.REST and xs[-1] == A.REST, 'a fall to the rest never goes under it')
+
+
 def lamp_tests(ctx):
     expect = ctx.expect
     # the reference pinned at -20 dBFS: the lamp is 8 dB above 0 VU, -12 dBFS (0.251)
@@ -779,12 +820,17 @@ def lamp_tests(ctx):
     expect(px[0] > 0xC0 and px[1] < 0x80, f'the lit lamp is drawn (the centre {px[:3]} is red)')
     m.signal(0.1, 0.1, 0.2, 0.2)
     for _ in range(3): m.tick(100)
-    expect(m.needle(0)['lit'] and m.mock_ms - t_lit == 300, 'held: still lit 300 ms after the peak')
+    expect(m.needle(0)['lit'] and m.needle(0)['lvl'] == 255 and m.mock_ms - t_lit == 300, 'held: still fully lit 300 ms after the peak')
     m.tick(100)
-    expect(m.mock_ms - t_lit == 400 and not m.needle(0)['lit'], 'out after 400 ms (VU_HOLD_MS)')
-    off = m.frame().getpixel((lamp0[0] + 16, lamp0[1] + 16))
+    expect(m.mock_ms - t_lit == 400 and not m.needle(0)['lit'], 'the hold ends after 400 ms (VU_HOLD_MS)')
+    m.tick(60)
+    mid = m.frame().getpixel((lamp0[0] + 16, lamp0[1] + 16))
     base = asset_image('vu_base').getpixel((lamp0[0] + 16, lamp0[1] + 16))
-    expect(off == base, 'and the lamp\'s rectangle is restored from vu_base')
+    lit_px = reference([vu_of(0.1, -20.0)] * 2, (True, False)).getpixel((lamp0[0] + 16, lamp0[1] + 16))
+    expect(0 < m.needle(0)['lvl'] < 255 and mid != base and mid != lit_px, f'the hold is over: the lamp fades, not out and not lit (level {m.needle(0)["lvl"]}, centre {mid[:3]} between {base[:3]} and {lit_px[:3]})')
+    m.tick(O['VU_GLOW_MS'])
+    off = m.frame().getpixel((lamp0[0] + 16, lamp0[1] + 16))
+    expect(m.needle(0)['lvl'] == 0 and off == base, 'and the lamp\'s rectangle is restored from vu_base when the fade is over')
     # a new peak while lit holds it longer
     m.signal(0.1, 0.1, 0.95); m.tick(10)
     m.signal(0.1, 0.1, 0.2)
@@ -794,7 +840,33 @@ def lamp_tests(ctx):
     for _ in range(3): m.tick(100)
     expect(m.needle(0)['lit'], 'a peak while lit starts the hold again (the lamp is still on 300 ms after the second peak)')
     m.tick(100); m.tick(100)
-    expect(not m.needle(0)['lit'], 'and goes out after it')
+    expect(not m.needle(0)['lit'], 'and ends after it')
+    # the afterglow: linear in alpha over VU_GLOW_MS, drawn only when the level changes, a new peak relights at once
+    GL = O['VU_GLOW_MS']
+    expect(O['VU_HOLD_MS'] == 400 and GL == 180 and O['VU_TICK_MS'] == 33, 'VU_HOLD_MS 400, VU_GLOW_MS 180, VU_TICK_MS 33')
+    m = opened(pin=-20.0); m.signal(0.1, 0.1, 0.95, 0.2); m.tick(10)
+    m.signal(0.1, 0.1, 0.2, 0.2); m.tick(390)
+    expect(m.needle(0)['lvl'] == 255 and m.needle(0)['lit'], 'lit until the hold ends')
+    m.tick(20)
+    n = m.needle(0)
+    expect(not n['lit'] and n['lvl'] == 255 * (GL - 10) // GL and n['lvl_drawn'] == n['lvl'], f'10 ms into the fade (the tick after the hold): level {n["lvl"]}, drawn')
+    m.tick(80)
+    n = m.needle(0)
+    expect(n['lvl'] == 255 * (GL - 90) // GL, f'90 ms into the fade: half the alpha ({n["lvl"]})')
+    lamp_r = (lamp0[0], lamp0[1], 33, 31)
+    m.tick(0)
+    expect(m.rects == [], 'a look in which the level does not change draws nothing')
+    m.signal(0.1, 0.1, 0.95, 0.2); m.tick(5)
+    n = m.needle(0)
+    expect(n['lit'] and n['lvl'] == 255 and n['lvl_drawn'] == 255 and any(q[0] <= lamp_r[0] and q[1] <= lamp_r[1] and q[0] + q[2] >= lamp_r[0] + 33 and q[1] + q[3] >= lamp_r[1] + 31 for q in m.rects), 'a peak during the fade relights fully at once')
+    m.signal(0.1, 0.1, 0.2, 0.2); m.tick(O['VU_HOLD_MS'])
+    levels = []
+    for _ in range(8): m.tick(30); levels.append(m.needle(0)['lvl'])
+    expect(levels == sorted(levels, reverse=True) and levels[-1] == 0 and len(set(levels)) > 4, f'the fade steps down to 0 ({levels})')
+    n = m.needle(0)
+    expect(ImageChops.difference(m.frame().convert('RGB'), opened(pin=-20.0).frame().convert('RGB')).crop((lamp0[0], lamp0[1], lamp0[0] + 33, lamp0[1] + 31)).getbbox() is None,
+           'at the end of the fade the lamp rectangle is vu_base exactly')
+
     # the frame with the lamp on is the reference's, and off again the base's
     m = opened(pin=-20.0); m.signal(0.1, 0.1, 0.95, 0.2); settle(m, 150, 10)
     got = m.frame(); ref = reference([vu_of(0.1, -20.0)] * 2, (True, False))
@@ -895,7 +967,7 @@ def motion_tests(ctx):
     for i, (lv, pk) in enumerate(((0.28, 0.99), (0.01, 0.1), (0.28, 0.99), (0.005, 0.1), (0.2, 0.1), (0.03, 0.1))):
         m.signal(lv, lv, pk, pk)
         for _ in range(8):
-            m.tick(50); costs.append((m.icount, len(m.rects), (m.needle(0)['lit'], m.needle(1)['lit'])))
+            m.tick(O['VU_TICK_MS']); costs.append((m.icount, len(m.rects), (m.needle(0)['lit'], m.needle(1)['lit'])))
     worst = max(c[0] for c in costs)
     both = [c for c in costs if c[1] == 2]
     lampchg = [costs[i][0] for i in range(1, len(costs)) if costs[i][2] != costs[i - 1][2] and costs[i][1] == 2]
@@ -904,6 +976,15 @@ def motion_tests(ctx):
     # a steady tick (the record read, the model, no drawing)
     m.signal(0.1995); settle(m, 150, 10); m.tick(50); steady = m.icount
     expect(steady < 20000 and m.rects == [], f'a tick with nothing to draw: {steady} instructions (under 20 k)')
+    # the tick the page asks for: 33 ms while a needle or lamp moves or the player plays, VN_IDLE_MS at rest
+    m = opened(status=3, kick=True); mods = []
+    expect(('timer_add', PSYMS['vp_tick'], O['VU_TICK_MS']) in m.calls_all and O['VU_TICK_MS'] == 33, 'a kicked needle asks for the 33 ms tick')
+    for _ in range(80): m.tick(10); mods += [c for c in m.calls if c[0] == 'timer_modify']
+    expect(mods == [('timer_modify', 0x777, O['VN_IDLE_MS'])] and O['VN_IDLE_MS'] == 500, f'at rest again it slows to VN_IDLE_MS ({mods})')
+    m = opened(); m.signal(0.1); m.tick(33); m.tick(33)
+    m.signal(None); m.vufile = bytearray(MAGIC); m.status = 3; mods = []
+    for _ in range(40): m.tick(33); mods += [c[2] for c in m.calls if c[0] == 'timer_modify']
+    expect(mods == [O['VN_IDLE_MS']], f'a needle that returns to the rest and a lamp that is out: one change, to the idle interval ({mods})')
     # the full sweep: rest to +3 VU in one 100 ms tick, the biggest rectangle
     m = opened(); m.count(); m.signal(0.2818); m.tick(100); sweep = m.icount
     expect(sweep < TICK_MAX, f'the first tick of a step to +3 VU: {sweep}')
@@ -1042,7 +1123,7 @@ def life_tests(ctx):
     expect = ctx.expect
     m = opened(); m.signal(0.1995)
     m.calls = []; m.call(PSYMS['vp_first'], a0=0, count=400000000)
-    expect(('timer_add', PSYMS['vp_tick'], O['VN_PLAY_MS']) in m.calls, 'playing: the tick at 50 ms')
+    expect(('timer_add', PSYMS['vp_tick'], O['VU_TICK_MS']) in m.calls, 'playing: the tick at VU_TICK_MS (33 ms)')
     m.status = 3; m.signal(None)
     for _ in range(80): m.tick(50)
     m.tick(50)
@@ -1052,14 +1133,14 @@ def life_tests(ctx):
     m2 = opened(status=3)
     m2.tick(500); seen = [c for c in m2.calls if c[0] == 'timer_modify']
     m2.status = 2; m2.signal(0.1); m2.tick(500); seen += [c for c in m2.calls if c[0] == 'timer_modify']
-    expect(('timer_modify', 0x777, O['VN_PLAY_MS']) in seen, f'playing again: back to 50 ms in place ({seen})')
+    expect(('timer_modify', 0x777, O['VU_TICK_MS']) in seen, f'playing again: back to 33 ms in place ({seen})')
     m2.screen(False); m2.tick(50)
     expect(('timer_modify', 0x777, 1000) in m2.calls and not m2.rects and not any(c[0] in ('get_playtimeandlength', 'mclGetPlayStatus', 'widget_set_text_utf8') for c in m2.calls), 'screen off: 1 s, nothing read, drawn or set')
     reads = len([c for c in m2.log if c[0] == 'fopen'])
     m2.tick(1000)
     expect('timer_modify' not in m2.names() and not m2.rects and len([c for c in m2.log if c[0] == 'fopen']) == reads, 'dark: the interval is not set again, the record is not read')
     m2.screen(True); m2.tick(1000)
-    expect(('timer_modify', 0x777, O['VN_PLAY_MS']) in m2.calls, 'lit again: the interval returns')
+    expect(('timer_modify', 0x777, O['VU_TICK_MS']) in m2.calls, 'lit again: the interval returns')
     m2.calls = []; m2.fire(EVT_BG, WIN)
     expect(('timer_remove', 0x777) in m2.calls, 'to the background: the timer goes')
     m2.calls = []; m2.call(PSYMS['vp_tick'], a0=0, count=100000)
@@ -1210,6 +1291,6 @@ def preview_tests(ctx):
 
 
 SECTIONS = [layout_tests, wanted_tests, float_tests, exact_tests, native_tests, none_tests, timing_tests, merge_tests, art_tests,
-            page_tests, level_tests, step_tests, lamp_tests, pixel_tests, motion_tests, touch_tests, text_tests, life_tests, auto_tests, preview_tests]
+            page_tests, level_tests, step_tests, kick_tests, lamp_tests, pixel_tests, motion_tests, touch_tests, text_tests, life_tests, auto_tests, preview_tests]
 
 

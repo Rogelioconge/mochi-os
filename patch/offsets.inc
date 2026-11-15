@@ -1603,6 +1603,8 @@
 #define VU_LAMP_W 33
 #define VU_LAMP_H 31
 #define VU_HOLD_MS 400           /* a PEAK lamp stays lit this long after the last peak */
+#define VU_GLOW_MS 180            /* a PEAK lamp fades out over this long after its hold */
+#define VU_TICK_MS 33             /* the page timer while a needle or a lamp moves (30 fps; at rest it is VN_IDLE_MS) */
 #define VU_STALL_MS 500           /* a record that has not been written for this long (no new block) is no signal */
 /* ---------------------------------------------------------------------------
  * Light Mode (patch/palette.c, docs/modules/accent.md; the numbers are q2-pod's, tools/palette.py reads them from here). A neutral colour (its channels within LIGHT_SPREAD of each other)

@@ -106,8 +106,8 @@ The Vinyl page's structure (`vp_*` for `vn_*`): page asset `m1plus_vu` (`pod_pag
 `build_vu_page`: the window, `vu_view`, labels `vu_title`, `vu_artist`, `vu_times`,
 `vu_status` from `vu_art.TEXT`, window background the faceplate colour), five bitmaps (frame, `vu_base`,
 `vu_keys`, `vu_hood`, `vu_lamp`), one view that takes DOWN, UP and ABORT and paints the frame, one timer
-(`vp_first`, then `vp_tick` at `VN_PLAY_MS` while anything moves, `VN_IDLE_MS` at rest, `POD_DARK_MS` with
-the screen off and then nothing is read or drawn). Key band, chevron rectangle, tap distance,
+(`vp_first` after `VN_FIRST_MS`, then `vp_tick` at `VU_TICK_MS` (33 ms, 30 fps) while anything moves (the player plays, a needle is not at its target or at rest, a lamp is lit or fading), `VN_IDLE_MS` at rest, `POD_DARK_MS` with
+the screen off and then nothing is read or drawn). The Vinyl page's `VN_PLAY_MS` is not used. Key band, chevron rectangle, tap distance,
 `VN_DT_MAX` and the key cells are the Vinyl page's `VN_*`. The page is in `PAGE_ORDER` just before
 `m1plus_general`; no row holds its index: the payload opens it by name.
 
@@ -151,11 +151,12 @@ the screen off and then nothing is read or drawn). Key band, chevron rectangle, 
 - **Ballistics.** Second order, `x'' = w^2 (target - x) - 2 z w x'` with `VP_OMEGA` 14.05 and `VP_ZETA`
   0.826, integrated in 1 ms steps by the real elapsed time (capped at `VN_DT_MAX`): 99 % of a step at
   about 300 ms, 0.9 % overshoot. A needle that has all but arrived (error < 2e-5 rad, speed < 1e-4) lands
-  on the target and stops, so the tail never decays into denormals (they trap on the MIPS FPU). Doubles,
-  `sin`, `cos` and `sqrt` come from the libc imports `peq.c` already uses.
+  on the target and stops, so the tail never decays into denormals (they trap on the MIPS FPU). A needle never goes below `REST`: the step stops it there with speed 0.
+  **Kick on open:** `vupage_open` (and so `vupage_open_idle`) starts each needle at `REST` with the speed `VP_KICK` (13.62 rad/s), and the same ballistics do the rest, like a meter that is powered up. With the target at `REST` the swing is `v0 / wd * exp(-z w t) sin(wd t)`, `wd` = 7.92: it peaks at 76 ms, 23.1 degrees above `REST`, the -10 VU mark (-25.4 degrees), crosses `REST` again at 397 ms (where the stop holds it) and is drawn still then. With a signal the kick only joins the rise to the level.
+  Doubles, `sin`, `cos` and `sqrt` come from the libc imports `peq.c` already uses.
 - **PEAK lamp.** Lit when an entry's peak is at least `ref` + 8 dB (8 dB above 0 VU: `peak^2 >= lt *
-  VP_G11`), and always at `VP_PEAK_FS` (-0.1 dBFS, digital full scale); out `VU_HOLD_MS` (400 ms) after the
-  last such entry; each peak restarts the hold. With `ref` at its -6 ceiling the relative rule is +2
+  VP_G11`), and always at `VP_PEAK_FS` (-0.1 dBFS, digital full scale); stays fully lit `VU_HOLD_MS` (400 ms) after the
+  last such entry, each peak restarting the hold, then fades out over `VU_GLOW_MS` (180 ms), linear in alpha (`lvl` 255 .. 0, `vu_lamp` composited with its alpha scaled); a peak during the fade relights it fully at once. The lamp rectangle is redrawn only when `lvl` changes, and at the end of the fade it is `vu_base` exactly. With `ref` at its -6 ceiling the relative rule is +2
   dBFS, out of reach: only full scale lights the lamp there. The numbers come from running the level
   model over four real tracks in 50 ms blocks: + 14 dB with a 1 s hold lit the lamp 0 to 2 % of the time
   on three of them (under one flash a minute); + 8 dB with 400 ms lights it 7 to 30 % (3 to 20 flashes a
@@ -164,7 +165,7 @@ the screen off and then nothing is read or drawn). Key band, chevron rectangle, 
   shadow's gaussian edge from a 129-entry table (`vp_phi_t`), 16.16 fixed point, doubles for the rest;
   only the columns of a row the needle or its shadow can reach are visited. `vp_rect` is `needle_rect`.
   A meter whose needle moved by `VP_SEE` (0.0008 rad, 0.12 px at the tip) or came to rest, or whose lamp
-  changed, restores its rectangle (old and new needle, the lamp's) from `vu_base`, draws the lamp when
+  level changed, restores its rectangle (old and new needle, the lamp's) from `vu_base`, draws the lamp when
   lit, the needle, then `vu_hood` over what each touches, and invalidates that rectangle (one per
   meter, never the union of both). The first look also draws the hoods, so the frame is always
   `vu_art.compose`.
@@ -172,8 +173,7 @@ the screen off and then nothing is read or drawn). Key band, chevron rectangle, 
   `vu_keys` while playing), previous, next, drawn pressed; a tap on the page above the keys plays /
   pauses, or closes the page when it was opened by `vupage_open_idle`; a drag, an abort or leaving the
   touch's target does nothing; no MOVE handler, no grab.
-- **Cost** (instructions, `motion_tests`; the Vinyl page's budgets: a playing tick 2.3 M, a swing 4.5 M,
-  the tick 50 ms): both needles sweeping with a lamp changing 1.36 M at the worst (1.25 M typical), a
+- **Cost** (instructions, `motion_tests`; the Vinyl page's budget is 2.3 M per 50 ms tick, so 1.5 M per 33 ms tick here): both needles sweeping with a lamp changing 1.39 M at the worst (1.26 M typical), a
   tick with nothing to draw 3 k, the first full draw 1.1 M. Pixels against `vu_art.compose`: no channel
   differs by more than 2 (the C float arithmetic and the table against the reference's erf; `m1_mix`
   against PIL's compositing).

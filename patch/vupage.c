@@ -52,6 +52,10 @@ enum { K_NONE, K_CLOSE, K_PREV, K_PLAY, K_NEXT, K_BODY };
     0.9885530946569389 /* 10^(-0.1/20): the PEAK lamp always lights from this peak, -0.1 dBFS (digital full scale) */
 #define VP_OMEGA 14.05 /* the needle's natural frequency (rad/s) and damping: 99 % in 300 ms, 0.9 % overshoot */
 #define VP_ZETA 0.826
+/* The kick when the page opens: each needle starts at the rest with this speed (rad/s) and runs through the ballistics, like a meter that is powered up. With the target at the rest,
+ * x = REST + v0 / wd * exp(-z w t) sin(wd t), wd = w sqrt(1 - z^2) = 7.92: the peak lies at t = atan(wd / (z w)) / wd = 76 ms and is v0 * 0.02960 rad. 13.62 gives 0.4031 rad, 23.1 degrees: the -10 VU mark
+ * (angle -25.4 degrees). The needle crosses the rest again at pi / wd = 397 ms (vp_step holds it there). */
+#define VP_KICK 13.62
 #define VP_SEE 0.0008 /* a needle is drawn again when it moved this much (rad: 0.12 px at the tip) */
 #define VP_SHADOW_ALPHA (120.0 / 255.0)
 
@@ -72,8 +76,9 @@ typedef struct {
     double x, v, tgt; /* the needle's angle (rad, clockwise from straight up), its speed and its target */
     double ad; /* the angle drawn */
     int drawn, r[4]; /* a needle is on the frame, and the rectangle it was drawn in */
-    int lit, lit_drawn; /* the PEAK lamp: lit now, drawn lit */
-    unsigned until; /* time_now_ms at which a lit lamp goes out */
+    int lit, lvl,
+        lvl_drawn; /* the PEAK lamp: held lit now; its brightness now and as drawn (0 .. 255; 255 while lit, falling to 0 over VU_GLOW_MS after) */
+    unsigned until; /* time_now_ms at which a lit lamp goes out and starts to fade */
 } vp_meter;
 
 static struct {
@@ -201,6 +206,9 @@ static void vp_step(vp_meter *m, int ms) {
     for (i = 0; i < ms; ++i) {
         m->v += 0.001 * (VP_OMEGA * VP_OMEGA * (m->tgt - m->x) - 2 * VP_ZETA * VP_OMEGA * m->v);
         m->x += 0.001 * m->v;
+        if (m->x < VP_REST)
+            m->x = VP_REST,
+            m->v = 0; /* the rest is the stop: the kick's rebound (and any overshoot of a fall) ends on it */
     }
     e = m->tgt - m->x;
     if (__builtin_fabs(e) < 2e-5 && __builtin_fabs(m->v) < 1e-4) m->x = m->tgt, m->v = 0;
@@ -329,14 +337,15 @@ __attribute__((noinline)) void vp_needle(int m, double a, const int *c) {
     }
 }
 
-/* A picture (iw wide, w x h, at (ox, oy)) over the frame inside the rectangle d, by its alpha. */
-static void vp_over(const unsigned *img, int ox, int oy, int w, int h, const int *d) {
+/* A picture (w x h, at (ox, oy)) over the frame inside the rectangle d, by its alpha times scale / 255. */
+static void vp_over(const unsigned *img, int ox, int oy, int w, int h, const int *d, int scale) {
     int x0 = d[0] > ox ? d[0] : ox, y0 = d[1] > oy ? d[1] : oy, x1 = d[2] < ox + w ? d[2] : ox + w,
         y1 = d[3] < oy + h ? d[3] : oy + h, x, y;
     for (y = y0; y < y1; ++y)
         for (x = x0; x < x1; ++x) {
             unsigned l = img[(y - oy) * w + x - ox];
-            if (l >> 24) vl.f[y * VN_W + x] = m1_mix(vl.f[y * VN_W + x], l, l >> 24);
+            unsigned a = ((l >> 24) * (unsigned)scale + 127) / 255;
+            if (a) vl.f[y * VN_W + x] = m1_mix(vl.f[y * VN_W + x], l, a);
         }
 }
 
@@ -356,7 +365,7 @@ static void vp_union(int *d, const int *r) {
 static void vp_meter_draw(int m, int force) {
     vp_meter *vm = &vu.m[m];
     int moved = force || !vm->drawn || __builtin_fabs(vm->x - vm->ad) >= VP_SEE || (!vm->v && vm->x != vm->ad),
-        lamp = force || vm->lit != vm->lit_drawn;
+        lamp = force || vm->lvl != vm->lvl_drawn;
     int d[4] = {0, 0, 0, 0}, nr[4], lr[4], hr[4], c[4], y;
     double a = moved ? vm->x : vm->ad;
     if (!moved && !lamp) return;
@@ -371,12 +380,12 @@ static void vp_meter_draw(int m, int force) {
     if (force) vp_union(d, hr);
     for (y = d[1]; y < d[3]; ++y)
         memcpy(vl.f + y * VN_W + d[0], vl.base + y * VN_W + d[0], (unsigned)(d[2] - d[0]) * 4);
-    if (vm->lit) vp_over(vl.lamp, lr[0], lr[1], VU_LAMP_W, VU_LAMP_H, d);
+    if (vm->lvl) vp_over(vl.lamp, lr[0], lr[1], VU_LAMP_W, VU_LAMP_H, d, vm->lvl);
     c[0] = nr[0] > d[0] ? nr[0] : d[0], c[1] = nr[1] > d[1] ? nr[1] : d[1];
     c[2] = nr[2] < d[2] ? nr[2] : d[2], c[3] = nr[3] < d[3] ? nr[3] : d[3];
     if (c[2] > c[0] && c[3] > c[1]) vp_needle(m, a, c);
-    vp_over(vl.hood, hr[0], hr[1], VU_HOOD_W, VU_HOOD_H, d);
-    vm->ad = a, vm->drawn = 1, vm->lit_drawn = vm->lit;
+    vp_over(vl.hood, hr[0], hr[1], VU_HOOD_W, VU_HOOD_H, d, 255);
+    vm->ad = a, vm->drawn = 1, vm->lvl_drawn = vm->lvl;
     memcpy(vm->r, nr, 16);
     vp_dirty(d[0], d[1], d[2], d[3]);
     vp_flush();
@@ -467,7 +476,8 @@ static int vp_moving(void) {
     if (vu.playing) return 1;
     for (i = 0; i < 2; ++i) {
         const vp_meter *m = &vu.m[i];
-        if (m->lit || __builtin_fabs(m->tgt - m->x) > 1e-4 || __builtin_fabs(m->v) > 1e-3 || m->x != m->ad) return 1;
+        if (m->lit || m->lvl || __builtin_fabs(m->tgt - m->x) > 1e-4 || __builtin_fabs(m->v) > 1e-3 || m->x != m->ad)
+            return 1;
     }
     return 0;
 }
@@ -531,6 +541,12 @@ static void vp_update(int force) {
             m->lit = 1, m->until = now + VU_HOLD_MS;
         else if (m->lit && (int)(now - m->until) >= 0)
             m->lit = 0;
+        if (m->lit)
+            m->lvl = 255;
+        else if (m->lvl) { /* the afterglow: linear in alpha over VU_GLOW_MS from the end of the hold */
+            int el = (int)(now - m->until);
+            m->lvl = el >= VU_GLOW_MS ? 0 : 255 * (VU_GLOW_MS - el) / VU_GLOW_MS;
+        }
         vp_step(m, (int)dt);
     }
     if (fresh) {
@@ -553,7 +569,7 @@ static void vp_update(int force) {
  * The timer, the window's events
  */
 static unsigned vp_want_ms(void) {
-    return !m1_screen_lit() ? POD_DARK_MS : vp_moving() ? VN_PLAY_MS : VN_IDLE_MS;
+    return !m1_screen_lit() ? POD_DARK_MS : vp_moving() ? VU_TICK_MS : VN_IDLE_MS;
 } /* screen off: a slow check, no visual work (docs/modules/vinyl.md "Timer and idle power") */
 
 static void vp_retime(void) {
@@ -749,7 +765,7 @@ int vupage_open(void) {
             vu.fg = 1;
             vu.key = ~0u;
             vu.playkey = -1;
-            for (i = 0; i < 2; ++i) vu.m[i].x = vu.m[i].tgt = VP_REST;
+            for (i = 0; i < 2; ++i) vu.m[i].x = vu.m[i].tgt = VP_REST, vu.m[i].v = VP_KICK;
             widget_on(vu.win, EVT_WINDOW_TO_BG, vp_on_background, vu.win);
             widget_on(vu.win, EVT_WINDOW_TO_FG, vp_on_foreground, vu.win);
             widget_on(vu.view, EVT_POINTER_DOWN, vp_on_touch, (void *)0);
