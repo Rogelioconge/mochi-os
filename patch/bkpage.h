@@ -44,6 +44,8 @@ enum {
 
 typedef struct { /* a book's progress as the Library shows it */
     unsigned char have, state;
+    unsigned char
+        art; /* the book's own art (bk_art_build): 0 not looked at since the books were read, 1 a job of the cover worker's set makes it, 2 settled (a cover file, a cache file, no part, or nothing more to try) */
     unsigned short permille, cur;
     unsigned short total; /* the parts its .librivox manifest names, 0 for a book with none */
     unsigned short
@@ -75,6 +77,9 @@ typedef struct {
     unsigned sig; /* bk_sig() the Library's tiles were made for */
     int g_lv; /* the cover grid holds the LibriVox level's thumbnails: the Library makes its tiles again */
     unsigned timer, load_timer;
+    unsigned
+        art_timer; /* the poll of the cover worker's set while the page holds one (art_own) for books with no cover file */
+    int art_own, art_done; /* cc_build_done() the poll last saw */
     int press, pbtn, down, down_part, down_x,
         down_y; /* the row under the finger + 1; the header button pressed (BP_*); the row a press began on + 1 and what of it */
     int collapsed;

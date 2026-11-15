@@ -676,6 +676,106 @@ def lifecycle_tests(ctx):
     expect(m.names().count('timer_remove') == 3 and m.names().count('free') >= 3, f'destroy: the three timers go, the memory is freed ({m.names()})')
 
 
+def art_key(d): return album_key('\x01audiobooks/', d)
+def art_path(d): return art_file(art_key(d))
+
+
+def drain(m, n=30):
+    """The cover loader's ticks until it stops re-arming: every call it made."""
+    out = []
+    for _ in range(n):
+        m.call(PSYMS['bk_on_load'], a0=0, count=40000000); out += m.calls
+        if not any(c[0] == 'timer_add' and c[1] == PSYMS['bk_on_load'] for c in m.calls): break
+    return out
+
+
+def art_made(m, d, done, rgb=None):
+    """The worker finished the job of book d (a picture, or the empty marker of a book with no art); `done` jobs are finished now."""
+    p = art_path(d)
+    m.present.add(p); m.files[p] = 4096 if rgb else 0
+    if rgb: m.images['file://' + p] = (168, 168, bytes(rgb + (255,)) * (168 * 168))
+    m.setword(PSYMS['cb'] + 4 * 5, done)
+
+
+def art_tests(ctx):
+    """A book with no cover file: the art of its first part from the cover cache's worker (the embedded picture, else a picture of its folder), made once into the book's own cache file."""
+    expect = ctx.expect
+    POLL = PSYMS['bk_on_art']
+    FIRST = [(part_path('Beta', 'beta.mp3'), art_key('Beta')), (part_path('Gamma', 'Part 01.mp3'), art_key('Gamma')), (f'{BR}/Loose Story.m4b', art_key('Loose Story.m4b')), (part_path('Zed', 'zed1.mp3'), art_key('Zed'))]
+    m = opened()
+    expect(count_of(m, 'pthread_create') == 0, 'opening the page starts no worker (the loader decodes the cover files first)')
+    calls = drain(m)
+    s, jobs = build_state(m), build_jobs(m)
+    expect([c[0] for c in calls].count('pthread_create') == 1 and s['running'] == 1 and s['mode'] == 0 and jobs == FIRST,
+           f'the loader done: one set of the cover worker, a job for each book in view with no cover file (its first part in reading order, the book\'s own key), none for Alpha ({jobs})')
+    expect([c for c in calls if c[0] == 'timer_add' and c[1] == POLL and c[2] == 250], 'the set is polled every 250 ms')
+    new = fired(m, 'bk_on_art')
+    expect([c for c in new if c[0] == 'timer_add' and c[1] == POLL] and not [c for c in new if c[0] in ('pthread_join', 'widget_load_image')] and not any(c[0] == 'timer_add' and c[1] == PSYMS['bk_on_load'] for c in new),
+           'a poll with nothing finished re-arms itself and wakes no loader')
+    new = drain(m)
+    expect(not [c for c in new if c[0] in ('pthread_create', 'opendir')], 'the loader with the set held asks for nothing more (no folder is read again)')
+    # the first job ends: its row gets the picture while the others are made
+    art_made(m, 'Beta', 1, (30, 200, 60)); m.loads = []
+    new = fired(m, 'bk_on_art')
+    expect([c for c in new if c[0] == 'timer_add' and c[1] == PSYMS['bk_on_load']] and [c for c in new if c[0] == 'timer_add' and c[1] == POLL], 'a finished job: the loader is woken, the poll goes on')
+    drain(m)
+    expect([u for u in m.loads if u.startswith('file://')] == ['file://' + art_path('Beta')], f'the loader decodes Beta\'s cache file ({m.loads})')
+    # the set done: Gamma has no art (the empty marker), the worker is joined, the set freed
+    art_made(m, 'Gamma', 2); art_made(m, 'Loose Story.m4b', 3, (10, 20, 230)); art_made(m, 'Zed', 4); m.loads = []
+    new = fired(m, 'bk_on_art')
+    expect([c for c in new if c[0] == 'pthread_join'] and build_state(m)['jobs'] == 0 and not [c for c in new if c[0] == 'timer_add' and c[1] == POLL], 'the set done: the worker joined, the set freed, no more polls')
+    new = drain(m)
+    expect([u for u in m.loads if u.startswith('file://')] == ['file://' + art_path('Loose Story.m4b')] and not [c for c in new if c[0] == 'pthread_create'],
+           f'a loose file has its embedded picture too; the books with a marker decode nothing and no second set is made ({m.loads})')
+    bl, _, _, _ = PCP.paint(m)
+    covers = [b[0] for b in bl if tuple(b[2][2:]) == (O['LIST_ART'], O['LIST_ART'])]
+    expect(len(covers) >= 3 and len(set(covers[:3])) == 3, f'Alpha and Beta show their pictures, Gamma the placeholder disc ({len(covers)} rows painted)')
+    new = []
+    for _ in range(3): tick(m); new += m.calls
+    expect(not [c for c in new if c[0] in ('pthread_create', 'opendir')], 'the page\'s tick asks for nothing while the books are the same')
+    # the Book level and the shelf use the same file; the page opened again makes nothing
+    open_book(m, 'Beta'); m.loads = []; drain(m)
+    expect(m.loads == ['file://' + art_path('Beta')], f'the Book header decodes the cache file ({m.loads})')
+    files, images = dict(m.files), {u: i for u, i in m.images.items() if '/covers/' in u}
+    m = machine(ring_alpha()); m.files.update(files); m.present |= set(files); m.images.update(images)
+    m.call(PSYMS['books_open'], count=200000000); m.loads = []
+    new = drain(m)
+    got = sorted(u for u in m.loads if '/covers/' in u)
+    expect(not [c for c in new if c[0] == 'pthread_create'] and got == sorted('file://' + art_path(d) for d in ('Beta', 'Loose Story.m4b')),
+           f'the page opened again: the cache files are decoded, the markers left alone, no worker ({m.loads})')
+    # the Book level asks for its book alone (the Library's loader had not got to it)
+    m = opened(); open_book(m, 'Gamma')
+    calls = drain(m)
+    expect([c[0] for c in calls].count('pthread_create') == 1 and build_jobs(m) == [FIRST[1]], f'a book opened before its row was looked at: one job, its first part ({build_jobs(m)})')
+    art_made(m, 'Gamma', 1, (200, 200, 0)); m.loads = []
+    fired(m, 'bk_on_art'); drain(m)
+    expect(m.loads == ['file://' + art_path('Gamma')], 'its header gets the picture when the job ends')
+    # a cover file the loader refuses (3000 x 3000) is the worker's to shrink
+    m = machine(None, lambda mm: mm.put(f'{BR}/Alpha/cover.jpg', PCP.jpeg(3000, 3000)))
+    m.call(PSYMS['books_open'], count=200000000); drain(m)
+    expect(build_jobs(m)[0] == (part_path('Alpha', 'Part 1.mp3'), art_key('Alpha')) and len(build_jobs(m)) == 5, 'a cover file too big to decode: the book has a job too (the worker shrinks the folder\'s picture)')
+    # another page holds the worker: nothing now, the tick asks again once it is free
+    m = opened(); m.call(PSYMS['cc_build_open'], a0=3, a1=0, count=200000)
+    calls = drain(m)
+    expect(not [c for c in calls if c[0] in ('pthread_create', 'opendir')] and not [c for c in calls if c[0] == 'timer_add' and c[1] == POLL], 'the worker is held by another page: no job, no poll, no folder read')
+    m.call(PSYMS['cc_build_stop'], count=200000); tick(m)
+    expect(count_of(m, 'pthread_create') == 1 and build_jobs(m) == FIRST, 'the worker free again: the page\'s tick makes the set')
+    # behind another page the set is given up (the worker is the other pages' too); in front again it is asked again
+    fire(m, 'EVT_WINDOW_TO_BG')
+    expect(build_state(m)['orphan'] == 1 and not [c for c in m.calls if c[0] == 'pthread_join'], 'behind another page: the worker is cancelled without waiting for it, the poll removed')
+    # a book that lands in front of the others (a download opened with bk_open_dir) takes no other book's settled flag: its own art is asked for
+    m = opened(); drain(m)
+    art_made(m, 'Beta', 1); art_made(m, 'Gamma', 2); art_made(m, 'Loose Story.m4b', 3); art_made(m, 'Zed', 4)
+    fired(m, 'bk_on_art'); drain(m)
+    p = part_path('Aardvark', '001 Chapter.mp3'); m.put(p); m.sizes[p] = MB
+    m.call(PSYMS['bk_open_dir'], a0=m.cstr('Aardvark'), count=200000000)
+    calls = drain(m)
+    expect([c[0] for c in calls].count('pthread_create') == 1 and build_jobs(m) == [(p, art_key('Aardvark'))],
+           f'a new book first in the list (Alpha\'s place, settled by Alpha\'s cover file): a job for its first part ({build_jobs(m)})')
+    m = opened(); drain(m); fire(m, 'EVT_DESTROY')
+    expect(build_state(m)['orphan'] == 1 and m.names().count('timer_remove') == 3, f'destroy with a set held: cancelled, the poll removed with the page\'s and the keep-awake timers (the loader had stopped: {m.names().count("timer_remove")})')
+
+
 def asset_tests(ctx):
     """The page's asset, the item, the strings."""
     expect, P = ctx.expect, pod_pages
@@ -746,7 +846,7 @@ def width_tests(ctx):
     expect(not over, f'every text fits its place in the 13 languages: {over}')
 
 
-SECTIONS = [open_tests, library_tests, shelf_tests, seeall_tests, book_tests, play_tests, guard_tests, speed_tests, key_tests, lifecycle_tests, asset_tests, width_tests]
+SECTIONS = [open_tests, library_tests, shelf_tests, seeall_tests, book_tests, play_tests, guard_tests, speed_tests, key_tests, lifecycle_tests, art_tests, asset_tests, width_tests]
 
 
 def run(ctx):

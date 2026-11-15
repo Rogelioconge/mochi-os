@@ -26,7 +26,7 @@ The folder is found as `pc_root` finds Podcasts: `/mnt/mmc/Audiobooks`, else any
 - Dot files and dot folders are skipped at every level (macOS `._x.mp3`, `.DS_Store`, `.Trashes`). So are names of 128 bytes or more, names with a control
   byte, and parts whose path inside the book is 192 bytes or more.
 - The **cover** is `cover.jpg / cover.png / cover.jpeg / folder.jpg / folder.png / folder.jpeg` directly in the book folder, in that order of preference,
-  any case; `""` for none. A loose file has none.
+  any case; `""` for none. A loose file has none. A book with no such file (or one the loader refuses) shows its own art, "The book's own art" below.
 - The **title** of a folder book is the folder name; the books are sorted by title, ASCII case-insensitive with a leading "The " aside (`cc_name_cmp`, the
   Shows page's order), then by folder name.
 - Limits: `BK_MAX_BOOKS` 100 books (the card's own order decides which survive on a bigger card), `BK_MAX_PARTS` 300 parts loaded (`bk_book_t.parts` still
@@ -146,7 +146,25 @@ a queue the page refused is never loaded, so Memory Playback never holds it. A t
 1 s tick calls `pc_note(cc_playing())`, like the other pages that look at the playing track). The Book level reads the ring again on each tick that moved it and when it is back in
 front; a book that has gone from the card sends the page to the Library. Behind another page both timers go; destroy frees the lists and the tiles.
 
-**Tests** (`make test TEST=bkpage`): the asset and the item (id, character, group, the saved list, the row on the menu and Extras, the icon), the Library (rows, the three states, the empty
+**The book's own art.** A book whose folder has no cover file the loader takes (none of the names above, or one `pc_cover_ok` refuses, e.g. 3000 x 3000) shows the art of its
+**first part in reading order**: the picture embedded in that file, else a picture of that file's folder (any `.jpg / .png / .jpeg`, stock's choice: one named after the file first, then
+`cover.*` and `folder.*`, then the others). The cover cache's worker makes it (`cc_build_add`, [coverflow](coverflow.md) "Cache": `art_embedded`, then `art_folder`, shrunk to the
+cache's 168 px) into the cache file of the book's own key, `cc_key_of("\x01audiobooks/", dir)` (`bk_art_key`; the control byte keeps it apart from every album's key), so it is made
+once: a picture, or the empty marker for a book with none. `bk_cover_url` gives the cover file when there is one, else that cache file. A loose file is its own first part: its embedded
+picture, else a picture beside it in `Audiobooks/` (`<name>.jpg` first).
+When the loader has nothing left (`bk_on_load`) and on the page's 1 s tick, `bk_art_build` looks at the books in view (the rows the loader covers and the shelf; on the Book level the
+open book) that were not looked at since the books were read (`bk_st_t.art`; it is by position in the sorted list, so every read of the books, `bk_scan`, clears it: the Library's, the
+Book level's after a part lands or the page comes back, and a download's `bk_open_dir`, where a new book shifts the others): one with no cover and no cache file gets a job in ONE set of the worker (`BK_TILES + 1` jobs at most;
+the Library borrows `bk.parts` to find the first part, as `bk_read_status` does). `bk_on_art` polls the set every `BK_ART_MS` (250 ms): each time a job has ended the placeholders of
+the set's books are handed back to the loader (`bk_art_fresh`: the Library row, the shelf, the Book header), and when the set is done the worker is joined and the loader, once it has
+nothing left, asks for the books that came into view meanwhile. The worker is shared with the other pages: while another page holds it (`cc_build_busy`) the placeholders stay and the
+tick asks again; behind another page and on destroy the page gives its set up (`cc_build_stop`, never waits) and asks again when it is back. A set that cannot start (card full, no
+thread) is not asked again until the books are read again. A job that hangs is the cache's to mark (`.bad`, [coverflow](coverflow.md)).
+Limits: the cache file stays when the book's files change (a cover file added later wins at once; Clear Cover Cache makes every book's art again); Delete Book leaves it; whether
+stock's TagLib reads the picture of an `.m4b` is not confirmed on the device (MP3 and M4A are what the library's covers use).
+
+**Tests** (`make test TEST=bkpage`): the book's own art (`art_tests`: the set and its jobs, the poll, a picture and a marker, the Book level, a second open, a cover file too big,
+a held worker, background and destroy, a new book that takes a settled book's place in the list), the asset and the item (id, character, group, the saved list, the row on the menu and Extras, the icon), the Library (rows, the three states, the empty
 hints, the covers, touches and the lit row), the Book level (every text against `tools/pod_books.py`, the capsule's three words, the part to resume, Back, a long title, the small navbar
 title), Play / Resume / Play Again / a tapped part (queue contents, start index, marks and places, the speed), the guard (a huge MP4 in a book: no start, the toast, the marks stay;
 a small MP4 and an MP3 play; no `MemAvailable` refuses an MP4), the speed row of the "..." sheet (its value, each tap's cycle, saved and applied, the book that plays), the key the scan and the player's side agree on (a folder book and a loose

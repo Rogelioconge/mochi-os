@@ -877,21 +877,132 @@ void bk_kick(void) {
     if (bk.win && bk.fg && !bk.load_timer) bk.load_timer = timer_add(bk_on_load, (void *)0, BK_LOAD_MS);
 }
 
-/* A book's cover as a file:// url; NULL for none or one the stock decoder would refuse. */
+/* ---------------------------------------------------------------------------
+ * A book with no cover file the loader takes (docs/modules/audiobooks.md "The book's own art"): the art of its first part, i.e. the picture embedded in that file, else a picture of
+ * its folder, shrunk by the cover cache's worker into the cache file of the book's own key (cc_build_add: made once; the empty marker for a book with none). The books in view are
+ * one job set; the poll hands each file to the loader as it appears. Another page's set, a full card or no thread: the placeholders stay and the page's tick asks again.
+ */
+#define BK_ART_MS 250 /* the poll of the set */
+static const char *bk_cover_url(const bk_book_t *b, char *url, unsigned size);
+static int bk_on_art(const void *unused);
+
+/* The cache key of a book's own art (the control byte keeps it apart from an album of an artist called audiobooks). */
+static unsigned bk_art_key(const bk_book_t *b) { return cc_key_of("\x01" BK_KEY_PREFIX, b->dir); }
+
+static void bk_art_flags(int from, int to) {
+    int b;
+    for (b = 0; b < bk.nbooks; ++b)
+        if (bk.bst[b].art == from) bk.bst[b].art = (unsigned char)to;
+}
+
+/* The set released (a running worker is cancelled, cc_build_stop); the books whose job was not seen to end are looked at again. */
+static void bk_art_end(void) {
+    if (bk.art_timer) timer_remove(bk.art_timer);
+    bk.art_timer = 0;
+    if (bk.art_own) cc_build_stop();
+    bk.art_own = 0;
+    if (bk.bst) bk_art_flags(1, 0);
+}
+
+/* Book b's placeholders (its Library row, the shelf, the open book's header) are tried again by the loader; how many there were. */
+static int bk_art_fresh(int b) {
+    grid_tile_t *t = bk.g_lv || !bk.g.tiles ? (grid_tile_t *)0 : grid_find(&bk.g, b);
+    int n = 0;
+    if (t && t->art == 2) t->art = 0, ++n;
+    if (b == bk.cont && bk.sg.tiles && bk.sg.tiles[0].art == 2) bk.sg.tiles[0].art = 0, ++n;
+    if (bk.level == BL_BOOK && b == bk.sel && bk.hg.tiles && bk.hg.tiles[0].art == 2) bk.hg.tiles[0].art = 0, ++n;
+    return n;
+}
+
+/* Book b looked at once since the books were read: 1 when its job joined the set. A book that has a picture after all (a job that ended unseen) gives it to the loader. */
+static int bk_art_want(int b) {
+    char path[BK_FILE * 2 + BK_REL + 40], url[BK_FILE * 2 + 60];
+    const bk_book_t *k = &bk.books[b];
+    unsigned key = bk_art_key(k);
+    int n;
+    if (bk.bst[b].art || !k->parts) return 0;
+    bk.bst[b].art = 2;
+    if (bk_cover_url(k, url, sizeof url)) {
+        if (bk_art_fresh(b)) bk_kick();
+        return 0;
+    }
+    if (!access(cc_path(path, sizeof path, key, ""), F_OK)) return 0; /* the marker: no art in it */
+    n = bk.level == BL_BOOK
+            ? bk.nparts
+            : bk_load_parts(k, bk.parts, BK_MAX_PARTS); /* (the Library borrows bk.parts, as bk_read_status) */
+    if (n <= 0 || !bk_part_path(k, &bk.parts[0], path, sizeof path) || cc_build_add(path, key) != 1) return 0;
+    bk.bst[b].art = 1;
+    return 1;
+}
+
+/* The books in view that were not looked at yet (the rows the loader covers and the shelf; the open book) become one set of the worker. */
+static void bk_art_build(void) {
+    int r0 = 0, r1 = -1, a, n = 0, any = 0;
+    if (!bk.win || !bk.fg || bk.art_own || !bk.bst || (bk.level != BL_LIB && bk.level != BL_BOOK)) return;
+    if (bk.level == BL_BOOK)
+        r0 = r1 = bk.sel;
+    else {
+        bk_span(&r0, &r1);
+        r0 = r0 > 2 ? r0 - 2 : 0, r1 += 2;
+        if (bk.cont >= 0 && !bk.bst[bk.cont].art) any = 1;
+    }
+    if (r1 >= bk.nbooks) r1 = bk.nbooks - 1;
+    for (a = r0; a <= r1 && !any; ++a) any = !bk.bst[a].art;
+    if (!any || cc_build_busy() || !m1_card_mounted() || !cc_build_open(BK_TILES + 1, CC_MISSING)) return;
+    bk.art_own = 1;
+    if (bk.level == BL_LIB && bk.cont >= 0) n += bk_art_want(bk.cont);
+    for (a = r0; a <= r1; ++a) n += bk_art_want(a);
+    bk.art_done = 0;
+    if (n && cc_build_start()) bk.art_timer = timer_add(bk_on_art, (void *)0, BK_ART_MS);
+    if (!bk.art_timer) { /* nothing to make, no space, no thread: these books are not asked again until the books are read again */
+        bk_art_flags(1, 2);
+        bk_art_end();
+    }
+}
+
+static int bk_on_art(const void *unused) {
+    int done, fin, b, n = 0;
+    (void)unused;
+    bk.art_timer = 0;
+    if (!bk.win || !bk.art_own) return RET_OK;
+    done = cc_build_done();
+    fin = done >= cc_build_total();
+    if (fin || done != bk.art_done) { /* a file (or a marker) appeared: the loader tries the books of the set again */
+        bk.art_done = done;
+        for (b = 0; b < bk.nbooks; ++b)
+            if (bk.bst[b].art == 1) n += bk_art_fresh(b);
+    }
+    if (fin) {
+        bk_art_flags(1, 2);
+        bk_art_end();
+    } else {
+        bk.art_timer = timer_add(bk_on_art, (void *)0, BK_ART_MS);
+        if (!bk.art_timer) bk_art_end();
+    }
+    if (n || fin)
+        bk_kick(); /* (the loader, once it has nothing left, asks for the books that came into view meanwhile) */
+    return RET_OK;
+}
+
+/* A book's cover as a file:// url: its cover file, else its own art from the cache; NULL for none or one the stock decoder would refuse. */
 static const char *bk_cover_url(const bk_book_t *b, char *url, unsigned size) {
     char path[BK_FILE * 2 + 40];
     unsigned n = 0, k;
-    if (!b->cover[0]) return (const char *)0;
-    for (k = 0; bk.root[k] && n < sizeof path - 1; ++k) path[n++] = bk.root[k];
-    path[n++] = '/';
-    for (k = 0; b->dir[k] && n < sizeof path - 1; ++k) path[n++] = b->dir[k];
-    path[n++] = '/';
-    for (k = 0; b->cover[k] && n < sizeof path - 1; ++k) path[n++] = b->cover[k];
-    path[n] = 0;
-    if (!pc_cover_ok(path) || n + 8 > size) return (const char *)0;
-    memcpy(url, "file://", 7);
-    memcpy(url + 7, path, n + 1);
-    return url;
+    if (b->cover[0]) {
+        for (k = 0; bk.root[k] && n < sizeof path - 1; ++k) path[n++] = bk.root[k];
+        path[n++] = '/';
+        for (k = 0; b->dir[k] && n < sizeof path - 1; ++k) path[n++] = b->dir[k];
+        path[n++] = '/';
+        for (k = 0; b->cover[k] && n < sizeof path - 1; ++k) path[n++] = b->cover[k];
+        path[n] = 0;
+        if (pc_cover_ok(path) && n + 8 <= size) {
+            memcpy(url, "file://", 7);
+            memcpy(url + 7, path, n + 1);
+            return url;
+        }
+    }
+    return size >= 80 ? cc_url(url, bk_art_key(b))
+                      : (const char *)0; /* (the book's own art, once the worker has made it) */
 }
 
 static void bk_art(grid_t *g, grid_tile_t *t, const bk_book_t *b) {
@@ -946,7 +1057,10 @@ static int bk_on_load(const void *unused) {
         bk_art(&bk.hg, &bk.hg.tiles[0], &bk.books[bk.sel]);
         bk_redraw();
     }
-    if (bk_load_pending()) bk_kick();
+    if (bk_load_pending())
+        bk_kick();
+    else
+        bk_art_build();
     return RET_OK;
 }
 
@@ -1023,6 +1137,14 @@ static unsigned bk_sig(void) {
 }
 
 /* The books again (one may have come or gone): the Library level at scroll offset off, with every progress read. */
+/* The books read again. Their progress (bk.bst) is by position in the sorted list, which a new or deleted book shifts, so every book's art is looked at again (bk_art_build);
+ * the Library reads the rest of the progress again itself (bk_load_library). */
+static void bk_scan(void) {
+    int b;
+    bk.nbooks = bk_scan_books(bk.books, BK_MAX_BOOKS);
+    for (b = 0; b < BK_MAX_BOOKS; ++b) bk.bst[b].art = 0;
+}
+
 void bk_load_library(int off) {
     unsigned sig;
     bf_leave_cancel();
@@ -1031,7 +1153,7 @@ void bk_load_library(int off) {
     bk.press = bk.pbtn = bk.down = 0;
     grid_drop(&bk.hg);
     grid_drop(&bk.pt);
-    bk.nbooks = bk_scan_books(bk.books, BK_MAX_BOOKS);
+    bk_scan();
     if (bk.nbooks <= PS_SHOW_MAX) bk.all = 0; /* (books deleted: the See All page has nothing more than the Library) */
     bk_set_title(TR("Audiobooks"));
     memset(bk.bst, 0, BK_MAX_BOOKS * sizeof *bk.bst);
@@ -1125,7 +1247,7 @@ static void bk_open_book(int b) {
 /* The books read again and the Book level of the folder dir (a book just made by the LibriVox download); the Library level when the folder is not a book. */
 void bk_open_dir(const char *dir) {
     int b;
-    bk.nbooks = bk_scan_books(bk.books, BK_MAX_BOOKS);
+    bk_scan();
     for (b = 0; b < bk.nbooks; ++b)
         if (!strcmp(bk.books[b].dir, dir)) {
             bk_show_book(b);
@@ -1137,7 +1259,7 @@ void bk_open_dir(const char *dir) {
 /* The open book again after the page was behind another or the card changed: found by its key, its parts and progress read again; the Library level when it is gone. */
 static void bk_reload_book(void) {
     int b, off = bk_off();
-    bk.nbooks = bk_scan_books(bk.books, BK_MAX_BOOKS);
+    bk_scan();
     for (b = 0; b < bk.nbooks; ++b)
         if (bk.books[b].hash == bk.sel_hash) break;
     if (b >= bk.nbooks) {
@@ -1628,6 +1750,7 @@ static int bk_tick(const void *timer) {
             bk.bgen = bd_gen();
     }
     if (m1_screen_lit() && !bk.load_timer && bk_load_pending()) bk_kick(); /* the screen is back on: the covers go on */
+    if (m1_screen_lit() && !bk.load_timer) bk_art_build(); /* (the worker another page held may be free now) */
     if (m1_screen_lit() &&
         pc_rev() != bk.rev) { /* a place or a mark moved (a part played on): what is shown is made again */
         bk.rev = pc_rev();
@@ -1677,6 +1800,7 @@ static int bk_on_bg(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     bk.fg = 0;
+    bk_art_end(); /* (the worker is the other pages' too) */
     if (bk.timer) timer_remove(bk.timer);
     if (bk.load_timer) timer_remove(bk.load_timer);
     bk.timer = bk.load_timer = 0;
@@ -1693,6 +1817,7 @@ static int bk_on_destroy(void *ctx, void *e) {
     if (bk.timer) timer_remove(bk.timer);
     if (bk.load_timer) timer_remove(bk.load_timer);
     if (bk.awake) timer_remove(bk.awake);
+    bk_art_end();
     pc_flush();
     grid_free(&bk.g);
     grid_free(&bk.hg);
