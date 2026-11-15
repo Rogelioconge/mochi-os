@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """out/preview/locale-<table>.png: the M1+ Music menu (as Home), Extras, Settings, Shuffle and Main Menu pages in other
-languages, drawn from a finished tree's own ui files, strings tables and font (docs/ui.md "Localisation").
+languages, drawn from a finished tree's own ui files, strings tables and font (docs/modules/i18n.md).
 Approximate (PIL, not AWTK): labels that do not fit are cut with an ellipsis, as an idle hscroll_label shows them.
 
 Usage: uv run python -I tools/preview/preview_locales.py WORKDIR [TABLE ...]     (default: zh_CN ja_JP ge_DE ru_RU; TABLE is a

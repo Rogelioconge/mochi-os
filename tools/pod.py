@@ -401,7 +401,7 @@ FUNCTIONS.update({
     'loadAlbumdetailList':     ('int', 'int, void *', 0x4eea98),
     'timer_modify':            ('int', 'unsigned, unsigned', 0x663840),
 })
-# Podcasts (patch/pcmodel.c, docs/modules/podcasts.md "Addresses"): the stock seek and the stock speed.
+# Podcasts (patch/pcmodel.c, docs/modules/podcasts.md): the stock seek and the stock speed.
 # seek_time(sec) is the key path's seek commit (the Now Playing slider and the hardware keys call it; q2-pod's player_seek_time): it reads mclGetPlayStatus (1 = stopped: nothing
 # happens) and mclGetPlayPos, adds the playing record's CUE start (`lw a0, 0x48(v0)`; 0 for a plain file), sends mclSetSeek (@0x4e0608), resumes a paused player
 # (status 3: mclSetResume) and waits, at most 200 times 10 ms, until get_playtimeandlength is within a second of the target. mclSetPlaySpeed(mode) formats
@@ -455,7 +455,7 @@ FUNCTIONS.update({
     'font_manager_shrink_cache': ('int', 'void *, int', 0x6510b8),   # glyph_cache_shrink of every font; 0 keeps none
     'locale_info_on':          ('int', 'void *, int, void *, void *', 0x658ba8),   # emitter_on(locale + 0x10, 0x122, cb, ctx)
 })
-# Stock's Google Pinyin engine (ime_pinyin: MatrixSearch, DictTrie, SpellingTrie, NGram; docs/modules/keyboard.md "Pinyin engine (probe)"). The C entry points sit over one global
+# Stock's Google Pinyin engine (ime_pinyin: MatrixSearch, DictTrie, SpellingTrie, NGram; docs/modules/keyboard.md "Pinyin engine"). The C entry points sit over one global
 # MatrixSearch* (0xa0a360, created by im_open_decoder, NULL until then); its first byte is inited_, which search / get_candidate / get_candidate_num test. im_open_decoder(sys dict path,
 # user dict path) replaces any object there (stock's own keyboard init calls it with /usr/dict_pinyin.dat, which the rootfs does not have, so the object it leaves is never initialised).
 FUNCTIONS.update({

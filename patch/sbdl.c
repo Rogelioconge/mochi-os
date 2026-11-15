@@ -1,4 +1,4 @@
-/* Navidrome downloads (docs/modules/subsonic.md "Data and cache", "File split"): ONE detached download worker, a queue whose rows wait on the card (dlq.idx), the manifest dl.idx of finished downloads and the
+/* Navidrome downloads (docs/modules/subsonic.md "Cache and requests", "Downloads"): ONE detached download worker, a queue whose rows wait on the card (dlq.idx), the manifest dl.idx of finished downloads and the
  * target files in SBA_MUSIC_DIR. The pages never block here: sba_dl_add posts the track and returns, the worker writes the file (sbn_download: a .part file, a Range resume, the PR's
  * stall limit of 512 B/s for 45 s and the 32 MB free-space floor), appends the manifest row, and the page's timer reads sba_dl_gen / sba_dl_state.
  * The worker never calls AWTK; the stock functions it calls are the library scan of a finished album's folder (scanSpecFolder, as the PR does after a DSD file) and, through sba_guard at the start of a download, get_wifisignal (the Wi-Fi check; sba_configured reads the saved login).

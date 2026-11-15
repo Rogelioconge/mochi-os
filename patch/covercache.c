@@ -6,7 +6,7 @@
  * Cover Flow's Preparing screen, its Rebuild Covers, or the Albums page in the background); key = FNV-1a of the artist then the album, so the same album has the same file
  * wherever it is listed. Readers decode through the stock image loader (JPEG and PNG to RGBA8888) and
  * reduce the centred square to the size they draw: nearest for Cover Flow's depth textures, an area
- * average for the grid's small tiles. UI thread only. docs/architecture.md section 4.
+ * average for the grid's small tiles. UI thread only. docs/modules/coverflow.md.
  */
 #include "offsets.inc"
 #include "entries.h"
@@ -1653,7 +1653,7 @@ static void build_art(const job_t *j) {
     if (f) fclose(f);
 }
 
-/* The worker thread's niceness (docs/modules/coverflow.md "Worker priority"): setpriority(PRIO_PROCESS, 0, CC_NICE), o32 syscall 4097 (no import; as patch/filetime.c's statx). On Linux "who 0" is the calling thread
+/* The worker thread's niceness (docs/modules/covercache.md "The builder"): setpriority(PRIO_PROCESS, 0, CC_NICE), o32 syscall 4097 (no import; as patch/filetime.c's statx). On Linux "who 0" is the calling thread
  * alone, so the UI and the player keep the CPU while covers are built; raising the value needs no privilege, a refused call changes nothing. */
 extern int cc_setprio(int which, int who, int prio);
 __asm__(".text\n.globl cc_setprio\ncc_setprio:\nli $v0, 4097\nsyscall\njr $ra\nnop\n");

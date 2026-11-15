@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The translations of every text M1+ Music adds (docs/ui.md "Localisation").
+"""The translations of every text M1+ Music adds (docs/modules/i18n.md).
 
 The stock app translates through AWTK: a widget's `tr_text` is a key into strings/<lang>_<COUNTRY>.bin
 (locale_info_tr 0x658db4, a binary search by strcmp; a key the table lacks comes back unchanged).
@@ -819,7 +819,7 @@ TEXT = dict([
        'Suscribirse', 'Iscriviti', 'ติดตาม', 'Subskrybuj', 'Подписаться', 'Підписатися'),
     _t("Can't subscribe", '无法订阅', '無法訂閱', '登録できません', '구독할 수 없음', 'Abonnement impossible', 'Abonnieren nicht möglich',
        'No se puede suscribir', 'Impossibile iscriversi', 'ติดตามไม่ได้', 'Nie można subskrybować', 'Не удалось подписаться', 'Не вдалося підписатися'),
-    # The caption marker of a show that is only on the card (patch/podcasts.c, docs/modules/podcasts.md "The Shows page"; sentence case)
+    # The caption marker of a show that is only on the card (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"; sentence case)
     _t('Local', '本地', '本地', 'ローカル', '로컬', 'Local', 'Lokal',
        'Local', 'Locale', 'ในเครื่อง', 'Lokalne', 'Локальные', 'Локальні'),
     # Podcasts (patch/podcasts.c, docs/modules/podcasts.md): the Extras item and the page's title, the two empty lines, the counts, the grey line of an episode
@@ -838,7 +838,7 @@ TEXT = dict([
        'Brak podcastów. Skopiuj folder dla każdego programu do Podcasts na karcie albo połóż tam subscriptions.txt i wybierz Importuj z karty w menu w prawym górnym rogu.',
        'Нет подкастов. Скопируйте по папке на каждое шоу в Podcasts на карте или положите туда subscriptions.txt и выберите «Импорт с карты» в меню вверху справа.',
        'Немає подкастів. Скопіюйте по теці для кожного шоу в Podcasts на картці або покладіть туди subscriptions.txt і виберіть «Імпорт з картки» в меню вгорі праворуч.'),
-    # The Shows page (patch/podcasts.c, docs/modules/podcasts.md "The Shows page"): the two section headers, the refresh line's word and its progress, the menu's row, the Show page's empty hint
+    # The Shows page (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"): the two section headers, the refresh line's word and its progress, the menu's row, the Show page's empty hint
     _t('Continue Listening', '继续收听', '繼續收聽', '続きを聴く', '이어 듣기', 'Reprendre la lecture', 'Weiterhören', 'Seguir escuchando', 'Continua ad ascoltare', 'ฟังต่อ', 'Kontynuuj słuchanie', 'Продолжить слушать', 'Продовжити слухати'),
     _t('Shows', '节目', '節目', '番組', '프로그램', 'Émissions', 'Sendungen', 'Programas', 'Programmi', 'รายการ', 'Programy', 'Шоу', 'Шоу'),
     _t('Refreshing %d/%d…', '正在刷新 %d/%d…', '正在更新 %d/%d…', '更新中 %d/%d…', '새로고침 중 %d/%d…', 'Actualisation %d/%d…', 'Aktualisiere %d/%d …', 'Actualizando %d/%d…', 'Aggiornamento %d/%d…', 'กำลังรีเฟรช %d/%d…',
@@ -868,7 +868,7 @@ TEXT = dict([
     _t('Nothing new to import', '没有可导入的新内容', '沒有可匯入的新內容', '読み込む新しい項目はありません', '가져올 새 항목이 없습니다', 'Rien de nouveau à importer', 'Nichts Neues zu importieren',
        'Nada nuevo que importar', 'Niente di nuovo da importare', 'ไม่มีรายการใหม่ให้นำเข้า', 'Brak nowych pozycji do zaimportowania', 'Нечего импортировать', 'Немає що імпортувати'),
     _t('%d added', '已添加 %d 个', '已新增 %d 個', '%d 件追加', '%d개 추가됨', '%d ajoutés', '%d hinzugefügt', '%d añadidos', '%d aggiunti', 'เพิ่ม %d รายการ', 'Dodano: %d', 'Добавлено: %d', 'Додано: %d'),
-    # The Subscriptions page and OPML (patch/podcasts.c, docs/modules/podcasts.md "Subscriptions and OPML"; Unsubscribe is the Show page's key)
+    # The Subscriptions page and OPML (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"; Unsubscribe is the Show page's key)
     _t('Subscriptions', '订阅', '訂閱', '登録番組', '구독', 'Abonnements', 'Abos', 'Suscripciones', 'Iscrizioni', 'การติดตาม', 'Subskrypcje', 'Подписки', 'Підписки'),
     _t('Export OPML', '导出 OPML', '匯出 OPML', 'OPML を書き出す', 'OPML 내보내기', 'Exporter en OPML', 'OPML exportieren', 'Exportar OPML', 'Esporta OPML', 'ส่งออก OPML', 'Eksportuj OPML', 'Экспорт OPML', 'Експорт OPML'),
     _t('Select Shows', '选择节目', '選擇節目', '番組を選択', '프로그램 선택', 'Sélectionner des émissions', 'Sendungen auswählen', 'Seleccionar programas', 'Seleziona programmi', 'เลือกรายการ', 'Wybierz programy', 'Выбрать шоу', 'Вибрати шоу'),
@@ -972,7 +972,7 @@ TEXT = dict([
        '%d episodio', '%d episodio', '%d ตอน', 'Odcinki: %d', 'Выпусков: %d', 'Випусків: %d'),
     _t('%d episodes', '%d 个节目', '%d 個節目', '%d エピソード', '에피소드 %d개', '%d épisodes', '%d Folgen',
        '%d episodios', '%d episodi', '%d ตอน', 'Odcinki: %d', 'Выпусков: %d', 'Випусків: %d'),
-    # The Library rows of the Shows page and the Downloads page (patch/podcasts.c, docs/modules/podcasts.md "The Shows page", "The Downloaded page"): the rows' grey lines, the storage line, the two sections, the sheet and its toast
+    # The Library rows of the Shows page and the Downloads page (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls", "The Downloaded page"): the rows' grey lines, the storage line, the two sections, the sheet and its toast
     _t('%d waiting', '%d 个等待中', '%d 個等待中', '%d 件待機中', '%d개 대기 중', '%d en attente', '%d wartend', '%d en espera', '%d in attesa', 'รอคิว %d', 'Oczekuje: %d', 'Ожидают: %d', 'Очікують: %d'),
     _t('%d paused', '%d 个已暂停', '%d 個已暫停', '%d 件一時停止中', '%d개 일시 중지됨', '%d en pause', '%d pausiert', '%d en pausa', '%d in pausa', 'หยุดชั่วคราว %d', 'Wstrzymano: %d', 'Приостановлено: %d', 'Призупинено: %d'),
     _t('%d show', '%d 个播客', '%d 個 Podcast', '%d 番組', '프로그램 %d개', '%d émission', '%d Sendung', '%d programa', '%d programma', '%d รายการ', 'Programy: %d', 'Шоу: %d', 'Шоу: %d'),
@@ -990,7 +990,7 @@ TEXT = dict([
     _t('%d deleted, %s freed', '已删除 %d 个，释放 %s', '已刪除 %d 個，釋放 %s', '%d 件削除、%s 解放', '%d개 삭제, %s 확보', 'Supprimés : %d, %s libérés', 'Gelöscht: %d, %s frei', 'Eliminados: %d, %s liberados', 'Eliminati: %d, %s liberati',
        'ลบ %d รายการ คืนพื้นที่ %s', 'Usunięto: %d, zwolniono %s', 'Удалено: %d, свободно %s', 'Видалено: %d, вільно %s'),
     _t('%d deleted', '已删除 %d 个', '已刪除 %d 個', '%d 件削除', '%d개 삭제', 'Supprimés : %d', 'Gelöscht: %d', 'Eliminados: %d', 'Eliminati: %d', 'ลบ %d รายการ', 'Usunięto: %d', 'Удалено: %d', 'Видалено: %d'),
-    # The Show page (patch/podcasts.c, docs/modules/podcasts.md "The Show page"): the header's pill and list title, the two bottom sheets, the pills' labels
+    # The Show page (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"): the header's pill and list title, the two bottom sheets, the pills' labels
     _t('Latest Episode', '最新一集', '最新一集', '最新エピソード', '최신 에피소드', 'Dernier épisode', 'Neueste Folge', 'Último episodio', 'Ultimo episodio', 'ตอนล่าสุด', 'Najnowszy odcinek', 'Последний выпуск', 'Останній випуск'),
     _t('Episodes', '单集', '單集', 'エピソード', '에피소드', 'Épisodes', 'Folgen', 'Episodios', 'Episodi', 'ตอน', 'Odcinki', 'Выпуски', 'Випуски'),
     _t('Playback Speed', '播放速度', '播放速度', '再生速度', '재생 속도', 'Vitesse de lecture', 'Wiedergabetempo', 'Velocidad', 'Velocità di riproduzione', 'ความเร็วในการเล่น', 'Prędkość odtwarzania', 'Скорость', 'Швидкість відтворення'),
@@ -1025,7 +1025,7 @@ TEXT = dict([
     _t('Retry', '重试', '重試', '再試行', '다시 시도', 'Réessayer', 'Erneut', 'Reintentar', 'Riprova', 'ลองใหม่', 'Ponów', 'Повторить', 'Повторити'),
     _t('Pause', '暂停', '暫停', '一時停止', '일시 중지', 'Pause', 'Pause', 'Pausar', 'Pausa', 'หยุดชั่วคราว', 'Wstrzymaj', 'Приостановить', 'Призупинити'),   # an In Progress row's sheet (patch/podcasts.c SH_IP)
     _t('Resume', '继续', '繼續', '再開', '재개', 'Reprendre', 'Fortsetzen', 'Reanudar', 'Riprendi', 'ดำเนินการต่อ', 'Wznów', 'Возобновить', 'Відновити'),
-    # the episode page (patch/pcdetail.c, docs/modules/podcasts.md "The episodepage"): the hint of an episode with no description
+    # the episode page (patch/pcdetail.c, docs/modules/podcasts.md "Pages and controls"): the hint of an episode with no description
     _t('No description', '没有简介', '沒有簡介', '説明はありません', '설명 없음', 'Aucune description', 'Keine Beschreibung', 'Sin descripción', 'Nessuna descrizione', 'ไม่มีคำอธิบาย', 'Brak opisu', 'Нет описания', 'Немає опису'),
     _t('%dm', '%d分钟', '%d分鐘', '%d分', '%d분', '%d min', '%d Min.', '%d min', '%d min', '%d นาที', '%d min', '%d мин', '%d хв'),   # the pill's length: short, no "left"
     _t('%dh', '%d小时', '%d小時', '%d時間', '%d시간', '%d h', '%d Std.', '%d h', '%d h', '%d ชม.', '%d godz.', '%d ч', '%d год'),   # a whole book's length from an hour (the books' totals only)
@@ -1751,7 +1751,7 @@ TEXT = dict([
     _t('Preset limit reached', '已达预设数量上限', '已達預設數量上限', 'プリセット数の上限です', '프리셋 수 한도에 도달했습니다', 'Limite de préréglages atteinte', 'Preset-Limit erreicht', 'Límite de preajustes alcanzado',
        'Limite di preset raggiunto', 'ถึงขีดจำกัดจำนวนพรีเซ็ตแล้ว', 'Osiągnięto limit ustawień', 'Достигнут лимит пресетов', 'Досягнуто ліміту пресетів'),
 ])
-# The Podcasts page's dates (patch/pcmodel.c pc_when, docs/modules/podcasts.md "The date"): Apple Podcasts' "Just now", "4m ago", "4h ago", "4d ago", "Oct 23", "Oct 23, 2025". A month
+# The Podcasts page's dates (patch/pcmodel.c pc_when, docs/modules/podcasts.md "Pages and controls"): Apple Podcasts' "Just now", "4m ago", "4h ago", "4d ago", "Oct 23", "Oct 23, 2025". A month
 # text has its one %d (the day) where the language puts it; the year follows as ", %d". These keys do not start with %d, so DATE_KEYS lets the %d test of the tables know them.
 _MONTH_KEYS = ('Jan %d', 'Feb %d', 'Mar %d', 'Apr %d', 'May %d', 'Jun %d', 'Jul %d', 'Aug %d', 'Sep %d', 'Oct %d', 'Nov %d', 'Dec %d')
 _MONTHS = {   # locale -> the twelve month texts

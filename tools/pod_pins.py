@@ -552,7 +552,7 @@ TEXTGAMMA_PINS = (   # (address, stock word, what it proves): the glyph path pat
     (0x680864, 0x70432002, 'font_stb_get_glyph: mul a0, v0, v1: the bitmap is w * h bytes, stride w (tk_alloc at 0x680868)'),
     (0x6805e0, 0x10400253, 'font_stb_get_glyph: beqz v0 after glyph_cache_add: 0 is success; the out copy keeps the bitmap pointer (GLYPH_DATA)'),
 )
-ID3_SITE = 0x4dff4c   # get_id3info's jalr strcpy of the parsed path, replaced by jal pc_id3_path (docs/modules/podcasts.md "Tags"); q2-pod's ID3_PATH is the same site in its demo
+ID3_SITE = 0x4dff4c   # get_id3info's jalr strcpy of the parsed path, replaced by jal pc_id3_path (docs/modules/podcasts.md); q2-pod's ID3_PATH is the same site in its demo
 PODCAST_PINS = (   # (address, stock word, what it proves)
     (0x4e0544, 0x3c1c0052, 'seek_time prologue'), (0x4e0548, 0x279c398c, 'seek_time prologue'), (0x4e054c, 0x0399e021, 'seek_time prologue'),
     (0x4e0560, 0x00808025, 'seek_time: move s0, a0: the target in seconds'),
@@ -925,7 +925,7 @@ PICKER_PINS = (
     (0x5281ec, 0x8c440000, 'stock Add button, Favourites: a0 = g_class_type'),
     (0x52822c, 0x24840e48, 'stock Add button, Favourites: msg_addfavsuccess'),
 )
-# ---- List gestures (patch/scroll.c, docs/architecture.md "List gestures") --------------------------------------------
+# ---- List gestures (patch/scroll.c, docs/modules/gestures.md) --------------------------------------------
 # Not a code hook: widget_on_event_before_children (0x666c34) calls vtable[0x98] of a widget with every pointer event
 # before its children see it, and g_scroll_view_vtable's slot is zero in stock (a no-op). The build writes
 # m1plus_scroll_event into that one data word. The stock functions and fields the payload relies on are pinned below.

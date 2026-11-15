@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Which stock functions can run on the boot path? A deliberately over-approximate reachability
-check for pinned demo edits (docs/architecture.md, "Safety").
+check for pinned demo edits (docs/modules/safety.md).
 
   reach.py DEMO ADDR... [--root main --root platform_init] [--cut 0x4d00c0]
 

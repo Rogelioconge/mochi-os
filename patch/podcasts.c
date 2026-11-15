@@ -7,10 +7,10 @@
  * the rows itself in its EVT_AFTER_PAINT (no widget per row), so a show of hundreds of episodes costs a tile ring. The window is opened by the Extras item Podcasts and has three
  * levels, switched in place (the Pod's way: no second window; the navbar's Back goes up a level before it leaves the page):
  *
- *   Shows      the Apple Podcasts style top level (docs/modules/podcasts.md "The Shows page"): the large title, the refresh line (Refresh All), Continue Listening (a static row of at most three
+ *   Shows      the Apple Podcasts style top level (docs/modules/podcasts.md "Pages and controls"): the large title, the refresh line (Refresh All), Continue Listening (a static row of at most three
  *              partly played episodes), the Downloads row and the Albums grid of every show (the most recently updated first), a caption under each; the "..." sheet has Import from Card.
  *   Downloads  the queue, the failed and the paused downloads, behind the Downloads row (Back returns to Shows).
- *   Show       the Apple Podcasts style page (docs/modules/podcasts.md "The Show page"): a header in the album page's manner (the PS_ART px cover, the name, a Latest Episode pill, the
+ *   Show       the Apple Podcasts style page (docs/modules/podcasts.md "Pages and controls"): a header in the album page's manner (the PS_ART px cover, the name, a Latest Episode pill, the
  *              show's description and its "Category - Author" line, tinted from the cover as the album page is), then a fixed height cell per episode, newest first (PS_CELL_H: the date
  *              line with its badges, the title, the description, the state pill and the "..."). The navbar is "... | Now Playing" (the sheet of the show's actions) and, scrolled, the small
  *              title. A tap on a cell's pill plays an episode that is on the card (and the ones after it in the list's order: from the first second, or from the saved place: pc_note jumps there); a tap on its body opens the episode page (pcdetail.c).
@@ -288,7 +288,7 @@ static struct {
     pg_cell_t *cells; /* PG_CELLS layouts of the Show level's cells */
     pg_hdr_t *hdr; /* the Show header's layout */
     pd_t *
-        pd; /* the episode page's texts (docs/modules/podcasts.md "The episode page"), made when it opens; NULL while the Show level is the list */
+        pd; /* the episode page's texts (docs/modules/podcasts.md "Pages and controls"), made when it opens; NULL while the Show level is the list */
     int from_find; /* the episode page was opened from the search inside the show: Back opens that search again (patch/pcfind.c) */
     int det,
         det_off; /* the episode page is open on episode det - 1 of eps (0: the list); the list's scroll offset to come back to */
@@ -811,7 +811,7 @@ static void pg_dls_retext(void) {
 }
 
 /* ---------------------------------------------------------------------------
- * The Show page's layouts (docs/modules/podcasts.md "The Show page"): the texts are wrapped once, from the glyphs' own advances (patch/pcwrap.c), when the page opens and when a cell first
+ * The Show page's layouts (docs/modules/podcasts.md "Pages and controls"): the texts are wrapped once, from the glyphs' own advances (patch/pcwrap.c), when the page opens and when a cell first
  * paints; the states (pills, badges, colours) are read at every paint, from the model, the ring and the worker, so a step of progress needs no layout.
  */
 static int pg_join(char *out, unsigned size, const char *dir, const char *file);
@@ -1440,7 +1440,7 @@ static void pg_paint_eps(void *canvas) {
     if (off > 0) pg_paint_fade(canvas);
 }
 
-/* The episode page (docs/modules/podcasts.md "The episode page"): the date line (with the size) and the cell's badges, the title, the show row (a small cover, the name, a chevron: its tap goes back to the show, or to the preview it came from), the cell's
+/* The episode page (docs/modules/podcasts.md "Pages and controls"): the date line (with the size) and the cell's badges, the title, the show row (a small cover, the name, a chevron: its tap goes back to the show, or to the preview it came from), the cell's
  * state pill and "..." (not in a preview), the description. The texts are pcdetail.c's; the states are read at every paint, as the cells' are. The page is black, with the plain fade under the navbar. */
 static void pg_paint_det(void *canvas) {
     const pd_t *d = pg.pd;
@@ -1476,7 +1476,7 @@ static void pg_paint_det(void *canvas) {
 }
 
 /* ---------------------------------------------------------------------------
- * The Shows level (Apple Podcasts style, docs/modules/podcasts.md "The Shows page"): the large title (a label of the asset, a child of the content view), then painted by the content view: the refresh line,
+ * The Shows level (Apple Podcasts style, docs/modules/podcasts.md "Pages and controls"): the large title (a label of the asset, a child of the content view), then painted by the content view: the refresh line,
  * Continue Listening (a static row of at most PP_SHELF_MAX covers), the Downloads row, the "Shows" header and the grid of every show. The numbers are PP_* of patch/offsets.inc (tools/pod_show.py shows_layout).
  */
 typedef struct { /* the refresh line (a status, not a control): its text and width */
@@ -1939,7 +1939,7 @@ static void pg_art(grid_t *g, grid_tile_t *t, const pc_show_t *s) {
 }
 
 /* ---------------------------------------------------------------------------
- * The Show page's tint: the album page's (docs/modules/album-page.md "Cover tint", "Status bar"; patch/albumpage.c) on this window, with the same functions and assets: the window's bg_color is the
+ * The Show page's tint: the album page's (docs/modules/album-page.md "Artwork and shared tint", "Status bar"; patch/albumpage.c) on this window, with the same functions and assets: the window's bg_color is the
  * tone (m1_tone) of the cover's average colour under the black gradient image ah_tint (the window's first child, img_ah_tint, shown only now), so the list over it is transparent; the status bar takes
  * the window's row 0 (m1_bar_tint, m1_bar_black: the one owner of the bar) while the page is in front and tinted; the tone cache (m1_tone_get / m1_tone_put, shared with the album page and Now
  * Playing) remembers it per show. A show without a cover picture stays black. The state is the page's: it is cleared when another level shows, when the page is behind another and when it is destroyed.
@@ -2378,7 +2378,7 @@ static void pg_home_shape(int keep) {
     }
 }
 
-/* The Shows level (docs/modules/podcasts.md "The Shows page"): every show the card has, most recently updated first. keep: the page is on it already and is made again (a refresh moved on, it came back to
+/* The Shows level (docs/modules/podcasts.md "Pages and controls"): every show the card has, most recently updated first. keep: the page is on it already and is made again (a refresh moved on, it came back to
  * the front): the scroll position and the covers stay. */
 /* The Shows level's totals scan (the Downloads row's grey line): the folders of the shows are walked one a tick of the loader (pc_walk: the audio files' sizes and the .part files nothing holds); the figures shown stay
  * those of the last complete scan until this one ends. It starts when the level is made after another level (files may have come or gone), when the worker moved, and the first time. */
@@ -2723,7 +2723,7 @@ static void pg_dscan_step(void) {
     pg_dls_apply();
 }
 
-/* The Subscriptions page's rows (docs/modules/podcasts.md "Subscriptions and OPML"): every show with a feed address, by title; a row is the show (its cover, its name, its feed status line: pg_row_sub). */
+/* The Subscriptions page's rows (docs/modules/podcasts.md "Pages and controls"): every show with a feed address, by title; a row is the show (its cover, its name, its feed status line: pg_row_sub). */
 static void pg_subs_build(void) {
     int order[PC_MAX_SHOWS], n, i;
     if (pg.allsh) { /* the All Shows page: every show, in the Shows level's order */
@@ -2847,7 +2847,7 @@ static const char *pg_no_eps_key(void) {
                                     : "No downloaded episodes";
 }
 
-/* The Show level of show si (docs/modules/podcasts.md "The Show page"; Back goes to the Shows level). off: the scroll position to keep (a show opened again after a refresh), 0 the top. */
+/* The Show level of show si (docs/modules/podcasts.md "Pages and controls"; Back goes to the Shows level). off: the scroll position to keep (a show opened again after a refresh), 0 the top. */
 static void pg_open_show_with(int si, int off, pc_ep_t *all, int m) {
     pg_det_drop();
     pg.gen = pn_gen(), pg.dgen = pn_dl_gen();
@@ -3628,7 +3628,7 @@ static int pg_on_find(void *ctx, void *e) {
 }
 
 /* ---------------------------------------------------------------------------
- * The episode page (docs/modules/podcasts.md "The episode page"): a tap on a cell's body, on a subscribed show, a local show or a search preview, opens it in place on the Show level (Back returns to the
+ * The episode page (docs/modules/podcasts.md "Pages and controls"): a tap on a cell's body, on a subscribed show, a local show or a search preview, opens it in place on the Show level (Back returns to the
  * list at its scroll offset). The level stays L_EPS (the tint, the status bar, the sheets and the cover loader are the Show level's); pg.det says the content is the page: pg_content, pg_paint_det, pg_hit.
  * The full description is the episode's line of the show's .notes (one bounded scan), else the preview's held item, else the cell's x=.
  */
@@ -3892,7 +3892,7 @@ static int pg_on_back(void *ctx, void *e) {
 }
 
 /* ---------------------------------------------------------------------------
- * The refresh dialog: a modal card over the page while the worker runs (docs/modules/podcasts.md "Feeds and the refresh dialog"). The worker only writes the status record; this reads it from a page-scoped
+ * The refresh dialog: a modal card over the page while the worker runs (docs/modules/podcasts.md "Network and feeds"). The worker only writes the status record; this reads it from a page-scoped
  * 200 ms timer (armed while the page is in front and the screen is lit; the 1 s tick re-arms it when the screen comes back), and closes itself when the worker has stopped.
  */
 #define PG_DLG_MS 200
@@ -4527,7 +4527,7 @@ static const char *const pg_speed_name[PC_SPEEDS] = {"1\xc3\x97", "1.25\xc3\x97"
                                                      "2\xc3\x97"}; /* "1x" with the multiplication sign U+00D7 */
 
 /* ---------------------------------------------------------------------------
- * The Show page's bottom sheets (docs/modules/podcasts.md "The Show page"; the look is Now Playing's More sheet): one widget set of the asset (tools/pod_ui.py podcasts_sheet), nine fixed rows of
+ * The Show page's bottom sheets (docs/modules/podcasts.md "Pages and controls"; the look is Now Playing's More sheet): one widget set of the asset (tools/pod_ui.py podcasts_sheet), nine fixed rows of
  * which each sheet shows the ones that apply, placed from the card's top, the card as high as its rows over the window's bottom edge. The show's "..." opens the show's: Playback Speed (a tap cycles
  * and the sheet stays), Refresh Feed, Select Episodes, Mark All as Played, Unsubscribe. A cell's "..." opens that episode's: Download or Remove Download, Mark as Played or Unplayed.
  */

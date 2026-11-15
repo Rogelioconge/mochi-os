@@ -967,7 +967,7 @@ def queue_star(ctx):
 
 
 def trackcover(ctx):
-    """A server track shows its ALBUM's cover file (the one the Background fill fetched), docs/modules/subsonic.md "Caching": Navidrome gives a song with embedded art its own coverArt id ("mf-..."),
+    """A server track shows its ALBUM's cover file (the one the Background fill fetched), docs/modules/subsonic.md "Cache and requests": Navidrome gives a song with embedded art its own coverArt id ("mf-..."),
     which must not cost one more file per song. Song rows (cover), the play queue (sba_rec_cover: Now Playing, Queue, mini bar, vinyl, bigcover), Get Info and a playlist's mosaic."""
     expect = ctx.expect
     site = quiet_site(getCoverArt={'body': SA.JPEG})

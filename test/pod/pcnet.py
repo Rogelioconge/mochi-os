@@ -509,7 +509,7 @@ def run(ctx):
     shows, arr = m.shows()
     expect(m.call(PSYMS['pn_import'], a0=m.cstr(ROOT_DIR), a1=arr, a2=0, count=1 << 40) == 0, 'a show file that cannot be written: that url is not counted')
 
-    # 8. The cover picture (docs/modules/podcasts.md "Cover art"): downloaded after the feed, shrunk once to PV_SIZE, renamed into place
+    # 8. The cover picture (docs/modules/podcasts.md "Network and feeds"): downloaded after the feed, shrunk once to PV_SIZE, renamed into place
     import io
     from PIL import Image
 

@@ -334,7 +334,7 @@ def page_tests(ctx):
     landscape_tests(ctx, asset)
 
 
-# Gestures (docs/architecture.md section 4, Touch): the reproducers of the V2.1kE touch investigation, each of which
+# Gestures (docs/modules/coverflow.md "Touch"): the reproducers of the V2.1kE touch investigation, each of which
 # failed on the earlier on_pointer (12 px dead zone then a jump, release travel ignored, a release far away taken for a
 # tap, a press during the snap leaving the shelf between covers, remaining / 3 easing stretched by late callbacks).
 def signed(v): return struct.unpack('<i', struct.pack('<I', v & 0xffffffff))[0]
@@ -527,7 +527,7 @@ def gesture_tests(ctx):
     expect(xoff(m) == -((200 - 150 - start) * h // dpx), f'between the ends the shelf follows the finger one to one ({xoff(m)})')
 
 
-# The shelf and its textures (docs/architecture.md section 4, Covers / Textures): depth mode owns its position (the
+# The shelf and its textures (docs/modules/coverflow.md "Textures"): depth mode owns its position (the
 # stock slide_menu laid out every child, up to 4000, on each offset change: slide_menu_set_prop 0x613c94 ->
 # widget_layout_children), and paint draws from resident textures only, a page timer decoding what is missing.
 def coloured(m, albums):
@@ -668,7 +668,7 @@ def shelf_tests(ctx):
     expect(back == [], f'moving back needs no visible cover again and nothing is wanted past the first album ({back})')
 
 
-# Landscape (docs/ui.md "Cover Flow landscape"): the same page turned a quarter, drawn into the body under the navbar.
+# Landscape (docs/modules/coverflow.md "Landscape"): the same page turned a quarter, drawn into the body under the navbar.
 LW, LH, LCX, LY = O['CFL_W'], O['CFL_H'], O['CFL_CX'], O['CFL_Y']
 LFILE, LTMP = '/mnt/data/m1plus/coverflow-landscape', '/mnt/data/m1plus/coverflow-landscape.tmp'
 LAND_RECT = (0, LY, LH, LW)                      # the landscape frame in the window: the body under the navbar

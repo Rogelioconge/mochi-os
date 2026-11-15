@@ -1,4 +1,4 @@
-/* OPML import and export for the Podcasts subscriptions (patch/pcopml.h; docs/modules/podcasts.md "Subscriptions and OPML").
+/* OPML import and export for the Podcasts subscriptions (patch/pcopml.h; docs/modules/podcasts.md "Pages and controls").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  */

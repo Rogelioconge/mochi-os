@@ -1,4 +1,4 @@
-/* Line breaking for the Podcasts Show page's texts (patch/pcwrap.c; docs/modules/podcasts.md "The Show page").
+/* Line breaking for the Podcasts Show page's texts (patch/pcwrap.c; docs/modules/podcasts.md "Pages and controls").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *

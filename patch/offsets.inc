@@ -449,7 +449,7 @@
 #define LIST_PRESS 0xff343333u /* ROLE_PRESS_ROW #333334 as a color_t word: a pressed row, unique so the accent can find it */
 
 /* ---------------------------------------------------------------------------
- * Now Playing (patch/nowplaying.c, docs/architecture.md section 8a, ui assets tools/mod_nowplaying.py). The hook is
+ * Now Playing (patch/nowplaying.c, docs/modules/nowplaying.md, ui assets tools/mod_nowplaying.py). The hook is
  * on playing_page_init (0x53d1e4). Timer callbacks answer RET_REPEAT to run again (the stock page timer does:
  * player_timer_start @0x53c210 registers 0x53cf48, which returns 8 while the page lives) and RET_OK to end.
  * COVER_SRC is the cover source type word (0x97cad8): parseplaycover_thd (0x4ded84) sets it to 1 before it
@@ -765,7 +765,7 @@
 
 
 /* ---------------------------------------------------------------------------
- * List gestures (patch/scroll.c, docs/architecture.md "List gestures"). The stock scroll_view (g_scroll_view_vtable
+ * List gestures (patch/scroll.c, docs/modules/gestures.md). The stock scroll_view (g_scroll_view_vtable
  * 0x97a298; every stock list is list_view > scroll_view > list_item rows) keeps its drag state in the widget:
  * scroll_view_t fields as its on_event (0x610724) and scroll_view_is_dragged (0x61064c) read them. The hook is the
  * vtable's on_event_before_children slot, which widget_on_event_before_children (0x666c34) calls with every pointer event
@@ -1235,7 +1235,7 @@
 #define PC_ROW_H 64               /* the page's rows (LIST_ROW_H) */
 #define PC_TILES 44               /* text / cover tiles: the rows and cells in view and spare (a ring: the least recently used leaves) */
 #define PC_SPEEDS 4               /* playspeed_mode 0..3: 1x, 1.25x, 1.5x, 2x (stock "Multiple Speed", images p_1_25 / p_1_5 / p_2) */
-/* The Podcasts Show page (patch/podcasts.c, docs/modules/podcasts.md "The Show page"; tools/preview/preview_podcasts_revamp.py reads these). Content y is from the list's top (window row
+/* The Podcasts Show page (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"; tools/preview/preview_podcasts_revamp.py reads these). Content y is from the list's top (window row
  * PG_LIST_Y = the navbar's bottom), x is the window's. HEADER, in the album page's and the playlist header's manner: the PS_ART px cover at x PS_ART_X with PS_ART_R px corners (flush with
  * the list's top: the album page's 50), the show's name PS_NAME_GAP under it (PS_NAME_PX white, centred in PS_NAME_X / PS_NAME_W, PS_NAME_PITCH a line, at most PS_NAME_LINES), the
  * Latest Episode pill PS_LATEST_GAP under that (PS_LATEST_H high, white, centred: its ends the white disc, PS_LATEST_PADL / glyph / PS_LATEST_GAPG / text / PS_LATEST_PADR), the
@@ -1345,7 +1345,7 @@
 #define PA_PLAYB_X 48
 #define PA_PLAYB_Y 112
 #define PA_PLAYB_PX 28
-/* The Podcasts Shows page (Apple Podcasts style; patch/podcasts.c, docs/modules/podcasts.md "The Shows page"; tools/pod_show.py shows_layout is the model the tests and tools/preview/preview_podcasts_revamp.py use). Content y from the list's top
+/* The Podcasts Shows page (Apple Podcasts style; patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"; tools/pod_show.py shows_layout is the model the tests and tools/preview/preview_podcasts_revamp.py use). Content y from the list's top
  * (window row PG_LIST_Y), x the window's. In order: the large title (a label, PP_TITLE_H high at x SG_TITLE_X, SG_TITLE_W wide, PP_TITLE_PX px, shared by the Downloads, Subscriptions and Saved pages; it scrolls away with the content and the navbar shows the small title past SG_COLLAPSE), the refresh line (PP_LINE_H high at PP_LINE_Y, 15 px: "Updated
  * 1h ago", a status with no control (Refresh All is a row of the "..." sheet), only when a show has a feed; PP_LINE_PITCH to the next block, PP_NOLINE_PITCH when there is no line), Continue Listening (PP_HEAD_H header at x PP_HEAD_X, 20 px, then PP_HEAD_PITCH to the
  * covers: at most PP_SHELF_MAX PP_SHELF_ART px covers at x PP_SHELF_X + i * PP_SHELF_PITCH, the title (14 px, one line, PP_SHELF_W wide) PP_SHELF_TITLE_Y under the cover's top and the "35m left" (13 px) at PP_SHELF_LEFT_Y; PP_SHELF_PITCH_Y the block's height; each cover has the atlas' PA_PLAYB_PX play disc PP_SHELF_PLAY_INSET from its right and bottom edges),

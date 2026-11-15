@@ -1,4 +1,4 @@
-"""OPML import and export of the Podcasts subscriptions (patch/pcopml.c, patch/pcnet.c pn_import / pn_export, docs/modules/podcasts.md "Subscriptions and OPML").
+"""OPML import and export of the Podcasts subscriptions (patch/pcopml.c, patch/pcnet.c pn_import / pn_export, docs/modules/podcasts.md "Pages and controls").
 
 The scanner po_next: three realistic exports (in the style of Apple Podcasts, Pocket Casts and Overcast: test/data/opml) against Python's xml.etree as the oracle, then the syntax cases (nesting,
 entities, quotes, attribute order and case, missing attributes, comments / CDATA / DOCTYPE, a '>' inside a quote, cut tags, every cut of every sample) and fuzzing: the input ends at an unmapped

@@ -1,4 +1,4 @@
-/* Screenshot (patch/shot.c, docs/architecture.md "Screenshot"): constants the payload and test/pod/shot.py share.
+/* Screenshot (patch/shot.c, docs/modules/screenshot.md): constants the payload and test/pod/shot.py share.
  * The test parses the #defines in this file, so a change cannot leave the mocks behind.
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).

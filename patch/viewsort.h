@@ -1,4 +1,4 @@
-/* The "..." card of the pages with a sort order and a grid / list view (docs/modules/albums.md "The ... card"): an Apple-style grouped menu. The optional Search and Select rows (a glyph, no tick; the page decides
+/* The "..." card of the pages with a sort order and a grid / list view (docs/modules/albums.md "View sort card"): an Apple-style grouped menu. The optional Search and Select rows (a glyph, no tick; the page decides
  * what they do) come first, then the View group (Grid, List, each with a glyph, a tick on the
  * current view) above the Sort group (Title, Artist, Recently Added, Year: a tick on the current one and, under its label, a grey line with the direction), 48 px rows on the card's own glass, one
  * hairline between the groups (vs_hair under the Search / Select rows, the first sort row's top border). The page owns what a row does: it passes the click handlers and the state; this file owns the widgets (found by name in the page: vs_scrim, vs_card, vs_hair, vs_item0..7,

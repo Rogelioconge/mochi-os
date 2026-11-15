@@ -1,4 +1,4 @@
-/* Podcast cover art: shrink a downloaded JPEG once to the size the Podcasts pages draw (patch/pccover.c; docs/modules/podcasts.md "Cover art").
+/* Podcast cover art: shrink a downloaded JPEG once to the size the Podcasts pages draw (patch/pccover.c; docs/modules/podcasts.md "Network and feeds").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  */

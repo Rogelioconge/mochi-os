@@ -1,4 +1,4 @@
-/* A streaming PNG decoder for the cover shrink (patch/pcpng.c; docs/modules/podcasts.md "Cover art").
+/* A streaming PNG decoder for the cover shrink (patch/pcpng.c; docs/modules/podcasts.md "Network and feeds").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  */

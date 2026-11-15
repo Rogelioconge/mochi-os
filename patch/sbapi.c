@@ -1,5 +1,5 @@
 /* Navidrome / Subsonic data layer: conf, guard, cache files, the metadata worker, requests, covers, stream addresses and the queue map (see patch/sbapi.h and
- * docs/modules/subsonic.md "Data and cache").
+ * docs/modules/subsonic.md "Cache and requests").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE). Navidrome support began as a pull request by Gaurav Mishra (its patch/subsonic.c, MIT, removed in the rebuild); the credentials file and the filename and
  * queue-id rules here are that work's.

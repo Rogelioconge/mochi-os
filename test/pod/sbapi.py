@@ -1,4 +1,4 @@
-"""The Navidrome data layer (patch/sbapi.c, patch/sbapi.h, docs/modules/subsonic.md "Data and cache"): the conf file, the guard, the cache files on the card, the metadata worker (one detached
+"""The Navidrome data layer (patch/sbapi.c, patch/sbapi.h, docs/modules/subsonic.md "Cache and requests"): the conf file, the guard, the cache files on the card, the metadata worker (one detached
 thread, a small request queue, a generation counter, a status record) and every request it makes, against a scripted libcurl. The parsers are patch/sbparse.c's (real), so the fixtures are real Subsonic JSON. Sections: conf, guard, cache, worker, sync, songs, star, cover, play, urls, bg, big (everything, or `sbapi/<section>`)."""
 import hashlib, json, os, re, struct
 from urllib.parse import parse_qs, urlparse

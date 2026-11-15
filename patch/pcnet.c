@@ -404,7 +404,7 @@ static int pn_fetch(const char *url, pf_parser_t *p, long since, unsigned *modif
 }
 
 /* ---------------------------------------------------------------------------
- * The cover picture (docs/modules/podcasts.md "Cover art")
+ * The cover picture (docs/modules/podcasts.md "Network and feeds")
  */
 /* The write callback of a request whose body is a file with a size limit (user: a net_file_t, patch/netfile.h): a byte over the limit or a failed write stops the transfer. */
 static unsigned pn_fwrite(char *d, unsigned size, unsigned nmemb, void *user) {
@@ -482,7 +482,7 @@ static void pn_cover(const char *dir, const char *url) {
     if (ok) pn_bump();
 }
 
-/* The show's .notes (the kept items' long descriptions, docs/modules/podcasts.md "The notes file"), written before .episodes so that a new .episodes has its notes; a failure is not the refresh's (the page falls back to x=). */
+/* The show's .notes (the kept items' long descriptions, docs/modules/podcasts.md "Files and model"), written before .episodes so that a new .episodes has its notes; a failure is not the refresh's (the page falls back to x=). */
 static void pn_notes(const char *dir, const pf_parser_t *p) {
     char file[PN_PATH], tmp[PN_PATH];
     if (pn_join(file, sizeof file, dir, ".notes", (const char *)0) &&
@@ -2638,7 +2638,7 @@ int pn_export(const char *root, const pc_show_t *shows, int nshows, int *count) 
     return ok;
 }
 
-/* Unsubscribe (the Show page's sheet, docs/modules/podcasts.md "The Show page"): the show's .show again without its feed address, the rest as it was (title, picture, author, category,
+/* Unsubscribe (the Show page's sheet, docs/modules/podcasts.md "Pages and controls"): the show's .show again without its feed address, the rest as it was (title, picture, author, category,
  * description, last refresh), written atomically; the .episodes stay (the caller removes what else goes). UI thread; no worker runs a refresh of this show (the page is not refreshing).
  * 1 when written, 0 when the file could not be. */
 int pn_unsubscribe(const char *root, const pc_show_t *s) {

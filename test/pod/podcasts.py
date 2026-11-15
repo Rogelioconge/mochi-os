@@ -1193,7 +1193,7 @@ NOW = 1800000000   # 2027-01-15 08:00:00 UTC
 
 
 def when_model(pub, now, tz=0, tr=None):
-    """Apple Podcasts' date line (docs/modules/podcasts.md "The date"), written again; tr(key, n) is the language's text of a key (English: the key with n for %d)."""
+    """Apple Podcasts' date line (docs/modules/podcasts.md "Pages and controls"), written again; tr(key, n) is the language's text of a key (English: the key with n for %d)."""
     tr = tr or (lambda key, n=None: key.replace('%d', str(n)))
     year_now = datetime.datetime.fromtimestamp(now + tz, datetime.timezone.utc).year
     if year_now >= 2024 and pub <= now + 60:

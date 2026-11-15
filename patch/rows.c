@@ -25,7 +25,7 @@
  *     children afterwards would make every layout pass change sizes and relayout the window again);
  *   - on x=0 rows (Albums, Search albums) moves the ROW_ART cover to ROW_ART_INSET;
  *   - inside the second line's own view (Songs: view_artist) stretches its label to the view's end.
- * rows_track_icon (below) hides the repeated format disc of the track rows (docs/architecture.md section 6).
+ * rows_track_icon (below) hides the repeated format disc of the track rows (docs/modules/rows.md).
  * Anything unexpected (no row, no text, too many children) is left to the stock layout alone, which
  * always runs.
  */

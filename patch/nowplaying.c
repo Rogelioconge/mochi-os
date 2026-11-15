@@ -26,7 +26,7 @@
  * there (the tone under the gradient), anti-aliased, from the cover widget's own EVT_AFTER_PAINT: 4 x 12 x 12 pixels
  * of a table np_corner_init computes once, a few dozen canvas_fill_rect calls, and only when the cover repaints.
  * Every failure (a widget of the asset missing, no timer, an unreadable file, an undecodable picture)
- * leaves the stock page as it is, square corners included. docs/architecture.md section 8a.
+ * leaves the stock page as it is, square corners included. docs/modules/nowplaying.md.
  */
 #include "offsets.inc"
 #include "stock.h"

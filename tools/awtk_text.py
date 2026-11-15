@@ -66,7 +66,7 @@ class Ttf:
 
 # ---------------------------------------------------------------------------------- AWTK's text layout
 # The shared text model (tools/mod_nowplaying.py, tools/stb_raster.py and this tool measure with it;
-# docs/ui.md "The album line"): stb_truetype scale = font_size / (ascender - descender)
+# docs/modules/albums.md): stb_truetype scale = font_size / (ascender - descender)
 # in float32; each glyph advances trunc(advance * scale) (glyph_t.advance) and demo's canvas adds 1 px
 # after every glyph (canvas_measure_text 0x6446c8 / canvas_draw_text 0x6454d4: the lcd has no text
 # functions of its own); a glyph the font cannot give adds 4. So a text is wider than its summed

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Image audit of the stock UI (docs/ui.md "Icon audit"): every images/xx file, who refers to it, and what
+"""Image audit of the stock UI (docs/modules/icons.md "Audit"): every images/xx file, who refers to it, and what
 the release does with it.
 
   audit_images.py [STOCK_ROOTFS_RELEASE] [RELEASE_TREE_ROOTFS_RELEASE]

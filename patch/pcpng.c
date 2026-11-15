@@ -1,4 +1,4 @@
-/* A streaming PNG decoder: chunks, inflate, unfilter, RGB (docs/modules/podcasts.md "Cover art").
+/* A streaming PNG decoder: chunks, inflate, unfilter, RGB (docs/modules/podcasts.md "Network and feeds").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE). The inflate follows the shape of Mark Adler's puff.c (zlib licence): canonical Huffman codes decoded from the count of codes of each
  * length, one bit at a time; it is written afresh here, with the input pulled from the IDAT chunks of a stdio file and the output pushed byte by byte.

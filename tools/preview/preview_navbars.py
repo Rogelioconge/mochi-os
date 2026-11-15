@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PIL mock-up of the glass navbars (docs/modules/navbars.md): today's look (a tree built before the change, or the stock tree) against the finished tree, at rest
+"""PIL mock-up of the glass navbars (docs/modules/navbar.md): today's look (a tree built before the change, or the stock tree) against the finished tree, at rest
 and scrolled so rows pass under the fade. Approximate, not AWTK; sample rows.
 
 Drawn from the trees' own files: the pages' ui/*.bin (geometry, images), the themes' default.bin (the Back button's margin_left / x_offset and the title

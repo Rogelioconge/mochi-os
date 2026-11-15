@@ -1,4 +1,4 @@
-/* Track durations: the table of measured file durations (docs/modules/album-page.md "Album length", docs/modules/homecover.md "Measuring tracks").
+/* Track durations: the table of measured file durations (docs/modules/album-page.md "Album length", docs/modules/homecover.md "Track durations").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  * The design (a per-file length cache keyed by a path hash, measured through stock's TagLib on the worker thread, the vtable call of

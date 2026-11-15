@@ -8,11 +8,6 @@ Read [payload](modules/payload.md) and [addresses](modules/addresses.md) before 
 binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and assets, and
 [history](history.md) for device findings.
 
-Source comments cite sections of an older architecture document: 4 Cover Flow, 6 rows,
-8a Now Playing, "Screenshot", "List gestures". These map to [coverflow](modules/coverflow.md),
-[rows](modules/rows.md), [nowplaying](modules/nowplaying.md), [screenshot](modules/screenshot.md)
-and [gestures](modules/gestures.md).
-
 ## Modules
 
 ### Build and runtime

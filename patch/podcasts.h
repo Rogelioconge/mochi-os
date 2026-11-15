@@ -89,7 +89,7 @@ int pc_parse_show(const char *buf, unsigned n, pc_show_t *show);
 void pc_when(
     unsigned pub, unsigned now, char *out,
     unsigned
-        size); /* an episode's date, Apple Podcasts style, in the language (docs/modules/podcasts.md "The date"); now: seconds since 1970 */
+        size); /* an episode's date, Apple Podcasts style, in the language (docs/modules/podcasts.md "Pages and controls"); now: seconds since 1970 */
 unsigned pc_hash(const char *s); /* FNV-1a over the ASCII-lower-cased bytes, never 0 */
 unsigned pc_guid_hash(
     const char *s,
@@ -127,7 +127,7 @@ typedef struct { /* an episode partly played, for Continue Listening */
         len; /* the ring key, the place and the length the ring saw (an episode in progress always has both: a place is only kept for a length that is known) */
     char file[PC_FILE], title[PC_TITLE];
 } pc_cont_t;
-/* The episodes partly played, the most recently played first (the ring's order), at most max, found among the shows' files (docs/modules/podcasts.md "The Shows page"). Returns the count. */
+/* The episodes partly played, the most recently played first (the ring's order), at most max, found among the shows' files (docs/modules/podcasts.md "Pages and controls"). Returns the count. */
 int pc_continue(const pc_show_t *shows, int nshows, pc_cont_t *out, int max);
 
 /* Per-show speed: playspeed_mode 0..3 (1x, 1.25x, 1.5x, 2x). pc_speed_set saves at once (0 when it could not be written). */
@@ -147,7 +147,7 @@ unsigned bk_book_of(
 /* The timer hook: the track the player is on (cc_playing(), NULL when none). Called by the places that already see it on a timer (recent_note, so the
  * Now Playing tick, the mini bar's and the Podcasts page's). Saves the place, marks played, jumps to a saved place after a start, and puts the speed back. */
 void pc_note(void *track);
-/* The hook in stock's tag reader (get_id3info 0x4dfd58, the strcpy of the parsed path at 0x4dff4c; docs/modules/podcasts.md "Tags"): stock's strcpy(info, path), then for a podcast path the episode and the show
+/* The hook in stock's tag reader (get_id3info 0x4dfd58, the strcpy of the parsed path at 0x4dff4c; docs/modules/podcasts.md): stock's strcpy(info, path), then for a podcast path the episode and the show
  * in the struct's title / artist / album. Returns info, as strcpy does. */
 char *pc_id3_path(char *info, const char *path);
 /* The Library query filter (the two hooks on toolsQueryDbTable 0x5ee77c and toolsQueryDbTableAndSort 0x5ee9ac; docs/modules/payload.md hook 6): stock's query with songtable replaced by a subquery without

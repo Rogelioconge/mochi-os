@@ -1,4 +1,4 @@
-"""Navidrome downloads (patch/sbdl.c, docs/modules/subsonic.md "Data and cache"): the queue and its guards, the worker (one detached thread, one file at a time), progress and the
+"""Navidrome downloads (patch/sbdl.c, docs/modules/subsonic.md "Cache and requests"): the queue and its guards, the worker (one detached thread, one file at a time), progress and the
 generation counter, the .part file and the Range resume, the stall limit and the free-space floor (sbnet's options), a file that is on the card already (never overwritten), the
 manifest dl.idx (written atomically, read back offline, dropped when a file was deleted by hand), delete, the folder layout (artist/album/file), the waiting queue the card keeps
 (dlq.idx: a reboot, the stop at a lost Wi-Fi, the resume), and the library scan of a finished album's folder. The compiled payload runs

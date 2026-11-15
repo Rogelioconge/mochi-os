@@ -305,7 +305,7 @@ static int ab_on_paint(void *ctx, void *e) {
 }
 
 /* ---------------------------------------------------------------------------
- * The tint: the window's colour is the cover's tone under the gradient image of the asset (docs/modules/album-page.md "Cover tint"); the status bar takes the window's row 0
+ * The tint: the window's colour is the cover's tone under the gradient image of the asset (docs/modules/album-page.md "Artwork and shared tint"); the status bar takes the window's row 0
  * (Now Playing's rule, m1_bar_tint / m1_bar_black: the bar has one owner, the window that tinted it last) while the page is in front and tinted.
  */
 static void ab_win_color(unsigned color) {

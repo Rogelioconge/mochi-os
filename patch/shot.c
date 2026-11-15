@@ -1,4 +1,4 @@
-/* M1+ Music Screenshot: a developer's screen grab from the Extras page (docs/architecture.md "Screenshot").
+/* M1+ Music Screenshot: a developer's screen grab from the Extras page (docs/modules/screenshot.md).
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *

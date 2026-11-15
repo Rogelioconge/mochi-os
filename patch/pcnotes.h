@@ -1,4 +1,4 @@
-/* The show's .notes file: the long plain-text descriptions of its kept episodes (patch/pcnotes.c; docs/modules/podcasts.md "The notes file").
+/* The show's .notes file: the long plain-text descriptions of its kept episodes (patch/pcnotes.c; docs/modules/podcasts.md "Files and model").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *

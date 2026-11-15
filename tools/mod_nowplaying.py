@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Apple-Music-style Now Playing for the Shanling M1 Plus: ui + page theme + new images, and five pinned words of demo
-(the A-B markers), re-fitted to the 320x450 portrait window (docs/ui.md "Now Playing"):
+(the A-B markers), re-fitted to the 320x450 portrait window (docs/modules/nowplaying.md):
 
    0   ====== (grabber pill, the Back button 120x44)
   28   +----------------------------+

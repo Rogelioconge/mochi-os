@@ -1,4 +1,4 @@
-/* The Podcasts episode page's layout and texts (patch/pcdetail.c; docs/modules/podcasts.md "The episode page").
+/* The Podcasts episode page's layout and texts (patch/pcdetail.c; docs/modules/podcasts.md "Pages and controls").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *

@@ -1,4 +1,4 @@
-"""The Podcasts episode page and its long descriptions (patch/pcdetail.c, patch/pcnotes.c, patch/pcfeed.c, patch/podcasts.c, docs/modules/podcasts.md "The episode page", "The notes file").
+"""The Podcasts episode page and its long descriptions (patch/pcdetail.c, patch/pcnotes.c, patch/pcfeed.c, patch/podcasts.c, docs/modules/podcasts.md "Pages and controls", "The notes file").
 Parser: an item's long plain text (up to 4 KB: HTML to paragraphs, entities, CDATA, the cut on a UTF-8 boundary, the element preferred) against an independent oracle on synthetic feeds and the real
 fixtures. The notes file: its format, the atomic write, only the kept items, old notes dropped, the bounded read of one episode. The page: opened from a subscribed show, a local show and a search preview,
 its layout against tools/pod_show.py, the pill and the sheet working on it, Back keeping the list's place, the strings' widths and kinsoku, and the screen-off rule. The compiled payload runs under Unicorn."""

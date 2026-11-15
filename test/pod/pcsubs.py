@@ -1,4 +1,4 @@
-"""The Podcasts page's Subscriptions level and OPML (patch/podcasts.c, docs/modules/podcasts.md "Subscriptions and OPML"): the "..." sheet of the Shows level (Subscriptions, Import from Card over
+"""The Podcasts page's Subscriptions level and OPML (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"): the "..." sheet of the Shows level (Subscriptions, Import from Card over
 txt and OPML), the level (a row per subscribed show by title: cover, name, the feed's status words; a tap opens the Show page and Back returns to the same place), its sheet (Select Shows, Export OPML),
 the select mode with Unsubscribe (a confirm; the Show page's semantics: feed= dropped, files kept, the folder removed when nothing is left, the user's own files kept, never the playing episode, a
 write that fails touches nothing), Export OPML (the file, the toast), the empty state, the screen-off rule and the strings in 13 languages measured in the real font. The compiled payload runs under

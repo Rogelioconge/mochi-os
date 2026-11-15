@@ -17,7 +17,7 @@
  *              that turns no step and travels less than IP_TAP_PX is a tap: the centre button selects, the ring's four sectors are MENU (top), previous (left),
  *              next (right) and play / pause (bottom). Outside the ring's circle a touch does nothing (the view is square). The view grabs the touch.
  *   play       a track opens the stock way: loadSongList of the shown list, start_player (what the stock Play all button calls), Now Playing level.
- *   sound      none: docs/modules/ipod.md "The click sound" has the evidence and the options.
+ *   sound      none: docs/modules/ipod.md "The wheel" has the evidence and the options.
  */
 #include "offsets.inc"
 #include "stock.h"

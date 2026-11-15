@@ -1,4 +1,4 @@
-"""The Podcasts Show page (patch/podcasts.c, patch/pcwrap.c, docs/modules/podcasts.md "The Show page"): the header of the album page's manner (a 160 px cover, the name, one Latest Episode pill, the
+"""The Podcasts Show page (patch/podcasts.c, patch/pcwrap.c, docs/modules/podcasts.md "Pages and controls"): the header of the album page's manner (a 160 px cover, the name, one Latest Episode pill, the
 description and the "Category - Author" line) and its layout numbers against the shared model (tools/pod_show.py), the cover tint reused from the album page (the window colour, the gradient image, the
 status bar, the tone cache), the navbar ("..." | Now Playing, the small title and the fade once scrolled), the fixed height cells (date line with its badges, the title, the description, the state
 pill, the "...") in every combination of badges and every state of the pill with what a tap on each does, the two bottom sheets (the show's: each row shown only where it applies and what it does, a

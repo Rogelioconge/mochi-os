@@ -14,7 +14,7 @@ file mode):
   status bar           play/pause (filled), volume 0-4, Wi-Fi 0-4 (unlit arcs #666666), Bluetooth,
                        digital out; stroke 1.5 px at 14-16 px, 2 px at 20 px
   list placeholders    6 folder/playlist/artist/genre/composer/album discs, albumcover s/m/info tiles
-  round 2 (docs/ui.md "Icon audit"): navbar actions, chevrons, selection marks, dialog actions as plain white
+  round 2 (docs/modules/icons.md "Audit"): navbar actions, chevrons, selection marks, dialog actions as plain white
                        glyphs at the stock size (pressed #777777); Folders file/SD/USB rows, Playlists page
                        and CD-ripper discs; equaliser preset art recoloured white; speed badges, the Play all
                        pill, secured Wi-Fi rows; the Now Playing np_* glyphs (mod_nowplaying.py copies them)
@@ -307,7 +307,7 @@ SYNC_DM_PX = 16
 LO_BAR = 'pod_bar_lo'
 LO_BAR_W, LO_BAR_H, LO_BAR_PX, LO_BAR_RGB = 26, 16, 12, (0xFF, 0xD6, 0x0A)
 
-# ---- round 2 (docs/ui.md "Icon audit"): the stock images the pages and dialogs still showed.
+# ---- round 2 (docs/modules/icons.md "Audit"): the stock images the pages and dialogs still showed.
 # Plain glyph images at the stock size: white (pressed `_down`: #777777), no disc. 'name:filled' = the shapes filled
 # (Tabler's own filled style for 'T:' names). (stock image, glyph, pressed image or None); each file keeps its own size.
 GLYPHS = [
@@ -935,7 +935,7 @@ def songs_images():
         c.alpha_composite(gi, ((canvas - gi.width) // 2, (canvas - gi.height) // 2)); f[n] = c
     return f
 
-# The Podcasts Show page (patch/podcasts.c, docs/modules/podcasts.md "The Show page"). ONE atlas, pc_atlas (PA_SIZE square, straight-alpha RGBA), holds what the page paints
+# The Podcasts Show page (patch/podcasts.c, docs/modules/podcasts.md "Pages and controls"). ONE atlas, pc_atlas (PA_SIZE square, straight-alpha RGBA), holds what the page paints
 # in its content view (no widget per cell): the progress ring's 12 steps, the state glyphs, the "on the card" badge, the "..." glyph and the discs the pills' ends are cut from. The
 # cells are patch/offsets.inc PA_* (test/pod/pcshow.py checks they are these numbers); the payload decodes the atlas once with its alpha (podcasts.c pg_atlas). The bottom sheets' glyphs
 # are images of their own (they sit in widgets) and the sheets' glass for one to five rows (the More sheet's glass, a picture per height).
@@ -1603,7 +1603,7 @@ def ring_tile(g, state, on_style='disc'):
 
 
 # ---------------------------------------------------------------- round 3: playback, badges, controls, hero art
-# Stock images that were still stock after round 2 (docs/modules/icons.md "Round 3"). Kept stock: every MQA image, eq_*, vol_dot,
+# Stock images that were still stock after round 2 (docs/modules/icons.md "What is replaced"). Kept stock: every MQA image, eq_*, vol_dot,
 # vol_progressbak, volume_bg, charge_big, dac_charge.
 R3_DISC_A, R3_DISC_A_DOWN = 51, 102           # the translucent white disc behind the screensaver's transport shapes: 20 %, pressed 40 %
 PM_DISC_A, PM_DISC_A_DOWN, PM_GLYPH_A_DOWN = 51, 90, 205   # the volume / Bluetooth plus and minus discs: 20 %, pressed 35 %; the pressed glyph 80 % white

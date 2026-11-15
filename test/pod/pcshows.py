@@ -1,4 +1,4 @@
-"""The Podcasts Shows page (round 2 of the revamp; patch/podcasts.c with patch/pcnet.c and patch/pcmodel.c, docs/modules/podcasts.md "The Shows page"): the large title that collapses into the navbar, the
+"""The Podcasts Shows page (round 2 of the revamp; patch/podcasts.c with patch/pcnet.c and patch/pcmodel.c, docs/modules/podcasts.md "Pages and controls"): the large title that collapses into the navbar, the
 refresh line in every state and its tap (the guards, the progress dialog, the downloads that pause), Continue Listening (hidden, one to three items, the order, the tap that resumes), the
 Downloads row and its level, the grid of every show (captions in each case, no badge, the order, a tap that opens the Show page, a subscription with nothing downloaded), the "..." sheet (Import from
 Card only while subscriptions.txt exists, no Add Show; the "..." hidden when the sheet would be empty), the empty library, the Feeds level gone, every layout number against the shared model

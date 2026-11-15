@@ -1333,7 +1333,7 @@ static void pm_speed_back(void) {
 }
 
 /* ---------------------------------------------------------------------------
- * The tag reader's hook (the one hook of Podcasts; docs/modules/podcasts.md "Tags"). Stock get_id3info (0x4dfd58) fills playsong_id3info (0xa0d88c: album +0x404, artist
+ * The tag reader's hook (the one hook of Podcasts; docs/modules/podcasts.md). Stock get_id3info (0x4dfd58) fills playsong_id3info (0xa0d88c: album +0x404, artist
  * +0x504, title +0x684) from the FILE'S TAGS (toolsGetMusicInfo 0x5ec6a8, taglib; the record's own strings are used only when the CUE flag is set), then copies the parsed path
  * into the struct's cache key (`jalr strcpy` at 0x4dff4c) and, after it, builds song_name / song_artist from the struct: an empty title becomes the file name, an empty
  * artist "Unknown". Every fresh parse passes that strcpy. It is replaced by `jal pc_id3_path` (q2-pod's ID3_PATH, tools/build.py, ringnav_id3_path): the delay slot still loads

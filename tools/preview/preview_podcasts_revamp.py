@@ -711,7 +711,7 @@ def assemble(frames, cols, path, lab=34, pad=12):
 
 
 def subs_page(s, shows, marked=None, empty=False):
-    """The Subscriptions page as patch/podcasts.c paints it (docs/modules/podcasts.md "Subscriptions and OPML"): the Downloads level's rows (a LIST_ART px cover, the name 21 px, the feed status 18 px grey, a
+    """The Subscriptions page as patch/podcasts.c paints it (docs/modules/podcasts.md "Pages and controls"): the Downloads level's rows (a LIST_ART px cover, the name 21 px, the feed status 18 px grey, a
     hairline from LIST_TEXT_X) for every show with a feed, by title (a leading "The " and the case aside); the capsule "..." | Now Playing. marked: a set of titles = select mode (the x, N Selected, Select All,
     a mark column of SG_SEL_COL, the bar with the Unsubscribe pill); empty: no subscription left, the status line."""
     o = O

@@ -153,7 +153,7 @@ STATUS_ICONS = {   # redrawn on the same canvas; stock bytes pinned
 }
 GLYPH_ON, GLYPH_OFF = (255, 255, 255), (0x66, 0x66, 0x66)   # q2-pod status_icon: white / #666666
 
-# The stock orange #FE7E40 left in images, recoloured neutral at build time (V2.1lA, docs/ui.md "Accents"):
+# The stock orange #FE7E40 left in images, recoloured neutral at build time (V2.1lA, docs/modules/accent.md "Accents"):
 # name -> (stock SHA-256, target colour, knob circle (cx, cy, r) or None). Alpha is kept bit for bit.
 FILL, THUMB, TILE = (0xEE, 0xEE, 0xEC), (0x77, 0x77, 0x77), (0x33, 0x33, 0x33)   # slider fill / thumb disc / cover tile
 KNOB = (42.5, 14, 15)        # the toggles' round knob (right edge of the "on" images)

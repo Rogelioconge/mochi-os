@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * Every stock list is list_view > scroll_view > list_item rows. The stock code (docs/architecture.md, "List gestures")
+ * Every stock list is list_view > scroll_view > list_item rows. The stock code (docs/modules/gestures.md)
  * has two holes. (1) A row cancels its press (and the scroll_view cancels it for every child) only when a MOVE crosses
  * the 10 px threshold. The scroll_view sees the pointer-up after its rows: a release far from the press with no MOVE
  * past the threshold in between (sparse touch samples in a quick flick) reaches the row as a click while the list

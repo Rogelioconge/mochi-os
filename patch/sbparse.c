@@ -1,4 +1,4 @@
-/* Subsonic / OpenSubsonic response parsers (declared in patch/sbapi.h; docs/modules/subsonic.md "Data and cache").
+/* Subsonic / OpenSubsonic response parsers (declared in patch/sbapi.h; docs/modules/subsonic.md "Cache and requests").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE). Pure functions over the JSON walker of patch/sbnet.c: no network, no files, no allocation; every read is bounded by the end of
  * the body or of the element being read, text is cut at a UTF-8 boundary, and a row without a usable id is skipped. A body is accepted only when it is one complete

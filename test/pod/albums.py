@@ -1577,7 +1577,7 @@ def foreground_loader_tests(ctx):
     expect(any(c[0] == 'widget_load_image' for c in tick(m)), 'fallback background leaves loader active')
 
 # ---------------------------------------------------------------------------
-# The navbar's "..." card (patch/viewsort.c, docs/modules/albums.md "The ... card"): sort rows, view row, the saved order.
+# The navbar's "..." card (patch/viewsort.c, docs/modules/albums.md "View sort card"): sort rows, view row, the saved order.
 SORT_FILE, SORT_TMP = '/mnt/data/m1plus/albums-sort', '/mnt/data/m1plus/albums-sort.tmp'
 # (album, artist) in the stock rows' order (the mock's own, not sorted: Title sorts them)
 SORT_LIB = [('Alpha', 'Zed'), ('beta', 'Yan'), ('Gamma', 'Zed'), ('Delta', 'The Xu'), ('Epsilon', 'Wu')]

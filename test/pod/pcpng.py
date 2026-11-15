@@ -1,4 +1,4 @@
-"""Podcast cover art from a PNG (patch/pcpng.c, patch/pccover.c pv_shrink_png; docs/modules/podcasts.md "Cover art"): the streaming PNG decoder (chunks, inflate with stored, fixed and dynamic blocks,
+"""Podcast cover art from a PNG (patch/pcpng.c, patch/pccover.c pv_shrink_png; docs/modules/podcasts.md "Network and feeds"): the streaming PNG decoder (chunks, inflate with stored, fixed and dynamic blocks,
 the five filters, every colour type and depth, transparency over white) feeding the area average and the libjpeg encoder, compared with PIL's resize of the same picture, and every kind of damaged
 file (it must fail cleanly, with no output file and every libjpeg object destroyed). The compiled payload runs under Unicorn; libjpeg is the PIL mock of test/pod/pcnet.py."""
 import io, os, random, struct, zlib

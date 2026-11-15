@@ -462,7 +462,7 @@ def discover_find():
 def build_podcasts_page(page):
     """The Podcasts page (patch/podcasts.c, docs/modules/podcasts.md): the Albums list mode's structure (a stock list holding the one content view the payload paints) under the
     plain navbar (Back, title, Now Playing). The payload paints the levels in view_grid; label_status is its empty-state hint (two lines); the hidden labels are the text styles.
-    The Show level is tinted from the cover as the album page is (docs/modules/album-page.md "Cover tint"): the window's colour is set by the payload and img_ah_tint, the gradient
+    The Show level is tinted from the cover as the album page is (docs/modules/album-page.md "Artwork and shared tint"): the window's colour is set by the payload and img_ah_tint, the gradient
     over it, is shown; so the list, its scroll view and the content view are transparent (on every level: over the black window they look as before)."""
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
     styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')

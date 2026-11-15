@@ -61,7 +61,7 @@ const char *pf_summary(
  * An item whose guid an old line has keeps that line's file name; the others get "YYYY-MM-DD Title.ext". *fresh: kept items no old line had. dir: the show folder's path (the files are looked at with access). */
 unsigned pf_render_episodes(const pf_parser_t *p, const char *dir, const char *old, unsigned oldn, char *out,
                             unsigned cap, unsigned *fresh);
-/* One line of the show's .notes file for kept item i (docs/modules/podcasts.md "The notes file"): "g=<guid>\t<text>\n", the text's backslash written "\\" and its paragraph break "\n" (two characters). Returns its length, 0 when the item has no
+/* One line of the show's .notes file for kept item i (docs/modules/podcasts.md "Files and model"): "g=<guid>\t<text>\n", the text's backslash written "\\" and its paragraph break "\n" (two characters). Returns its length, 0 when the item has no
  * long description or the line does not fit cap whole (a line of at most PF_NOTE_LINE bytes always fits). */
 #define PF_NOTE_LINE (2 + PF_GUID + 1 + 2 * PF_NOTE + 2)
 unsigned pf_render_note(const pf_parser_t *p, int i, char *out, unsigned cap);
