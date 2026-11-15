@@ -197,8 +197,8 @@ Next Album also uses `upnext_add(rows, 1)` ([nextalbum](nextalbum.md)); only `UP
 ### Row edit (the "..." of an Up Next row)
 
 - **The dots:** each Up Next row ends with the row lists' grey "..." ([rowmenu](rowmenu.md)), in a
-  44 px zone x 266..310. The text ends at x 262. A tap on the dots opens the sheet, a tap elsewhere
-  plays the row; the press rules are the lists'.
+  44 px zone x 266..310. The text ends at x 269 (10 px before the glyph's ink). A tap on the dots, or a press held on the row, opens the sheet; a tap elsewhere
+  plays the row; the press rules are the lists' ([rowmenu](rowmenu.md) "Long press").
 - **When they show** (`qp.edit_on`): Clear's condition and the play type is not folder playback.
   Otherwise the rows have no dots and the text ends at x 298.
 - **The sheet** is the row menu's queue form ([rowmenu](rowmenu.md)): **Play Next**, **Play After**,

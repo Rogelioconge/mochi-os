@@ -350,7 +350,9 @@ static int sg_art_x(void) { return LIST_ART_X + (sg.select ? SG_SEL_COL : 0); }
 
 /* The row's "..." (patch/rowmenu.c): shown outside select mode, its zone ends at the list's edge, or left of the A-Z rail while that is shown; the title and the artist end before it. */
 static int sg_more_right(void) { return RM_MORE_RIGHT - az_inset(&sg.al); }
-static int sg_edge(void) { return rowmenu_on(&sg.rm) ? rowmenu_zone_x(sg_more_right()) - RM_TEXT_GAP : az_end(&sg.al); }
+static int sg_edge(void) {
+    return rowmenu_on(&sg.rm) ? rowmenu_text_end(sg_more_right(), az_inset(&sg.al) > 0) : az_end(&sg.al);
+}
 static int sg_more(void) { return !sg.select && rowmenu_on(&sg.rm); }
 static int sg_text_end(void) { return sg.select ? az_end(&sg.al) : sg_edge(); }
 
@@ -1377,6 +1379,19 @@ static int sg_on_act(void *e) {
     return az_act_hit(&sg.al, pt[0], pt[1]);
 }
 
+/* A press held RM_LONG_MS on a row: its menu opens while the finger is still down; the press is forgotten, so the release does nothing. */
+static void sg_on_hold(int row) {
+    sg.down = sg.down_more = sg.down_act = 0;
+    grid_set_press(&sg.press, 0, sg.sv);
+    if (sg.view && !sg.select && !sg.rv && (unsigned)row < sg.count) sg_open_menu(row);
+}
+
+static int sg_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (sg.down && e) rowmenu_hold_move(&sg.tap, e);
+    return RET_OK;
+}
+
 static int sg_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -1395,12 +1410,14 @@ static int sg_on_down(void *ctx, void *e) {
     sg.down = a + 1, m1_tap_at(&sg.tap, e);
     sg.down_more = a >= 0 && sg_in_zone(e);
     if (!sg.select && !sg.down_more) grid_set_press(&sg.press, a + 1, sg.sv);
+    if (a >= 0 && !sg.select && sg_more()) rowmenu_hold_start(a, sg_on_hold);
     return RET_OK;
 }
 
 static int sg_on_up(void *ctx, void *e) {
     int a = sg.down - 1, more = sg.down_more, act = sg.down_act;
     (void)ctx;
+    rowmenu_hold_stop();
     sg.down = sg.down_more = sg.down_act = 0;
     grid_set_press(&sg.press, 0, sg.sv);
     if (act && e && sg.view && sg.dlq && m1_tap_near(&sg.tap, e) &&
@@ -1431,6 +1448,7 @@ static int sg_on_up(void *ctx, void *e) {
 static int sg_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     sg.down = sg.down_more = sg.down_act = 0;
     grid_set_press(&sg.press, 0, sg.sv);
     return RET_OK;
@@ -1823,6 +1841,7 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     widget_on(sg.win, EVT_WINDOW_TO_BG, sg_on_bg, (void *)0);
     widget_on(sg.view, EVT_POINTER_DOWN, sg_on_down, (void *)0);
     widget_on(sg.view, EVT_POINTER_UP, sg_on_up, (void *)0);
+    widget_on(sg.view, EVT_POINTER_MOVE, sg_on_move, (void *)0);
     widget_on(sg.view, EVT_POINTER_ABORT, sg_on_abort, (void *)0);
     widget_on(sg.view, EVT_AFTER_PAINT, sg_on_paint, (void *)0);
     az_bind_rail(&sg.al, sg_on_rail, sg_on_rail_paint);

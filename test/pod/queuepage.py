@@ -1146,15 +1146,15 @@ def rowedit_tests(ctx):
     # the dots: every Up Next row ends with the row lists' dots (the same bitmap and position as the Songs rows: centred in the 44 px zone ending at 310, 19 px down the 64 px row), the texts end before them
     m = opened(n=6, pos=1, menu=True)
     d = dots(m)
-    room = zx - RM.GAP - O['LIST_TEXT_X']
+    room = zx + (RM.MORE_W - RM.DOTS) // 2 + RM.INK_X - RM.INK_GAP - O['LIST_TEXT_X']
     expect([(b[2][0], b[2][1]) for b in d] == [(zx + (RM.MORE_W - RM.DOTS) // 2, row_y(i) + (ROW - 1 - RM.DOTS) // 2) for i in range(3)], f'a dots bitmap on each row wholly in view, at the lists\' place: {[b[2] for b in d]}')
     blits, texts, fills = paint(m)
     ttl = [(t, r) for (t, r), s in texts if s == 'label_row_title']; sub = [(t, r) for (t, r), s in texts if s == 'label_row_sub']
-    expect(room == 188 and [r[2] for _, r in ttl + sub] == [room] * 8, f'the titles and the artists end 4 px before the zone (width {room}, was 224)')
+    expect(room == 195 and [r[2] for _, r in ttl + sub] == [room] * 8, f'the titles and the artists end {RM.INK_GAP} px before the dots\' ink (width {room}, was 224)')
     expect(fills_of(fills, O['LIST_HAIR']) == [(O['LIST_HAIR'], 74, row_y(i) + 63, O['QP_TEXT_END'] - O['LIST_TEXT_X'], 1) for i in range(3)], 'the hairline keeps its old length')
     expect(not [b for b in d if b[2][1] < TOP], 'the header (the playing track) has no dots')
     # a cut that the narrower room needs: the title that fitted 224 px is cut again
-    long_t = 'Abcdefghijklmnopqrstuvwxyz'   # 26 glyphs of 8 px: 208 px fit the old 224, not the new 188
+    long_t = 'Abcdefghijklmnopqrstuvwxyz'   # 26 glyphs of 8 px: 208 px fit the old 224, not the new 195
     m2 = opened(n=4, pos=0, titles=['P', long_t, 'B', 'C'], menu=True)
     got = [t for (t, r), s in paint(m2)[1] if s == 'label_row_title']
     expect(got[0].endswith('…') and len(got[0]) < len(long_t), f'a long title is cut for the narrower room ({got[0]!r})')
@@ -1226,6 +1226,23 @@ def rowedit_tests(ctx):
     touch(m, 'down', ZX, row_y(0) + 30, 'qp_on_down')
     expect(not fills_of(paint(m)[2], O['LIST_PRESS']), 'a press on the dots draws no row highlight')
     touch(m, 'up', ZX, row_y(0) + 30, 'qp_on_up', 1080)
+    destroy(m)
+    # a long press (RM_LONG_MS timer, patch/rowmenu.c): on the text it opens the sheet while the finger is down, the release plays nothing; a drag or an abort before it cancels
+    m = opened(n=6, pos=1, menu=True)
+    m.calls.clear()
+    touch(m, 'down', 100, row_y(1) + 30, 'qp_on_down')
+    expect(any(c[0] == 'timer_add' and c[1] == PSYMS['rm_on_hold'] and c[2] == RM.LONG_MS for c in m.calls) and closed(m), f'a press on a row arms the {RM.LONG_MS} ms hold timer; the sheet is not open yet')
+    m.call(PSYMS['rm_on_hold'], count=900000000)
+    expect(sheet(m) and not fills_of(paint(m)[2], O['LIST_PRESS']), 'the timer opens the sheet for the row while the finger is down and clears the row highlight')
+    touch(m, 'up', 100, row_y(1) + 30, 'qp_on_up', 1600)
+    expect(sheet(m) and not plays(m), 'the release afterwards plays nothing and leaves the sheet open')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True)
+    touch(m, 'down', 100, row_y(1) + 30, 'qp_on_down'); touch(m, 'move', 100, row_y(1) + 45, 'qp_on_move', 1200)
+    expect(any(c[0] == 'timer_remove' for c in m.calls), 'a move of 15 px stops the hold timer')
+    touch(m, 'down', 100, row_y(1) + 30, 'qp_on_down'); m.call(PSYMS['qp_on_abort'], count=900000000)
+    expect(any(c[0] == 'timer_remove' for c in m.calls) and closed(m), 'an abort stops it too')
+    touch(m, 'up', 100, row_y(1) + 30, 'qp_on_up', 1600)
     destroy(m)
     m = opened(n=6, pos=1, menu=True)
     tap(m, 100, row_y(2) + 30)

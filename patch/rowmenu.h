@@ -7,6 +7,7 @@
  */
 #pragma once
 #include "libsrc.h"
+#include "common.h"
 
 typedef struct rowmenu rowmenu_t;
 
@@ -65,6 +66,16 @@ static inline int rowmenu_on(const rowmenu_t *rm) { return rm->on; }
 
 /* The left edge of the "..." zone whose right edge is `right` (RM_MORE_RIGHT, or RM_MORE_RIGHT_RAIL beside the Songs page's rail). */
 int rowmenu_zone_x(int right);
+
+/* Where the text of a row ends: RM_INK_GAP before the glyph's ink, for the zone whose right edge is `right` and `flush` as rowmenu_paint takes them. */
+int rowmenu_text_end(int right, int flush);
+
+/* The long press (RM_LONG_MS): a page calls rowmenu_hold_start from its press on a row; when the time is up `fn(row)` runs (the page clears its press and calls its open). The page stops it on a
+ * release, an abort and a move of SC_DRAG_PX or more (rowmenu_hold_move with the press point); rowmenu_close and rowmenu_free stop it too. */
+typedef void (*rowmenu_hold_fn)(int row);
+void rowmenu_hold_start(int row, rowmenu_hold_fn fn);
+void rowmenu_hold_stop(void);
+void rowmenu_hold_move(const m1_tap_t *t, void *e);
 
 /* The "..." of a row whose top is at y (the page's paint coordinates) in the zone whose right edge is `right`, cut to [0, view_h) like the chevrons. `flush` 0: centred in the
  * zone; `flush` 1: its bitmap's right edge on `right` (the Songs page beside the A-Z rail). */

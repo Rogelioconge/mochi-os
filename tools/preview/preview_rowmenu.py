@@ -31,13 +31,13 @@ ND_STATES = {   # a Navidrome row's sheet (patch/rowmenu.c rm_third): the third 
 
 def album(s, scroll=300, menu=False, playing=2, nd=None):
     """The album page (patch/albumpage.c) scrolled to its tracks: the tinted window, the glass Back and Select | Now Playing capsule, each track's number, title and "..." (the title ends
-    RM_TEXT_GAP before the zone), the hairline; the menu when asked. 450 px of window."""
+    RM_INK_GAP before the glyph's ink), the hairline; the menu when asked. 450 px of window."""
     win, hdr = O['AH_WIN_H'], O['AH_HDR_H']
     im = Image.new('RGBA', (320, win), TONE + (255,))
     d = ImageDraw.Draw(im)
     more, right = PS.dots(s), O['RM_MORE_RIGHT']
     tx = O['AB_NUM_X'] + O['ROW_NUM_W'] + O['AB_NUM_GAP']
-    room = right - O['RM_MORE_W'] - O['RM_TEXT_GAP'] - tx
+    room = right - O['RM_MORE_W'] + (O['RM_MORE_W'] - O['RM_DOTS_PX']) // 2 + O['RM_INK_X'] - O['RM_INK_GAP'] - tx
     for i in range(len(TRACKS)):
         y = hdr + i * ROW - scroll
         if y + ROW < 0 or y > win: continue

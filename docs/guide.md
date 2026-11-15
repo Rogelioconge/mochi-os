@@ -37,7 +37,7 @@ In Now Playing, tap **…** for playback options, Look up album, Look up artist 
 Open its **More** page for **Sleep Timer** (a page with Off, 15 minutes, 30 minutes, 45 minutes, 1 hour, 1.5 hours and 2 hours; the player turns off when the time is up) and the
 online cover and lyrics lookup (Wi-Fi required). The timer counts down in the same setting as Settings > All System Settings > Power; the page checks Off while no timer runs and a time only for as long as the countdown still equals it, so a running timer soon shows no check. While a timer runs, a **Time Left** row under the list shows the time left as hours and minutes (`1:30`, rounded up to the next minute) and follows the countdown every few seconds; it is hidden while the timer is Off.
 
-A track row's **…** on the album page and the Songs lists offers **Play Next**, **Play After**,
+A track row's **…** on the album page and the Songs lists, or a long press (about half a second) anywhere on the row, offers **Play Next**, **Play After**,
 **Add to Playlist**, **Favorite** (Undo Favorite when it is one) and **Get Info**: the track's
 format, sample rate and bit depth, bitrate, length, size and path. Shuffle reorders the queue itself, so the Queue page's Up Next shows what
 plays next; **Clear** in its header removes the songs after the playing one.

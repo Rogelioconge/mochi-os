@@ -2,30 +2,32 @@
 
 A grey "..." at the right end of every track row opens a bottom sheet in the look of Now Playing's More sheet ([playmore](playmore.md)).
 Pages: the album page (`patch/albumpage.c`) and the Songs page (`patch/songs.c`) with every list it hosts (the library, a playlist, genre, artist, Most Played,
-Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not covered: Search, Daily Mix, the Albums grid, Folders, Podcasts rows; a "..." pressed state; a long-press menu.
+Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not covered: Search, Daily Mix, the Albums grid, Folders, Podcasts rows; a "..." pressed state.
 
 **Sources:** `patch/rowmenu.c` / `rowmenu.h` (open, close, the "..." bitmap and its painter, the actions), `patch/songinfo.c` (Get Info, [songinfo](songinfo.md)), the pages' row painters, hit tests and one-row
 `Add to Playlist`, `patch/upnext.c` (`upnext_add`, [queue](queue.md)), `patch/songops.c` (`so_add`), `patch/picker.c`, `tools/pod_ui.py` (`row_menu`),
 `tools/mod_icons.py` (`RM_MENU_ICONS`, `RM_DOTS`, `GLASS_ROWMENU`), `patch/offsets.inc` (`RM_*`), `tools/pod_i18n.py`.
-**Tests:** `test/pod/rowmenu.py`, `test/pod/songs.py`, `test/pod/albumpage.py`.
+**Tests:** `test/pod/rowmenu.py`, `test/pod/songs.py`, `test/pod/albumpage.py`, `test/pod/queuepage.py`.
 **Preview:** `uv run python -I tools/preview/preview_rowmenu.py work/mod-release out/preview/rowmenu.png` (also `tools/preview/preview_songs.py`).
 
 ## What the user sees
 
 - **The "..."**: the Lucide ellipsis (24 px, `rm_dots`, solid dots) in `#8C8C8C` (6.2:1 on black, no accent), in a `RM_MORE_W` 44 px tap zone: centred, except beside the Songs page's A-Z rail where it is right-aligned (bitmap x 260..284, ink ending at 281; `rowmenu_paint`'s `flush`), 19 px down the 64 px row (centred above the hairline).
-  The title (and the Songs page's artist line) end `RM_TEXT_GAP` 4 px before the zone, so text never runs under it. The hairline keeps its old length.
+  The title (and the Songs page's artist line) end `RM_INK_GAP` 10 px before the glyph's ink (the bitmap's ink spans columns 3..20, `RM_INK_X` 3), the chevron rows' gap, so text never runs under it; `rowmenu_text_end(right, flush)` is the one place that computes it. The hairline keeps its old length.
 
   | Page | Zone | Text ends |
   |---|---|---|
-  | album page | x 266..310 (`RM_MORE_RIGHT` 310) | 262 |
-  | Songs, no rail (a list, or an order with no sections) | x 266..310 | 262 |
-  | Songs, A-Z rail shown | x 240..284 (`RM_MORE_RIGHT_RAIL`: flush with the rail's touch column, which starts at 284); the "..." right-aligned in it | 236  |
+  | album page | x 266..310 (`RM_MORE_RIGHT` 310) | 269 |
+  | Songs, no rail (a list, or an order with no sections) | x 266..310 | 269 |
+  | Songs, A-Z rail shown | x 240..284 (`RM_MORE_RIGHT_RAIL`: flush with the rail's touch column, which starts at 284); the "..." right-aligned in it | 253 |
+  | Queue, Up Next rows | x 266..310 | 269 |
 
   Select mode has no "...": the text ends where it used to and a tap marks the row. An asset without the menu's widgets also leaves the old rows. The state is read once, when the page opens (`rowmenu_bind`), and again at every open of the menu.
 - **Tap**: the page's own press rules. DOWN in the zone remembers it (no press fill: only a tap elsewhere in the row highlights), ABORT (the scroll_view took a drag) forgets it, UP within
   `SC_DRAG_PX` 10 px of the press, on the same row and still in the zone opens the menu. A drag, a scroll, a press that moves 10 px or more, a press that began in the zone and ended off it
   and a release on the title block, a section header or the air below the last row open nothing. A press that began elsewhere in the row and moved a few pixels into the zone is a row tap
   (it plays, as it always did). The rest of the row plays the song as before.
+- **Long press**: a press on a row (anywhere on it, the "..." zone included) held `RM_LONG_MS` 500 ms without moving `SC_DRAG_PX` 10 px opens the same menu while the finger is still down. The row's press fill is cleared and the release afterwards does nothing. A scroll (ABORT), a move of 10 px or more or an earlier release cancels it (`rowmenu_hold_start` arms one timer, `rowmenu_hold_stop` / `rowmenu_hold_move` cancel it; `rowmenu_close` stops it too). Select mode (a tap still marks), section headers, the pinned header, the title block and the air below the last row have none. Songs page, album page and the Queue page's Up Next rows (while their "..." shows) have it; no haptics.
 - **The sheet** copies Now Playing's More sheet ([playmore](playmore.md) "Glass"): a full-window `#00000082` scrim (the sheet's dim) whose tap closes the menu, then `rm_card`, 320 x 250 on the
   window's foot (window y 200..450, screen 230..480) with `pc_sheet5` (`mod_icons.glass_image(320, 250, 18, GLASS_SHEET_FILL, top_only=True)`: top corners only) as its `bg_image`, drawn 1:1.
   Five full-width 50 px rows: a bare 24 px Lucide glyph at x 14 (the accent with one picked, as every sheet's glyphs: `ACCENT_GLYPH_STOCK`, [accent](accent.md)) and the 18 px white label from x 48 to 298 (the sheet's own rows, `pod_tape`), rows transparent and `#FFFFFF10` pressed,

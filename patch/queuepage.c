@@ -118,9 +118,7 @@ static int qp_max_scroll(void) {
 }
 
 /* The text end of a row: before the "..." zone while the rows show it, else the old end. The hairline keeps its length either way. */
-static int qp_room(void) {
-    return (qp.edit_on ? rowmenu_zone_x(RM_MORE_RIGHT) - RM_TEXT_GAP : QP_TEXT_END) - LIST_TEXT_X;
-}
+static int qp_room(void) { return (qp.edit_on ? rowmenu_text_end(RM_MORE_RIGHT, 0) : QP_TEXT_END) - LIST_TEXT_X; }
 
 /* The row under content point y, -1 for the header and the air below the last row. */
 static int qp_at(int y) {
@@ -612,6 +610,19 @@ static void qp_open_menu(int a) {
     rowmenu_open_queue(&qp.rm, a, qp_on_menu);
 }
 
+/* A press held RM_LONG_MS on a row: its menu opens while the finger is still down; the press is forgotten, so the release does nothing. */
+static void qp_on_hold(int row) {
+    qp.down = qp.down_more = 0;
+    grid_set_press(&qp.press, 0, qp.sv);
+    if (qp.view && (unsigned)row < qp.n) qp_open_menu(row);
+}
+
+static int qp_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (qp.down && e) rowmenu_hold_move(&qp.tap, e);
+    return RET_OK;
+}
+
 static int qp_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -621,12 +632,14 @@ static int qp_on_down(void *ctx, void *e) {
     qp.down = a + 1, m1_tap_at(&qp.tap, e);
     qp.down_more = a >= 0 && qp_in_zone(e);
     if (!qp.down_more) grid_set_press(&qp.press, a + 1, qp.sv); /* (no press fill on the "...") */
+    if (a >= 0 && qp.edit_on) rowmenu_hold_start(a, qp_on_hold);
     return RET_OK;
 }
 
 static int qp_on_up(void *ctx, void *e) {
     int a = qp.down - 1, more = qp.down_more;
     (void)ctx;
+    rowmenu_hold_stop();
     qp.down_more = 0;
     grid_press_end(&qp.down, &qp.press, qp.sv);
     if (a < 0 || !e || !qp.view) return RET_OK;
@@ -642,6 +655,7 @@ static int qp_on_up(void *ctx, void *e) {
 static int qp_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     qp.down_more = 0;
     grid_press_end(&qp.down, &qp.press, qp.sv);
     return RET_OK;
@@ -734,6 +748,7 @@ int queue_open(void) {
                   !widget_on(qp.sv, EVT_SCROLL_END, qp_on_scroll, (void *)0);
     widget_on(qp.view, EVT_POINTER_DOWN, qp_on_down, (void *)0);
     widget_on(qp.view, EVT_POINTER_UP, qp_on_up, (void *)0);
+    widget_on(qp.view, EVT_POINTER_MOVE, qp_on_move, (void *)0);
     widget_on(qp.view, EVT_POINTER_ABORT, qp_on_abort, (void *)0);
     widget_on(qp.view, EVT_AFTER_PAINT, qp_on_paint, (void *)0);
     if (!grid_init(&qp.hg, qp.win, 1, QP_COVER, QP_COVER_R) || !grid_init(&qp.g, qp.win, GRID_TILES, LIST_ART, 0)) {

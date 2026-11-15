@@ -169,7 +169,7 @@ static int ab_tx(int i) { return AB_NUM_X + ab_shift() + ab_numw(i) + AB_NUM_GAP
 
 /* The row's "..." (patch/rowmenu.c): shown outside select mode, at the list's right edge; the title ends before it. */
 static int ab_more(void) { return !ab.select && rowmenu_on(&ab.rm); }
-static int ab_text_end(void) { return ab_more() ? rowmenu_zone_x(RM_MORE_RIGHT) - RM_TEXT_GAP : AB_TEXT_END; }
+static int ab_text_end(void) { return ab_more() ? rowmenu_text_end(RM_MORE_RIGHT, 0) : AB_TEXT_END; }
 
 static int ab_is_sel(int i) { return ab.sel && (ab.sel[i >> 3] >> (i & 7) & 1); }
 
@@ -913,6 +913,19 @@ static void ab_open_menu(int a) {
     rowmenu_open_src(&ab.rm, a, deque_at(ab.list, (unsigned)a), ab_add_one, ab.src);
 }
 
+/* A press held RM_LONG_MS on a row: its menu opens while the finger is still down; the press is forgotten, so the release does nothing. */
+static void ab_on_hold(int row) {
+    ab.down = ab.down_more = 0;
+    grid_set_press(&ab.press, 0, ab.sv);
+    if (ab.view && !ab.select && (unsigned)row < ab.count) ab_open_menu(row);
+}
+
+static int ab_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (ab.down && e) rowmenu_hold_move(&ab.tap, e);
+    return RET_OK;
+}
+
 static int ab_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -922,12 +935,14 @@ static int ab_on_down(void *ctx, void *e) {
     ab.down = a + 1, m1_tap_at(&ab.tap, e);
     ab.down_more = a >= 0 && ab_in_zone(e);
     if (!ab.select && !ab.down_more) grid_set_press(&ab.press, a + 1, ab.sv);
+    if (a >= 0 && ab_more()) rowmenu_hold_start(a, ab_on_hold);
     return RET_OK;
 }
 
 static int ab_on_up(void *ctx, void *e) {
     int a = ab.down - 1, more = ab.down_more;
     (void)ctx;
+    rowmenu_hold_stop();
     ab.down = ab.down_more = 0;
     grid_set_press(&ab.press, 0, ab.sv);
     if (a < 0 || !e || !ab.view) return RET_OK;
@@ -945,6 +960,7 @@ static int ab_on_up(void *ctx, void *e) {
 static int ab_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     ab.down = ab.down_more = 0;
     grid_set_press(&ab.press, 0, ab.sv);
     return RET_OK;
@@ -1105,6 +1121,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     rowmenu_bind(&ab.rm, ab.win); /* the rows' "..." menu (optional: no widgets means no "...") */
     widget_on(ab.view, EVT_POINTER_DOWN, ab_on_down, (void *)0);
     widget_on(ab.view, EVT_POINTER_UP, ab_on_up, (void *)0);
+    widget_on(ab.view, EVT_POINTER_MOVE, ab_on_move, (void *)0);
     widget_on(ab.view, EVT_POINTER_ABORT, ab_on_abort, (void *)0);
     widget_on(ab.view, EVT_AFTER_PAINT, ab_on_paint, (void *)0);
     m1_pill_place(&ab.pill, AH_BTN_Y);

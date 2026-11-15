@@ -35,9 +35,9 @@ marks use `patch/common.c`, shared with Playlists.
     artist 18 px `#AAAAAA` at y 33, both from x 74, cut with an ellipsis at `az_end`, hairline x 74
     to the same x. No stars.
   - Each row ends with a grey "..." (24 px `#8C8C8C`, 44 px zone) that opens the Play Next / Play
-    After / Add to Playlist menu ([rowmenu](rowmenu.md)). Text ends at x 262, or x 236 while the
+    After / Add to Playlist menu ([rowmenu](rowmenu.md)). Text ends at x 269, or x 253 while the
     rail shows (the zone then sits left of the rail's touch column). Select mode has neither.
-  - The pressed row is filled `#333333` (not when the press is in the "..." zone).
+  - The pressed row is filled `#333333` (not when the press is in the "..." zone). A press held 500 ms opens the row's menu ([rowmenu](rowmenu.md) "Long press").
 - **Any other order is a plain list** (no headers, no rail): File Name, Format, Recently Added.
   Title Z-A keeps its sections, mirrored.
 - **Pinned header**: the section at the window's top stays under the navbar and the next header

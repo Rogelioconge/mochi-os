@@ -12,7 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SG, AB = sibling('songs'), sibling('albumpage')
 
 ROW, MORE_W, DOTS = O['LIST_ROW_H'], O['RM_MORE_W'], O['RM_DOTS_PX']
-RIGHT, RIGHT_RAIL, GAP = O['RM_MORE_RIGHT'], O['RM_MORE_RIGHT_RAIL'], O['RM_TEXT_GAP']
+RIGHT, RIGHT_RAIL, INK_X, INK_GAP, LONG_MS = O['RM_MORE_RIGHT'], O['RM_MORE_RIGHT_RAIL'], O['RM_INK_X'], O['RM_INK_GAP'], O['RM_LONG_MS']
 PLROW = O['PM_ROW_H']
 CARD_H = 5 * PLROW
 CARD_Y = 450 - CARD_H                                   # the sheet sits on the window's foot (window y 200..450)
@@ -185,11 +185,11 @@ def paint_tests(ctx):
         expect(shown == want and all(b[2][0] == dx for b in dots) and all(b[0] == dots[0][0] for b in dots) and len(want) >= 3,
                f'{what}: every row in view has its "..." at x {dx} (a {MORE_W} px zone ending at {right}; {"flush with its right edge" if not plain else "centred"}), centred above the hairline ({shown} vs {want})')
         t = titles_of(texts)
-        room = right - MORE_W - GAP - tx
-        expect(t and all(r[2] == room for r in t.values()) and room == (188 if plain else 162),
-               f'{what}: the titles are {room} px wide ({sorted({r[2] for r in t.values()})}), cut where the "..." begins')
+        room = dx + INK_X - INK_GAP - tx   # the text ends INK_GAP before the glyph's ink
+        expect(t and all(r[2] == room for r in t.values()) and room == (195 if plain else 179) and INK_X == 3 and INK_GAP == 10,
+               f'{what}: the titles are {room} px wide ({sorted({r[2] for r in t.values()})}), cut {INK_GAP} px before the "..."\'s ink')
         dst = dots[0][2]
-        expect(dst[0] == dx and dst[0] >= zone and dst[0] + DOTS <= right and zone - tx - room == GAP, f'{what}: the text ends {GAP} px before the zone, the dots are inside it')
+        expect(dst[0] == dx and dst[0] >= zone and dst[0] + DOTS <= right and dst[0] + INK_X - (tx + room) == INK_GAP, f'{what}: the text ends {INK_GAP} px before the dots\' ink, the dots are inside the zone')
         # the bitmap: the image's coverage as the alpha, #8C8C8C
         data, bw, bh = m.bitmaps[dots[0][0]]
         px = struct.unpack(f'<{DOTS * DOTS}I', bytes(m.u.mem_read(data, DOTS * DOTS * 4)))
@@ -209,8 +209,8 @@ def paint_tests(ctx):
     m.call(PSYMS['sg_on_item'], a0=1, a1=0, count=900000000)
     blits, texts, styles, fills = SG.settle(m)
     t = titles_of(texts)
-    expect(dot_blits(blits) and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dot_blits(blits)) and all(r[2] == 188 for r in t.values()),
-           f'another sort order (a plain list, no rail): the "..." at the right edge, titles 188 px ({sorted({r[2] for r in t.values()})})')
+    expect(dot_blits(blits) and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dot_blits(blits)) and all(r[2] == 195 for r in t.values()),
+           f'another sort order (a plain list, no rail): the "..." at the right edge, titles 195 px ({sorted({r[2] for r in t.values()})})')
     # missing widgets: no "...", the old widths, and a tap there plays
     for what, kw in (('the asset has no menu', dict(menu=False)),):
         m = songs(**kw)
@@ -235,7 +235,7 @@ def paint_tests(ctx):
         want = [AB.row_y(i) - 300 + (ROW - 1 - DOTS) // 2 for i in range(6)]
         expect(nr >= 3 and ys == want and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dots),
                f'{what}: a "..." at x {RIGHT - MORE_W + (MORE_W - DOTS) // 2} on every track ({ys})')
-        expect(all(ty[t][2] == RIGHT - MORE_W - GAP - (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP']) for t in names), f'{what}: the titles end {GAP} px before the zone (x 262): {sorted({ty[t][2] for t in names})}')
+        expect(all(ty[t][2] == 269 - (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP']) for t in names), f'{what}: the titles end {INK_GAP} px before the dots\' ink (x 269): {sorted({ty[t][2] for t in names})}')
         AB.click(m, 'btn_select')
         blits, texts, fills = AB.paint(m)
         ty = {t: rect for (t, rect), st in texts if st == 'label_row_title' and t in AB.NAMES}
@@ -309,6 +309,88 @@ def touch_tests(ctx):
     AB.click(m, 'btn_select')
     AB.tap(m, 288, y)
     expect(vis(m, 'rm_card') == (0, 0), 'album page: select mode, no menu')
+
+
+def hold_tests(ctx):
+    """3b. The long press (patch/rowmenu.c rowmenu_hold_*): a press held RM_LONG_MS on a row, not moved SC_DRAG_PX, opens the menu while the finger is down; the release then does nothing; a drag, an
+    abort, select mode, a header or the air below do not."""
+    expect = ctx.expect
+    timers = lambda m: [c for c in m.calls if c[0] == 'timer_add' and c[1] == PSYMS['rm_on_hold']]
+    for plain, zx, what in ((False, 252, 'Songs (rail)'), (True, 288, 'a list (no rail)')):
+        for x, where in ((100, 'on the text'), (zx, 'on the "..."')):
+            m = songs(plain=plain)
+            lay = lay_of(m, plain)
+            y = lay.row_y(3) + 30
+            SG.touch(m, 'down', x, SG.SCREEN_Y0 + y, 'sg_on_down')
+            expect(len(timers(m)) == 1 and timers(m)[0][2] == LONG_MS and vis(m, 'rm_card') == (0, 0), f'{what}: a press {where} arms one {LONG_MS} ms timer; nothing is open yet')
+            m.call(PSYMS['rm_on_hold'], count=900000000)
+            expect(vis(m, 'rm_card') == (1, 1) and vis(m, 'rm_scrim') == (1, 1),
+                   f'{what}: held {where}, the menu opens while the finger is down')
+            m.calls.clear()
+            SG.touch(m, 'up', x, SG.SCREEN_Y0 + y, 'sg_on_up', 1600)
+            expect(vis(m, 'rm_card') == (1, 1) and not any(c[0] in ('navigator_to_with_context', 'loadSongList') for c in m.calls), f'{what}: the release afterwards plays nothing and leaves the menu open')
+            SG.click(m, 'rm_item0')
+            expect(len(m.up_calls) == 1 and len(m.up_calls[0][0]) == 1 and m.up_calls[0][1] == 0, f'{what}: Play Next then queues the held row')
+    # the held row is the one pressed
+    m = songs(plain=True)
+    lay = lay_of(m, True)
+    SG.touch(m, 'down', 100, SG.SCREEN_Y0 + lay.row_y(5) + 30, 'sg_on_down'); m.call(PSYMS['rm_on_hold'], count=900000000)
+    SG.touch(m, 'up', 100, SG.SCREEN_Y0 + lay.row_y(5) + 30, 'sg_on_up', 1600)
+    SG.click(m, 'rm_item0')
+    expect(len(m.up_calls) == 1 and m.read_cstr(m.word(m.up_calls[0][0][0] + O['REC_TITLE'])) == LETTERS[5], 'the menu is for the row that was pressed')
+    # a drag before the time cancels: a move of 10 px, an abort, a plain release
+    for how in ('move', 'abort', 'up'):
+        m = songs()
+        lay = lay_of(m, False)
+        y = SG.SCREEN_Y0 + lay.row_y(3) + 30
+        SG.touch(m, 'down', 100, y, 'sg_on_down'); m.calls.clear()
+        if how == 'move': SG.touch(m, 'move', 100, y + 10, 'sg_on_move', 1200)
+        elif how == 'abort': m.call(PSYMS['sg_on_abort'], count=900000000)
+        else: SG.touch(m, 'up', 100, y, 'sg_on_up', 1300)
+        expect(any(c[0] == 'timer_remove' for c in m.calls), f'{how}: the hold timer is removed')
+    m = songs()
+    lay = lay_of(m, False)
+    y = SG.SCREEN_Y0 + lay.row_y(3) + 30
+    SG.touch(m, 'down', 100, y, 'sg_on_down'); m.calls.clear(); SG.touch(m, 'move', 104, y + 5, 'sg_on_move', 1200)
+    expect(not any(c[0] == 'timer_remove' for c in m.calls), 'a move under SC_DRAG_PX keeps the hold')
+    SG.touch(m, 'up', 100, y, 'sg_on_up', 1600)
+    # select mode, headers, the air below: no timer
+    m = songs()
+    lay = lay_of(m, False)
+    SG.pick(m, 'select'); m.calls.clear()
+    SG.touch(m, 'down', 100, SG.SCREEN_Y0 + lay.row_y(3) + 30, 'sg_on_down')
+    expect(not timers(m), 'select mode: a press arms no hold (a tap still marks)')
+    SG.touch(m, 'up', 100, SG.SCREEN_Y0 + lay.row_y(3) + 30, 'sg_on_up', 1080)
+    expect(('widget_set_text_utf8', m.widgets['label_title'], '1 Selected') in m.calls, 'select mode: the tap marks the row')
+    m = songs()
+    lay = lay_of(m, False)
+    m.calls.clear()
+    SG.touch(m, 'down', 100, SG.SCREEN_Y0 + lay.hdr_y(1) + 14, 'sg_on_down')
+    SG.touch(m, 'down', 100, SG.SCREEN_Y0 + 60, 'sg_on_down')
+    expect(not timers(m), 'a section header and the title block arm no hold')
+    # the album page
+    m = AB.album_machine()
+    with_menu(m, 0)
+    AB.open_album(m)
+    AB.scroll_to(m, 300)
+    AB.paint(m)
+    y = AB.row_y(2) - 300 + 30
+    m.calls.clear()
+    AB.touch(m, 'down', 150, y, 'ab_on_down')
+    expect(len(timers(m)) == 1 and vis(m, 'rm_card') == (0, 0), 'album page: a press arms the hold')
+    m.call(PSYMS['rm_on_hold'], count=900000000)
+    expect(vis(m, 'rm_card') == (1, 1), 'album page: held, the menu opens while the finger is down')
+    m.calls.clear()
+    AB.touch(m, 'up', 150, y, 'ab_on_up', 1600)
+    expect(vis(m, 'rm_card') == (1, 1) and not any(c[0] == 'navigator_to_with_context' for c in m.calls), 'album page: the release plays nothing')
+    SG.click(m, 'rm_scrim')
+    AB.touch(m, 'down', 150, y, 'ab_on_down'); m.calls.clear()
+    AB.touch(m, 'move', 150, y + 12, 'ab_on_move', 1200)
+    expect(any(c[0] == 'timer_remove' for c in m.calls), 'album page: a drag stops the hold')
+    AB.touch(m, 'up', 150, y + 12, 'ab_on_up', 1300)
+    AB.click(m, 'btn_select'); m.calls.clear()
+    AB.touch(m, 'down', 150, y, 'ab_on_down')
+    expect(not timers(m), 'album page: select mode arms no hold')
 
 
 def menu_tests(ctx):
@@ -682,4 +764,4 @@ def queue_tests(ctx):
            f'"Remove from Queue" is translated in all 13 languages and the longest ({widest[1]}, {widest[0]:.0f} px) fits the {LABEL_W} px box')
 
 
-SECTIONS = [asset_tests, paint_tests, touch_tests, menu_tests, fav_info_tests, source_tests, queue_tests]
+SECTIONS = [asset_tests, paint_tests, touch_tests, hold_tests, menu_tests, fav_info_tests, source_tests, queue_tests]

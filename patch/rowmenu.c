@@ -20,6 +20,40 @@
 
 int rowmenu_zone_x(int right) { return right - RM_MORE_W; }
 
+/* The glyph bitmap's left edge: centred in the zone, or its right edge on `right` (flush). */
+static int rm_glyph_x(int right, int flush) {
+    return flush ? right - RM_DOTS_PX : rowmenu_zone_x(right) + (RM_MORE_W - RM_DOTS_PX) / 2;
+}
+
+int rowmenu_text_end(int right, int flush) { return rm_glyph_x(right, flush) + RM_INK_X - RM_INK_GAP; }
+
+/* The long press: one timer for the page that has the finger down (a page's touch is one at a time). */
+static struct {
+    unsigned timer;
+    int row;
+    rowmenu_hold_fn fn;
+} rm_hold __attribute__((section(".scratch")));
+
+void rowmenu_hold_stop(void) { m1_timer_stop(&rm_hold.timer); }
+
+static int rm_on_hold(const void *unused) {
+    rowmenu_hold_fn fn = rm_hold.fn;
+    (void)unused;
+    rm_hold.timer = 0;
+    if (fn) fn(rm_hold.row);
+    return RET_OK;
+}
+
+void rowmenu_hold_start(int row, rowmenu_hold_fn fn) {
+    rowmenu_hold_stop();
+    rm_hold.row = row, rm_hold.fn = fn;
+    rm_hold.timer = timer_add(rm_on_hold, (void *)0, RM_LONG_MS);
+}
+
+void rowmenu_hold_move(const m1_tap_t *t, void *e) {
+    if (rm_hold.timer && !m1_tap_near(t, e)) rowmenu_hold_stop();
+}
+
 /* The "..." as a bitmap: the image rm_dots is white on transparent (cc_decode flattens it over black, so the red channel is the coverage), the bitmap's alpha is that coverage and its
  * colour RM_DOTS_RGB. */
 static void *rm_make_dots(void *win) {
@@ -44,6 +78,7 @@ static void *rm_make_dots(void *win) {
 }
 
 void rowmenu_close(rowmenu_t *rm) {
+    rowmenu_hold_stop();
     rm->open = 0;
     rm->add = (rowmenu_add_fn)0;
     rm->queue = (rowmenu_queue_fn)0;
@@ -237,6 +272,7 @@ int rowmenu_open_queue(rowmenu_t *rm, int row, rowmenu_queue_fn fn) {
 }
 
 void rowmenu_free(rowmenu_t *rm) {
+    rowmenu_hold_stop();
     if (rm->rows) deque_destroy(rm->rows);
     if (rm->dots) bitmap_destroy(rm->dots);
     memset(rm, 0, sizeof *rm);
@@ -247,8 +283,7 @@ void rowmenu_paint(void *canvas, const rowmenu_t *rm, int right, int flush, int 
         bottom = cy + RM_DOTS_PX > view_h ? view_h - cy : RM_DOTS_PX, src[4], dst[4];
     if (!rm->on || !rm->dots || bottom <= top) return;
     src[0] = 0, src[1] = top, src[2] = RM_DOTS_PX, src[3] = bottom - top;
-    dst[0] = flush ? right - RM_DOTS_PX : rowmenu_zone_x(right) + (RM_MORE_W - RM_DOTS_PX) / 2, dst[1] = cy + top,
-    dst[2] = RM_DOTS_PX, dst[3] = bottom - top;
+    dst[0] = rm_glyph_x(right, flush), dst[1] = cy + top, dst[2] = RM_DOTS_PX, dst[3] = bottom - top;
     canvas_draw_image(canvas, rm->dots, src, dst);
 }
 

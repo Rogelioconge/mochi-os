@@ -34,7 +34,7 @@ BAND, HAIR = (0x14, 0x14, 0x14), (0x22, 0x22, 0x22)
 RAIL_X, RAIL_W, RAIL_CX, RAIL_PITCH, RAIL_ITEMS, RAIL_DOT, DISC, BUBBLE = (O[k] for k in ('SG_RAIL_X', 'SG_RAIL_W', 'SG_RAIL_CX', 'SG_RAIL_PITCH', 'SG_RAIL_ITEMS', 'SG_RAIL_DOT', 'SG_RAIL_DISC', 'SG_BUBBLE'))
 DOT_RGB = tuple((O['SG_RAIL_DOT_RGB'] >> s) & 255 for s in (16, 8, 0))
 ALL_LETTERS = ['#'] + [chr(65 + i) for i in range(26)]     # a library with a song under every letter: 27 sections, the collapsed index
-MORE_W, MORE_GAP, DOTS_PX = O['RM_MORE_W'], O['RM_TEXT_GAP'], O['RM_DOTS_PX']   # the rows' "..." (patch/rowmenu.c): its tap zone, the gap before it, the glyph
+MORE_W, INK_X, INK_GAP, DOTS_PX = O['RM_MORE_W'], O['RM_INK_X'], O['RM_INK_GAP'], O['RM_DOTS_PX']   # the rows' "..." (patch/rowmenu.c): its tap zone, the glyph's first ink column, the gap from the text to the ink, the glyph
 DOTS_RGB = tuple((O['RM_DOTS_RGB'] >> sh) & 255 for sh in (16, 8, 0))
 
 # title, artist, cover colour (index into PI.ALBUMS), the Initial a CJK title files under (the stock scan: its pinyin initial)
@@ -157,7 +157,7 @@ def content(s, covers_on=True, select=None, title=None, head=False):
         title, artist, ci = v[:3]
         right = more_right(title_none)
         end = TEXT_END if title_none else O['LIST_HAIR_END']   # (without the rail the rows run to the list-row spec's end)
-        room = end - tx if select is not None else right - MORE_W - MORE_GAP - tx   # (select mode has no "...": the text ends at the hairline's end again)
+        room = end - tx if select is not None else dots_x(right, title_none) + INK_X - INK_GAP - tx   # (select mode has no "...": the text ends at the hairline's end again)
         d.rectangle((tx, y + ROW_H - 1, end - 1, y + ROW_H - 1), fill=HAIR)
         if select is None: im.alpha_composite(more, (dots_x(right, title_none), y + (ROW_H - 1 - DOTS_PX) // 2))
         if select is not None:

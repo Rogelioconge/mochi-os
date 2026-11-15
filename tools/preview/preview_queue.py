@@ -45,8 +45,8 @@ def content(s, playing=1, shuffle=False, repeat=None, edit=True):
     s.text(im, O['SG_HDR_X'], O['QP_HEAD_Y'] + O['QP_HEAD_H'] / 2, PS.tr(s, 'Queue'), 20)
     if n: s.text(im, O['QP_CLEAR_X'] + O['QP_CLEAR_W'], O['QP_CLEAR_Y'] + O['QP_CLEAR_H'] / 2, PS.tr(s, 'Clear'), 17, MUTED, 'r')    # Clear: right aligned to x 310, centred on the line, only while songs follow
     if not n: s.text(im, O['SG_HDR_X'], TOP + O['QP_EMPTY_Y'] + O['QP_EMPTY_H'] / 2, PS.tr(s, 'No upcoming songs'), 16, MUTED)
-    more = PS.dots(s)   # the rows' "..." while the page offers the edit (patch/queuepage.c qp_edit_on); the texts end before its zone
-    text_end = PS.more_right(False) - PS.MORE_W - PS.MORE_GAP if edit else TEXT_END
+    more = PS.dots(s)   # the rows' "..." while the page offers the edit (patch/queuepage.c qp_edit_on); the texts end RM_INK_GAP before its ink
+    text_end = PS.dots_x(PS.more_right(False), False) + PS.INK_X - PS.INK_GAP if edit else TEXT_END
     for i in range(n):
         t, a, k = QUEUE[playing + 1 + i]; y = TOP + i * ROW
         d.rectangle((TEXT_X, y + ROW - 1, TEXT_END - 1, y + ROW - 1), fill=PS.HAIR)

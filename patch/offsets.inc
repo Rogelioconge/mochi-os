@@ -839,14 +839,16 @@
 #define PL_CARD_MAX 292
 /* The track rows' "..." menu (patch/rowmenu.c, tools/pod_ui.py row_menu, docs/modules/rowmenu.md): each row of the album page and of the Songs page's lists ends with a grey "..." (RM_DOTS_PX px,
  * RM_DOTS_RGB) centred in a RM_MORE_W wide tap zone (flush with its right edge beside the rail) whose right edge is RM_MORE_RIGHT (the list's width); on the Songs page, while the A-Z rail is shown, RM_MORE_RIGHT_RAIL (flush with the rail's
- * touch column, which starts at SG_RAIL_X 284). The row's text ends RM_TEXT_GAP before the zone. A tap on it opens the sheet: RM_ROWS rows of PM_ROW_H at the window's foot in
+ * touch column, which starts at SG_RAIL_X 284). The row's text ends RM_INK_GAP before the glyph's ink (the bitmap's columns from RM_INK_X on), as a chevron row's text ends 10 px before its chevron. A tap on it, or a press held RM_LONG_MS on the row, opens the sheet: RM_ROWS rows of PM_ROW_H at the window's foot in
  * Now Playing's More sheet's glass (pc_sheet5, 320 x 250, top corners only), laid out by the asset (the payload only shows and hides it). */
 #define RM_ROWS 5
 #define RM_QUEUE_ROWS 3 /* the Queue page's sheet: Play Next, Play After, Remove from Queue (docs/modules/queue.md) */
 #define RM_MORE_W 44
 #define RM_MORE_RIGHT 310
 #define RM_MORE_RIGHT_RAIL 284
-#define RM_TEXT_GAP 4
+#define RM_INK_X 3 /* the rm_dots bitmap's first ink column (the ink spans columns 3..20 of RM_DOTS_PX) */
+#define RM_INK_GAP 10 /* from the text's end to the glyph's ink: the chevron rows' (text 278, LIST_CHEV_X 288) */
+#define RM_LONG_MS 500 /* a press held this long, not moved SC_DRAG_PX, opens the row's menu while the finger is down */
 #define RM_DOTS_PX 24
 #define RM_DOTS_RGB 0x008c8c8cu
 /* The Podcasts refresh dialog (tools/pod_ui.py podcasts_dialog, patch/podcasts.c pg_dlg_*): the Playlists card's glass, PD_CARD_W wide and exactly as high as that image (4 rows of 50),
