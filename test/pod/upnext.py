@@ -409,6 +409,151 @@ def clear_tests(ctx):
     expect(clear(m) == 1 and m.play_pos == 3 and len(qpaths(m)) == 4 and not names(m, 'start_player') and not names(m, 'mclSetPlayPos'), 'Play Next then Clear: the position is the playing song and nothing is restarted')
 
 
+def edit_tests(ctx):
+    """9. The edit engine (patch/shuffle.c queue_edit: pod_queue_move, pod_queue_remove; docs/modules/queue.md "Edit engine: move / remove"): an Up Next row moves or is removed in
+    place, the saved Shuffle order follows, the gapless preload is cancelled only when the next song changes, every refusal changes nothing, and the lock is taken once."""
+    expect = ctx.expect
+    DMR, PRE_NEXT = D['DMR_SERVERFLAG'][0], D['MCL_PRELOAD_NEXT'][0]
+    OK, RANGE, DL, LIB = 1, -1, -2, -3
+    mv = lambda m, f, t: signed(m.call(PSYMS['pod_queue_move'], a0=f, a1=t, count=900000000))
+    rm = lambda m, i: signed(m.call(PSYMS['pod_queue_remove'], a0=i, count=900000000))
+    recs = lambda m: list(m.deques[m.word(PLAY_Q)])
+    strs = lambda m, rs: [m.word(r + O[f]) for r in rs for f in ('REC_TITLE', 'REC_ARTIST', 'REC_ALBUM', 'REC_PATH', 'REC_NAME')]
+    raw = lambda m, rs: [bytes(m.u.mem_read(r, O['REC_SIZE'])) for r in rs]
+    seq = lambda m: [c for c in m.calls if c[0] in ('mclSetGaplessMode', 'closegapless', 'stock_setmode', 'mclSetPlayMode')]
+    CLOSE = [('mclSetGaplessMode', 0), ('closegapless',), ('mclSetGaplessMode', 1)]
+    BAD = ('calloc', 'strdup', 'memcpy', 'memset', '_deque_push_back', 'start_player', 'mclSetPlayPos', 'stock_setmode', 'mclSetPlayMode', 'deque_assign', 'deque_destroy', 'deque_clear')
+    made = lambda f, **kw: (lambda m: (m.install_libcstl(), m)[1])(f(**kw))
+    locked = lambda m: (lambda c: c.count('lock') == c.count('unlock') == 1)([x[0] for x in m.calls])
+    movedl = lambda l, f, t: (lambda l: (l.insert(t, l.pop(f)), l)[1])(list(l))
+
+    def consistent(m, removed=()):
+        """Shuffle's order describes the queue: slot j holds the song whose original position is orig[j], and orig is a permutation of the surviving songs."""
+        p, n, o = orig_of(m)
+        keep = [x for x in ORIG() if x not in removed]
+        return o is not None and n == len(qpaths(m)) and is_perm(o, n) and all(qpaths(m)[j] == keep[o[j]] for j in range(n))
+
+    # List play: forward, backward, adjacent, far, the first and last Up Next row, a no-op; records and strings stay, nothing allocated or copied
+    for f, t in ((6, 9), (9, 6), (4, 5), (5, 4), (4, 11), (11, 4), (7, 7), (4, 4)):
+        m = made(machine, n=12, pos=3); rs, ps, head, rw = recs(m), qpaths(m), raw(m, recs(m)[:4]), raw(m, recs(m)); m.calls = []
+        r = mv(m, f, t)
+        expect(r == OK and qpaths(m) == movedl(ps, f, t) and recs(m) == rs and raw(m, rs) == movedl(rw, f, t), f'List play, move {f} -> {t}: the row is at {t}, the rows between shifted by one, every record in its own slot ({qpaths(m)})')
+        expect(raw(m, recs(m)[:4]) == head and recs(m)[:4] == rs[:4] and m.play_pos == 3 and orig_of(m)[0] == 0 and not [c for c in m.calls if c[0] in BAD or c[0] in ('free', 'pop_back')],
+               f'move {f} -> {t}: the rows 0..pos untouched, the position kept, no allocation, copy, free, restart or pop')
+        expect(locked(m) and m.mode == OR, f'move {f} -> {t}: the payload lock is taken once and released')
+    m = made(machine, n=12, pos=3); m.setword(PRE_NEXT, 4); mv(m, 7, 9)
+    expect(m.word(PRE_NEXT) == 4 and m.mode == OR, 'a move leaves the remembered preload target and the mode alone')
+
+    # Shuffle on: the saved order is carried with the rows and stays a permutation; Shuffle off restores the original order (a manual order is dropped), the position on the playing song
+    for f, t in ((6, 9), (9, 6), (4, 5), (5, 4), (4, 11), (11, 4), (8, 8)):
+        m = made(shuffled, n=12, pos=3); playing = qpaths(m)[3]; before = qpaths(m); o0 = orig_of(m)[2]; m.calls = []
+        r = mv(m, f, t)
+        expect(r == OK and qpaths(m) == movedl(before, f, t) and consistent(m) and orig_of(m)[2] == (movedl(o0, f, t)), f'Shuffle on, move {f} -> {t}: queue and saved order rotated together, still a permutation')
+        expect(orig_of(m)[0] and not [c for c in m.calls if c[0] in ('calloc', 'free', '_deque_push_back', 'mclSetPlayPos')] and locked(m), f'move {f} -> {t}: the order is the same array (no allocation), the lock once')
+        SHM.hook(m, OR)
+        expect(qpaths(m) == ORIG() and qpaths(m)[m.play_pos] == playing and m.play_pos == 3 and not SHM.flag_on(m), f'move {f} -> {t}, then Shuffle off: the original order, the position on the playing song')
+
+    # remove: first / middle / last Up Next row, the record destroyed once (libcstl's pop_back, the last slot), nothing else freed, copied or allocated
+    for label, make in (('List play', machine), ('Shuffle on', shuffled)):
+        for i in (4, 7, 11):
+            m = made(make, n=12, pos=3); rs, ps = recs(m), qpaths(m); gone = rs[-1]; rw = raw(m, rs); gone_s = strs(m, [rs[i]]); keepers = strs(m, rs[:i] + rs[i + 1:]); head = raw(m, rs[:4]); q = m.word(PLAY_Q); m.calls = []
+            r = rm(m, i)
+            pops = [c for c in m.calls if c[0] == 'pop_back']; freed = [c[1] for c in m.calls if c[0] == 'free' and c[1]]
+            expect(r == OK and qpaths(m) == ps[:i] + ps[i + 1:] and recs(m) == rs[:-1] and raw(m, recs(m)) == rw[:i] + rw[i + 1:] and m.word(PLAY_Q) == q and m.play_pos == 3, f'{label}, remove {i}: the row is gone, the rest in order, the same deque, the position kept ({qpaths(m)})')
+            expect(len(pops) == 1 and pops[0][2] == gone and sorted(freed) == sorted(gone_s) and not set(freed) & set(keepers) and raw(m, [gone]) == [bytes(O['REC_SIZE'])],
+                   f'{label}, remove {i}: one pop_back of the last slot (the row rotated there), its strings freed exactly once, no other string freed')
+            expect(recs(m)[:4] == rs[:4] and raw(m, recs(m)[:4]) == head and not [c for c in m.calls if c[0] in BAD or c[0] == 'calloc'] and locked(m), f'{label}, remove {i}: rows 0..pos untouched, no allocation or copy, lock once')
+            if make is shuffled:
+                expect(consistent(m, removed=(ps[i],)) and orig_of(m)[1] == 11 and orig_of(m)[0], f'remove {i}: the saved order lost the entry and is a permutation of 11, shrunk in place')
+                SHM.hook(m, OR)
+                expect(qpaths(m) == [x for x in ORIG() if x != ps[i]] and m.play_pos == 3 and qpaths(m)[3] == ps[3], f'remove {i}, then Shuffle off: the original order without that song, the playing song at the position')
+    # remove of the song that is first in the original order of the Up Next rows and of the one right after the playing song, with Shuffle on
+    m = made(shuffled, n=12, pos=3); lo = min(range(4, 12), key=lambda j: orig_of(m)[2][j]); p0 = qpaths(m)[lo]
+    expect(rm(m, lo) == OK and consistent(m, removed=(p0,)), 'Shuffle on: removing the up-next song with the lowest original position keeps the order a permutation')
+
+    # every refusal: nothing changed (queue, order, preload, mode, flag), no queue / player / allocation call, the lock released
+    def refuse(label, want, op, prepare=lambda m: None, make=shuffled):
+        m = made(make, n=12, pos=3); prepare(m); m.setword(PRELOAD, 1); before = snapshot(m); keep = raw(m, recs(m)); m.calls = []
+        r = op(m)
+        expect(r == want and snapshot(m) == before and raw(m, recs(m)) == keep, f'{label}: refused with {want}, queue, order, preload, mode and flag unchanged ({r})')
+        expect(not [c for c in m.calls if c[0] in BAD or c[0] in ('free', 'pop_back', 'mclSetGaplessMode', 'closegapless')] and locked(m), f'{label}: nothing called that changes the queue, the lock released')
+    for make in (machine, shuffled):
+        for label, op in (('move from the playing row', lambda m: mv(m, 3, 8)), ('move to the playing row', lambda m: mv(m, 8, 3)), ('move from the history', lambda m: mv(m, 1, 8)), ('move to the history', lambda m: mv(m, 8, 0)),
+                          ('move from past the end', lambda m: mv(m, 12, 5)), ('move to past the end', lambda m: mv(m, 5, 12)), ('move from -1', lambda m: mv(m, 0xffffffff, 5)),
+                          ('remove the playing row', lambda m: rm(m, 3)), ('remove a history row', lambda m: rm(m, 0)), ('remove past the end', lambda m: rm(m, 12)), ('remove -1', lambda m: rm(m, 0xffffffff)),
+                          ('a no-op move on the playing row', lambda m: mv(m, 3, 3))):
+            refuse(f'{make.__name__}, {label}', RANGE, op, make=make)
+        refuse(f'{make.__name__}, nothing playing', RANGE, lambda m: mv(m, 5, 6), lambda m: setattr(m, 'play_pos', -1), make)
+        refuse(f'{make.__name__}, nothing playing (remove)', RANGE, lambda m: rm(m, 5), lambda m: setattr(m, 'play_pos', -1), make)
+        refuse(f'{make.__name__}, the last song playing', RANGE, lambda m: mv(m, 5, 6), lambda m: setattr(m, 'play_pos', 11), make)
+        refuse(f'{make.__name__}, DLNA running (move)', DL, lambda m: mv(m, 5, 8), lambda m: m.setword(DMR, 1), make)
+        refuse(f'{make.__name__}, DLNA running (remove)', DL, lambda m: rm(m, 5), lambda m: m.setword(DMR, 1), make)
+        refuse(f'{make.__name__}, DLNA running (no-op move)', DL, lambda m: mv(m, 5, 5), lambda m: m.setword(DMR, 1), make)
+        m = made(make, n=12, pos=3); m.setword(DMR, 1); mv(m, 5, 8); m.setword(DMR, 0)
+        expect(mv(m, 5, 8) == OK and rm(m, 5) == OK, f'{make.__name__}: the service stopped, the edits work (the lock was released)')
+    # libcstl not as pinned: remove refused with nothing changed (and before any rotation); move needs no libcstl
+    m = machine(n=12, pos=3); m.install_libcstl(bound=False); m.setword(PRELOAD, 1); before = snapshot(m); m.calls = []
+    expect(rm(m, 5) == LIB and snapshot(m) == before and not [c for c in m.calls if c[0] in BAD or c[0] in ('free', 'pop_back', 'mclSetGaplessMode')] and locked(m) and m.call(PSYMS['pod_clear_ready'], count=900000000) == 0,
+           f'libcstl unbound: remove refused with {LIB}, nothing rotated, not ready')
+    expect(mv(m, 5, 8) == OK and qpaths(m)[8] == ORIG()[5], 'and a move works without libcstl')
+    m = made(shuffled, n=12, pos=3); base = m.CSTL_BASE; m.setword(base + pod.CSTL_POP, 0); before = snapshot(m)
+    expect(rm(m, 5) == LIB and snapshot(m) == before, 'a changed deque_pop_back word: refused, order untouched')
+    m = made(machine, n=12, pos=3)
+    expect(m.call(PSYMS['pod_clear_ready'], count=900000000) == 1, 'pod_clear_ready is the one readiness test (pinned libcstl, no DLNA)')
+
+    # the queue, size and position are read under the lock
+    m = made(machine, n=12, pos=3); before = qpaths(m)
+    def moved(): m.play_pos = 8; m.on_lock = None
+    m.on_lock = moved
+    expect(mv(m, 6, 9) == RANGE and qpaths(m) == before, 'the position moved to 8 while the lock was waited for: the move is refused (the row 6 is history now)')
+    m = made(machine, n=12, pos=3); q = m.word(PLAY_Q); before = qpaths(m)
+    def shrank(): m.deques[q] = m.deques[q][:8]; m.on_lock = None
+    m.on_lock = shrank
+    expect(rm(m, 9) == RANGE and len(m.deques[q]) == 8, 'the queue shrank to 8 while the lock was waited for: index 9 is refused')
+
+    # a stale saved order (its size is not the queue's) is dropped, the edit goes ahead
+    m = made(shuffled, n=12, pos=3); m.deques[m.word(PLAY_Q)].append(m.deques[m.word(PLAY_Q)][0]); ps = qpaths(m); m.calls = []
+    expect(mv(m, 5, 8) == OK and qpaths(m) == movedl(ps, 5, 8) and orig_of(m)[0] == 0 and orig_of(m)[1] == 0 and SHM.flag_on(m), 'a stale order: dropped (freed), the move done, the flag stays')
+    m = made(shuffled, n=12, pos=3); m.deques[m.word(PLAY_Q)].append(m.deques[m.word(PLAY_Q)][0])
+    expect(rm(m, 5) == OK and orig_of(m)[0] == 0 and len(qpaths(m)) == 12, 'a stale order with a remove: dropped, the row removed')
+
+    # gapless: the cancel fires exactly when the row at pos + 1 changes
+    for label, op, fires in (('move away from pos + 1', lambda m: mv(m, 4, 9), True), ('move to pos + 1', lambda m: mv(m, 9, 4), True), ('move across, pos + 1 unchanged', lambda m: mv(m, 6, 9), False),
+                             ('move 5 -> 4 (swap with pos + 1)', lambda m: mv(m, 5, 4), True), ('no-op move at pos + 1', lambda m: mv(m, 4, 4), False), ('remove pos + 1', lambda m: rm(m, 4), True),
+                             ('remove another row', lambda m: rm(m, 8), False), ('remove the last row', lambda m: rm(m, 11), False)):
+        for make in (machine, shuffled):
+            m = made(make, n=12, pos=3); m.setword(PRELOAD, 1); m.calls = []
+            r = op(m); c = [x[0] for x in m.calls]
+            expect(r == OK and (seq(m) == CLOSE and m.s32(PRELOAD) == -1 and c.index('lock') < c.index('mclSetGaplessMode') < c.index('unlock') if fires else not seq(m) and m.word(PRELOAD) == 1) and m.u.mem_read(GSET, 1)[0] == 1,
+                   f'{make.__name__}, {label}: the preload is {"closed through the Gapless setter under the lock" if fires else "left open"}')
+    m = made(machine, n=12, pos=3); m.setword(PRELOAD, 0); m.calls = []; mv(m, 4, 9); rm(m, 4)
+    expect(not seq(m), 'no preload open: the setter is not touched')
+    m = made(machine, n=12, pos=3); m.setword(PRELOAD, 1); m.u.mem_write(GSET, b'\0'); m.calls = []; mv(m, 4, 9)
+    expect([c for c in m.calls if c[0] == 'mclSetGaplessMode'] == [('mclSetGaplessMode', 0), ('mclSetGaplessMode', 0)] and m.u.mem_read(GSET, 1)[0] == 0, 'an off Gapless setting stays off')
+    # the remembered target past the new end is dropped by a remove (Clear's rule), one that is still in the queue stays
+    for nxt, want in ((11, 0xffffffff), (10, 10), (4, 4), (0xffffffff, 0xffffffff)):
+        m = made(machine, n=12, pos=3); m.setword(PRE_NEXT, nxt); rm(m, 11 if nxt == 11 else 7)
+        expect(m.word(PRE_NEXT) == want, f'remove with the preload target {signed(nxt)}: now {signed(want)}')
+
+    # with insert and Clear
+    m = made(shuffled, n=12, pos=3); playing = qpaths(m)[3]
+    for fs in (False, True):
+        m = made(shuffled if fs else machine, n=12, pos=3); playing = qpaths(m)[3]
+        expect(add(m, new_rows(m, ['a', 'b'])) == ADDED and qpaths(m)[4:6] == X('a', 'b'), f'Shuffle {fs}: Play Next of a, b')
+        expect(rm(m, 4) == OK and qpaths(m)[4] == X('b')[0] and len(qpaths(m)) == 13 and (not fs or is_perm(orig_of(m)[2], 13)), f'Shuffle {fs}: remove the first added row')
+        expect(mv(m, 4, 9) == OK and qpaths(m)[9] == X('b')[0] and (not fs or is_perm(orig_of(m)[2], 13)), f'Shuffle {fs}: move the other one')
+        SHM.hook(m, OR)
+        want = ORIG(); want.insert(want.index(playing) + 1, X('b')[0])
+        expect(qpaths(m) == want if fs else len(qpaths(m)) == 13, f'Shuffle {fs}, insert, remove, move, then Shuffle off: ' + ('the original order with b after the playing song' if fs else 'the queue as edited'))
+    m = made(shuffled, n=12, pos=3); keep = qpaths(m)[:4]
+    expect(rm(m, 6) == OK and mv(m, 5, 9) == OK, 'remove then move, Shuffle on')
+    m.calls = []
+    expect(signed(m.call(PSYMS['pod_clear_upnext'], count=900000000)) == 1 and qpaths(m) == keep and orig_of(m)[0] == 0 and m.play_pos == 3 and SHM.flag_on(m), 'then Clear: the playing song and the history stay, the order dropped')
+    expect(mv(m, 4, 5) == RANGE and rm(m, 4) == RANGE, 'after Clear nothing follows: the edits are refused')
+    SHM.hook(m, OR)
+    expect(qpaths(m) == keep and m.play_pos == 3, 'Shuffle off after remove + move + Clear: the queue as Clear left it')
+
+
 def navidrome_tests(ctx):
     """7. A Navidrome row's queue record (patch/sbsrc.c queue_row, docs/modules/subsonic.md): its REC_PATH is a stream address, so there is no file to find; the row is taken when sba_queue_add
     noted its id (the queue map), refused as missing when the address is not one the map knows, and a local path is still checked."""
@@ -441,4 +586,4 @@ def navidrome_tests(ctx):
     expect(add(m, m.new_deque([row])) == STARTED and not [c for c in m.calls if c[0] == 'access' and c[1].startswith('http')], 'nothing playing: a stream-address row starts the queue')
 
 
-SECTIONS = [insert_tests, shuffle_tests, gapless_tests, refusal_tests, idle_tests, lock_tests, clear_tests, pinned_tests, navidrome_tests]   # tools/check.py runs each as its own task
+SECTIONS = [insert_tests, shuffle_tests, gapless_tests, refusal_tests, idle_tests, lock_tests, clear_tests, edit_tests, pinned_tests, navidrome_tests]   # tools/check.py runs each as its own task

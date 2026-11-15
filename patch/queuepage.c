@@ -15,6 +15,8 @@
  *   rows      Up Next: the tracks after the play position, in queue order (the real order, shuffled or not: Shuffle reorders the queue itself, patch/shuffle.c); the playing track is only in the header.
  *   play      a row tap: start_playqueue(queue index) (the stock drawer's row handler, @0x47a0c8), then force_refreshflag; the page stays, Now Playing below follows.
  *   modes     Shuffle (the payload's flag, pod_set_shuffle) and Repeat (stock's mode 0, 3, 1: pod_set_repeat) are independent: Shuffle toggles the flag; Repeat cycles off, all, one whatever the flag is.
+ *   edit      each Up Next row ends with the row lists' grey "..." (patch/rowmenu.c, docs/modules/queue.md "Row edit") while Clear is offered and the play type is not folder playback; a tap on it
+ *             opens the three-row sheet (Play Next, Play After, Remove from Queue) that calls pod_queue_move / pod_queue_remove, then the page reads the queue again.
  *   clear     the Clear button (btn_qclear, right of the "Queue" line, shown while songs follow): pod_clear_upnext removes the tracks after the play position, the page reads the queue again.
  *   covers    the Cover Flow cache file of the row's artist and album, else the file of the library album of that name (cc_cmap_*: a collab), one per tick on the page's timer, none while the list
  *             moves (the Songs page's loader); else the placeholder. The first miss builds the cover map (ONE getAllAlbum query, no file opened); an album's file is looked
@@ -36,6 +38,7 @@
 #include "podcasts.h"
 #include "sbapi.h"
 #include "entries.h"
+#include "rowmenu.h"
 
 #define ROW LIST_ROW_H
 #define QP_AHEAD 2 /* rows kept beyond the view in the scroll direction */
@@ -60,6 +63,11 @@ static struct {
     int dir, seen; /* the scroll direction (+1 down), and the offset it was last read at */
     int noscroll; /* the scroll events could not be registered: the loader runs from its own timer only */
     int clear_on; /* the Clear button is shown */
+    int edit_on; /* the rows show their "..." (Clear's condition and not folder playback); the texts end before it */
+    int down_more; /* the press began in a row's "..." zone */
+    unsigned
+        mid; /* the identity of the row the sheet is open for: its path string (rows move with their strings, patch/shuffle.c queue_edit) */
+    rowmenu_t rm; /* the "..." sheet (patch/rowmenu.c, three rows) */
     int fg; /* 1 from the page's start and EVT_WINDOW_TO_FG, 0 after EVT_WINDOW_TO_BG */
     unsigned more_timer, stale_timer, tick_timer;
     unsigned tick_ms;
@@ -101,6 +109,11 @@ static int qp_content(void) { return QP_TOP + (int)qp.n * ROW + QP_BOTTOM; }
 static int qp_max_scroll(void) {
     int m = qp_content() - QP_WIN_H;
     return m > 0 ? m : 0;
+}
+
+/* The text end of a row: before the "..." zone while the rows show it, else the old end. The hairline keeps its length either way. */
+static int qp_room(void) {
+    return (qp.edit_on ? rowmenu_zone_x(RM_MORE_RIGHT) - RM_TEXT_GAP : QP_TEXT_END) - LIST_TEXT_X;
 }
 
 /* The row under content point y, -1 for the header and the air below the last row. */
@@ -217,7 +230,7 @@ static grid_tile_t *qp_tile(int a) {
  * has moved the canvas up by yoffset, which the paint adds back (CANVAS_OY) for its duration, as the Songs page does.
  */
 static void qp_paint(void *canvas) {
-    int r0, r1, r, pass, off = qp_off(), room = QP_TEXT_END - LIST_TEXT_X;
+    int r0, r1, r, pass, off = qp_off(), room = qp_room(), hair = QP_TEXT_END - LIST_TEXT_X;
     grid_tile_t *h = qp.hg.tiles ? grid_find(&qp.hg, 0) : (grid_tile_t *)0;
     if (h) grid_blit(canvas, &qp.hg, h, QP_COVER_X, QP_COVER_Y - off, QP_WIN_H);
     qp_span(&r0, &r1);
@@ -226,7 +239,8 @@ static void qp_paint(void *canvas) {
         int y = qp_row_y(r) - off;
         if (qp.press == r + 1) az_fill_h(canvas, 0, y, y + ROW - 1, QP_ROW_W, LIST_PRESS, QP_WIN_H);
         grid_blit(canvas, &qp.g, t, LIST_ART_X, y + LIST_ART_Y, QP_WIN_H);
-        az_fill_h(canvas, LIST_TEXT_X, y + ROW - 1, y + ROW, room, LIST_HAIR, QP_WIN_H);
+        az_fill_h(canvas, LIST_TEXT_X, y + ROW - 1, y + ROW, hair, LIST_HAIR, QP_WIN_H);
+        if (qp.edit_on) rowmenu_paint(canvas, &qp.rm, RM_MORE_RIGHT, 0, y, ROW, QP_WIN_H);
     }
     for (
         pass = 0; pass < 2;
@@ -379,12 +393,26 @@ static void qp_pills(void) {
 
 static void qp_load(int keep);
 
-/* Clear: shown only while songs follow and the engine can run (libcstl as pinned, no DLNA service). Read again on the page's tick, so it hides when the DLNA service starts under the page. */
+/* Clear: shown only while songs follow and the engine can run (libcstl as pinned, no DLNA service). Read again on the page's tick, so it hides when the DLNA service starts under the page.
+ * The rows' "..." follow it, except in folder playback (play type 1: stock rebuilds the queue from the folder at its end, as upnext_add refuses it); a change moves the text end, so the
+ * texts are made again (a cut is made in the tile's own text) and an open sheet closes. */
 static void qp_clear_sync(void) {
-    int on = qp.n != 0 && !qp_stream() && pod_clear_ready();
-    if (on == qp.clear_on) return;
-    qp.clear_on = on;
-    m1_show(qp.btn_clear, on);
+    int on = qp.n != 0 && !qp_stream() && pod_clear_ready(), edit = on && mclGetPlayType() != 1 && rowmenu_on(&qp.rm),
+        was = qp.edit_on;
+    if (on != qp.clear_on) {
+        qp.clear_on = on;
+        m1_show(qp.btn_clear, on);
+    }
+    if (edit == qp.edit_on) return;
+    qp.edit_on = edit;
+    if (was < 0) return; /* qp_load asks: it makes the tiles itself (a second placeholder here would leak the first) */
+    if (!edit) rowmenu_close(&qp.rm);
+    if (qp.g.tiles) { /* (a cut is made in the tile's own text: the tiles are made again, as the Songs page does when its text end moves) */
+        grid_drop(&qp.g);
+        grid_placeholder(&qp.g);
+        qp_kick();
+    }
+    grid_sv_redraw(qp.sv);
 }
 
 /* The play mode changed (our buttons, the refresh tick finding another page's change): turning Shuffle on or off reorders the queue, so the rows are read again; a repeat change only touches the buttons. */
@@ -439,7 +467,7 @@ static void qp_load(int keep) {
     int at = keep ? qp_off() : 0;
     void *list = *(void **)PLAY_QUEUE;
     grid_drop(&qp.g);
-    qp.list = qp.first = (void *)0, qp.count = 0, qp.press = qp.down = 0;
+    qp.list = qp.first = (void *)0, qp.count = 0, qp.press = qp.down = qp.down_more = 0;
     if (list) qp.count = deque_size(list);
     if (qp.count) qp.list = list, qp.first = deque_at(list, 0);
     qp.row = qp_playing_row();
@@ -447,7 +475,8 @@ static void qp_load(int keep) {
     qp.n = qp.count > (unsigned)qp.base ? qp.count - (unsigned)qp.base : 0;
     qp.hkey = 0;
     m1_show(qp.empty, qp.n == 0);
-    qp.clear_on = -1; /* qp_clear_sync decides */
+    qp.clear_on = qp.edit_on = -1; /* qp_clear_sync decides */
+    rowmenu_close(&qp.rm); /* (a row of the sheet is an index of the queue that was read) */
     qp_clear_sync();
     qp_size();
     widget_set_prop_int(qp.sv, "yoffset", at < 0 ? 0 : at > qp_max_scroll() ? qp_max_scroll() : at);
@@ -523,29 +552,75 @@ static int qp_item_of(void *e) {
     return qp_at(pt[1]);
 }
 
+/* The press or release is in a row's "..." zone. */
+static int qp_in_zone(void *e) {
+    int pt[2], x0;
+    if (!qp.edit_on) return 0;
+    grid_ev_local(qp.view, e, pt);
+    x0 = rowmenu_zone_x(RM_MORE_RIGHT);
+    return pt[0] >= x0 && pt[0] < x0 + RM_MORE_W;
+}
+
+/* The sheet's row was tapped (rowmenu.c, after the sheet closed): the track the sheet opened for must still be in its place (the same queue, the play position where it was, the same
+ * path string at that index: a row keeps its strings when it moves, and a record a Play Next added has strings of its own); else nothing is done and the page reads the queue again.
+ * The engine takes absolute indices and checks them again under its lock. Play Next goes to pos + 1 (the page's base), Play After to the last slot. DLNA says so; any other refusal
+ * (the queue changed underneath) only reads the queue again. */
+static void qp_on_menu(int row, int act) {
+    int at = qp.base + row, r;
+    if (!qp.view || !qp_valid() || mclGetPlayPos() + 1 != qp.base || row < 0 || row >= (int)qp.n ||
+        (unsigned)I(deque_at(qp.list, (unsigned)at), REC_PATH) != qp.mid) {
+        qp_load(1);
+        return;
+    }
+    r = act == RMQ_NEXT    ? pod_queue_move((unsigned)at, (unsigned)qp.base)
+        : act == RMQ_AFTER ? pod_queue_move((unsigned)at, qp.count - 1)
+                           : pod_queue_remove((unsigned)at);
+    if (r == POD_EDIT_DLNA) pod_toast(TR("Not available while DLNA is on"));
+    qp_load(1);
+}
+
+static void qp_open_menu(int a) {
+    if (!qp_valid()) {
+        qp_load(1);
+        return;
+    }
+    qp_clear_sync(); /* (the DLNA service may have started since the tick) */
+    if (!qp.edit_on) return;
+    qp.mid = (unsigned)I(deque_at(qp.list, (unsigned)(qp.base + a)), REC_PATH);
+    rowmenu_open_queue(&qp.rm, a, qp_on_menu);
+}
+
 static int qp_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
-    qp.down = 0;
+    qp.down = qp.down_more = 0;
     if (!e || !qp.view || !qp.n || !qp_valid()) return RET_OK;
     a = qp_item_of(e);
     qp.down = a + 1, m1_tap_at(&qp.tap, e);
-    grid_set_press(&qp.press, a + 1, qp.sv);
+    qp.down_more = a >= 0 && qp_in_zone(e);
+    if (!qp.down_more) grid_set_press(&qp.press, a + 1, qp.sv); /* (no press fill on the "...") */
     return RET_OK;
 }
 
 static int qp_on_up(void *ctx, void *e) {
-    int a = qp.down - 1;
+    int a = qp.down - 1, more = qp.down_more;
     (void)ctx;
+    qp.down_more = 0;
     grid_press_end(&qp.down, &qp.press, qp.sv);
     if (a < 0 || !e || !qp.view) return RET_OK;
-    if (m1_tap_near(&qp.tap, e) && qp_item_of(e) == a) qp_play_at(a);
+    if (m1_tap_near(&qp.tap, e) && qp_item_of(e) == a) {
+        if (more) {
+            if (qp_in_zone(e)) qp_open_menu(a); /* (a press that began on the "..." and ended off it does nothing) */
+        } else
+            qp_play_at(a);
+    }
     return RET_OK;
 }
 
 static int qp_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    qp.down_more = 0;
     grid_press_end(&qp.down, &qp.press, qp.sv);
     return RET_OK;
 }
@@ -575,6 +650,7 @@ static int qp_on_fg(void *ctx, void *e) {
 
 static int qp_on_bg(void *ctx, void *e) {
     qp.fg = 0;
+    rowmenu_close(&qp.rm);
     return qp_on_abort(ctx, e);
 }
 
@@ -587,6 +663,7 @@ static int qp_on_destroy(void *ctx, void *e) {
     grid_free(&qp.g);
     grid_free(&qp.hg);
     cc_cmap_free(qp.map);
+    rowmenu_free(&qp.rm);
     memset(&qp, 0, sizeof qp);
     return RET_OK;
 }
@@ -627,6 +704,7 @@ int queue_open(void) {
         navigator_back(); /* an asset that is not ours */
         return -2;
     }
+    rowmenu_bind_queue(&qp.rm, qp.win); /* optional: no widgets means no "..." */
     qp.fg = 1;
     widget_on(qp.win, EVT_WINDOW_TO_FG, qp_on_fg, (void *)0);
     widget_on(qp.win, EVT_WINDOW_TO_BG, qp_on_bg, (void *)0);

@@ -272,6 +272,15 @@ extern void pod_set_repeat(int mode); /* the stock repeat mode (0 off, 3 all, 1 
 #define POD_INSERT_MEMORY (-2)
 #define POD_INSERT_DLNA (-3)
 extern int pod_queue_insert(void *rows, int after);
+/* patch/shuffle.c: move the Up Next row at absolute queue index `from` to index `to` (the rows between shift by one), or remove the row at `i`; in place, under the payload lock, Shuffle's
+ * saved order kept valid. Both indices must be after the play position and inside the queue; from == to changes nothing. POD_EDIT_OK, or nothing changed: _RANGE (an index not in Up Next, nothing
+ * playing), _DLNA (the DLNA renderer service runs), _LIBCSTL (remove: libcstl is not the pinned one). The UI offers the actions while pod_clear_ready() (the same conditions). */
+#define POD_EDIT_OK 1
+#define POD_EDIT_RANGE (-1)
+#define POD_EDIT_DLNA (-2)
+#define POD_EDIT_LIBCSTL (-3)
+extern int pod_queue_move(unsigned from, unsigned to);
+extern int pod_queue_remove(unsigned i);
 extern void menu_arrange(void *win,
                          int extras); /* patch/menu.c: the rows as the saved list says (the scroll offset is clamped) */
 extern int dailymix_setting(void); /* the Settings > Home Screen switch: 1 on (the default) */

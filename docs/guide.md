@@ -41,6 +41,9 @@ A track row's **…** on the album page and the Songs lists offers **Play Next**
 **Add to Playlist**, **Favorite** (Undo Favorite when it is one) and **Get Info**: the track's
 format, sample rate and bit depth, bitrate, length, size and path. Shuffle reorders the queue itself, so the Queue page's Up Next shows what
 plays next; **Clear** in its header removes the songs after the playing one.
+Each row of Up Next also has a **…**: **Play Next** moves that song to right after the playing one,
+**Play After** moves it to the end, **Remove from Queue** takes it out of the queue (the file stays).
+The **…** is not shown during folder playback or while DLNA is on.
 
 While Line Out is on, the status bar shows an amber **LO** pill.
 

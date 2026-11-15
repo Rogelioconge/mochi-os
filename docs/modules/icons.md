@@ -1,7 +1,7 @@
 # Icons
 
 `tools/mod_icons.py` draws every replaced image at its exact stock size and mode. The build only copies the
-committed PNGs (`assets/icons/png/`, 568 files), so there is no rasteriser in the build and it stays deterministic.
+committed PNGs (`assets/icons/png/`, 569 files), so there is no rasteriser in the build and it stays deterministic.
 
 - `--generate` re-renders the PNGs (`rsvg-convert` + Pillow).
 - `--pins` writes the stock SHA-256 pins (`tools/mod_icons_pins.txt`).

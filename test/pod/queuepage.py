@@ -21,6 +21,8 @@ PLAY_QUEUE, FORCE = pod.DATA['PLAY_QUEUE'][0], pod.DATA['FORCE_REFRESH'][0]
 UI = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_queue.bin') if WORK else None
 FLAG_FILE = '/mnt/data/m1plus/playback-shuffle'
 flag_on = lambda m: m.fs.get(FLAG_FILE) == b'1\n'   # the Shuffle flag as saved
+RM = sibling('rowmenu')
+MENU_WIDGETS = ('rm_scrim', 'rm_card', 'rm_item0', 'rm_item1', 'rm_item2', 'rm_label0', 'rm_label1', 'rm_label2')
 WIDGETS = ('view_queue', 'btn_return', 'btn_shuffle', 'btn_repeat', 'label_status', 'label_row_title', 'label_row_sub', 'qp_title', 'qp_artist', 'qp_empty', 'qp_head', 'btn_qclear', 'label_title')
 NAMES = ['So What', 'Freddie Freeloader', 'Blue in Green', 'All Blues', 'Flamenco Sketches', 'Chorus Complains', 'Come Together', 'Something', 'Hey Jude', 'Let It Be']
 RGB = (190, 50, 55)
@@ -68,16 +70,18 @@ class QM(SG.SongsMachine):
         u.reg_write(UC_MIPS_REG_V0, ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
 
 
-def queue_machine(n=6, pos=1, titles=None, cover=True, cues=(), tracks=None, library=None, paths=None):
+def queue_machine(n=6, pos=1, titles=None, cover=True, cues=(), tracks=None, library=None, paths=None, menu=False):
     """The page's widgets as widget structs (window > list_view > scroll_view > view_queue, for demo's own widget_to_local) and the player on an n track queue at pos. Track i is
     Artist {i // 3} / Album {i // 3}; a cover file for the first two albums (cover: True, 'marker' for the empty "no art" file, False for none). tracks: [(artist, album)] instead.
     library: [(artist, album, has_cover)], the library's album records (what getAllAlbum's query returns) and their cache files, instead of the first two albums' files.
+    menu: the asset has the "..." sheet's widgets (patch/rowmenu.c rowmenu_bind_queue) and its dots image: the rows end with the "...".
     paths: the tracks' file paths instead of /mnt/mmc/m/{i}.flac (a podcast episode is a file in a show folder under the Podcasts folder)."""
     m = QM()
     m.load_image = 0
-    for w in WIDGETS: Machine.widget(m, w)
+    for w in WIDGETS + (MENU_WIDGETS if menu else ()): Machine.widget(m, w)
     m.canvas = m.alloc(0x80); m.oy_canvas = m.canvas
     m.images = {'p_default': (24, 24, bytes((0x40, 0x40, 0x40, 255)) * (24 * 24))}
+    if menu: m.images['rm_dots'] = (RM.DOTS, RM.DOTS, RM.dots_pixels())
     recs = []
     for i in range(n):
         title = titles[i] if titles else NAMES[i % len(NAMES)] if n <= len(NAMES) else f'Track {i + 1}'
@@ -173,7 +177,7 @@ def asset_tests(ctx):
     kids = [c.name for c in root.children]
     expect(root.name == 'm1plus_queue_page' == pod_pages.QUEUE_PAGE.name == O.get('QP_WINDOW', 'm1plus_queue_page') and pod_pages.QUEUE_PAGE in pod_pages.PAGES and pod_pages.QUEUE_PAGE.key == 'm1plus_queue',
            'the page is m1plus_queue (window m1plus_queue_page)')
-    expect(kids[0] == 'queue_listview' and kids[-2:] == ['label_title', 'btn_return'] and 'btn_backtoplayer' not in kids, f'the list is the window\'s first child, the glass Back its last, no Now Playing: {kids}')
+    expect(kids[0] == 'queue_listview' and kids[-4:] == ['label_title', 'btn_return', 'rm_scrim', 'rm_card'] and 'btn_backtoplayer' not in kids, f'the list is the window\'s first child, the glass Back and the "..." sheet (hidden: the sheet\'s scrim and card) its last, no Now Playing: {kids}')
     lv, sv, view = f('queue_listview'), f('queue_scrollview'), f('view_queue')
     expect((lv.x, lv.y, lv.w, lv.h) == (0, 0, 320, WIN_H) and (sv.y, sv.w, sv.h) == (0, 310, WIN_H) and f('scroll_bar_m') is not None and (view.x, view.y, view.w, view.h) == (0, 0, 320, WIN_H),
            'the list is the whole window (y 0, 450 high), its scroll_view 310 wide with the stock scroll bar, the content view in it')
@@ -1061,6 +1065,211 @@ def clear_tests(ctx):
     expect({0x5d28ac, 0x5d28cc, 0x5d28d0, 0x5d28dc, 0x5d28e0, 0x5d290c, 0x5d2914} <= pinned and pod.FUNCTIONS['mclSetGaplessMode'][2] == 0x5d28ac and (PRE, PRE_NEXT, GAP) == (0xa0abd0, 0xa0abcc, 0xa0ab89),
            'mclSetGaplessMode (prologue, the byte store, the preload test and close) and the three player words are pinned')
 
+def rowedit_tests(ctx):
+    """11. The row "..." and its sheet (patch/queuepage.c qp_open_menu / qp_on_menu, patch/rowmenu.c, docs/modules/queue.md "Row edit"): the dots on Up Next rows while Clear is offered and the play type
+    is not folder playback, the text end they take, the taps, the three actions through the real engine, the page reading the queue again, a sheet that went stale, the DLNA refusal."""
+    expect = ctx.expect
+    DMR = pod.DATA['DMR_SERVERFLAG'][0]
+    recs = lambda m: list(m.deques[m.word(PLAY_QUEUE)])
+    titles = lambda m: [m.read_cstr(m.word(r + O['REC_TITLE'])) for r in recs(m)]
+    rows = lambda m: [t for (t, r), s in paint(m)[1] if s == 'label_row_title']
+    zx = RM.RIGHT - RM.MORE_W   # 266
+    ZX = zx + 22
+    dots = lambda m: RM.dot_blits(paint(m)[0])
+    sheet = lambda m: vis(m, 'rm_card') == (1, 1) and vis(m, 'rm_scrim') == (1, 1)
+    closed = lambda m: vis(m, 'rm_card') == (0, 0) and vis(m, 'rm_scrim') == (0, 0)
+    def open_row(m, k):
+        tap(m, ZX, row_y(k) + 30)
+        assert sheet(m), f'the sheet did not open for row {k}'
+    def pick(m, k): click(m, f'rm_item{k}')
+    def plays(m): return [c for c in m.calls if c[0] == 'start_playqueue']
+
+    # the dots: every Up Next row ends with the row lists' dots (the same bitmap and position as the Songs rows: centred in the 44 px zone ending at 310, 19 px down the 64 px row), the texts end before them
+    m = opened(n=6, pos=1, menu=True)
+    d = dots(m)
+    room = zx - RM.GAP - O['LIST_TEXT_X']
+    expect([(b[2][0], b[2][1]) for b in d] == [(zx + (RM.MORE_W - RM.DOTS) // 2, row_y(i) + (ROW - 1 - RM.DOTS) // 2) for i in range(3)], f'a dots bitmap on each row wholly in view, at the lists\' place: {[b[2] for b in d]}')
+    blits, texts, fills = paint(m)
+    ttl = [(t, r) for (t, r), s in texts if s == 'label_row_title']; sub = [(t, r) for (t, r), s in texts if s == 'label_row_sub']
+    expect(room == 188 and [r[2] for _, r in ttl + sub] == [room] * 8, f'the titles and the artists end 4 px before the zone (width {room}, was 224)')
+    expect(fills_of(fills, O['LIST_HAIR']) == [(O['LIST_HAIR'], 74, row_y(i) + 63, O['QP_TEXT_END'] - O['LIST_TEXT_X'], 1) for i in range(3)], 'the hairline keeps its old length')
+    expect(not [b for b in d if b[2][1] < TOP], 'the header (the playing track) has no dots')
+    # a cut that the narrower room needs: the title that fitted 224 px is cut again
+    long_t = 'Abcdefghijklmnopqrstuvwxyz'   # 26 glyphs of 8 px: 208 px fit the old 224, not the new 188
+    m2 = opened(n=4, pos=0, titles=['P', long_t, 'B', 'C'], menu=True)
+    got = [t for (t, r), s in paint(m2)[1] if s == 'label_row_title']
+    expect(got[0].endswith('…') and len(got[0]) < len(long_t), f'a long title is cut for the narrower room ({got[0]!r})')
+    m2.setword(DMR, 1); tick(m2)
+    got2 = [t for (t, r), s in paint(m2)[1] if s == 'label_row_title']
+    expect(not dots(m2) and got2[0] == long_t, f'the DLNA service hides the dots and the texts are cut again for the old width ({got[0]!r} {got2[0]!r} {len(dots(m2))})')
+    destroy(m2)
+    # scrolled: the dots follow the rows
+    m3 = opened(n=30, pos=0, menu=True); scroll_to(m3, 200)
+    d3 = dots(m3)
+    expect(len(d3) >= 2 and d3[1][2][1] - d3[0][2][1] == ROW and (d3[0][2][1] - 19 - TOP + 200) % ROW == 0, 'scrolled, the dots stay on their rows')
+    destroy(m3)
+
+    # when they are not shown: no widgets, folder playback, Clear not offered (DLNA, libcstl unbound), nothing following; the rows then look as they did and a tap in the zone plays
+    m = opened(n=6, pos=1)
+    blits, texts, fills = paint(m)
+    expect(not RM.dot_blits(blits) and [r[2] for (t, r), s in texts] == [O['QP_TEXT_END'] - O['LIST_TEXT_X']] * 8, 'an asset without the sheet\'s widgets: no dots, the old text width')
+    tap(m, ZX, row_y(0) + 30)
+    expect(plays(m) == [('start_playqueue', 2)], 'and a tap there plays the row')
+    destroy(m)
+    m = queue_machine(n=6, pos=1, menu=True); m.top_main = m.window; m.ptype = 1; open_queue(m)
+    blits, texts, fills = paint(m)
+    expect(not RM.dot_blits(blits) and [r[2] for (t, r), s in texts] == [O['QP_TEXT_END'] - O['LIST_TEXT_X']] * 8 and shown(m, 'btn_qclear'), 'folder playback (play type 1): no dots, the old width (Clear stays)')
+    tap(m, ZX, row_y(1) + 30)
+    expect(plays(m) == [('start_playqueue', 3)] and closed(m), 'a tap in the zone plays the row, no sheet')
+    m.ptype = 0; m.play_pos = 0; tick(m)
+    expect(len(dots(m)) == 3, 'the play type changes under the page: the tick shows the dots')
+    open_row(m, 0)
+    m.ptype = 1; tick(m)
+    expect(closed(m) and not dots(m), 'and hides them and closes an open sheet when it changes again')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True); m.setword(DMR, 1); tick(m)
+    expect(not dots(m) and not shown(m, 'btn_qclear'), 'DLNA: no dots, no Clear')
+    tap(m, ZX, row_y(0) + 30)
+    expect(closed(m) and plays(m), 'a tap in the zone plays the row')
+    destroy(m)
+    m = queue_machine(n=6, pos=1, menu=True); m.top_main = m.window; m.install_libcstl(bound=False); open_queue(m)
+    expect(not dots(m) and closed(m), 'libcstl not as pinned (Clear hidden): no dots')
+    destroy(m)
+    m = opened(n=6, pos=5, menu=True)
+    expect(not dots(m) and shown(m, 'qp_empty'), 'nothing follows: no dots')
+    destroy(m)
+
+    # the taps (the lists' rules): in the zone opens, a pixel left of it plays, a drag or a press that leaves the zone does nothing
+    m = opened(n=6, pos=1, menu=True); m.calls.clear()
+    tap(m, zx - 1, row_y(0) + 30)
+    expect(closed(m) and plays(m) == [('start_playqueue', 2)], 'one pixel left of the zone: the row plays')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True)
+    tap(m, zx, row_y(1) + 30)
+    expect(sheet(m) and not plays(m), 'the first pixel of the zone opens the sheet and plays nothing')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True)
+    tap(m, 309, row_y(1) + 30)
+    expect(sheet(m) and not plays(m), 'the last pixel of the zone (x 309) opens it too')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True)
+    tap(m, ZX, row_y(0) + 30, dy=20)
+    expect(closed(m) and not plays(m), 'a drag of 20 px from the zone: nothing')
+    tap(m, ZX, row_y(0) + 30, dx=-40)
+    expect(closed(m) and not plays(m), 'a press that began in the zone and ended off it: nothing')
+    touch(m, 'down', ZX, row_y(0) + 30, 'qp_on_down'); m.call(PSYMS['qp_on_abort'], count=900000000); touch(m, 'up', ZX, row_y(0) + 30, 'qp_on_up', 1080)
+    expect(closed(m) and not plays(m), 'an abort (the scroll_view took the drag): nothing')
+    touch(m, 'down', zx - 4, row_y(0) + 30, 'qp_on_down'); touch(m, 'up', zx + 4, row_y(0) + 30, 'qp_on_up', 1080)
+    expect(closed(m) and plays(m) == [('start_playqueue', 2)], f'a press that began on the text and moved into the zone is a row tap ({plays(m)} {closed(m)})')
+    m.calls.clear()
+    tap(m, ZX, 40)
+    expect(closed(m) and not plays(m), 'the header never opens it')
+    touch(m, 'down', ZX, row_y(0) + 30, 'qp_on_down')
+    expect(not fills_of(paint(m)[2], O['LIST_PRESS']), 'a press on the dots draws no row highlight')
+    touch(m, 'up', ZX, row_y(0) + 30, 'qp_on_up', 1080)
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True)
+    tap(m, 100, row_y(2) + 30)
+    expect(plays(m) == [('start_playqueue', 4)], 'a tap on the text of any row still plays it')
+    destroy(m)
+
+    # the sheet itself: shown by the asset, the scrim closes it and changes nothing
+    m = opened(n=6, pos=1, menu=True); before = recs(m)
+    open_row(m, 1)
+    expect(not [c for c in m.calls if c[0] in ('widget_move', 'widget_resize')] and m.word(m.widgets['rm_scrim']) is not None, 'the sheet opens in the asset\'s place (nothing moved or resized)')
+    click(m, 'rm_scrim')
+    expect(closed(m) and recs(m) == before and not plays(m), 'the scrim closes it, the queue is untouched')
+    destroy(m)
+
+    # the three actions, through the real engine: absolute queue indices (Up Next row k is index pos + 1 + k)
+    for pos, k, act, want in ((1, 2, 0, [0, 1, 4, 2, 3, 5]), (1, 2, 1, [0, 1, 2, 3, 5, 4]), (1, 2, 2, [0, 1, 2, 3, 5]), (1, 0, 0, [0, 1, 2, 3, 4, 5]), (1, 3, 1, [0, 1, 2, 3, 4, 5]), (0, 4, 0, [0, 5, 1, 2, 3, 4]),
+                              (3, 0, 2, [0, 1, 2, 3, 5]), (1, 3, 2, [0, 1, 2, 3, 4]), (1, 1, 1, [0, 1, 2, 4, 5, 3])):
+        m = opened(n=6, pos=pos, menu=True); src = titles(m)
+        open_row(m, k); m.calls.clear()
+        pick(m, act)
+        expect(titles(m) == [src[i] for i in want] and closed(m) and m.play_pos == pos and not plays(m) and not toasts(m),
+               f'pos {pos}, row {k} (index {pos + 1 + k}), {("Play Next", "Play After", "Remove from Queue")[act]}: {titles(m)} (want {[src[i] for i in want]}), the sheet closed, the player untouched, no toast')
+        exp = [src[i] for i in want[pos + 1:]]
+        expect(rows(m) == exp[:len(rows(m))] and len(rows(m)) >= min(3, len(exp)) and text_of(m, 'qp_title') == src[pos], f'the page read the queue again: the rows and the header ({rows(m)} {text_of(m, "qp_title")} want {[src[i] for i in want[pos + 1:]]})')
+        destroy(m)
+    # the scroll offset is kept, clamped to the shorter page
+    m = opened(n=40, pos=0, menu=True); scroll_to(m, 600); paint(m)
+    tap(m, ZX, row_y(10) + 30 - 600); pick(m, 1)
+    expect(sheet(m) is False and m.word(m.sv + SC_YOFF) == 600 and len(recs(m)) == 40 and titles(m)[-1] == 'Track 12', 'Play After in a scrolled list: the offset stays')
+    destroy(m)
+    m = opened(n=12, pos=0, menu=True); mx = vh(m) - WIN_H; scroll_to(m, mx); paint(m)
+    tap(m, ZX, row_y(10) + 30 - mx); pick(m, 2)
+    expect(len(recs(m)) == 11 and m.word(m.sv + SC_YOFF) == vh(m) - WIN_H and vh(m) < mx + WIN_H, f'removing the last row at the end of the list: the offset is clamped to the shorter page ({m.word(m.sv + SC_YOFF)})')
+    destroy(m)
+    # stale sheets: the row's identity (its path string) is checked against the live queue; a mismatch does nothing and reads the queue again
+    m = opened(n=6, pos=1, menu=True); q = m.word(PLAY_QUEUE)
+    open_row(m, 1)   # index 3
+    # the record a row held moved elsewhere (another path swapped the rows)
+    a, b = m.deques[q][3], m.deques[q][4]
+    pa, pb = (m.word(x + O['REC_PATH']) for x in (a, b))
+    m.setword(a + O['REC_PATH'], pb); m.setword(b + O['REC_PATH'], pa)
+    snap = [m.word(x + O['REC_PATH']) for x in recs(m)]; m.calls.clear()
+    pick(m, 2)
+    expect([m.word(x + O['REC_PATH']) for x in recs(m)] == snap and len(recs(m)) == 6 and closed(m) and not toasts(m), 'the row at the index is another track now: nothing is removed, the sheet is closed')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True); open_row(m, 1); before = titles(m)
+    m.play_pos = 2; m.calls.clear()   # the player moved on while the sheet was open (no tick yet)
+    pick(m, 2)
+    expect(titles(m) == before and closed(m) and m.play_pos == 2 and rows(m) == before[3:] and text_of(m, 'qp_title') == before[2], f'the play position moved: nothing is edited, the page reads the queue again from the new track ({rows(m)})')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True); open_row(m, 1); before = titles(m)
+    m.play_pos = 2; tick(m)
+    expect(closed(m) and titles(m) == before and rows(m) == before[3:], 'the tick that finds the position moved closes the sheet')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True); open_row(m, 1)
+    m.setword(PLAY_QUEUE, m.new_deque(recs(m)[:5])); m.calls.clear()   # another queue (shorter, same first record)
+    pick(m, 0)
+    expect(closed(m) and len(recs(m)) == 5 and not [c for c in m.calls if c[0] in ('pop_back', 'lock')], 'a queue that was replaced under the sheet: nothing is done')
+    destroy(m)
+
+    # refusals: DLNA shows the toast; any other refusal only reads the queue again
+    for act in (0, 1, 2):
+        m = opened(n=6, pos=1, menu=True); open_row(m, 1); before = titles(m)
+        m.setword(DMR, 1); m.calls.clear()
+        pick(m, act)
+        expect(titles(m) == before and toasts(m) == ['Not available while DLNA is on'] and closed(m) and not dots(m), f'row {act} with the DLNA service started under the open sheet: the toast, nothing changed, the dots are gone')
+        names = m.names(); expect(names.count('lock') == names.count('unlock'), 'the lock was released')
+        destroy(m)
+    m = opened(n=6, pos=1, menu=True); open_row(m, 1); before = titles(m)
+    m.setword(m.got_deque_size, 0); m.calls.clear()   # libcstl no longer as pinned
+    pick(m, 2)
+    expect(titles(m) == before and not toasts(m) and closed(m) and not dots(m), 'Remove refused (libcstl): no toast, nothing changed, the page read again (the dots are gone)')
+    destroy(m)
+    m = opened(n=6, pos=1, menu=True); open_row(m, 1); m.play_pos = 5; m.calls.clear()   # nothing follows any more
+    pick(m, 0)
+    expect(closed(m) and not toasts(m) and shown(m, 'qp_empty'), 'the last track became the playing one: nothing is edited, "No upcoming songs"')
+    destroy(m)
+
+    # Shuffle on and a gapless preload: the engine keeps Shuffle's order and the flag; moving the next song cancels the preload (engine tests: upnext/edit_tests)
+    m = queue_machine(n=6, pos=1, menu=True); m.top_main = m.window; m.clock = 77; open_queue(m)
+    click(m, 'btn_shuffle'); src = titles(m)
+    open_row(m, 2); pick(m, 0)
+    expect(flag_on(m) and sorted(titles(m)) == sorted(src) and titles(m)[2] == src[4] and titles(m)[:2] == src[:2], 'Shuffle on: Play Next moves the row to pos + 1, the flag stays on')
+    click(m, 'btn_shuffle')
+    expect(not flag_on(m) and len(recs(m)) == 6, 'Shuffle off afterwards works (the engine kept its order valid)')
+    destroy(m)
+    PRE, PRE_NEXT, GAP = (pod.DATA[k][0] for k in ('MCL_PRELOAD', 'MCL_PRELOAD_NEXT', 'MCL_GAPLESS'))
+    m = opened(n=6, pos=1, menu=True); m.setword(PRE, 1); m.setword(PRE_NEXT, 2); m.u.mem_write(GAP, bytes((1,)))
+    open_row(m, 2); pick(m, 0)
+    expect(('mclSetGaplessMode', 0) in m.calls and m.word(PRE) == 0xffffffff, 'Play Next with a preload open: the engine closes it (the next song changed)')
+    destroy(m)
+
+    # the page's memory: the sheet is closed when the page goes behind another and freed with the page
+    m = opened(n=6, pos=1, menu=True); open_row(m, 0)
+    m.call(PSYMS['qp_on_bg'], count=900000000)
+    expect(closed(m), 'the page going behind another closes the sheet')
+    destroy(m)
+    m = opened(n=8, pos=1, menu=True)
+    for _ in range(3): open_row(m, 1); pick(m, 0)
+    made = len(m.bitmaps)
+    destroy(m)
+    expect(made and not m.bitmaps, f'every bitmap of the page is freed with it, the reloads\' placeholders too ({made} live before, {len(m.bitmaps)} left)')
+
 
 def server_tests(ctx):
     """5d. A server track (streamed or downloaded; its REC_ID is in the queue map) shows the source's cover file by that id, in the header and the rows: never the library's album of the same artist
@@ -1120,4 +1329,4 @@ def server_tests(ctx):
     destroy(m)
 
 
-SECTIONS = [asset_tests, open_tests, header_tests, rows_tests, loader_tests, episode_tests, collab_tests, server_tests, cmap_tests, scroll_tests, play_tests, mode_tests, tick_tests, shuffle_tests, clear_tests]   # tools/check.py runs each as its own task
+SECTIONS = [asset_tests, open_tests, header_tests, rows_tests, loader_tests, episode_tests, collab_tests, server_tests, cmap_tests, scroll_tests, play_tests, mode_tests, tick_tests, shuffle_tests, clear_tests, rowedit_tests]   # tools/check.py runs each as its own task

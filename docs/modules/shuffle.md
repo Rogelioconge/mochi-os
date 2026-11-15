@@ -211,5 +211,5 @@ the audiobook filter, the multi-disc folder merge, and Shuffle Folder from insid
 4. **`refresh_playqueue`** (the stock rebuild after the library changed under a playing queue, loaded at position 0 or the last) is treated as a new
    queue: it reshuffles with that position first.
 5. The order is not saved; Shuffle off after a size change of the queue (a song deleted from it) cannot restore it. Play Next / Play After keep `orig` in step
-   (`pod_queue_insert`, above); no other writer may change the queue's size without `drop_order`.
+   (`pod_queue_insert`, above), and so do the single-row edits (`pod_queue_move` rotates `orig` with the rows, `pod_queue_remove` deletes the entry and lowers the positions above it, in place; [queue](queue.md) "Edit engine: move / remove"); no other writer may change the queue's size without `drop_order`.
 6. The gapless cancel is one helper (Gapless above); a late Play Next / reorder joins without gapless in that song).

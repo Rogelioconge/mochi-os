@@ -781,3 +781,62 @@ int pod_clear_upnext(void) {
     sh_leave();
     return r;
 }
+
+/* Edit engine (docs/modules/queue.md "Edit engine: move / remove"): one Up Next row moves to another index or is removed, in place. Both rotate [from, to] by one slot with the
+ * rows_reverse / row_swap of the insert (no allocation, no string copy: every string stays owned by one slot); the remove then pops the last slot with libcstl's deque_pop_back as Clear does.
+ * Under the payload lock, re-reading the queue, its size and the play position. Only rows after the play position are touched (never the playing row, the position or the history, no
+ * mclSetPlayPos). Shuffle's saved order follows the rows: a move applies the same rotation to sh.orig (it stays a permutation), a remove deletes the row's entry and moves every
+ * original position above it down by one, in place (sh.n = size - 1); a stale order is dropped. A change of the row at pos + 1 cancels an open gapless preload (cancel_preload); a remove
+ * forgets a preload target past the new end, as Clear does. POD_EDIT_OK, or nothing changed: _RANGE, _DLNA, _LIBCSTL. */
+static void edit_reverse(void *q, unsigned *o, unsigned lo,
+                         unsigned hi) { /* rows and their original positions together */
+    unsigned t;
+    for (; lo < hi; ++lo, --hi) {
+        row_swap(q, lo, hi);
+        if (o) t = o[lo], o[lo] = o[hi], o[hi] = t;
+    }
+}
+
+static int queue_edit(unsigned from, unsigned to, int remove) {
+    void *q;
+    void (*pop)(void *) = (void (*)(void *))0;
+    unsigned size, *o, v, i;
+    int pos, r = POD_EDIT_OK;
+    sh_enter();
+    q = play_queue();
+    size = q ? deque_size(q) : 0; /* (binds deque_size's GOT slot if nothing did) */
+    pos = mclGetPlayPos();
+    if (dlna_running()) /* the service starts on the UI thread (this one), so it cannot start between this check and the edit */
+        r = POD_EDIT_DLNA;
+    else if (pos < 0 || from <= (unsigned)pos || from >= size || (!remove && (to <= (unsigned)pos || to >= size)))
+        r = POD_EDIT_RANGE;
+    else if (remove && !(pop = cstl_pop_back()))
+        r = POD_EDIT_LIBCSTL;
+    else if (remove || from != to) {
+        if (remove) to = size - 1;
+        o = sh.orig && sh.n == size ? sh.orig : (unsigned *)0;
+        if (sh.orig && !o) drop_order(); /* a stale order */
+        if (from < to) {
+            edit_reverse(q, o, from + 1, to);
+            edit_reverse(q, o, from, to);
+        } else if (from > to) {
+            edit_reverse(q, o, to, from - 1);
+            edit_reverse(q, o, to, from);
+        }
+        if (from == (unsigned)pos + 1 || to == (unsigned)pos + 1) cancel_preload();
+        if (remove) {
+            if (o) {
+                v = o[size - 1];
+                for (i = 0; i + 1 < size; ++i) o[i] -= o[i] > v;
+                sh.n = size - 1;
+            }
+            if (*(int *)MCL_PRELOAD_NEXT >= (int)(size - 1)) *(int *)MCL_PRELOAD_NEXT = -1;
+            pop(q);
+        }
+    }
+    sh_leave();
+    return r;
+}
+
+int pod_queue_move(unsigned from, unsigned to) { return queue_edit(from, to, 0); }
+int pod_queue_remove(unsigned i) { return queue_edit(i, i, 1); }

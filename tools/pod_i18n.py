@@ -858,6 +858,8 @@ TEXT = dict([
        'Reproducir a continuación', 'Riproduci come successivo', 'เล่นถัดไป', 'Odtwórz jako następny', 'Воспроизвести следующим', 'Відтворити наступним'),
     _t('Play After', '最后播放', '最後播放', '最後に再生', '마지막에 재생', 'Lire en dernier', 'Zuletzt spielen',
        'Reproducir al final', 'Riproduci per ultimo', 'เล่นเป็นเพลงสุดท้าย', 'Odtwórz na końcu', 'Воспроизвести последним', 'Відтворити останнім'),
+    _t('Remove from Queue', '从队列中移除', '從佇列移除', 'キューから削除', '대기열에서 제거', "Retirer de la file d'attente", 'Aus Warteschlange entfernen',
+       'Quitar de la cola', 'Rimuovi dalla coda', 'ลบออกจากคิว', 'Usuń z kolejki', 'Удалить из очереди', 'Видалити з черги'),
     _t('Playing Next', '已设为下一首播放', '已設為下一首播放', '次に再生します', '다음에 재생됩니다', 'Lecture ensuite', 'Wird als Nächstes gespielt',
        'Se reproducirá a continuación', 'In riproduzione dopo', 'จะเล่นเพลงถัดไป', 'Odtworzone jako następne', 'Будет следующим', 'Буде наступним'),
     _t('Added to Queue', '已添加到队列', '已加入佇列', 'キューに追加しました', '대기열에 추가됨', "Ajouté à la file d'attente", 'Zur Warteschlange hinzugefügt',

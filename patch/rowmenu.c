@@ -46,6 +46,7 @@ static void *rm_make_dots(void *win) {
 void rowmenu_close(rowmenu_t *rm) {
     rm->open = 0;
     rm->add = (rowmenu_add_fn)0;
+    rm->queue = (rowmenu_queue_fn)0;
     if (rm->rows) deque_destroy(rm->rows);
     rm->rows = (void *)0;
     m1_show(rm->scrim, 0);
@@ -157,6 +158,13 @@ static int rm_on_item(void *ctx, void *e) {
     rowmenu_t *rm = s->rm;
     (void)e;
     if (!rm->open) return RET_OK;
+    if (rm->queued) { /* the Queue page's sheet: the page does the act once the sheet is gone */
+        rowmenu_queue_fn fn = rm->queue;
+        int row = rm->row;
+        rowmenu_close(rm);
+        if (fn) fn(row, s->k);
+        return RET_OK;
+    }
     if (rm->src && s->k == 2) {
         rm_download(rm);
     } else if (rm->src && s->k < 2) {
@@ -185,7 +193,7 @@ static int rm_on_item(void *ctx, void *e) {
     return RET_OK;
 }
 
-int rowmenu_bind(rowmenu_t *rm, void *win) {
+static int rm_bind(rowmenu_t *rm, void *win, int rows) {
     static const char *const ITEMS[RM_ROWS] = {"rm_item0", "rm_item1", "rm_item2", "rm_item3", "rm_item4"};
     int i, ok;
     memset(rm, 0, sizeof *rm);
@@ -193,21 +201,39 @@ int rowmenu_bind(rowmenu_t *rm, void *win) {
     rm->scrim = m1_bind(win, "rm_scrim", rm_on_scrim, rm);
     rm->card = widget_lookup(win, "rm_card", 1);
     ok = rm->scrim && rm->card;
-    for (i = 0; i < RM_ROWS; ++i) {
+    for (i = 0; i < rows; ++i) {
         rm->slot[i].rm = rm, rm->slot[i].k = i;
         rm->item[i] = m1_bind(win, ITEMS[i], rm_on_item, &rm->slot[i]);
         ok = ok && rm->item[i];
     }
-    rm->fav_label = widget_lookup(win, "rm_label3", 1);
-    rm->fav_icon = widget_lookup(win, "rm_icon3", 1);
-    rm->dl_label = widget_lookup(win, "rm_label2", 1);
-    rm->dl_icon = widget_lookup(win, "rm_icon2", 1);
+    if (rows == RM_ROWS) {
+        rm->fav_label = widget_lookup(win, "rm_label3", 1);
+        rm->fav_icon = widget_lookup(win, "rm_icon3", 1);
+        rm->dl_label = widget_lookup(win, "rm_label2", 1);
+        rm->dl_icon = widget_lookup(win, "rm_icon2", 1);
+    }
     m1_show(rm->scrim, 0);
     m1_show(rm->card, 0);
     if (!ok) return 0;
     rm->dots = rm_make_dots(win);
     rm->on = rm->dots != (void *)0;
     return rm->on;
+}
+
+int rowmenu_bind(rowmenu_t *rm, void *win) { return rm_bind(rm, win, RM_ROWS); }
+
+int rowmenu_bind_queue(rowmenu_t *rm, void *win) {
+    int on = rm_bind(rm, win, RM_QUEUE_ROWS);
+    rm->queued = 1;
+    return on;
+}
+
+int rowmenu_open_queue(rowmenu_t *rm, int row, rowmenu_queue_fn fn) {
+    if (!rm->on || !rm->queued || rm->open || !fn) return 0;
+    rm->row = row, rm->queue = fn, rm->open = 1;
+    m1_show(rm->scrim, 1);
+    m1_show(rm->card, 1);
+    return 1;
 }
 
 void rowmenu_free(rowmenu_t *rm) {

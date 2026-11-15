@@ -808,6 +808,7 @@
  * touch column, which starts at SG_RAIL_X 284). The row's text ends RM_TEXT_GAP before the zone. A tap on it opens the sheet: RM_ROWS rows of PM_ROW_H at the window's foot in
  * Now Playing's More sheet's glass (pc_sheet5, 320 x 250, top corners only), laid out by the asset (the payload only shows and hides it). */
 #define RM_ROWS 5
+#define RM_QUEUE_ROWS 3 /* the Queue page's sheet: Play Next, Play After, Remove from Queue (docs/modules/queue.md) */
 #define RM_MORE_W 44
 #define RM_MORE_RIGHT 310
 #define RM_MORE_RIGHT_RAIL 284

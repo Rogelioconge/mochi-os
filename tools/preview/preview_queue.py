@@ -30,7 +30,7 @@ QUEUE = [('Chorus Complains', 'Driftless Pony Club', 3), ('When We Live In Circl
          ('春よ、来い', '松任谷由実', 10), ('夜に駆ける', 'YOASOBI', 10)]
 
 
-def content(s, playing=1, shuffle=False, repeat=None):
+def content(s, playing=1, shuffle=False, repeat=None, edit=True):
     n = len(QUEUE) - playing - 1    # Up Next: the tracks after the playing one (the queue's own order, shuffled or not)
     im = Image.new('RGBA', (W, max(WIN, TOP + n * ROW + O['QP_BOTTOM'])), (0, 0, 0, 255)); d = ImageDraw.Draw(im)
     title, artist, ci = QUEUE[playing]
@@ -45,21 +45,25 @@ def content(s, playing=1, shuffle=False, repeat=None):
     s.text(im, O['SG_HDR_X'], O['QP_HEAD_Y'] + O['QP_HEAD_H'] / 2, PS.tr(s, 'Queue'), 20)
     if n: s.text(im, O['QP_CLEAR_X'] + O['QP_CLEAR_W'], O['QP_CLEAR_Y'] + O['QP_CLEAR_H'] / 2, PS.tr(s, 'Clear'), 17, MUTED, 'r')    # Clear: right aligned to x 310, centred on the line, only while songs follow
     if not n: s.text(im, O['SG_HDR_X'], TOP + O['QP_EMPTY_Y'] + O['QP_EMPTY_H'] / 2, PS.tr(s, 'No upcoming songs'), 16, MUTED)
+    more = PS.dots(s)   # the rows' "..." while the page offers the edit (patch/queuepage.c qp_edit_on); the texts end before its zone
+    text_end = PS.more_right(False) - PS.MORE_W - PS.MORE_GAP if edit else TEXT_END
     for i in range(n):
         t, a, k = QUEUE[playing + 1 + i]; y = TOP + i * ROW
         d.rectangle((TEXT_X, y + ROW - 1, TEXT_END - 1, y + ROW - 1), fill=PS.HAIR)
         im.alpha_composite(PI.rounded(PI.sample_cover(PI.ALBUMS[k][2], ART), O['LIST_R']), (ART_X, y + ART_Y))
-        s.text(im, TEXT_X, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(t, 21, TEXT_END - TEXT_X), 21)
-        s.text(im, TEXT_X, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, s.clip(a, 18, TEXT_END - TEXT_X), 18, GREY)
+        s.text(im, TEXT_X, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(t, 21, text_end - TEXT_X), 21)
+        s.text(im, TEXT_X, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, s.clip(a, 18, text_end - TEXT_X), 18, GREY)
+        if edit: im.alpha_composite(more, (PS.dots_x(PS.more_right(False), False), y + (ROW - 1 - PS.DOTS_PX) // 2))
     return im
 
 
-def page(s, scroll=0, **kw):
+def page(s, scroll=0, sheet=False, **kw):
     tall = content(s, **kw)
     im = Image.new('RGBA', (W, WIN), (0, 0, 0, 255))
     scroll = max(0, min(scroll, tall.height - WIN))
     im.alpha_composite(tall.crop((0, scroll, W, scroll + WIN)), (0, 0))
     PS.glass(s, im, 'ah_nav_back', 7, 44)    # the glass Back floats over the rows
+    if sheet: PS.row_menu(s, im, keys=('Play Next', 'Play After', 'Remove from Queue'), glyphs=('rm_ic_next', 'rm_ic_after', 'rm_ic_remove'))    # the "..." sheet (three rows, the three-row glass)
     return im
 
 
@@ -74,7 +78,9 @@ def main():
               ('Shuffle on, Repeat all: independent', page(s, playing=1, shuffle=True, repeat='all')),
               ('Repeat one', page(s, playing=1, repeat='one')),
               ('Repeat all, scrolled', page(s, playing=1, repeat='all', scroll=300)),
-              ('The last track playing: nothing follows', page(s, playing=len(QUEUE) - 1))]
+              ('The last track playing: nothing follows', page(s, playing=len(QUEUE) - 1)),
+              ('A row\'s "..." tapped: the sheet', page(s, playing=1, sheet=True)),
+              ('Folder playback or DLNA: no "..."', page(s, playing=1, edit=False))]
     pad, lab = 12, 20
     sheet = Image.new('RGB', (len(panels) * (320 + pad) + pad, 450 + lab + 2 * pad), (0x2A, 0x2A, 0x2A)); d = ImageDraw.Draw(sheet)
     for i, (title, im) in enumerate(panels):

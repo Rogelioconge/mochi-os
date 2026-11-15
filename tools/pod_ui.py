@@ -904,27 +904,31 @@ def build_playlists_page(page):
 
 
 RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS)
+RM_QUEUE_KEYS = ('Play Next', 'Play After', 'Remove from Queue')   # the Queue page's sheet: three rows (the same code path, patch/rowmenu.c rowmenu_bind_queue), the glass of three rows
+RM_QUEUE_GLASS = 'pc_sheet3'
 RM_GLASS = 'pc_sheet5'                                       # the sheet's glass: Now Playing's More sheet's pane, five rows high, top corners only (tools/mod_icons.py GLASS_ROWMENU)
 RM_ICON_X, RM_TEXT_X, RM_TEXT_R = 14, 48, 22                  # Now Playing's More sheet's rows (pod_tape: the 24 px glyph at x 14, the label from x 48, ending at 298)
 RM_LABEL_PX = 18
 
 
-def row_menu():
+def row_menu(queue=False):
     """(scrim, card): the track rows' "..." menu, shared by the album page and the Songs page (patch/rowmenu.c, docs/modules/rowmenu.md): a bottom sheet as Now Playing's More sheet
     (tools/mod_lists.py edit_playmore): the window's dim scrim, a full-width card at the window's foot in that sheet's glass, five PM_ROW_H rows filling it, each a transparent button
     (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info.
-    Hidden AND insensitive until the payload shows them; nothing is placed or sized at open. Put it last in the window, above the list, the bars and the navbar."""
-    from mod_icons import RM_MENU_ICONS, BARE_PX
-    rows, rh = OFFSETS['RM_ROWS'], OFFSETS['PM_ROW_H']
-    assert len(RM_KEYS) == rows
+    Hidden AND insensitive until the payload shows them; nothing is placed or sized at open. Put it last in the window, above the list, the bars and the navbar.
+    queue: the Queue page's sheet, three rows (Play Next, Play After, Remove from Queue) on the three-row glass."""
+    from mod_icons import RM_MENU_ICONS, RM_REMOVE, BARE_PX
+    keys, icons, glass = (RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS) if queue else (RM_KEYS, RM_MENU_ICONS, RM_GLASS)
+    rows, rh = OFFSETS['RM_QUEUE_ROWS' if queue else 'RM_ROWS'], OFFSETS['PM_ROW_H']
+    assert len(keys) == rows == len(icons)
     scrim = modal_scrim('rm_scrim')
     card = hidden(Widget('view', 0, CLIENT_H - rows * rh, SCREEN_W, rows * rh, [('name', 'rm_card')]))
     for st in STATES:
         styled(card, (st,), 'bg_color', '#00000000')
-        styled(card, (st,), 'bg_image', RM_GLASS)
+        styled(card, (st,), 'bg_image', glass)
         styled(card, (st,), 'bg_image_draw_type', 'default')
         styled(card, (st,), 'border_width', '0')
-    for i, (text, (icon, _)) in enumerate(zip(RM_KEYS, RM_MENU_ICONS)):
+    for i, (text, (icon, _)) in enumerate(zip(keys, icons)):
         item = Widget('button', 0, i * rh, SCREEN_W, rh, [('name', f'rm_item{i}'), ('enable', 'true')])
         for st in STATES:
             styled(item, (st,), 'bg_color', PL_PRESSED if st == 'pressed' else '#00000000')
@@ -1509,7 +1513,8 @@ def build_queue_page(page):
     root.children.append(lv)
     root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
     root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB), ('label_row_sub', LIST_SUB_PX, SUB_RGB)))
-    root.children.extend(queue_navbar(page))   # last: the glass controls paint and take touches over the list
+    root.children.extend(queue_navbar(page))   # the glass controls paint and take touches over the list
+    root.children.extend(row_menu(queue=True))   # last: the Queue page's "..." sheet covers the navbar too (patch/rowmenu.c)
     return root
 
 

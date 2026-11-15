@@ -13,6 +13,12 @@ typedef struct rowmenu rowmenu_t;
 /* A page's "Add to Playlist" for the row `row` (its own one-row selection and the picker, patch/songops.c so_add). Called after the menu has closed. */
 typedef void (*rowmenu_add_fn)(int row);
 
+/* The Queue page's sheet (rowmenu_open_queue): called once the sheet has closed with the row it opened for and the row of the sheet that was tapped (RMQ_*). */
+typedef void (*rowmenu_queue_fn)(int row, int act);
+#define RMQ_NEXT 0 /* Play Next */
+#define RMQ_AFTER 1 /* Play After */
+#define RMQ_REMOVE 2 /* Remove from Queue */
+
 struct rowmenu_slot {
     rowmenu_t *rm;
     int k; /* 0 Play Next, 1 Play After, 2 Add to Playlist, 3 Favorite, 4 Get Info */
@@ -32,6 +38,8 @@ struct rowmenu {
     int open;
     int row; /* the page's index of the row */
     rowmenu_add_fn add;
+    rowmenu_queue_fn queue; /* the Queue page's sheet is open (three rows: RMQ_*), this is what its rows call */
+    int queued; /* bound by rowmenu_bind_queue: three rows (rm_item0..2), the Queue page's */
     struct rowmenu_slot slot[5];
     /* A source's row (rowmenu_open_src): the third row is Download / Cancel Download / Remove Download in place of Add to Playlist, Favorite and its toast go through the source. */
     const lib_src_t *src; /* NULL: the stock library */
@@ -42,6 +50,12 @@ struct rowmenu {
 /* Looks up and binds the widgets of the page's window and makes the "..." bitmap. 1 when the "..." can be shown (assets found, M1+ Music not switched off), else 0
  * (the page then paints no "..." and takes no tap for it; it works as before). Call once, after the window opened. */
 int rowmenu_bind(rowmenu_t *rm, void *win);
+
+/* The Queue page's menu: the same widgets and the same sheet with three rows only (Play Next, Play After, Remove from Queue; the page's asset, tools/pod_ui.py row_menu(queue=True)). */
+int rowmenu_bind_queue(rowmenu_t *rm, void *win);
+
+/* Opens the Queue page's sheet for its row `row`; `fn(row, act)` runs after the sheet has closed, when a row of it is tapped. 1 when open. */
+int rowmenu_open_queue(rowmenu_t *rm, int row, rowmenu_queue_fn fn);
 
 /* Frees the bitmap and the row copy (the window's destroy). */
 void rowmenu_free(rowmenu_t *rm);

@@ -267,6 +267,7 @@ PL_MENU_ICONS = (('pl_ic_new', 'list-plus'), ('pl_ic_import', 'file-input'), ('p
 # The track rows' "..." menu (patch/rowmenu.c, docs/modules/rowmenu.md; tools/pod_ui.py row_menu): bare BARE_PX glyphs as on Now Playing's More sheet's own rows (pod_ic_tape), Play Next, Play After, Add to Playlist; and
 # the row's own "..." (RM_DOTS: the Lucide ellipsis, 24 px white on transparent; the payload makes it a RM_DOTS_RGB bitmap from the image's coverage and paints it at the right end of a track row)
 RM_MENU_ICONS = (('rm_ic_next', 'list-start'), ('rm_ic_after', 'list-end'), ('rm_ic_add', 'list-plus'), ('rm_ic_fav', 'star'), ('rm_ic_info', 'info'))
+RM_REMOVE = ('rm_ic_remove', 'list-x')   # the Queue page's sheet (patch/rowmenu.c, docs/modules/queue.md): Remove from Queue
 RM_FAV_ON = ('rm_ic_unfav', 'star')   # Favorite's glyph while the track is a favourite (Undo Favorite): the same star filled solid; the payload swaps the row's image
 RM_DL_ICONS = (('rm_ic_dl', 'download'), ('rm_ic_cxdl', 'x'))   # a Navidrome row's sheet (patch/rowmenu.c rm_third): the third row's Download / Remove Download / Cancel Download, in place of Add to Playlist's glyph
 RM_DOTS = ('rm_dots', 'ellipsis')
@@ -392,7 +393,7 @@ def is_badge(g): return g.startswith('badge:')
 def used_glyphs():
     """(Lucide names, Tabler names) of every glyph the tables use; custom ones excluded."""
     gl = [e[2] for e in HOME + SETTINGS + LISTS] + list(PULLDOWN.values()) + list(STATUS.values()) + \
-        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1]] + [RM_DOTS[1]] + list(ES_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
+        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [RM_DOTS[1]] + list(ES_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
         [g for _, g, _ in GLYPHS] + [v[0] for v in SONGS_IMAGES.values()] + [v[0] for v in KEYBOARD_IMAGES.values()] + [KB_CLEAR[1], DP_ADD_GLYPH] + list(PC_GLYPHS) + [g for _, g in DISCS] + [v[0] for v in NP.values() if not v[0].startswith('pil:')] + ['lock:filled'] + R3_GLYPHS
     names = {gname(g) for g in gl if g and not is_custom(g) and not is_badge(g)}
     return sorted(n for n in names if not n.startswith('T:')), sorted(n[2:] for n in names if n.startswith('T:'))
@@ -817,6 +818,7 @@ def generate_all(sizes):
     for n, g in RM_MENU_ICONS: f[n] = glyph(g, BARE_PX, 'bare')
     for n, g in RM_DL_ICONS: f[n] = glyph(g, BARE_PX, 'bare')
     f[RM_FAV_ON[0]] = glyph(RM_FAV_ON[1], BARE_PX, 'solid')
+    f[RM_REMOVE[0]] = glyph(RM_REMOVE[1], BARE_PX, 'bare')
     f[RM_DOTS[0]] = glyph(RM_DOTS[1], RM_DOTS_PX, 'bare')
     for n, g in ES_ICONS.items(): f[n] = glyph_fit(g, ES_PX, ES_PX, ES_RGB, 2, 2.0)
     for n, g in NAV_VIEW.items():
@@ -1741,7 +1743,7 @@ def replaced_names():
 
 def pod_row_names(): return sorted({n for n, _ in POD_ROWS.values()})
 def nav_names(): return sorted(set(NAV_VIEW) | {n + '_down' for n in NAV_VIEW})
-def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0]} | {n for n, _ in RM_DL_ICONS})
+def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_DL_ICONS})
 def np_names(): return sorted(set(NP) | {v[4] for v in NP.values() if v[4]})
 
 def added_rels(stock_rootfs=None, *args):
@@ -1905,7 +1907,7 @@ def add_nav_icons(out):
     the status bar's Screenshot camera (the hidden pod_shot image tools/pod_ui.py adds to ui/system_bar.bin) and the Playlists
     page's menu glyphs (ui/m1plus_playlists.bin)."""
     d = os.path.join(out, IMG)
-    for n in nav_names() + [SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [RM_FAV_ON[0], RM_DOTS[0]]:
+    for n in nav_names() + [SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
         q = os.path.join(d, n + '.png'); assert not os.path.exists(q), f'{n}.png already in the tree'
         shutil.copyfile(os.path.join(PNG, n + '.png'), q); os.chmod(q, IMG_MODE); os.utime(q, (IMG_MTIME, IMG_MTIME))
 

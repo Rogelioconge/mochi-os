@@ -253,7 +253,7 @@ def row_menu(s, im, keys=('Play Next', 'Play After', 'Add to Playlist', 'Favorit
     import pod_ui
     im.alpha_composite(Image.new('RGBA', im.size, (0, 0, 0, 0x82)))
     rh = O['PM_ROW_H']; h = len(keys) * rh; y = im.height - h
-    im.alpha_composite(s.img('pc_sheet5'), (0, y))
+    im.alpha_composite(s.img('pc_sheet%d' % len(keys)), (0, y))
     for i, (key, name) in enumerate(zip(keys, glyphs)):
         ry = y + i * rh
         if i: im.alpha_composite(Image.new('RGBA', (W, 1), (255, 255, 255, 0x22)), (0, ry))

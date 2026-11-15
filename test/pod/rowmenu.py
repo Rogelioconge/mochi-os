@@ -649,4 +649,37 @@ def source_tests(ctx):
     expect(m.wtext[m.widgets['rm_label2']] == 'Add to Playlist' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_add', 'the stock sheet: the third row is Add to Playlist with its own glyph')
 
 
-SECTIONS = [asset_tests, paint_tests, touch_tests, menu_tests, fav_info_tests, source_tests]
+def queue_tests(ctx):
+    """6. The Queue page's sheet (tools/pod_ui.py row_menu(queue=True), patch/rowmenu.c rowmenu_bind_queue): the same card and rows with three of them (Play Next, Play After, Remove from Queue) on
+    the three-row glass, last in the window; the new glyph is the generator's and an accent glyph; the new label fits every language."""
+    expect = ctx.expect
+    import mod_icons, palette
+    tree = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_queue.bin'), 'rb').read())
+    scrim, card = tree.find('rm_scrim'), tree.find('rm_card')
+    items = [tree.find(f'rm_item{i}') for i in range(3)]
+    labels = [tree.find(f'rm_label{i}') for i in range(3)]
+    icons = [tree.find(f'rm_icon{i}') for i in range(3)]
+    expect([c.name for c in tree.children][-2:] == ['rm_scrim', 'rm_card'] and tree.find('rm_item3') is None and tree.find('rm_item4') is None, 'the Queue page: the scrim and the card are last (over the glass Back) and hold three rows only')
+    expect((card.x, card.y, card.w, card.h) == (0, 450 - 3 * PLROW, 320, 3 * PLROW) == (0, 300, 320, 150) and all(card.get(f'style:{st}:bg_image') == 'pc_sheet3' for st in pod_ui.STATES)
+           and card.get('visible') == 'false' and card.get('sensitive') == 'false' and scrim.get('visible') == 'false' and scrim.get('sensitive') == 'false',
+           'the card is the 320 x 150 bottom sheet on the three-row glass, hidden and insensitive with the scrim')
+    expect([(i.x, i.y, i.w, i.h) for i in items] == [(0, k * PLROW, 320, PLROW) for k in range(3)]
+           and all(i.get(f'style:{st}:border') == ('top' if k else 'none') and i.get(f'style:{st}:border_color') == ('#FFFFFF22' if k else '#00000000') for k, i in enumerate(items) for st in pod_ui.STATES),
+           'three full-width 50 px rows, the sheet\'s one hairline above every row but the first')
+    expect([ic.get('image') for ic in icons] == ['rm_ic_next', 'rm_ic_after', 'rm_ic_remove'] and mod_icons.RM_REMOVE == ('rm_ic_remove', 'list-x') and [pod_i18n.shown_english(lb) for lb in labels] == ['Play Next', 'Play After', 'Remove from Queue'],
+           'Play Next and Play After keep their words and glyphs; the third row is Remove from Queue with the Lucide list-x')
+    xx = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/images/xx')
+    expect(open(os.path.join(xx, 'rm_ic_remove.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, 'rm_ic_remove.png'), 'rb').read()
+           and same_pixels(open(os.path.join(xx, 'pc_sheet3.png'), 'rb').read(), mod_icons.glass_image(320, 150, 18, fill=mod_icons.GLASS_SHEET_FILL, top_only=True)),
+           'rm_ic_remove.png is the committed PNG and pc_sheet3.png the generator\'s three-row glass')
+    expect(palette.ACCENT_GLYPH[3] == 'rm_ic_' and 'rm_ic_remove'.startswith(palette.ACCENT_GLYPH), 'the new glyph takes the accent like the others (the rm_ic_ prefix)')
+    import awtk_strings
+    from awtk_text import Ttf, StbText
+    raw = os.path.join(WORK, 'rootfs', 'release', 'assets', 'default', 'raw')
+    font = Ttf(os.path.join(raw, 'fonts', 'default.ttf'))
+    widest = max((StbText(font, pod_ui.RM_LABEL_PX).layout(dict(awtk_strings.load(os.path.join(raw, 'strings', loc + '.bin')))['Remove from Queue'])[1], loc) for loc in pod_i18n.LOCALES)
+    expect(widest[0] <= LABEL_W and set(pod_i18n.TEXT['Remove from Queue']) == set(pod_i18n.LOCALES) and all(pod_i18n.TEXT['Remove from Queue'][lc] for lc in pod_i18n.LOCALES),
+           f'"Remove from Queue" is translated in all 13 languages and the longest ({widest[1]}, {widest[0]:.0f} px) fits the {LABEL_W} px box')
+
+
+SECTIONS = [asset_tests, paint_tests, touch_tests, menu_tests, fav_info_tests, source_tests, queue_tests]

@@ -68,6 +68,10 @@ and goes through `src->act(LS_ACT_FAVORITE)` (no stock myfav call); the words an
 synthetic id added to the queue map by `sba_queue_add`) to `upnext_add`, which skips the file test for a stream address whose id the map knows; the source shows why when it cannot (offline and not downloaded). An undownloaded DSD
 row asks `ls_dsd_confirm` instead ("Download to Play?"). Get Info is `songinfo_open` (it reads the source's data for an `nd://` record). Tests: `rowmenu/source_tests` (album page and Songs page over fake sources).
 
+## The Queue page's sheet
+
+The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next rows: same widgets, scrim, glass, row look and "..." painter, in a three-row form. The page's asset holds `row_menu(queue=True)`: `rm_card` 320 x 150 on `pc_sheet3` with `rm_item0..2`, rows **Play Next**, **Play After** and (under the one hairline) **Remove from Queue** (`rm_ic_remove`, `list-x`, bare 24 px, an accent glyph by the `rm_ic_` prefix). `rowmenu_bind_queue` binds those three (and sets `rowmenu_t.queued`), `rowmenu_open_queue(rm, row, fn)` shows the sheet with no row copy and no source, and a tapped row closes the sheet and calls `fn(row, RMQ_NEXT / RMQ_AFTER / RMQ_REMOVE)`: the page does the act (`pod_queue_move` / `pod_queue_remove`), not `upnext_add`. Everything else (close on the scrim, the "..." bitmap, `rowmenu_paint`) is shared. Tests: `rowmenu/queue_tests`.
+
 ## Design notes
 
 - No widget per row: the "..." is a bitmap (`rm_make_dots`: the image `rm_dots` decoded by `cc_decode`, its red channel the coverage, `#8C8C8C`) drawn by `rowmenu_paint` from the page's row painter with
@@ -76,7 +80,7 @@ row asks `ls_dsd_confirm` instead ("Download to Play?"). Get Info is `songinfo_o
 - `rowmenu_t` lives in each page's state (`sg.rm`, `ab.rm`); the page text edge follows `rowmenu_on` and, on Songs, the rail (`sg_edge`). A list read again with the rail's presence changed drops its text tiles
   (`sg.tend`): their ellipses were cut for the other width.
 - The temporary Developer rows "Test: Play Next / Test: Play After" (`ACT_UPNEXT_NEXT` 50, `ACT_UPNEXT_AFTER` 51), their log `/mnt/mmc/queue-probe.log` and their texts are gone; the ids 50 and 51 are unused.
-- Not done: Search, Daily Mix, Albums, Folders and Podcasts rows; a "..." pressed state; a menu on a long press; Go to Album / Go to Artist (dropped by the user); removing a queued song.
+- Not done: Search, Daily Mix, Albums, Folders and Podcasts rows; a "..." pressed state; a menu on a long press; Go to Album / Go to Artist (dropped by the user); removing a queued song (the Queue page's own sheet does it, below).
 
 ## Tests (`test/pod/rowmenu.py`, emulated)
 
