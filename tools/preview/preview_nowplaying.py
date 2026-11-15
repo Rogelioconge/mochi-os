@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Approximate PIL mock-up of the Now Playing page (ui/playing_page.bin + its page theme); not pixel-exact AWTK.
 
-  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3][,cover=FILE][,tint=RRGGBB][,playing] ...
+  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing] ...
 
 RAW_DIR is a tree's rootfs/release/assets/default/raw. Each panel draws a 30 px status bar and the 450 px
 window under it. Styles resolve as on the device: inline style:<state>:<prop>, then the window theme
@@ -11,7 +11,7 @@ hscroll_label text from margin_left 2 and clipped to its margins); the glyphs th
 values (title, times, cover...) are sample data. The cover is a synthetic gradient, or cover=FILE (drawn at the
 widget's size, and its box average gives the window colour through mod_nowplaying.tone, as patch/nowplaying.c
 does); tint=RRGGBB is a cover's average colour given directly. page=N shows slide page N (0 cover, 1 lyrics,
-2 info). The remaining time label is shown in place of the total, as with the hook running.
+2 info; scroll=PX shows the info page's content scrolled by that many px, full draws the whole content as a taller panel). The remaining time label is shown in place of the total, as with the hook running.
 """
 import argparse, os, sys
 from PIL import Image, ImageDraw, ImageFont
@@ -35,6 +35,8 @@ INFO = {'cd': dict(title='Money', artist='Pink Floyd', album='The Dark Side of t
         'dsd': dict(title='So What', artist='Miles Davis', album='Kind of Blue', quality='DSF|2822.4kHz|1bit|5645kbps', genre='Jazz', year='1959', size='379.12MB', location='SD:/Music/Miles Davis/Kind of Blue/01 So What.dsf', badge='DSD'),
         'mp3': dict(title='Wish You Were Here (2011 Remastered Version)', artist='Pink Floyd', album='Wish You Were Here', quality='MP3|44.1kHz|16bit|320kbps', genre='Rock', year='1975', size='12.80MB',
                     location='SD:/Music/Pink Floyd/Wish You Were Here/04 Wish You Were Here.mp3', badge='')}
+INFO['long'] = dict(title='Wish You Were Here (2011 Remastered Version)', artist='Pink Floyd', album='Wish You Were Here', quality='FLAC|96kHz|24bit|2707kbps', genre='Progressive Rock', year='1975',
+                    size='173.40MB', location='SD:/Music/Hi-Res/Pink Floyd/Wish You Were Here (2011 Remastered Version)/04 Wish You Were Here.flac', badge='HI-RES')
 INFO_LABELS = ('label_info', 'label_album', 'label_genre', 'label_year', 'label_size', 'label_location')    # stock's data labels: hidden while the payload's own show
 PROGRESS = 22    # % played in the mock-up
 
@@ -73,6 +75,7 @@ class Painter:
         if px not in self.stbs: self.stbs[px] = StbText(self.ttf, px)
         return self.stbs[px]
     info = INFO['cd']    # the information page's sample track
+    scroll, full = 0, False   # the info page's content offset; the whole content (a taller image)
     playing = False      # the play button shows the pause glyph (the app swaps btn_imgplay_style / btn_imgpause_style)
     def image(self, name):
         if not name: return None
@@ -152,39 +155,57 @@ class Painter:
             rgb = tone(*self.cover_img.convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0)))
         win = Image.new('RGBA', (W, H), ('#%02X%02X%02X' % tuple(rgb)) if rgb else root.get('style:normal:bg_color', BG))
         self.walk(win, root, 0, 0, (0, 0, W, H), page, root)
-        if page == 2: self.info_page(win)
+        if page == 2:
+            tall = self.info_page(win)
+            if tall: return tall
         im.alpha_composite(win, (0, BAR))
         return im
     def info_page(self, win):
-        """The information page as patch/nowplaying.c lays it out (np_header, np_quality, np_row), from the shared model (mod_nowplaying qparse / qlayout / head_fit) and the built font."""
+        """The information page as patch/nowplaying.c lays it out (np_header, np_quality, np_row, np_flow), from the shared model (mod_nowplaying qparse / flow / loc_wrap) and the built font. The content is drawn in
+        page coordinates on a canvas as tall as it is; the scroll_view shows the 252 px from y 36 + self.scroll, or with self.full the whole content is returned as a taller window image."""
         I = self.info
         adv = lambda t, px: self.stb(px).layout(t)[1] if t else 0
+        rows = {r: (MN.I_KEYS[r], v) for r, v in MN.qparse(I['quality']).items()}
+        for r, k, v in ((4, 'Genre', I['genre']), (5, 'Year', I['year']), (6, 'File Size', I['size'].replace('MB', ' MB')), (7, 'Location', I['location'])): rows[r] = (k, v)
+        present = [r in rows for r in range(MN.I_ROWS)]
+        loc = MN.loc_wrap(I['location'], MN.I_W, lambda t: adv(t, MN.I_ROW_PX)) if present[7] else []
+        tl, cut = MN.title_wrap(I['title'], MN.I_TEXT_W, lambda t: adv(t, MN.I_TITLE_PX))
+        sh = MN.I_TITLE_LH if len(tl) > 1 else 0
+        hair, text, locy, bottom = MN.flow(present, len(loc) or 1, sh)
+        cv = Image.new('RGBA', (W, max(H, bottom + 12)))
         def put(x, y, t, px, rgb):                       # the text's top at y, left at x
-            f = self.font(px); layer = Image.new('RGBA', win.size); ld = ImageDraw.Draw(layer)
+            f = self.font(px); layer = Image.new('RGBA', cv.size); ld = ImageDraw.Draw(layer)
             for ch, pen in self.stb(px).layout(t)[0]: ld.text((x + pen, y + f.getmetrics()[0]), ch, font=f, fill=rgb, anchor='ls')
-            win.alpha_composite(layer)
+            cv.alpha_composite(layer)
         def end_fit(t, px, room):
             if adv(t, px) <= room: return t
             while t and adv(t + '...', px) > room: t = t[:-1]
             return t + '...'
-        for y in MN.I_HAIRS: win.alpha_composite(Image.new('RGBA', (MN.I_W, 1), MN.HAIR_RGBA), (MN.I_X, y))
         c = self.cover(MN.I_ART, MN.I_ART); m = Image.new('L', c.size, 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, c.width - 1, c.height - 1], radius=MN.I_ART_R, fill=255)
-        win.paste(c, (MN.I_X, MN.I_ART_Y), m)
-        bw = MN.I_BADGE_W.get(I['badge'], 0)
-        put(MN.I_TEXT_X, MN.I_TITLE_Y, end_fit(I['title'], MN.I_TITLE_PX, MN.I_TEXT_W - (bw + MN.I_BADGE_GAP if bw else 0)), MN.I_TITLE_PX, '#FFFFFF')
-        put(MN.I_TEXT_X, MN.I_ARTIST_Y, end_fit(I['artist'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
-        put(MN.I_TEXT_X, MN.I_ALBUM_Y, end_fit(I['album'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
-        if bw: win.alpha_composite(self.image('np_i_badge_' + ('hires' if I['badge'] == 'HI-RES' else 'dsd')), (MN.I_R - bw, MN.I_BADGE_Y))
-        items = MN.qparse(I['quality'])
-        for (v, u), (vx, ux, dx) in zip(items, MN.qlayout(items, adv)):
-            put(vx, MN.I_Q_Y, v, MN.I_Q_VPX, '#FFFFFF')
-            if u: put(ux, MN.I_Q_UY, u, MN.I_Q_UPX, MN.GREY)
-            if dx is not None: win.alpha_composite(Image.new('RGBA', (1, MN.I_Q_DIV_H), MN.DIVIDER_RGBA), (dx, MN.I_Q_DIV_Y))
-        for r, (k, v) in enumerate((('Genre', I['genre']), ('Year', I['year']), ('File Size', I['size'].replace('MB', ' MB')), ('Location', I['location']))):
-            y, room = MN.i_row_y(r), MN.I_W - adv(k, MN.I_ROW_PX) - MN.I_KEY_GAP
-            put(MN.I_X, y, k, MN.I_ROW_PX, MN.GREY)
-            v = MN.head_fit(v, room, lambda t: adv(t, MN.I_ROW_PX)) if r == 3 else end_fit(v, MN.I_ROW_PX, room)
-            put(MN.I_R - adv(v, MN.I_ROW_PX), y, v, MN.I_ROW_PX, '#FFFFFF')
+        cv.paste(c, (MN.I_X, MN.I_ART_Y), m)
+        for i, t in enumerate(tl): put(MN.I_TEXT_X, MN.I_TITLE_Y + i * MN.I_TITLE_LH, end_fit(t, MN.I_TITLE_PX, MN.I_TEXT_W) if cut else t, MN.I_TITLE_PX, '#FFFFFF')
+        put(MN.I_TEXT_X, MN.I_ARTIST_Y + sh, end_fit(I['artist'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
+        put(MN.I_TEXT_X, MN.I_ALBUM_Y + sh, end_fit(I['album'], MN.I_META_PX, MN.I_TEXT_W), MN.I_META_PX, MN.GREY)
+        for r, (k, v) in rows.items():
+            cv.alpha_composite(Image.new('RGBA', (MN.I_W, 1), MN.HAIR_RGBA), (MN.I_X, hair[r]))
+            put(MN.I_X, text[r], k, MN.I_ROW_PX, MN.GREY)
+            if r == MN.I_LOC_ROW:
+                for line, y in zip(loc, locy): put(MN.I_X, y, line, MN.I_ROW_PX, '#FFFFFF')
+                continue
+            v = end_fit(v, MN.I_ROW_PX, MN.I_W - adv(k, MN.I_ROW_PX) - MN.I_KEY_GAP)
+            put(MN.I_R - adv(v, MN.I_ROW_PX), text[r], v, MN.I_ROW_PX, '#FFFFFF')
+            if r == 0 and I['badge']:
+                bw = MN.I_BADGE_W[I['badge']]
+                cv.alpha_composite(self.image('np_i_badge_' + ('hires' if I['badge'] == 'HI-RES' else 'dsd')), (MN.badge_x(adv(v, MN.I_ROW_PX), bw), text[0] + (MN.I_ROW_PX - MN.I_BADGE_H) // 2))
+        if self.full:
+            tall = Image.new('RGBA', (W, bottom + 12), win.getpixel((2, 2))); tall.alpha_composite(cv); return tall
+        view = cv.crop((0, MN.I_TOP + self.scroll, W, MN.I_BOTTOM + self.scroll))
+        tn = self.tint or (tone(*self.cover_img.convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0))) if self.cover_img else tuple(int(BG[k:k + 2], 16) for k in (1, 3, 5)))
+        ih = max(bottom - MN.I_TOP, MN.I_BOTTOM - MN.I_TOP); off = max(0, min(self.scroll, ih - (MN.I_BOTTOM - MN.I_TOP)))
+        for y in MN.fade_rows(off, ih):          # the edge fades: the tone under the scrim and gradient, alpha by the row's distance from the edge
+            k = min(y, MN.I_BOTTOM - MN.I_TOP - 1 - y); col = MN.fade_color(tn, y)
+            row = Image.new('RGBA', (W, 1), (col & 255, col >> 8 & 255, col >> 16 & 255, MN.fade_alpha(k))); view.alpha_composite(row, (0, y))
+        win.alpha_composite(view, (0, MN.I_TOP))
 
     def walk(self, im, wd, ox, oy, clip, page, root):
         if wd.name in ('np_remaining', 'np_elapsed'): pass       # the hook shows them and hides the stock times / quality line
@@ -246,13 +267,16 @@ def main():
             if o.startswith('cover='): p.cover_img = Image.open(o[6:])
             if o == 'playing': p.playing = True
             if o.startswith('info='): p.info = INFO[o[5:]]
+            if o.startswith('scroll='): p.scroll = int(o[7:])
+            if o == 'full': p.full = True
             if o.startswith('tint='): p.tint = tone(*(int(o[5:][k:k + 2], 16) for k in (0, 2, 4)))
         shots.append((label, p.render(root, page)))
     top, pad = 18, 10
-    out = Image.new('RGB', (len(shots) * (W + pad) + pad, BAR + H + top + 18), (40, 40, 40)); d = ImageDraw.Draw(out)
+    hmax = max(im.height for _, im in shots)
+    out = Image.new('RGB', (len(shots) * (W + pad) + pad, hmax + top + 18), (40, 40, 40)); d = ImageDraw.Draw(out)
     for i, (label, im) in enumerate(shots):
         x = pad + i * (W + pad); out.paste(im.convert('RGB'), (x, top)); d.text((x, 3), label, fill=(220, 220, 220))
-    d.text((pad, BAR + H + top + 3), 'approximate PIL mock-up, not AWTK; sample track data, the cover as given', fill=(160, 160, 160))
+    d.text((pad, hmax + top + 3), 'approximate PIL mock-up, not AWTK; sample track data, the cover as given', fill=(160, 160, 160))
     out.save(a.out, optimize=True); print('wrote', a.out)
 
 if __name__ == '__main__': main()

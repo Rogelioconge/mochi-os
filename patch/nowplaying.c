@@ -53,27 +53,28 @@ static int np_on_queue(void *ctx, void *e) {
 #include "minibar.h" /* mb_art_t: the header cover of the info page */
 #include "fnv.h"
 
-/* Our labels of the page: the cover view, title, artist, album, the two badge pictures, then per quality item (value, unit),
- * the three dividers, and per row (label, value). Names in the asset (tools/mod_nowplaying.py). */
+/* Our widgets of the page: the scroll_view that holds them all, the cover view, title, artist, album, the two badge pictures, then per row (label, value; the Location's second line is the value NPI_ROWS) and the
+ * row hairlines. Names in the asset (tools/mod_nowplaying.py). */
 enum {
+    NI_SCROLL,
     NI_ART,
     NI_TITLE,
+    NI_TITLE2,
     NI_ARTIST,
     NI_ALBUM,
     NI_HIRES,
     NI_DSD,
-    NI_QV,
-    NI_QU = NI_QV + 4,
-    NI_QD = NI_QU + 4,
-    NI_KEY = NI_QD + 3,
+    NI_KEY,
     NI_VAL = NI_KEY + NPI_ROWS,
-    NI_N = NI_VAL + NPI_ROWS
+    NI_HAIR = NI_VAL + NPI_ROWS + 1,
+    NI_N = NI_HAIR + NPI_ROWS
 };
 static const char *const np_iw_names[NI_N] = {
-    "np_i_art", "np_i_title", "np_i_artist", "np_i_album", "np_i_badge_hires", "np_i_badge_dsd", "np_i_qv0",
-    "np_i_qv1", "np_i_qv2",   "np_i_qv3",    "np_i_qu0",   "np_i_qu1",         "np_i_qu2",       "np_i_qu3",
-    "np_i_qd1", "np_i_qd2",   "np_i_qd3",    "np_i_k0",    "np_i_k1",          "np_i_k2",        "np_i_k3",
-    "np_i_v0",  "np_i_v1",    "np_i_v2",     "np_i_v3"};
+    "np_i_scroll",    "np_i_art", "np_i_title", "np_i_title2", "np_i_artist", "np_i_album", "np_i_badge_hires",
+    "np_i_badge_dsd", "np_i_k0",  "np_i_k1",    "np_i_k2",     "np_i_k3",     "np_i_k4",    "np_i_k5",
+    "np_i_k6",        "np_i_k7",  "np_i_v0",    "np_i_v1",     "np_i_v2",     "np_i_v3",    "np_i_v4",
+    "np_i_v5",        "np_i_v6",  "np_i_v7",    "np_i_v8",     "np_i_h0",     "np_i_h1",    "np_i_h2",
+    "np_i_h3",        "np_i_h4",  "np_i_h5",    "np_i_h6",     "np_i_h7"};
 
 static struct {
     void *fav; /* btn_fav (stock's star button): wears the bookmark styles while an episode plays */
@@ -93,14 +94,23 @@ static struct {
     int barok; /* 1: both window events are registered, so the status bar may be tinted (else it never is) */
     int bar; /* 1: the status bar's bg_color is ours (np_bar_color) and must go back to black */
     void *iw[NI_N]; /* the info page's own widgets (np_iw_names), 0 for one the asset lacks */
-    int ihead, iq, irow; /* 1: the asset has the whole header / quality line / four rows, so ours show them */
+    int ihead, irow; /* 1: the asset has the whole header / all eight rows (and the scroll_view), so ours show them */
     unsigned qdone; /* the hash of the quality text laid out, 0 none yet */
-    int qown; /* 1: our items are the visible quality line and label_info is hidden */
+    int qown; /* 1: our rows 0..3 are the quality and label_info is hidden */
     unsigned rown; /* bit r: row r shows ours (the stock label of it is hidden) */
     int relay; /* ticks left that lay the page out again whatever the text */
     unsigned ikey; /* mb_track_key of the track the header shows, 0 none */
     unsigned rkey; /* mb_track_key of the track the rows were laid out for (a stream's size comes from its record) */
     int ibadge; /* the badge shown: 0 none, 1 HI-RES, 2 DSD */
+    int ioff; /* the content's scroll offset in px (0 the top): every child of np_i_scroll is at its page y - NPI_TOP - ioff (np_info_scroll) */
+    int ih; /* the content's height in px, from NPI_TOP to the end of the last row (np_flow); the scroll_view's virtual_h */
+    int tsh; /* 0, or NPI_TITLE_LH when the title takes two lines: the artist, the album and the rows are that much lower (np_title_fit) */
+    int td, tm, tsx, tsy,
+        tly; /* the finger on np_i_scroll: down, moved (a vertical drag has begun), where it went down, where it was last (np_on_info_touch) */
+    void *sv; /* slide_view: its page (value) says whether the info page is the one shown */
+    int fdirty; /* 1: the rows are laid out again (np_flow) at the end of the tick */
+    int rkw[NPI_ROWS], rvx[NPI_ROWS], rvw[NPI_ROWS]; /* per row: its label's text width, its value box's x and width */
+    int fmtw, locn; /* the Format value's text width (the badge's place); the Location's lines (1 or 2) */
     mb_art_t ia; /* the header's cover (patch/minibar.c), NPI_ART px with NPI_ART_R px corners */
     void *info[NP_INFO_N]; /* the info page's stock labels (np_info_names), the data: 0 for one the page lacks */
     unsigned
@@ -456,12 +466,13 @@ static void np_time(void) {
  * location, "%s:%.2fMB" for the size, "%s|%.1fkHz|%dbit|%dkbps" (the quality line, label_info), the label and the "Unknown" of a
  * missing value in the app's language (getFormatString: player_unknown, player_location ...). Those six labels are the data
  * source and stay (hidden and insensitive once ours show); the page itself is ours (docs/modules/nowplaying.md "Information page"):
- *   - the header (np_header): cover, title, artist, album of the playing record, the HI-RES / DSD badge (tape_badge, the cassette
- *     theme's rule);
- *   - the quality line (np_quality): label_info's four items, each a value label and a unit label laid out by measured width;
- *   - the rows (np_row): Genre, Year, File Size, Location, a label and a right aligned value; the Location keeps its end.
- * A label of ours is placed with widget_move / widget_resize from the measured text, never painted. The Genre, Year and File Size
- * labels are our keys, the Location label stock's. np.done remembers the hash of each stock text after our last look, so a line is
+ *   - the header (np_header): cover, title, artist, album of the playing record;
+ *   - eight rows (np_quality for the first four, np_row for the others; np_set_row, np_flow): Format, Sample Rate, Bit Depth, Bitrate (label_info's fields), Genre, Year, File Size, Location; a label and a right aligned
+ *     value, the HI-RES / DSD badge (tape_badge, the cassette theme's rule) left of the Format value; the Location's path is under its label in up to two lines (np_loc_fit). A row stock has no value for is left out
+ *     and the ones below move up;
+ *   - all of it is a child of the scroll_view np_i_scroll, placed by np_cy (page y, minus the scroll_view's top, minus np.ioff): np_info_scroll moves the whole content.
+ * A label of ours is placed with widget_move / widget_resize from the measured text, never painted. The Genre, Year, File Size and
+ * quality labels are our keys, the Location label stock's. np.done remembers the hash of each stock text after our last look, so a line is
  * laid out only when stock has written it again (or for NP_RELAY ticks after the page starts: a label measures in its own style only
  * once the window is open). Anything that does not look as expected gives the line back to stock's label. */
 static const char *const np_info_names[NP_INFO_N] = {"label_info", "label_album", "label_genre",
@@ -579,9 +590,12 @@ static int np_tw(void *w) {
     return t && *t ? m1_text_w(w, t) : 0;
 }
 
-/* w at x, y, ww wide and as high as a px line plus NPI_PAD above and below; y is the text's top. */
+/* A page y as the scroll_view's: its top and the content offset taken off. */
+static int np_cy(int y) { return y - NPI_TOP - np.ioff; }
+
+/* w at x, page y, ww wide and as high as a px line plus NPI_PAD above and below; y is the text's top. */
 static void np_place(void *w, int x, int y, int ww, int px) {
-    widget_move(w, x, y - NPI_PAD);
+    widget_move(w, x, np_cy(y) - NPI_PAD);
     widget_resize(w, ww, px + 2 * NPI_PAD);
 }
 
@@ -597,14 +611,26 @@ static int np_on_info_art(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The header: the playing record's title, artist and album, its cover, and the badge of a Hi-Res or DSD track (the cassette theme's rule: tape_badge). A title is
- * as wide as the badge leaves it. New text and cover only when the track changed (mb_track_key) or the layout is redone. */
+/* The header's places: the cover view, title, artist and album (the title has the whole column). */
+static void np_head_place(void) {
+    widget_move(np.iw[NI_ART], NPI_X, np_cy(NPI_ART_Y));
+    np_place(np.iw[NI_TITLE], NPI_TEXT_X, NPI_TITLE_Y, NPI_TEXT_W, NPI_TITLE_PX);
+    np_place(np.iw[NI_TITLE2], NPI_TEXT_X, NPI_TITLE_Y + NPI_TITLE_LH, NPI_TEXT_W, NPI_TITLE_PX);
+    np_vis(np.iw[NI_TITLE2], np.tsh != 0);
+    np_place(np.iw[NI_ARTIST], NPI_TEXT_X, NPI_ARTIST_Y + np.tsh, NPI_TEXT_W, NPI_META_PX);
+    np_place(np.iw[NI_ALBUM], NPI_TEXT_X, NPI_ALBUM_Y + np.tsh, NPI_TEXT_W, NPI_META_PX);
+}
+
+static void np_title_fit(const char *v);
+
+/* The header: the playing record's title, artist and album, its cover; the badge of a Hi-Res or DSD track (the cassette theme's rule: tape_badge) is np_flow's, on the Format row.
+ * New text and cover only when the track changed (mb_track_key) or the layout is redone. */
 static unsigned np_header(int force) {
     void *t = cc_playing();
     const char *title;
     char b[200];
     unsigned key = t ? mb_track_key(t) : 0;
-    int badge = t ? tape_badge(t) : 0, bw = badge == 2 ? NPI_BADGE_DSD_W : badge == 1 ? NPI_BADGE_HIRES_W : 0;
+    int badge = t ? tape_badge(t) : 0;
     if (!np.ihead) return key;
     if (key == np.ikey && badge == np.ibadge && !force) {
         if (t && np.ia.settle > 0 && mb_art_settle(&np.ia, np.win, t))
@@ -614,24 +640,16 @@ static unsigned np_header(int force) {
     title = t ? cc_str(t, REC_TITLE) : "";
     if (t && !*title) title = cc_str(t, REC_NAME);
     np_cut(b, sizeof b, title);
-    widget_set_text_utf8(np.iw[NI_TITLE], b);
+    np_title_fit(b);
     np_cut(b, sizeof b, t ? cc_str(t, REC_ARTIST) : "");
     widget_set_text_utf8(np.iw[NI_ARTIST], b);
     np_cut(b, sizeof b, t ? cc_str(t, REC_ALBUM) : "");
     widget_set_text_utf8(np.iw[NI_ALBUM], b);
-    np_place(np.iw[NI_TITLE], NPI_TEXT_X, NPI_TITLE_Y, NPI_TEXT_W - (bw ? bw + NPI_BADGE_GAP : 0), NPI_TITLE_PX);
-    np_place(np.iw[NI_ARTIST], NPI_TEXT_X, NPI_ARTIST_Y, NPI_TEXT_W, NPI_META_PX);
-    np_place(np.iw[NI_ALBUM], NPI_TEXT_X, NPI_ALBUM_Y, NPI_TEXT_W, NPI_META_PX);
+    np_head_place();
     np_vis(np.iw[NI_TITLE], 1);
     np_vis(np.iw[NI_ARTIST], 1);
     np_vis(np.iw[NI_ALBUM], 1);
-    np_vis(np.iw[NI_HIRES], badge == 1);
-    np_vis(np.iw[NI_DSD], badge == 2);
-    if (bw) {
-        void *img = np.iw[badge == 2 ? NI_DSD : NI_HIRES];
-        widget_move(img, NPI_R - bw, NPI_BADGE_Y);
-        widget_resize(img, bw, NPI_BADGE_H);
-    }
+    np.fdirty = 1; /* the badge */
     if (key != np.ikey || !np.ia.bmp) {
         if (t)
             mb_art_cover(&np.ia, np.win, t, 1);
@@ -643,16 +661,13 @@ static unsigned np_header(int force) {
     return key;
 }
 
-typedef struct {
-    char v[24], u[5]; /* the value, and its unit (kHz, bit, kbps; none for the format) */
-} np_qi;
-
-/* The items of stock's quality line "FLAC|44.1kHz|16bit|1021kbps" (the first four fields): the unit taken off its value, and a field with no value (or a zero one, bit depth
- * or rate the player did not know) dropped. Returns the count. */
-static int np_qparse(const char *s, np_qi *it) {
+/* The rows 0..3 of stock's quality line "FLAC|44.1kHz|16bit|1021kbps" (the first four fields): out[f] the field's text with the unit after a space ("44.1 kHz", the format as it is), "" for a field with no value (or a
+ * zero one, bit depth or rate the player did not know). Returns how many rows have a text. */
+static int np_qparse(const char *s, char out[4][32]) {
     static const char *const unit[4] = {"", "kHz", "bit", "kbps"};
     int n = 0, f, last = 0;
     const char *p = s;
+    for (f = 0; f < 4; ++f) out[f][0] = 0;
     for (f = 0; f < 4 && !last; ++f) {
         const char *b = p, *e = p;
         unsigned ul = f == 3 ? 4 : f ? 3 : 0, len, nz = 0, k;
@@ -661,73 +676,341 @@ static int np_qparse(const char *s, np_qi *it) {
         p = last ? e : e + 1;
         while (b < e && *b == ' ') ++b;
         while (e > b && e[-1] == ' ') --e;
-        it[n].u[0] = 0;
         if (ul && (unsigned)(e - b) >= ul && np_starts(e - ul, unit[f])) {
             e -= ul;
-            np_cut(it[n].u, sizeof it[n].u, unit[f]);
             while (e > b && (e[-1] == ' ' || e[-1] == '-')) --e;
         }
         len = (unsigned)(e - b);
         for (k = 0; k < len; ++k)
             if (b[k] != '0' && b[k] != '.') nz = 1;
         if (!len || (f && !nz)) continue;
-        if (len > sizeof it[n].v - 1) len = sizeof it[n].v - 1;
-        memcpy(it[n].v, b, len);
-        it[n].v[len] = 0;
+        if (len > 23) len = 23;
+        memcpy(out[f], b, len);
+        out[f][len] = 0;
+        if (f) {
+            out[f][len] = ' ';
+            np_cut(out[f] + len + 1, 6, unit[f]);
+        }
         ++n;
     }
     return n;
 }
 
-/* The items in a row across NPI_Q_W: each as wide as its value, the unit NPI_Q_UGAP after it, the same gap between items (half of it at both ends), a divider on each gap's middle. */
-static void np_qlayout(const np_qi *it, int n) {
-    int w[4], vw[4], uw[4], sum = 0, i, x = 0, room;
-    for (i = 0; i < 4; ++i) {
-        int on = i < n;
-        np_vis(np.iw[NI_QV + i], on);
-        np_vis(np.iw[NI_QU + i], on && it[i].u[0]);
-        if (i && i < 4) np_vis(np.iw[NI_QD + i - 1], i < n);
-        if (!on) continue;
-        widget_set_text_utf8(np.iw[NI_QV + i], it[i].v);
-        vw[i] = np_tw(np.iw[NI_QV + i]);
-        uw[i] = 0;
-        if (it[i].u[0]) {
-            widget_set_text_utf8(np.iw[NI_QU + i], it[i].u);
-            uw[i] = np_tw(np.iw[NI_QU + i]) + NPI_Q_UGAP;
-        }
-        w[i] = vw[i] + uw[i];
-        sum += w[i];
-    }
-    room = NPI_Q_W - sum;
-    if (room < 0) room = 0;
-    for (i = 0; i < n; ++i) {
-        int left = NPI_X + room * (2 * i + 1) / (2 * n) + x;
-        np_place(np.iw[NI_QV + i], left, NPI_Q_Y, vw[i] + 4, NPI_Q_VPX);
-        if (it[i].u[0])
-            np_place(np.iw[NI_QU + i], left + vw[i] + NPI_Q_UGAP, NPI_Q_UY, uw[i] - NPI_Q_UGAP + 4, NPI_Q_UPX);
-        if (i) {
-            widget_move(np.iw[NI_QD + i - 1], NPI_X + room * i / n + x, NPI_Q_DIV_Y);
-            widget_resize(np.iw[NI_QD + i - 1], 1, NPI_Q_DIV_H);
-        }
-        x += w[i];
-    }
+/* The width of the n bytes of s (with "..." before them when dots), in w's font; at most NP_ROW_TAIL bytes of s. */
+static int np_mw(void *w, int dots, const char *s, unsigned n) {
+    char b[NP_ROW_TAIL + 4];
+    unsigned wide[NP_ROW_TAIL + 4], m = 0;
+    if (dots) b[0] = b[1] = b[2] = '.', m = 3;
+    if (n > NP_ROW_TAIL) n = NP_ROW_TAIL;
+    memcpy(b + m, s, n);
+    m += n;
+    b[m] = 0;
+    if (!m) return 0;
+    tk_utf8_to_utf16_ex(b, m, wide, NP_ROW_TAIL + 3);
+    return m1_text_w(w, wide);
 }
 
-/* The quality line. Stock rewrites label_info with the compact text on every page tick, so it stays the data source: hidden and insensitive while the items of ours show, laid out
- * when its text changes. A page without them, an unreadable text or one with no item gives the line back to label_info (never a stale line). */
+static int np_cont(const char *v, unsigned i) { return ((unsigned char)v[i] & 0xc0) == 0x80; }
+
+/* A character boundary of v strictly between lo and hi (both boundaries), near the middle; hi when there is none. */
+static unsigned np_mid(const char *v, unsigned lo, unsigned hi) {
+    unsigned m = (lo + hi) / 2;
+    while (m < hi && np_cont(v, m)) ++m;
+    if (m >= hi || m <= lo) {
+        m = lo + 1;
+        while (m < hi && np_cont(v, m)) ++m;
+    }
+    return m;
+}
+
+/* The Location v in w1 and w2 (the second line), room px wide each; np.locn lines. 1: one line when it fits. 2: else broken after the last '/' that fits line 1, when the rest fits line 2. 3: else at the last character
+ * that fits line 1, when the rest fits line 2. 4: else line 2 is the end (as much as fits) and line 1 is "..." and what fits just before it. Only the last NP_ROW_TAIL bytes are looked at (rule 4 at once when it is
+ * longer). tools/mod_nowplaying.py loc_wrap is the model. */
+static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
+    char l[NP_ROW_TAIL + 8];
+    unsigned len = 0, lo, hi, m, n1, b1, b2, cut;
+    while (v[len]) ++len;
+    cut = len > NP_ROW_TAIL;
+    if (cut) {
+        v += len - NP_ROW_TAIL;
+        while (np_cont(v, 0)) ++v;
+        len = 0;
+        while (v[len]) ++len;
+    }
+    np.locn = 1;
+    if (!cut) {
+        if (np_mw(w1, 0, v, len) <= room) {
+            widget_set_text_utf8(w1, v);
+            return;
+        }
+        lo = 0, hi = len; /* the longest prefix that fits line 1 */
+        while ((m = np_mid(v, lo, hi)) < hi) {
+            if (np_mw(w1, 0, v, m) <= room)
+                lo = m;
+            else
+                hi = m;
+        }
+        n1 = lo;
+        np.locn = 2;
+        for (m = n1; m > 0; --m) /* the last '/' inside the prefix: the break is after it */
+            if (v[m - 1] == '/') {
+                if (np_mw(w1, 0, v + m, len - m) <= room) {
+                    memcpy(l, v, m);
+                    l[m] = 0;
+                    widget_set_text_utf8(w1, l);
+                    widget_set_text_utf8(w2, v + m);
+                    return;
+                }
+                break;
+            }
+        if (n1 && np_mw(w1, 0, v + n1, len - n1) <= room) {
+            memcpy(l, v, n1);
+            l[n1] = 0;
+            widget_set_text_utf8(w1, l);
+            widget_set_text_utf8(w2, v + n1);
+            return;
+        }
+    }
+    np.locn = 2;
+    b2 = 0;
+    if (np_mw(w2, 0, v, len) > room) { /* the first start from which the end fits line 2 */
+        lo = 0, hi = len;
+        while ((m = np_mid(v, lo, hi)) < hi) {
+            if (np_mw(w2, 0, v + m, len - m) <= room)
+                hi = m;
+            else
+                lo = m;
+        }
+        b2 = hi;
+    }
+    b1 = 0;
+    if (np_mw(w1, 1, v, b2) > room) { /* the first start from which "..." and the text up to b2 fit line 1 */
+        lo = 0, hi = b2;
+        while ((m = np_mid(v, lo, hi)) < hi) {
+            if (np_mw(w1, 1, v + m, b2 - m) <= room)
+                hi = m;
+            else
+                lo = m;
+        }
+        b1 = hi;
+    }
+    l[0] = l[1] = l[2] = '.';
+    memcpy(l + 3, v + b1, b2 - b1);
+    l[3 + b2 - b1] = 0;
+    widget_set_text_utf8(w1, l);
+    widget_set_text_utf8(w2, v + b2);
+}
+
+/* The title v in np_i_title and, when it does not fit NPI_TEXT_W, np_i_title2: np.tsh is NPI_TITLE_LH with two lines, else 0. The break is at the last space that leaves line 1 inside the width (the spaces round it
+ * dropped), always, even when line 2 then needs its own end ellipsis; only with no such space (CJK, a first word wider than the line) at the last character that fits. Line 2 is the rest whole, which the label cuts
+ * with its own ellipsis at the end. tools/mod_nowplaying.py title_wrap is the model. */
+static void np_title_fit(const char *v) {
+    char l[NP_ROW_TAIL + 8];
+    void *w1 = np.iw[NI_TITLE], *w2 = np.iw[NI_TITLE2];
+    unsigned len = 0, lo, hi, m, n1, k, e;
+    const char *rest;
+    while (v[len]) ++len;
+    np.tsh = 0;
+    widget_set_text_utf8(w2, "");
+    if (np_mw(w1, 0, v, len) <= NPI_TEXT_W) {
+        widget_set_text_utf8(w1, v);
+        return;
+    }
+    lo = 0, hi = len; /* the longest prefix that fits line 1 */
+    while ((m = np_mid(v, lo, hi)) < hi) {
+        if (np_mw(w1, 0, v, m) <= NPI_TEXT_W)
+            lo = m;
+        else
+            hi = m;
+    }
+    n1 = lo;
+    if (!n1) { /* a first character wider than the line: it stays alone */
+        n1 = 1;
+        while (np_cont(v, n1)) ++n1;
+    }
+    np.tsh = NPI_TITLE_LH;
+    for (k = n1; k > 0 && v[k] != ' '; --k) {
+    }
+    for (e = k; e > 0 && v[e - 1] == ' '; --e) {
+    }
+    if (!e) k = e = n1; /* no usable space: the character break */
+    for (rest = v + k; *rest == ' '; ++rest) {
+    }
+    memcpy(l, v, e);
+    l[e] = 0;
+    widget_set_text_utf8(w1, l);
+    widget_set_text_utf8(w2, rest);
+}
+
+/* Row r shows ours (own) or nothing of ours (rows 4..7: stock's label of it, never both visible). */
+static void np_row_own(int r, int own) {
+    void *s = r >= 4 ? np.info[r - 2] : (void *)0;
+    if (((np.rown >> r & 1) != 0) == own) return;
+    np.rown ^= 1u << r;
+    np.fdirty = 1;
+    np_vis(np.iw[NI_KEY + r], own);
+    np_vis(np.iw[NI_VAL + r], own);
+    if (r == NPI_LOC_ROW && !own) np_vis(np.iw[NI_VAL + NPI_ROWS], 0);
+    if (!s) return;
+    widget_set_visible(s, !own, 0);
+    if (own) widget_set_sensitive(s, 0);
+}
+
+/* Row r's label and value texts, measured; np_flow places them. A value is right aligned in what its label leaves, the Location's path (np_loc_fit) is under its label. */
+static void np_set_row(int r, const char *key, const char *val) {
+    void *k = np.iw[NI_KEY + r], *w = np.iw[NI_VAL + r];
+    int room;
+    widget_set_text_utf8(k, key);
+    np.rkw[r] = np_tw(k);
+    if (r == NPI_LOC_ROW) {
+        np_loc_fit(w, np.iw[NI_VAL + NPI_ROWS], val, NPI_R - NPI_X);
+    } else {
+        room = NPI_R - NPI_X - np.rkw[r] - NPI_KEY_GAP;
+        if (room < 0) room = 0;
+        np.rvx[r] = NPI_R - room;
+        np.rvw[r] = room;
+        widget_set_text_utf8(w, val);
+        if (r == 0) np.fmtw = np_tw(w);
+    }
+    np_row_own(r, 1);
+    np.fdirty = 1;
+}
+
+/* The rows' places, from the top: a hairline above each row that shows, its label and value NPI_ROW_TEXT under it, the next row NPI_ROW_PITCH on; the Location's path under its label in np.locn lines; the badge on the
+ * Format row, NPI_BADGE_GAP left of the value's text. The content's end sets the scroll_view's virtual_h. Everything is placed by np_cy, so the same call moves it all to a new content offset. */
+static void np_flow(void) {
+    int r, y = NPI_ROW_Y + np.tsh, end = NPI_ROW_Y + np.tsh, badge = np.ibadge, bx = 0, by = 0;
+    int bw = badge == 2 ? NPI_BADGE_DSD_W : badge == 1 ? NPI_BADGE_HIRES_W : 0;
+    np.fdirty = 0;
+    for (r = 0; r < NPI_ROWS; ++r) {
+        void *h = np.iw[NI_HAIR + r];
+        int on = np.rown >> r & 1;
+        np_vis(h, on);
+        if (!on) continue;
+        widget_move(h, NPI_X, np_cy(y));
+        widget_resize(h, NPI_R - NPI_X, 1);
+        np_place(np.iw[NI_KEY + r], NPI_X, y + NPI_ROW_TEXT, np.rkw[r] + 4, NPI_ROW_PX);
+        if (r == NPI_LOC_ROW) {
+            np_place(np.iw[NI_VAL + r], NPI_X, y + NPI_LOC_Y, NPI_R - NPI_X, NPI_ROW_PX);
+            np_vis(np.iw[NI_VAL + NPI_ROWS], np.locn > 1);
+            if (np.locn > 1)
+                np_place(np.iw[NI_VAL + NPI_ROWS], NPI_X, y + NPI_LOC_Y + NPI_LOC_LH, NPI_R - NPI_X, NPI_ROW_PX);
+            end = y + NPI_LOC_Y + (np.locn - 1) * NPI_LOC_LH + NPI_ROW_PX + NPI_FOOT;
+        } else {
+            np_place(np.iw[NI_VAL + r], np.rvx[r], y + NPI_ROW_TEXT, np.rvw[r], NPI_ROW_PX);
+            if (!r) bx = NPI_R - np.fmtw - NPI_BADGE_GAP - bw, by = y + NPI_ROW_TEXT + (NPI_ROW_PX - NPI_BADGE_H) / 2;
+            y += NPI_ROW_PITCH;
+            end = y;
+        }
+    }
+    if (!(np.rown & 1) || bx < NPI_X + np.rkw[0] + 4) bw = 0;
+    np_vis(np.iw[NI_HIRES], bw && badge == 1);
+    np_vis(np.iw[NI_DSD], bw && badge == 2);
+    if (bw) {
+        void *img = np.iw[badge == 2 ? NI_DSD : NI_HIRES];
+        widget_move(img, bx, np_cy(by));
+        widget_resize(img, bw, NPI_BADGE_H);
+    }
+    np.ih = end - NPI_TOP < NPI_VIEW_H ? NPI_VIEW_H : end - NPI_TOP;
+    widget_set_prop_int(np.iw[NI_SCROLL], "virtual_h", np.ih);
+}
+
+/* The content's scroll offset set to off px (0 the top, at most np.ih - NPI_VIEW_H) and every child of np_i_scroll moved to it: the one place a scroll goes through. */
+__attribute__((noinline)) void np_info_scroll(int off) {
+    int max = np.ih - NPI_VIEW_H;
+    if (!np.irow || !np.ihead) return;
+    np.ioff = off > max ? max : off;
+    if (np.ioff < 0) np.ioff = 0;
+    np_head_place();
+    np_flow();
+}
+
+/* DOWN, MOVE, UP and ABORT of np_i_scroll (listeners, as the lyrics page's: they never answer RET_STOP, so the slide view sees every event). A vertical drag of NPI_TAP_PX or more scrolls the content with the finger;
+ * a sideways one is the slide view's page swipe, and a tap does nothing. */
+static int np_on_info_touch(void *ctx, void *e) {
+    int type, x, y;
+    if (!e || !np.win || ctx != np.iw[NI_SCROLL]) return RET_OK;
+    type = *(int *)e;
+    x = *(int *)((char *)e + PE_X), y = *(int *)((char *)e + PE_Y);
+    if (type == EVT_POINTER_DOWN) {
+        np.td = 1, np.tm = 0, np.tsx = x, np.tsy = y, np.tly = y;
+    } else if (type == EVT_POINTER_MOVE && np.td) {
+        if (!np.tm) {
+            if (m1_abs(y - np.tsy) >= NPI_TAP_PX && m1_abs(y - np.tsy) > m1_abs(x - np.tsx))
+                np.tm = 1, np.tly = y;
+            else if (m1_abs(x - np.tsx) >= NPI_TAP_PX)
+                np.td = 0; /* sideways: the slide view's */
+        } else {
+            np_info_scroll(np.ioff - (y - np.tly));
+            np.tly = y;
+        }
+    } else if (type == EVT_POINTER_UP || type == EVT_POINTER_ABORT) {
+        np.td = 0;
+    }
+    return RET_OK;
+}
+
+/* One row y of the view (0 its top) painted in the page's colour with alpha a: the window's tone under np_scrim (the scrim's alpha at that row, the model's scrim_alpha) and under the black gradient (m1_shade). */
+static void np_fade_row(void *canvas, int y, unsigned a) {
+    int row = NPI_TOP + y, sy = row - NP_SCRIM_Y, d = sy < NP_SCRIM_H - 1 - sy ? sy : NP_SCRIM_H - 1 - sy;
+    unsigned sa = d <= 0               ? 0
+                  : d >= NP_SCRIM_EDGE ? NP_SCRIM_ALPHA
+                                       : (unsigned)(NP_SCRIM_ALPHA * d / NP_SCRIM_EDGE),
+             keep = 255 - sa, c = np.color;
+    c = (c & 255) * keep / 255 | (c >> 8 & 255) * keep / 255 << 8 | (c >> 16 & 255) * keep / 255 << 16;
+    ui_fill_color(canvas, m1_shade(c, (unsigned)row, NP_ALPHA_TOP, NP_ALPHA_BOTTOM, NP_WIN_H) | a << 24);
+    canvas_fill_rect(canvas, 0, y, NPI_X + NPI_R, 1);
+}
+
+/* The scroll_view's EVT_AFTER_PAINT (over its children): the top NPI_FADE rows fade into the page's colour while the content is scrolled (offset over 0), the bottom ones while there is more under the view. A linear
+ * ramp, opaque at the edge. No decode or allocation: at most 2 x NPI_FADE one-row fills. */
+static int np_on_info_fade(void *ctx, void *e) {
+    void *canvas = e ? *(void **)((char *)e + EVENT_PAINT_CANVAS) : (void *)0;
+    int k, top = np.ioff > 0, bot = np.ioff < np.ih - NPI_VIEW_H;
+    (void)ctx;
+    if (!canvas || !np.win || (!top && !bot)) return RET_OK;
+    for (k = 0; k < NPI_FADE; ++k) {
+        unsigned a = 255u * (unsigned)(2 * (NPI_FADE - k) - 1) / (2 * NPI_FADE);
+        if (top) np_fade_row(canvas, k, a);
+        if (bot) np_fade_row(canvas, NPI_VIEW_H - 1 - k, a);
+    }
+    return RET_OK;
+}
+
+/* The slide view left the info page: the content is at the top when the page comes back. */
+static void np_page_reset(void) {
+    if (np.ioff && np.sv && widget_get_prop_int(np.sv, "value", NPI_PAGE) != NPI_PAGE) np_info_scroll(0);
+}
+
+static int np_on_page(void *ctx, void *e) {
+    (void)e;
+    if (np.win && ctx == np.sv) np_page_reset();
+    return RET_OK;
+}
+
+/* The quality line. Stock rewrites label_info with the compact text on every page tick, so it stays the data source: hidden and insensitive while rows 0..3 (Format, Sample Rate, Bit Depth, Bitrate) show, laid out
+ * when its text changes; a field it has no value for leaves its row out. A page without them, an unreadable text or one with no field gives the line back to label_info (never a stale line). */
 static void np_quality(int force) {
-    char s[NP_INFO_BUF];
-    np_qi it[4];
+    char s[NP_INFO_BUF], q[4][32];
     unsigned h;
-    int need, n, i;
-    if (!np.iq || !np.info[0]) return;
+    int need, f;
+    if (!np.irow || !np.info[0]) return;
     need = m1_text_utf8(np.info[0], s, sizeof s);
     if (need > 0 && (unsigned)need < sizeof s) { /* else none, empty or cut short */
         h = np_hash(s);
         if (h == np.qdone && np.qown && !force) return;
-        n = np_qparse(s, it);
-        if (n) {
-            np_qlayout(it, n);
+        if (np_qparse(s, q)) {
+            for (f = 0; f < 4; ++f) {
+                if (q[f][0])
+                    np_set_row(f,
+                               TR(f == 0   ? "Format"
+                                  : f == 1 ? "Sample Rate"
+                                  : f == 2 ? "Bit Depth"
+                                           : "Bitrate"),
+                               q[f]);
+                else
+                    np_row_own(f, 0);
+            }
             np.qdone = h;
             if (!np.qown) {
                 np.qown = 1;
@@ -738,99 +1021,34 @@ static void np_quality(int force) {
         }
     }
     if (np.qown) {
-        for (i = 0; i < 4; ++i) {
-            np_vis(np.iw[NI_QV + i], 0);
-            np_vis(np.iw[NI_QU + i], 0);
-        }
-        for (i = 0; i < 3; ++i) np_vis(np.iw[NI_QD + i], 0);
+        for (f = 0; f < 4; ++f) np_row_own(f, 0);
         widget_set_visible(np.info[0], 1, 0);
     }
     np.qown = 0;
     np.qdone = 0;
 }
 
-/* The row's value text with its start cut and "..." put there, as much of the end as fits room px in w's font (the label keeps its file name). */
-static void np_head_fit(void *w, const char *v, int room) {
-    char buf[NP_ROW_TAIL + 4];
-    unsigned wide[NP_ROW_TAIL + 4];
-    unsigned len = 0, lo, hi;
-    int cut;
-    while (v[len]) ++len;
-    cut = len > NP_ROW_TAIL;
-    if (cut) { /* the last NP_ROW_TAIL bytes from a character start */
-        v += len - NP_ROW_TAIL;
-        while (((unsigned char)*v & 0xc0) == 0x80) ++v;
-        len = 0;
-        while (v[len]) ++len;
-    }
-    buf[0] = buf[1] = buf[2] = '.';
-    lo = 0, hi = len;
-    if (!cut) {
-        widget_set_text_utf8(w, v);
-        if (np_tw(w) <= room) return;
-    }
-    while (lo < hi) { /* the first character start from which "..." and the rest fit */
-        unsigned mid = (lo + hi) / 2;
-        while (mid < len && ((unsigned char)v[mid] & 0xc0) == 0x80) ++mid;
-        if (mid >= hi) { /* only the character start hi is left */
-            lo = hi;
-            break;
-        }
-        np_cut(buf + 3, sizeof buf - 3, v + mid);
-        tk_utf8_to_utf16_ex(buf, 3 + len - mid, wide, NP_ROW_TAIL + 3);
-        if (m1_text_w(w, wide) <= room)
-            hi = mid;
-        else
-            lo = mid + 1;
-    }
-    np_cut(buf + 3, sizeof buf - 3, v + lo);
-    widget_set_text_utf8(w, buf);
-}
-
-/* Row r shows stock's label again (or ours): both are never visible. */
-static void np_row_own(int r, int own) {
-    void *s = np.info[2 + r];
-    if (((np.rown >> r & 1) != 0) == own) return;
-    np.rown ^= 1u << r;
-    np_vis(np.iw[NI_KEY + r], own);
-    np_vis(np.iw[NI_VAL + r], own);
-    if (!s) return;
-    widget_set_visible(s, !own, 0);
-    if (own) widget_set_sensitive(s, 0);
-}
-
-/* Stock's line i (2 Genre, 3 Year, 4 File Size, 5 Location, "Label:value") as row i - 2: its label and value, the value right aligned in what the label leaves. 0 when the text is not "Label:value". */
+/* Stock's line i (2 Genre, 3 Year, 4 File Size, 5 Location, "Label:value") as row i + 2. 0 when the text is not "Label:value". */
 static int np_row(int i, const char *s) {
     char out[NP_INFO_BUF + 64], key[64], val[NP_INFO_BUF + 8];
     const char *line = np_stream_text(i, s, out, sizeof out) ? out : s, *v = np_after_colon(line), *c;
-    int r = i - 2, y = NPI_ROW_Y + r * NPI_ROW_PITCH + (NPI_ROW_PITCH - NPI_ROW_PX) / 2, kw, room;
-    void *k = np.iw[NI_KEY + r], *w = np.iw[NI_VAL + r];
+    unsigned kl;
     if (!v) return 0;
     if (i == 5) {
         for (c = line; *c != ':'; ++c) {
         }
-        memcpy(key, line, (unsigned)(c - line) < sizeof key - 1 ? (unsigned)(c - line) : sizeof key - 1);
-        key[(unsigned)(c - line) < sizeof key - 1 ? (unsigned)(c - line) : sizeof key - 1] = 0;
+        kl = (unsigned)(c - line) < sizeof key - 1 ? (unsigned)(c - line) : (unsigned)sizeof key - 1;
+        memcpy(key, line, kl);
+        key[kl] = 0;
     } else {
         np_cut(key, sizeof key, TR(i == 2 ? "Genre" : i == 3 ? "Year" : "File Size"));
     }
     if (!key[0]) return 0;
-    widget_set_text_utf8(k, key);
-    kw = np_tw(k);
-    room = NPI_R - NPI_X - kw - NPI_KEY_GAP;
-    if (room < 0) room = 0;
-    np_place(k, NPI_X, y, kw + 4, NPI_ROW_PX);
-    np_place(w, NPI_R - room, y, room, NPI_ROW_PX);
-    if (i == 5) {
-        np_head_fit(w, v, room);
-    } else {
-        if (i == 4)
-            np_size_text(v, val, sizeof val);
-        else
-            np_cut(val, sizeof val, v);
-        widget_set_text_utf8(w, val);
-    }
-    np_row_own(r, 1);
+    if (i == 4)
+        np_size_text(v, val, sizeof val);
+    else
+        np_cut(val, sizeof val, v);
+    np_set_row(i + 2, key, val);
     return 1;
 }
 
@@ -839,24 +1057,30 @@ static void np_info(void) {
     unsigned i, h;
     int force = np.relay > 0;
     if (force) --np.relay;
-    unsigned key = np_header(force);
-    if (key != np.rkey)
+    unsigned key;
+    np_page_reset();
+    key = np_header(force);
+    if (key != np.rkey) {
         force = 1, np.rkey = key; /* a new track: its rows again (a stream's stock text is the same for every record) */
+        if (np.ioff) np_info_scroll(0); /* and the page at the top */
+    }
     np_quality(force);
     if (!np.irow) return;
     for (i = 2; i < NP_INFO_N; ++i) {
         int need = np.info[i] ? m1_text_utf8(np.info[i], s, sizeof s) : -1;
         /* none, empty, or too long for s (cut short): stock's label */
         if (need <= 0 || (unsigned)need >= sizeof s) {
-            np_row_own((int)i - 2, 0);
+            np_row_own((int)i + 2, 0);
             np.done[i] = 0;
             continue;
         }
         h = np_hash(s);
         if (h == np.done[i] && !force) continue; /* the text we last laid out */
         np.done[i] = h;
-        if (!np_row((int)i, s)) np_row_own((int)i - 2, 0);
+        if (!np_row((int)i, s)) np_row_own((int)i + 2, 0);
     }
+    if (np.fdirty) np_flow();
+    if (np.ioff > np.ih - NPI_VIEW_H) np_info_scroll(np.ioff); /* the content got shorter */
 }
 
 /* The favourite button of an episode is a bookmark (docs/modules/podcasts.md "Saved"): stock's star toggles myfav and sets btn_imgfav_style / btn_imgunfav_style (its click handler at once, show_player_face on a
@@ -982,6 +1206,7 @@ static int np_on_foreground(void *ctx, void *e) {
     (void)e;
     if (!np.win || ctx != np.win) return RET_OK;
     np.relay = NP_RELAY; /* the info page is laid out again (a language or font change meanwhile) */
+    np_info_scroll(0); /* and starts at the top */
     ly_refresh(); /* a lyrics text size changed in Settings is laid out now */
     np_work(); /* the page is current when it reappears (fg still 0: a new colour tints the bar once, below) */
     /* the mode button's picture follows the play mode: stock sets it only in its own click handler, so a mode set on the Queue page (or elsewhere) is shown now */
@@ -1006,13 +1231,10 @@ static void np_start(void *win) {
     np.shown = np.eshown = -1;
     for (n = 0; n < NP_INFO_N; ++n) np.info[n] = widget_lookup(win, np_info_names[n], 1);
     for (n = 0; n < NI_N; ++n) np.iw[n] = widget_lookup(win, np_iw_names[n], 1);
-    np.ihead = np.iw[NI_ART] && np.iw[NI_TITLE] && np.iw[NI_ARTIST] && np.iw[NI_ALBUM];
-    np.iq = np.iw[NI_QV] && np.iw[NI_QV + 1] && np.iw[NI_QV + 2] && np.iw[NI_QV + 3] && np.iw[NI_QU] &&
-            np.iw[NI_QU + 1] && np.iw[NI_QU + 2] && np.iw[NI_QU + 3] && np.iw[NI_QD] && np.iw[NI_QD + 1] &&
-            np.iw[NI_QD + 2];
-    np.irow = 1;
+    np.ihead = np.iw[NI_ART] && np.iw[NI_TITLE] && np.iw[NI_TITLE2] && np.iw[NI_ARTIST] && np.iw[NI_ALBUM];
+    np.irow = np.iw[NI_SCROLL] && np.iw[NI_VAL + NPI_ROWS] && np.iw[NI_HIRES] && np.iw[NI_DSD];
     for (n = 0; n < NPI_ROWS; ++n)
-        if (!np.iw[NI_KEY + n] || !np.iw[NI_VAL + n]) np.irow = 0;
+        if (!np.iw[NI_KEY + n] || !np.iw[NI_VAL + n] || !np.iw[NI_HAIR + n]) np.irow = 0;
     np.relay = NP_RELAY;
     np.color = NP_NEUTRAL & 0xffffff; /* the asset's window colour */
     if (!widget_on(win, EVT_DESTROY, np_on_destroy, win)) {
@@ -1033,9 +1255,19 @@ static void np_start(void *win) {
     }
     m1_bind(win, "btn_queue", np_on_queue, (void *)0);
     ly_start(win);
+    if (np.irow && np.ihead) { /* the content's touch and fades */
+        void *sc = np.iw[NI_SCROLL];
+        widget_on(sc, EVT_POINTER_DOWN, np_on_info_touch, sc);
+        widget_on(sc, EVT_POINTER_MOVE, np_on_info_touch, sc);
+        widget_on(sc, EVT_POINTER_UP, np_on_info_touch, sc);
+        widget_on(sc, EVT_POINTER_ABORT, np_on_info_touch, sc);
+        widget_on(sc, EVT_AFTER_PAINT, np_on_info_fade, (void *)0);
+    }
     if (np.ihead) {
         mb_art_size(&np.ia, NPI_ART, NPI_ART_R);
         widget_on(np.iw[NI_ART], EVT_AFTER_PAINT, np_on_info_art, (void *)0);
+        np.sv = widget_lookup(win, "slide_view", 1);
+        if (np.sv) widget_on(np.sv, EVT_VALUE_CHANGED, np_on_page, np.sv);
         if (np.info[1]) { /* label_album: the header shows the record's album */
             widget_set_visible(np.info[1], 0, 0);
             widget_set_sensitive(np.info[1], 0);

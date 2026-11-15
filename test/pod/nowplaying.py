@@ -55,9 +55,8 @@ class NowMachine(Machine):
 
     def bar_color(self): return self.bar_styles[-1][2] if self.bar_styles else None
     def bar_calls(self): return [c for c in self.calls if c[0] == 'widget_set_style' and c[1] == self.bar]
-    IW = {'np_i_art': 0, 'np_i_title': 20, 'np_i_artist': 16, 'np_i_album': 16, 'np_i_badge_hires': 0, 'np_i_badge_dsd': 0,
-          **{f'np_i_qv{i}': 17 for i in range(4)}, **{f'np_i_qu{i}': 12 for i in range(4)}, **{f'np_i_qd{i}': 0 for i in (1, 2, 3)},
-          **{f'np_i_k{r}': 16 for r in range(4)}, **{f'np_i_v{r}': 16 for r in range(4)}}
+    IW = {'np_i_scroll': 0, 'np_i_art': 0, 'np_i_title': 20, 'np_i_title2': 20, 'np_i_artist': 16, 'np_i_album': 16, 'np_i_badge_hires': 0, 'np_i_badge_dsd': 0,
+          **{f'np_i_k{r}': 16 for r in range(8)}, **{f'np_i_v{r}': 16 for r in range(9)}, **{f'np_i_h{r}': 0 for r in range(8)}}
     measure_px = None         # (text, px) -> width: the real font, set by run()
     def info_page(self, stock, own=True):
         """The info page's stock labels (name -> the text stock wrote) and, with own, our widgets; returns {name: handle}."""
@@ -66,6 +65,7 @@ class NowMachine(Machine):
             out[n] = self.widget(n); self.texts[out[n]] = t.encode('utf-8').decode('latin-1')
         if own:
             for n, px in self.IW.items(): self.px[self.widget(n)] = px
+            self.widget('slide_view')
         return out
 
     def label(self, name): return self.texts[self.widgets[name]].encode('latin-1').decode('utf-8')   # the text stock wrote
@@ -341,9 +341,8 @@ def run(ctx):
     P = lambda m, n: tuple(m.props.get((m.widgets[n], k)) for k in 'xywh')
     shown = lambda m, n: m.props.get((m.widgets[n], 'visible')) == 1
     gone = lambda m, n: m.props.get((m.widgets[n], 'visible')) == 0 and m.props.get((m.widgets[n], 'sensitive')) == 0
-    quality = lambda m: [(T(m, f'np_i_qv{i}'), T(m, f'np_i_qu{i}') if shown(m, f'np_i_qu{i}') else '') for i in range(4) if shown(m, f'np_i_qv{i}')]
     rowv = lambda m, r: (T(m, f'np_i_k{r}'), T(m, f'np_i_v{r}')) if shown(m, f'np_i_k{r}') else None
-    ROW = {'label_genre': 0, 'label_year': 1, 'label_size': 2, 'label_location': 3}
+    ROW = {'label_genre': 4, 'label_year': 5, 'label_size': 6, 'label_location': 7}
     def info(stock, lang=None, own=True, rec=None, relayed=True, **kw):
         m = NowMachine(); m.page(); m.src(0); m.pt = (30, 200, 1); m.set_language(lang) if lang else None
         for k, v in kw.items(): setattr(m, k, v)
@@ -353,126 +352,255 @@ def run(ctx):
         if relayed:
             for _ in range(mn.I_RELAY): m.tick()
         return m
+    REC = dict(title='Money', artist='Pink Floyd', album='The Dark Side of the Moon', path='/mnt/mmc/Pink Floyd/05 Money.flac', name='05 Money.flac')
     sets = lambda m: [c for c in m.calls if c[0] in ('widget_set_text_utf8', 'widget_move', 'widget_resize')]
-    expect(all(mn.__dict__[k] == O[v] for k, v in (('I_X', 'NPI_X'), ('I_R', 'NPI_R'), ('I_ART', 'NPI_ART'), ('I_ART_Y', 'NPI_ART_Y'), ('I_ART_R', 'NPI_ART_R'), ('I_TEXT_X', 'NPI_TEXT_X'),
-                                                   ('I_TEXT_W', 'NPI_TEXT_W'), ('I_TITLE_Y', 'NPI_TITLE_Y'), ('I_TITLE_PX', 'NPI_TITLE_PX'), ('I_ARTIST_Y', 'NPI_ARTIST_Y'), ('I_ALBUM_Y', 'NPI_ALBUM_Y'),
-                                                   ('I_META_PX', 'NPI_META_PX'), ('I_PAD', 'NPI_PAD'), ('I_BADGE_Y', 'NPI_BADGE_Y'), ('I_BADGE_H', 'NPI_BADGE_H'), ('I_BADGE_GAP', 'NPI_BADGE_GAP'),
-                                                   ('I_W', 'NPI_Q_W'), ('I_Q_Y', 'NPI_Q_Y'), ('I_Q_UY', 'NPI_Q_UY'), ('I_Q_VPX', 'NPI_Q_VPX'), ('I_Q_UPX', 'NPI_Q_UPX'), ('I_Q_UGAP', 'NPI_Q_UGAP'),
-                                                   ('I_Q_DIV_Y', 'NPI_Q_DIV_Y'), ('I_Q_DIV_H', 'NPI_Q_DIV_H'), ('I_ROW_Y', 'NPI_ROW_Y'), ('I_ROW_PITCH', 'NPI_ROW_PITCH'), ('I_ROW_PX', 'NPI_ROW_PX'),
-                                                   ('I_KEY_GAP', 'NPI_KEY_GAP'), ('I_ROWS', 'NPI_ROWS'), ('I_ROW_TAIL', 'NP_ROW_TAIL'), ('I_RELAY', 'NP_RELAY'))) and
+    expect(all(mn.__dict__[k] == O[v] for k, v in (('I_X', 'NPI_X'), ('I_R', 'NPI_R'), ('I_TOP', 'NPI_TOP'), ('I_ART', 'NPI_ART'), ('I_ART_Y', 'NPI_ART_Y'), ('I_ART_R', 'NPI_ART_R'),
+                                                   ('I_TEXT_X', 'NPI_TEXT_X'), ('I_TEXT_W', 'NPI_TEXT_W'), ('I_TITLE_Y', 'NPI_TITLE_Y'), ('I_TITLE_PX', 'NPI_TITLE_PX'), ('I_ARTIST_Y', 'NPI_ARTIST_Y'),
+                                                   ('I_ALBUM_Y', 'NPI_ALBUM_Y'), ('I_META_PX', 'NPI_META_PX'), ('I_PAD', 'NPI_PAD'), ('I_BADGE_H', 'NPI_BADGE_H'), ('I_BADGE_GAP', 'NPI_BADGE_GAP'),
+                                                   ('I_ROW_Y', 'NPI_ROW_Y'), ('I_ROW_PITCH', 'NPI_ROW_PITCH'), ('I_ROW_TEXT', 'NPI_ROW_TEXT'), ('I_ROW_PX', 'NPI_ROW_PX'), ('I_KEY_GAP', 'NPI_KEY_GAP'),
+                                                   ('I_ROWS', 'NPI_ROWS'), ('I_LOC_ROW', 'NPI_LOC_ROW'), ('I_LOC_Y', 'NPI_LOC_Y'), ('I_LOC_LH', 'NPI_LOC_LH'), ('I_LOC_LINES', 'NPI_LOC_LINES'), ('I_FOOT', 'NPI_FOOT'),
+                                                   ('I_ROW_TAIL', 'NP_ROW_TAIL'), ('I_RELAY', 'NP_RELAY'), ('I_TITLE_LH', 'NPI_TITLE_LH'), ('I_TAP_PX', 'NPI_TAP_PX'), ('I_FADE', 'NPI_FADE'), ('I_PAGE', 'NPI_PAGE'))) and (mn.SCRIM[1], mn.SCRIM[3], mn.SCRIM_ALPHA, mn.SCRIM_EDGE) == (O['NP_SCRIM_Y'], O['NP_SCRIM_H'], O['NP_SCRIM_ALPHA'], O['NP_SCRIM_EDGE']) and mn.I_W == O['NPI_R'] - O['NPI_X'] and mn.I_TOP + O['NPI_VIEW_H'] == mn.I_BOTTOM == 288 and
            mn.I_BADGE_W == {'HI-RES': O['NPI_BADGE_HIRES_W'], 'DSD': O['NPI_BADGE_DSD_W']}, 'the payload\'s info page constants equal the asset builder\'s')
 
-    # ---- the quality line: four items, the units small after their values, laid out by measured width with equal gaps (the model of tools/mod_nowplaying.py)
+    # ---- the rows: Format, Sample Rate, Bit Depth, Bitrate (stock's quality line), Genre, Year, File Size, Location; a hairline above each, 33 px apart, a missing row leaves a gap that closes
     QS = 'FLAC|44.1kHz|16bit|950kbps'
+    vhigh = lambda m: m.props.get((m.widgets['np_i_scroll'], 'virtual_h'))
+    def present(m): return [shown(m, f'np_i_k{r}') for r in range(8)]
+    def check_flow(m, what):
+        """Every hairline, label, value, path line and the virtual height are where the shared model (mod_nowplaying.flow) puts them."""
+        pr = present(m); n = 2 if shown(m, 'np_i_v8') else 1
+        sh = mn.I_TITLE_LH if shown(m, 'np_i_title2') else 0
+        hair, text, loc, bottom = mn.flow(pr, n, sh); bad = []
+        for r in range(8):
+            if shown(m, f'np_i_h{r}') != pr[r]: bad.append(('hair shown', r))
+            if not pr[r]: continue
+            if P(m, f'np_i_h{r}') != (16, hair[r] - 36 - m_off(m), 288, 1): bad.append(('hair', r, P(m, f'np_i_h{r}')))
+            if P(m, f'np_i_k{r}')[1:] [0] + 2 != text[r] - 36 - m_off(m): bad.append(('key', r, P(m, f'np_i_k{r}')))
+            if r != 7 and P(m, f'np_i_v{r}')[1] + 2 != text[r] - 36 - m_off(m): bad.append(('value', r, P(m, f'np_i_v{r}')))
+        if pr[7]:
+            for k, yy in enumerate(loc):
+                if P(m, f'np_i_v{7 + k}')[1] + 2 != yy - 36 - m_off(m) or P(m, f'np_i_v{7 + k}')[0::2] != (16, 288): bad.append(('loc', k, P(m, f'np_i_v{7 + k}')))
+        hv = max(bottom - 36, 252)
+        expect(not bad and vhigh(m) == hv, f'{what}: the rows are where the model puts them, virtual_h {hv} ({bad[:2]}, {vhigh(m)})')
+    m_off = lambda m: 0
     m = info({'label_info': QS})
-    expect(quality(m) == [('FLAC', ''), ('44.1', 'kHz'), ('16', 'bit'), ('950', 'kbps')] and gone(m, 'label_info'), f'the four items, label_info hidden and insensitive ({quality(m)})')
-    def placed(m):
-        out = []
-        for i in range(4):
-            if not shown(m, f'np_i_qv{i}'): break
-            u = shown(m, f'np_i_qu{i}')
-            out.append((P(m, f'np_i_qv{i}')[0], P(m, f'np_i_qu{i}')[0] if u else None, P(m, f'np_i_qd{i}')[0] if i else None))
-        return out
-    def model(text):
-        return mn.qlayout(mn.qparse(text), lambda t, px: ms(t, px))
-    expect(placed(m) == model(QS), f'positions equal the model ({placed(m)} vs {model(QS)})')
-    expect([P(m, f'np_i_qv{i}')[1::2] for i in range(4)] == [(mn.I_Q_Y - 2, mn.I_Q_VPX + 4)] * 4 and [P(m, f'np_i_qu{i}')[1::2] for i in (1, 2, 3)] == [(mn.I_Q_UY - 2, mn.I_Q_UPX + 4)] * 3
-           and [P(m, f'np_i_qd{i}')[1:] for i in (1, 2, 3)] == [(mn.I_Q_DIV_Y, 1, mn.I_Q_DIV_H)] * 3, 'values 17 px at y 122, units 12 px at y 126, dividers 18 px at y 123 (boxes a line plus 2 px each way)')
+    want = [('Format', 'FLAC'), ('Sample Rate', '44.1 kHz'), ('Bit Depth', '16 bit'), ('Bitrate', '950 kbps')]
+    expect([rowv(m, r) for r in range(4)] == want and gone(m, 'label_info') and not any(present(m)[4:]), f'the four quality rows, label_info hidden and insensitive ({[rowv(m, r) for r in range(4)]})')
+    check_flow(m, 'quality rows')
+    expect(mn.flow([True] * 8)[0] == {r: 112 + 33 * r for r in range(8)} and mn.flow([True] * 8)[1][0] == 120 and mn.flow([True] * 8)[2] == [371, 391] and mn.flow([True] * 8)[3] == 415,
+           'the model: hairlines at 112 and every 33 px, label and value 8 px under, the path lines at 371 and 391, the content ends at 415')
+    ok = True
+    for r in range(4):
+        kx, ky, kw, kh = P(m, f'np_i_k{r}'); vx, vy, vw, vh = P(m, f'np_i_v{r}'); y = 112 + 33 * r + 8 - 36 - 2
+        ok = ok and (kx, ky, kh, vy, vh) == (16, y, 20, y, 20) and kw - 4 == ms(want[r][0], 16) and vx + vw == 304 and vx == 16 + kw - 4 + mn.I_KEY_GAP
+    expect(ok, 'label at x 16, value box ends at 304 and starts 14 px after the label, text tops 8 px under each row\'s hairline (boxes 2 px higher, in the scroll_view)')
     lines = [f'{c}|{r}kHz|{b}bit|{k}kbps' for c in ('FLAC', 'ALAC', 'WAV', 'APE', 'AIFF', 'MP3', 'OGG', 'DSF') for r, b, k in
              (('44.1', 16, 950), ('48', 24, 2300), ('96', 24, 2800), ('192', 24, 9216), ('352.8', 24, 16934), ('384', 32, 24576), ('2822.4', 1, 5644), ('11289.6', 1, 22579), ('22579.2', 1, 45158))]
-    over = []
-    for t in lines:
-        items, pos = mn.qparse(t), model(t)
-        end = pos[-1][1] + ms(items[-1][1], mn.I_Q_UPX) if pos[-1][1] else pos[-1][0] + ms(items[-1][0], mn.I_Q_VPX)
-        if pos[0][0] < mn.I_X or end > mn.I_R: over.append((t, pos[0][0], end))
-    expect(not over, f'every quality line, 22579.2 kHz DSD included, fits between x 16 and 304 ({over[:3]})')
-    for text, want in (('FLAC|44.1kHz|0bit|950kbps', [('FLAC', ''), ('44.1', 'kHz'), ('950', 'kbps')]), ('MP3|48kHz|16bit|320kbps', [('MP3', ''), ('48', 'kHz'), ('16', 'bit'), ('320', 'kbps')]),
-                       ('FLAC|0kHz|16bit|0kbps', [('FLAC', ''), ('16', 'bit')]), ('FLAC', [('FLAC', '')]), ('FLAC | 44.1 kHz | 16-bit | 950 kbps', [('FLAC', ''), ('44.1', 'kHz'), ('16', 'bit'), ('950', 'kbps')]),
-                       ('DSD256|11289.6kHz|1bit|22579kbps', [('DSD256', ''), ('11289.6', 'kHz'), ('1', 'bit'), ('22579', 'kbps')]), ('FLAC|44.1|16bit|950kbps', [('FLAC', ''), ('44.1', ''), ('16', 'bit'), ('950', 'kbps')]),
-                       ('|44.1kHz||', [('44.1', 'kHz')])):
-        m = info({'label_info': text}); got = quality(m)
-        expect(got == want and placed(m) == model(text) and len([i for i in range(4) if shown(m, f'np_i_qv{i}')]) == len(want) and all(shown(m, f'np_i_qd{i}') == (i < len(want)) for i in range(1, 4)),
-               f'{text!r}: {want} ({got}); items with no value are dropped and their divider goes')
+    over = [t for t in lines if any(P(info({'label_info': t}), f'np_i_v{r}')[2] < ms(mn.qparse(t)[r], 16) for r in range(4))]
+    expect(not over, f'every quality value, 22579.2 kHz DSD included, fits its value box ({over[:3]})')
+    for text, want in (('FLAC|44.1kHz|0bit|950kbps', {0: 'FLAC', 1: '44.1 kHz', 3: '950 kbps'}), ('MP3|48kHz|16bit|320kbps', {0: 'MP3', 1: '48 kHz', 2: '16 bit', 3: '320 kbps'}),
+                       ('FLAC|0kHz|16bit|0kbps', {0: 'FLAC', 2: '16 bit'}), ('FLAC', {0: 'FLAC'}), ('FLAC | 44.1 kHz | 16-bit | 950 kbps', {0: 'FLAC', 1: '44.1 kHz', 2: '16 bit', 3: '950 kbps'}),
+                       ('DSD256|11289.6kHz|1bit|22579kbps', {0: 'DSD256', 1: '11289.6 kHz', 2: '1 bit', 3: '22579 kbps'}), ('FLAC|44.1|16bit|950kbps', {0: 'FLAC', 1: '44.1 kHz', 2: '16 bit', 3: '950 kbps'}),
+                       ('|44.1kHz||', {1: '44.1 kHz'})):
+        m = info({'label_info': text}); got = {r: rowv(m, r)[1] for r in range(4) if rowv(m, r)}
+        expect(got == want == mn.qparse(text) and present(m)[:4] == [r in want for r in range(4)], f'{text!r}: {want} ({got}); a field with no value leaves its row out')
+        check_flow(m, text)
+    m = info({'label_info': 'FLAC|44.1kHz|0bit|950kbps', 'label_genre': 'G:Rock', 'label_year': 'Y:1999'})
+    expect(shown(m, 'np_i_k4') and P(m, 'np_i_h4')[1] + 36 == 112 + 33 * 3 and P(m, 'np_i_h5')[1] + 36 == 112 + 33 * 4 and not shown(m, 'np_i_h2'), 'no bit depth: Genre moves up under the Bitrate row (rows below move up)')
     m = info({'label_info': QS}); m.calls = []
     for _ in range(10): m.texts[m.widgets['label_info']] = QS; m.tick()
     expect(not sets(m) and gone(m, 'label_info'), 'stock rewriting label_info every tick: nothing is laid out again, label_info stays hidden')
     m.texts[m.widgets['label_info']] = 'MP3|48kHz|16bit|320kbps'; m.calls = []; m.tick()
-    expect(quality(m)[0] == ('MP3', '') and len([c for c in sets(m) if c[0] == 'widget_set_text_utf8']) == 7, 'a new quality text is laid out once')
-    stock_back = lambda m, t: not shown(m, 'np_i_qv0') and m.visible('label_info') == 1 and m.label('label_info') == t
+    expect(rowv(m, 0) == ('Format', 'MP3') and len([c for c in sets(m) if c[0] == 'widget_set_text_utf8']) == 8, 'a new quality text is laid out once (four labels, four values)')
+    stock_back = lambda m, t: not any(present(m)[:4]) and m.visible('label_info') == 1 and m.label('label_info') == t
     m.texts[m.widgets['label_info']] = 'A' * 600; m.calls = []; m.tick()
-    expect(stock_back(m, 'A' * 600) and not any(shown(m, f'np_i_qd{i}') or shown(m, f'np_i_qu{i}') for i in (1, 2, 3)), 'a text too long to read whole: our items go, stock\'s label shows (never a stale line)')
+    expect(stock_back(m, 'A' * 600) and not any(shown(m, f'np_i_h{r}') for r in range(4)), 'a text too long to read whole: our rows go, stock\'s label shows (never a stale line)')
     m.texts[m.widgets['label_info']] = QS; m.tick()
-    expect(quality(m)[1] == ('44.1', 'kHz') and gone(m, 'label_info'), 'readable again: ours again')
+    expect(rowv(m, 1) == ('Sample Rate', '44.1 kHz') and gone(m, 'label_info'), 'readable again: ours again')
     m.texts[m.widgets['label_info']] = '||||'; m.tick()
-    expect(stock_back(m, '||||'), 'a text with no item: stock\'s label')
+    expect(stock_back(m, '||||'), 'a text with no field: stock\'s label')
     m.texts[m.widgets['label_info']] = QS; m.get_ret = 1; m.tick(); m.get_ret = 0
-    expect(not shown(m, 'np_i_qv0'), 'a failed read: ours are hidden')
+    expect(not shown(m, 'np_i_k0'), 'a failed read: ours are hidden')
     m = info({'label_info': QS}, own=False)
     expect(m.visible('label_info') is None and not sets(m), 'without our widgets the page keeps stock\'s label_info')
 
-    # ---- the rows: Genre, Year, File Size, Location: the label left, the value right aligned to 304, hairlines are the asset's
     m = info(stock_en)
-    want = [('Genre', 'Rock'), ('Year', '1999'), ('File Size', '35.92 MB'), ('Location', 'SD:/Music/Kid A')]
-    expect([rowv(m, r) for r in range(4)] == want, f'English rows ({[rowv(m, r) for r in range(4)]})')
+    want = [('Format', 'FLAC'), ('Sample Rate', '44.1 kHz'), ('Bit Depth', '16 bit'), ('Bitrate', '950 kbps'), ('Genre', 'Rock'), ('Year', '1999'), ('File Size', '35.92 MB'), ('Location', 'SD:/Music/Kid A')]
+    got = [rowv(m, r) for r in range(7)] + [(T(m, 'np_i_k7'), T(m, 'np_i_v7'))]
+    expect(got == want and not shown(m, 'np_i_v8'), f'English rows ({got})')
     expect(all(gone(m, n) for n in ROW), 'the stock labels are hidden and insensitive while ours show')
-    ok = True
-    for r in range(4):
-        y = mn.i_row_y(r) - 2; kx, ky, kw, kh = P(m, f'np_i_k{r}'); vx, vy, vw, vh = P(m, f'np_i_v{r}')
-        ok = ok and (kx, ky, kh, vy, vh) == (16, y, 20, y, 20) and kw - 4 == ms(want[r][0], 16) and vx + vw == 304 and vx == 16 + kw - 4 + mn.I_KEY_GAP
-    expect(ok, 'label at x 16, value box ends at 304 and starts 14 px after the label, text tops 8 px under each row\'s hairline')
-    expect([mn.i_row_y(r) for r in range(4)] == [158, 191, 224, 257] and mn.I_HAIRS == (112, 150, 183, 216, 249) and mn.i_row_y(3) + 16 <= 288, 'rows 33 px apart from the hairline at 150, all above y 288')
+    check_flow(m, 'all eight rows, a one line path')
     m.calls = []; m.tick(); m.tick()
     expect(not sets(m), 'ticks after that leave the page alone (no loop)')
     m.texts[m.widgets['label_year']] = 'Era:2001'; m.calls = []; m.tick()
-    expect(rowv(m, 1) == ('Year', '2001') and len([c for c in sets(m) if c[0] == 'widget_set_text_utf8']) == 2, 'stock writing a line again is answered once, that row only (label and value)')
+    expect(rowv(m, 5) == ('Year', '2001') and len([c for c in sets(m) if c[0] == 'widget_set_text_utf8']) == 2, 'stock writing a line again is answered once, that row only (label and value)')
     cases = {'label_genre': {'Genres:Unknown': 'Unknown', 'Genres:  two spaces': 'two spaces', 'Genres:A: B': 'A: B', 'Genres:Mega 2MB': 'Mega 2MB'},
              'label_size': {'File Size:0.00MB': '0.00 MB', 'File Size: 7.10 MB': '7.10 MB', 'File Size:Unknown': 'Unknown'}, 'label_year': {'Era:0': '0'}}
     bad = [(b, rowv(info({lbl: b}), ROW[lbl])) for lbl, t in cases.items() for b, a in t.items() if (rowv(info({lbl: b}), ROW[lbl]) or ('', ''))[1] != a]
     expect(not bad, f'value cases ({bad})')
-    # every language: Genre / Year / File Size are our keys in that language; Location is stock's word
+    # every language: the keys are ours in that language; Location is stock's word
     for lang in pod_i18n.LOCALES:
-        m = info({'label_genre': 'X:Rock', 'label_year': 'Y:1999', 'label_size': 'Z:3.50MB', 'label_location': 'W:SD:/a'}, lang)
+        m = info({'label_info': QS, 'label_genre': 'X:Rock', 'label_year': 'Y:1999', 'label_size': 'Z:3.50MB', 'label_location': 'W:SD:/a'}, lang)
         T2 = pod_i18n.TEXT
-        expect([rowv(m, r) for r in range(4)] == [(T2['Genre'][lang], 'Rock'), (T2['Year'][lang], '1999'), (T2['File Size'][lang], '3.50 MB'), ('W', 'SD:/a')],
-               f'{lang}: our Genre / Year / File Size, stock\'s Location ({[rowv(m, r) for r in range(4)]})')
-        kw_ = [ms(rowv(m, r)[0], 16) for r in range(4)]
-        expect(all(P(m, f'np_i_v{r}')[2] == mn.I_W - kw_[r] - mn.I_KEY_GAP for r in range(4)), f'{lang}: each value has the room its label leaves')
+        keys = [T2[k][lang] for k in ('Format', 'Sample Rate', 'Bit Depth', 'Bitrate', 'Genre', 'Year', 'File Size')] + ['W']
+        got = [rowv(m, r)[0] for r in range(7)] + [T(m, 'np_i_k7')]
+        expect(got == keys, f'{lang}: our keys, stock\'s Location ({got})')
+        kw_ = [ms(keys[r], 16) for r in range(7)]
+        expect(all(P(m, f'np_i_v{r}')[2] == mn.I_W - kw_[r] - mn.I_KEY_GAP for r in range(7)), f'{lang}: each value has the room its label leaves')
+        check_flow(m, lang)
     expect(pod_i18n.TEXT['File Size']['uk_UK'] == 'Розмір файлу' and pod_i18n.TEXT['File Size']['en_US'] == 'File Size', 'Ukrainian File Size is not stock\'s "Місцезнаходження"')
-    # the location keeps its end: the start is cut, "..." first
-    long_loc = 'SD:/Music/Pink Floyd/The Dark Side of the Moon/05 Money.flac'
-    m = info(dict(stock_en, label_location='Location:' + long_loc)); v = rowv(m, 3)[1]; room = P(m, 'np_i_v3')[2]
-    expect(v.startswith('...') and v.endswith('05 Money.flac') and ms(v, 16) <= room and v == mn.head_fit(long_loc, room, lambda t: ms(t, 16)) and ms('...' + long_loc[len(long_loc) - len(v) + 2:], 16) > room,
-           f'a long location: the start is cut so that it just fits, the file name stays ({v}, {ms(v, 16)} of {room})')
-    for loc in ('SD:/' + '歌' * 120 + '/x.flac', 'a' * 300 + '/END.mp3', 'SD:/' + 'é' * 150 + '.wav', 'SD:/' + 'W' * 5 + '/f'):
-        m = info(dict(stock_en, label_location='Location:' + loc)); v = rowv(m, 3)[1]; room = P(m, 'np_i_v3')[2]
-        expect(v == mn.head_fit(loc, room, lambda t: ms(t, 16)) and v.endswith(loc[-3:]) and ms(v, 16) <= room,
-               f'{loc[:12]}... ({len(loc.encode())} bytes): the same cut as the model, fits ({ms(v, 16)} of {room})')
+    # the Location: its label on a line of its own, the path under it in up to two lines of 288 px
+    LW = lambda loc: mn.loc_wrap(loc, 288, lambda t: ms(t, 16))
+    def loc_lines(loc):
+        m = info(dict(stock_en, label_location='Location:' + loc)); return [T(m, f'np_i_v{k}') for k in (7, 8) if shown(m, f'np_i_v{k}')], m
+    two = 'SD:/Music/Pink Floyd/The Dark Side of the Moon/05 Money.flac'
+    four = 'SD:/Music/Hi-Res/Pink Floyd/Wish You Were Here (2011 Remastered Version)/04 Wish You Were Here.flac'
+    seg = 'SD:/' + 'ABCDEFGHIJKLMNOP' * 3 + '.flac'
+    cjk = 'SD:/音乐/' + '歌' * 30 + '/' + '曲' * 20 + '.flac'
+    huge = 'SD:/' + 'W' * 120 + '/Album/' + 'q' * 60 + '/END.flac'
+    long_loc = 'SD:/' + '/'.join(f'folder number {i}' for i in range(18)) + '/05 Money.flac'
+    for name, loc, n_lines in (('short', 'SD:/Music/Kid A', 1), ('two lines, break after a slash', two, 2), ('long', four, 2), ('long segment (character break)', seg, 2), ('CJK', cjk, 2),
+                               ('head cut', huge, 2), ('over 200 bytes', long_loc, 2), ('accents', 'SD:/' + 'é' * 150 + '.wav', 2)):
+        got, m = loc_lines(loc)
+        expect(got == LW(loc) and len(got) == n_lines and all(ms(l, 16) <= 288 for l in got) and P(m, 'np_i_k7')[0] == 16 and P(m, 'np_i_v7')[0::2] == (16, 288),
+               f'{name}: {got} the model\'s {len(LW(loc))} line(s), each within 288 px, left aligned under the label')
+        check_flow(m, name)
+    expect(LW('SD:/Music/Kid A') == ['SD:/Music/Kid A'] and LW(two)[0].endswith('/') and ''.join(LW(two)) == two, 'rule 1 and 2: one line when it fits, else a break after a slash with nothing lost')
+    l3 = LW(seg); expect(len(l3) == 2 and ''.join(l3) == seg and not l3[0].endswith('/') and ms(l3[0] + seg[len(l3[0])], 16) > 288, 'rule 3: a segment wider than a line breaks at the last character that fits')
+    l4 = LW(long_loc); expect(l4[0].startswith('...') and l4[1] and long_loc.endswith(l4[1]) and (l4[0][3:] + l4[1]) in long_loc and long_loc.endswith(l4[0][3:] + l4[1]), 'rule 4: line 2 is the end of the path, line 1 "..." and the text just before it')
+    l4 = LW(huge); expect(l4[0].startswith('...') and huge.endswith(l4[1]) and ms(l4[1], 16) <= 288 < ms(huge[len(huge) - len(l4[1]) - 1:], 16), 'rule 4: line 2 holds as much of the end as fits')
+    expect(all(len(LW(p)) <= 2 and all(ms(l, 16) <= 288 for l in LW(p)) for p in (two, four, seg, cjk, huge, long_loc, 'a' * 300, 'W' * 300, '/' * 300, '歌' * 300)), 'every sample fits two lines of 288 px')
+    # the content grows with the path
+    h = lambda loc: vhigh(loc_lines(loc)[1])
+    expect(h('SD:/Music/Kid A') == 415 - 36 - 20 and h(four) == 415 - 36, f'virtual_h: {h("SD:/Music/Kid A")} for one path line, {h(four)} for two')
     # a line that is not "Label:value", too long to read whole or unreadable is stock's label (never half ours)
     m = info(dict(stock_en, label_genre='Unknown', label_year=':1999', label_size='', label_location='x' * 600))
-    expect(all(rowv(m, r) is None for r in range(4)) and all(m.visible(n) != 0 for n in ROW), 'no colon, a leading colon, empty, too long: all four rows are stock\'s labels')
+    expect(all(not shown(m, f'np_i_k{r}') for r in range(4, 8)) and all(m.visible(n) != 0 for n in ROW) and all(shown(m, f'np_i_k{r}') for r in range(4)), 'no colon, a leading colon, empty, too long: the four lines are stock\'s labels')
+    check_flow(m, 'stock lines back')
     m = info(stock_en); m.texts[m.widgets['label_genre']] = 'Genres'; m.tick()
-    expect(rowv(m, 0) is None and m.visible('label_genre') == 1 and rowv(m, 1) is not None, 'one bad line gives only that row back')
+    expect(rowv(m, 4) is None and m.visible('label_genre') == 1 and rowv(m, 5) is not None, 'one bad line gives only that row back')
+    check_flow(m, 'one row back')
     m.texts[m.widgets['label_genre']] = 'Genres:Jazz'; m.tick()
-    expect(rowv(m, 0) == ('Genre', 'Jazz') and gone(m, 'label_genre'), 'and the next good text takes it over again')
+    expect(rowv(m, 4) == ('Genre', 'Jazz') and gone(m, 'label_genre'), 'and the next good text takes it over again')
     m = info(stock_en, get_ret=0x10)
-    expect(all(rowv(m, r) is None for r in range(4)) and not shown(m, 'np_i_qv0'), 'a failed read: stock\'s labels stay')
+    expect(not any(present(m)), 'a failed read: stock\'s labels stay')
     for t in ('Genres:' + 'x' * 600, 'Genres:' + '歌' * 200, 'Genres:' + 'x' * 506):
-        m = info({'label_genre': t}); expect(rowv(m, 0) is None and m.visible('label_genre') != 0, f'a tag of {len(t.encode())} bytes (the buffer holds 511 and a NUL): stock\'s label')
-    m = info({'label_genre': 'Genres:' + 'x' * 500}); expect(rowv(m, 0) == ('Genre', 'x' * 500), 'a text that fits the buffer is ours')
+        m = info({'label_genre': t}); expect(rowv(m, 4) is None and m.visible('label_genre') != 0, f'a tag of {len(t.encode())} bytes (the buffer holds 511 and a NUL): stock\'s label')
+    m = info({'label_genre': 'Genres:' + 'x' * 500}); expect(rowv(m, 4) == ('Genre', 'x' * 500), 'a text that fits the buffer is ours')
     m = info({'label_genre': 'Genres:Rock'}, own=False)
     expect(m.visible('label_genre') is None and not sets(m), 'a page without our row labels leaves stock\'s alone')
     # layout again for NP_RELAY ticks: a label measures in its own style only once the window is open (the first look can be wrong)
+    placed = lambda m: [P(m, f'np_i_{k}{r}') for r in range(8) for k in 'kvh']
     m = info(stock_en, relayed=False); first = placed(m)
     NowMachine.measure_px = staticmethod(lambda t, px: 2 * ms(t, px)); m.tick()
     expect(placed(m) != first, 'the next tick lays the page out again (the measure changed)')
     NowMachine.measure_px = staticmethod(ms); m.tick(); m.tick(); m.calls = []; m.tick()
     expect(placed(m) == first and not sets(m), 'the relay ends after NP_RELAY looks: then only a new text lays out')
+    # the scroll offset: one helper moves every child (phase 2 drives it)
+    P = lambda m, n: tuple((v - 2**32 if v is not None and v >= 2**31 else v) for v in (m.props.get((m.widgets[n], k)) for k in 'xywh'))
+    m = info(stock_en, rec=REC); at0 = {n: P(m, n) for n in m.widgets if n.startswith('np_i_') and n != 'np_i_scroll' and m.props.get((m.widgets[n], 'x')) is not None}
+    expect(len(at0) >= 24 and P(m, 'np_i_art')[1] == 0 and P(m, 'np_i_h0')[1] == 112 - 36, 'at offset 0 the cover is at the scroll_view\'s top')
+    m.call(PSYMS['np_info_scroll'], a0=40)
+    moved = {n: P(m, n) for n in at0}
+    expect(all(moved[n][1] == at0[n][1] - 40 and moved[n][0::2] == at0[n][0::2] for n in at0), f'offset 40: every widget moves up 40 px, x and size unchanged ({[n for n in at0 if moved[n][1] != at0[n][1] - 40][:3]})')
+    m.call(PSYMS['np_info_scroll'], a0=10000)
+    top = vhigh(m) - 252
+    expect(P(m, 'np_i_art')[1] == -top, f'the offset is clamped to the content height less the view ({top})')
+    m.call(PSYMS['np_info_scroll'], a0=-5)
+    expect({n: P(m, n) for n in at0} == at0, 'a negative offset is the top')
+    m.call(PSYMS['np_info_scroll'], a0=40); m.play([m.record(title='Next', artist='X', album='Y', path='/mnt/mmc/x/9.flac', name='9.flac', rid=9)], 0); m.tick()
+    expect(P(m, 'np_i_art')[1] == 0 and P(m, 'np_i_h0')[1] == 112 - 36, 'a new track: back at the top')
+
+
+    # ---- finger scrolling: a vertical drag of NPI_TAP_PX or more moves the content with the finger, clamped; a sideways one, a tap and a short wobble do nothing; the page's own listeners
+    D_, MV_, UP_, AB_ = O['EVT_POINTER_DOWN'], O['EVT_POINTER_MOVE'], O['EVT_POINTER_UP'], O['EVT_POINTER_ABORT']
+    def ptr(m, kind, x, y):
+        e = m.alloc(0x30); m.u.mem_write(e, bytes(0x30)); m.setword(e, kind); m.setword(e + O['PE_X'], x); m.setword(e + O['PE_Y'], y)
+        return m.call(PSYMS['np_on_info_touch'], a0=m.widgets['np_i_scroll'], a1=e, count=2000000)
+    offs = lambda m: -P(m, 'np_i_art')[1]
+    m = info(stock_en, rec=REC)
+    on = [m.bound.get((m.widgets['np_i_scroll'], ev), (0,))[0] for ev in (D_, MV_, UP_, AB_, EVT_AFTER_PAINT)]
+    expect(on == [PSYMS['np_on_info_touch']] * 4 + [PSYMS['np_on_info_fade']], f'np_i_scroll listens to DOWN, MOVE, UP, ABORT and paints the fades after its children ({on})')
+    expect(m.bound[(m.widgets['slide_view'], O['EVT_VALUE_CHANGED'])][0] == PSYMS['np_on_page'], 'the slide view\'s page change is listened to')
+    m.calls = []; top = vhigh(m) - 252
+    r = [ptr(m, D_, 100, 200), ptr(m, MV_, 100, 195), ptr(m, MV_, 101, 191), ptr(m, UP_, 101, 191)]
+    expect(r == [0] * 4 and offs(m) == 0 and not sets(m), 'a tap or a wobble under 10 px: nothing moves, RET_OK (never RET_STOP)')
+    r = [ptr(m, D_, 100, 200), ptr(m, MV_, 100, 185)]
+    expect(offs(m) == 0, 'the drag has begun at 10 px, the content does not jump')
+    ptr(m, MV_, 100, 165); expect(offs(m) == 20, 'then it follows the finger up: 20 px')
+    ptr(m, MV_, 100, 175); expect(offs(m) == 10, 'and back down 10 px')
+    ptr(m, MV_, 140, 100); expect(offs(m) == 85, 'a sideways wobble after the drag began does not stop it')
+    ptr(m, MV_, 100, -300); expect(offs(m) == top, f'clamped at the content end ({top})')
+    ptr(m, MV_, 100, -280); expect(offs(m) == top - 20, 'coming back moves at once (no overscroll to unwind)')
+    ptr(m, UP_, 100, -280); ptr(m, MV_, 100, -100)
+    expect(offs(m) == top - 20, 'after UP a stray MOVE does nothing')
+    ptr(m, D_, 100, 50); ptr(m, MV_, 100, 70); ptr(m, MV_, 100, 400); expect(offs(m) == 0, 'dragging down clamps at the top')
+    ptr(m, AB_, 100, 400)
+    m.call(PSYMS['np_info_scroll'], a0=30)
+    ptr(m, D_, 100, 200); ptr(m, MV_, 140, 203); ptr(m, MV_, 140, 100)
+    expect(offs(m) == 30, 'a sideways drag (the page swipe) is left to the slide view: the content stays')
+    ptr(m, UP_, 140, 100); ptr(m, D_, 100, 200); ptr(m, MV_, 115, 188); ptr(m, MV_, 112, 150)
+    expect(offs(m) == 30, 'a diagonal drag that is more sideways than vertical is the swipe too')
+    ptr(m, AB_, 112, 150); ptr(m, D_, 100, 200); ptr(m, MV_, 100, 150); ptr(m, AB_, 100, 150); ptr(m, MV_, 100, 100)
+    expect(offs(m) == 30, 'an abort ends the drag: later moves do nothing')
+    expect(ptr(m, D_, 1, 1) == 0 and ptr(m, MV_, 1, 1) == 0, 'every handler answers RET_OK')
+    short = info({'label_info': 'FLAC|44.1kHz|16bit|950kbps'}, rec=REC)
+    ptr(short, D_, 100, 200); ptr(short, MV_, 100, 150); ptr(short, MV_, 100, 100)
+    expect(vhigh(short) == 252 and offs(short) == 0, 'content that fits is not scrolled')
+    # back at the top whenever the info page is entered again
+    m = info(stock_en, rec=REC); sv = m.widgets['slide_view']
+    m.call(PSYMS['np_info_scroll'], a0=50); m.tick()
+    expect(offs(m) == 50, 'on the info page the tick leaves the offset alone')
+    m.props[(sv, 'value')] = 1; m.tick()
+    expect(offs(m) == 0, 'the slide view on another page: the content goes to the top (the tick)')
+    m.props[(sv, 'value')] = mn.I_PAGE; m.call(PSYMS['np_info_scroll'], a0=50)
+    m.props[(sv, 'value')] = 0; fn, ctx = m.bound[(sv, O['EVT_VALUE_CHANGED'])]; m.call(fn, a0=ctx, a1=0, count=2000000)
+    expect(offs(m) == 0, 'and at once by the slide view\'s value change')
+    m.props[(sv, 'value')] = mn.I_PAGE; m.call(PSYMS['np_info_scroll'], a0=50); m.call(fn, a0=ctx, a1=0, count=2000000)
+    expect(offs(m) == 50, 'a value change that lands on the info page keeps it')
+    m.fire(O['EVT_WINDOW_TO_FG'], WIN)
+    expect(offs(m) == 0, 'Now Playing in front again: the top')
+
+    # ---- the title: up to two lines of 212 px, a word break, a character break for CJK and one long word, an end ellipsis only when two lines are not enough; the header below moves down by 24
+    TW = lambda t: mn.title_wrap(t, 212, lambda x: ms(x, 20))
+    def title_page(t):
+        m = info(stock_en, rec=dict(REC, title=t)); return m
+    one = title_page('Money')
+    expect((T(one, 'np_i_title'), T(one, 'np_i_title2')) == ('Money', '') and not shown(one, 'np_i_title2') and P(one, 'np_i_title') == (92, 0, 212, 24) and P(one, 'np_i_artist')[1] == 24 and P(one, 'np_i_album')[1] == 44 and P(one, 'np_i_h0')[1] == 76,
+           'a one line title looks as before: one label, artist and album at 62 / 82, the first hairline at 112')
+    tcases = {'a word break': 'Wish You Were Here (2011 Remastered Version)', 'a longer two lines': 'Bohemian Rhapsody (Remastered 2011)',
+              'CJK': '夜曲' * 9, 'CJK and Latin': '夜に駆ける (YOASOBI) Official Music Video Remastered', 'one long word': 'Supercalifragilisticexpialidocious' * 2, 'ellipsis': 'Wish You Were Here ' * 6,
+              'Cyrillic': 'Прекрасное далёко (из к/ф Гостья из будущего) Remastered', 'Arabic': 'مرحبا بالعالم الجميل في كل مكان ومن كل مكان', 'accents': 'Éléphant à côté de l’océan très éloigné d’ici', 'spaces': 'Hello   ' + 'W' * 30 + '   World   ' + 'x' * 20}
+    for name, t in tcases.items():
+        m = title_page(t); lines, cut = TW(t); got = [T(m, 'np_i_title')] + ([T(m, 'np_i_title2')] if shown(m, 'np_i_title2') else [])
+        ok = got == lines and ms(lines[0], 20) <= 212 and (cut or all(ms(l, 20) <= 212 for l in lines))
+        expect(ok and len(lines) <= 2, f'{name}: {got} the model\'s {lines}, line 1 within 212 px, line 2 {"cut by the label\'s ellipsis" if cut else "whole"}')
+        sh = 24 if len(lines) > 1 else 0
+        expect(P(m, 'np_i_art')[1] == 0 and P(m, 'np_i_title') == (92, 0, 212, 24) and (len(lines) < 2 or P(m, 'np_i_title2') == (92, 24, 212, 24)) and P(m, 'np_i_artist')[1] == 24 + sh and P(m, 'np_i_album')[1] == 44 + sh and P(m, 'np_i_h0')[1] == 76 + sh,
+               f'{name}: the cover stays, artist, album and the first hairline move down {sh} px')
+        check_flow(m, name)
+    ls, cut = TW(tcases['a longer two lines']); expect(len(ls) == 2 and not cut and ' '.join(ls) == tcases['a longer two lines'] and ls[0] == 'Bohemian Rhapsody', f'a word break: no word is cut ({ls})')
+    ls, cut = TW(tcases['a word break']); expect(ls[0] == 'Wish You Were Here' and ls[1].startswith('(2011 Remastered') and cut and ms(ls[1], 20) > 212, f'the word break is kept even when line 2 then needs its end ellipsis ({ls})')
+    ls, cut = TW('周杰伦 Jay Chou 稻香 Rice Fragrance'); expect(len(ls) == 2 and ' ' not in ls[0][-1:] and ls[0].split(' ')[-1] != '' and ''.join(ls).replace(' ', '') == '周杰伦JayChou稻香RiceFragrance' and ls[0].count(' ') >= 1, f'mixed text breaks at a space when one qualifies ({ls})')
+    ls, cut = TW(tcases['CJK']); expect(len(ls) == 2 and not cut and ''.join(ls) == tcases['CJK'] and ms(ls[0], 20) <= 212 and ms(ls[0] + '夜', 20) > 212, 'CJK has no space: a character break at the last character that fits, nothing lost')
+    ls, cut = TW(tcases['one long word']); expect(len(ls) == 2 and ''.join(ls) == tcases['one long word'] and ms(ls[0], 20) <= 212 and ms(ls[0] + ls[1][0], 20) > 212, 'one long word breaks at the last character that fits line 1')
+    ls, cut = TW(tcases['ellipsis']); expect(cut and len(ls) == 2 and ms(ls[1], 20) > 212, 'more than two lines: line 2 is the rest whole, the label puts the ellipsis at its end')
+    ls, cut = TW(tcases['spaces']); expect(not ls[0].endswith(' ') and not ls[1].startswith(' '), 'the spaces round a break are dropped')
+    m = title_page('Wish You Were Here (2011 Remastered Version)'); h2 = vhigh(m); h1 = vhigh(title_page('Money'))
+    expect(h2 == h1 + 24, f'two lines make the content 24 px longer ({h1} -> {h2})')
+    m.call(PSYMS['np_info_scroll'], a0=10000); expect(P(m, 'np_i_art')[1] == -(vhigh(m) - 252), 'the scroll range follows')
+    m.play([m.record(title='Short', artist='X', album='Y', path='/mnt/mmc/x/9.flac', name='9.flac', rid=9)], 0); m.tick()
+    expect(not shown(m, 'np_i_title2') and T(m, 'np_i_title2') == '' and P(m, 'np_i_artist')[1] == 24 and vhigh(m) == h1, 'the next track with a short title: one line again, the second label hidden and empty')
+    for lang in pod_i18n.LOCALES:
+        m = info(stock_en, lang, rec=dict(REC, title=tcases['a word break'])); l, _ = TW(tcases['a word break'])
+        expect(T(m, 'np_i_title') == l[0] and shown(m, 'np_i_title2'), f'{lang}: the title wraps the same')
+    m = info(stock_en, rec=REC, own=False)
+    expect(not [c for c in m.calls if c[0] == 'widget_on' and c[2] == D_], 'without our widgets nothing is bound to touch')
 
     # ---- the header: the record's title, artist and album, the cover thumbnail, the HI-RES / DSD badge
-    REC = dict(title='Money', artist='Pink Floyd', album='The Dark Side of the Moon', path='/mnt/mmc/Pink Floyd/05 Money.flac', name='05 Money.flac')
     m = info(stock_en, rec=REC)
     expect((T(m, 'np_i_title'), T(m, 'np_i_artist'), T(m, 'np_i_album')) == ('Money', 'Pink Floyd', 'The Dark Side of the Moon'), 'title, artist and album of the playing record')
-    expect(P(m, 'np_i_title') == (92, 36, 212, 24) and P(m, 'np_i_artist') == (92, 60, 212, 20) and P(m, 'np_i_album') == (92, 80, 212, 20), 'x 92, 212 wide, text tops 38 / 62 / 82 (boxes 2 px higher)')
+    expect(P(m, 'np_i_title') == (92, 0, 212, 24) and P(m, 'np_i_artist') == (92, 24, 212, 20) and P(m, 'np_i_album') == (92, 44, 212, 20), 'x 92, 212 wide, text tops 38 / 62 / 82 (boxes 2 px higher), in the scroll_view that starts at y 36')
     expect(gone(m, 'label_album') and not shown(m, 'np_i_badge_hires') and not shown(m, 'np_i_badge_dsd'), 'stock\'s album label is hidden and insensitive; no badge on a CD-quality track')
     expect(any(c[0] == 'widget_invalidate_force' and c[1] == m.widgets['np_i_art'] for c in m.calls) or m.bitmaps, 'the cover is drawn into its own bitmap, the view repainted')
     m.calls = []; m.tick(); m.tick()
@@ -482,7 +610,7 @@ def run(ctx):
     m.play([m.record(title='', artist='X', album='', path='/mnt/mmc/x/3.flac', name='3 Name.flac', rid=3)], 0); m.tick()
     expect((T(m, 'np_i_title'), T(m, 'np_i_album')) == ('3 Name.flac', ''), 'no title: the file name; no album: an empty line')
     m.play([m.record(title='歌' * 100, artist='a', album='b', rid=4)], 0); m.tick()
-    expect(len(m.texts[m.widgets['np_i_title']]) <= 199 and T(m, 'np_i_title') == '歌' * 66, 'a long title is cut at a character boundary below 200 bytes')
+    expect(len(m.texts[m.widgets['np_i_title']]) <= 199 and len(m.texts[m.widgets['np_i_title2']]) <= 199 and T(m, 'np_i_title') + T(m, 'np_i_title2') == '歌' * 66, 'a long title is cut at a character boundary below 200 bytes')
     m.setword(pod.DATA['PLAY_QUEUE'][0], m.new_deque([])); m.tick()
     expect(T(m, 'np_i_title') == '' and not shown(m, 'np_i_badge_hires'), 'no record: an empty header')
     m = info(stock_en)
@@ -499,10 +627,20 @@ def run(ctx):
         got, m = badge(*args)
         expect(got == want, f'{args}: badge {want!r} ({got!r})')
     got, m = badge(96000, 24, 'FLAC', '/m/a.flac')
-    w = O['NPI_BADGE_HIRES_W']
-    expect(P(m, 'np_i_badge_hires') == (304 - w, 40, w, 18) and P(m, 'np_i_title')[2] == 212 - w - 8 and P(m, 'np_i_artist')[2] == 212, 'HI-RES: right edge 304, y 40, 18 px high; only the title is narrower, by its width and 8')
+    w = O['NPI_BADGE_HIRES_W']; fw = ms('FLAC', 16); ty = 112 + 8 - 36
+    expect(P(m, 'np_i_badge_hires') == (304 - fw - 8 - w, ty - 1, w, 18) and P(m, 'np_i_title')[2] == 212 and P(m, 'np_i_artist')[2] == 212 and not shown(m, 'np_i_badge_dsd'),
+           f'HI-RES: on the Format row, 8 px left of the right aligned value, centred on its text; the title keeps all 212 px ({P(m, "np_i_badge_hires")})')
     got, m = badge(2822400, 1, 'DSD', '/m/a.dsf'); w = O['NPI_BADGE_DSD_W']
-    expect(P(m, 'np_i_badge_dsd') == (304 - w, 40, w, 18) and P(m, 'np_i_title')[2] == 212 - w - 8 and not shown(m, 'np_i_badge_hires'), 'DSD badge likewise')
+    expect(P(m, 'np_i_badge_dsd') == (304 - fw - 8 - w, ty - 1, w, 18) and P(m, 'np_i_title')[2] == 212 and not shown(m, 'np_i_badge_hires'), 'DSD badge likewise')
+    m = info({'label_info': 'FLAC|96kHz|0bit|0kbps'.replace('FLAC', 'WAV')}, rec=dict(REC, path='/m/a.wav'), info=dict(rate=96000, bits=24, fmt='WAV'))
+    expect(shown(m, 'np_i_badge_hires') and P(m, 'np_i_badge_hires')[0] == 304 - ms('WAV', 16) - 8 - O['NPI_BADGE_HIRES_W'], 'the badge follows the value\'s width')
+    m = info({'label_info': '|96kHz|24bit|2000kbps'}, rec=dict(REC, path='/m/a.flac'), info=dict(rate=96000, bits=24, fmt='FLAC'))
+    expect(not shown(m, 'np_i_badge_hires') and not shown(m, 'np_i_k0'), 'no Format row (no format text): no badge')
+    m = info(stock_en, rec=dict(REC, path='/m/a.flac'), info=dict(rate=96000, bits=24, fmt='FLAC')); m.texts[m.widgets['label_info']] = 'FLAC|96kHz|24bit|2000kbps'
+    expect(shown(m, 'np_i_badge_hires') and not sets(m), 'the badge stays through ticks'); m.texts[m.widgets['label_info']] = 'A' * 600; m.tick()
+    expect(not shown(m, 'np_i_badge_hires'), 'rows given back to stock: the badge goes too')
+    m = info(stock_en, rec=dict(REC, path='/m/a.flac'), info=dict(rate=96000, bits=24, fmt='FLAC'))
+    check_flow(m, 'with a badge')
     m.info = dict(rate=44100, bits=16, fmt='FLAC'); m.play([m.record(**dict(REC, path='/m/b.flac', rid=7))], 0); m.tick()
     expect(not shown(m, 'np_i_badge_dsd') and P(m, 'np_i_title')[2] == 212, 'the next track has none: the badge goes and the title is full width again')
     m = info(stock_en, rec=dict(REC, path='/m/a.dsf'), info=None)
@@ -513,7 +651,7 @@ def run(ctx):
     m.calls = []; m.texts[m.widgets['label_genre']] = 'Genres:Z'; m.tick()
     expect(not sets(m), 'after the page is gone a stray tick touches nothing')
     m = NowMachine(); m.page(); m.src(0); m.info_page(stock_en, True); m.widgets.pop('np_i_album'); m.init()
-    expect(m.visible('label_album') is None and not shown(m, 'np_i_title') and rowv(m, 0) == ('Genre', 'Rock'), 'an asset without the whole header: stock\'s album label stays, the rest works')
+    expect(m.visible('label_album') is None and not shown(m, 'np_i_title') and rowv(m, 4) == ('Genre', 'Rock'), 'an asset without the whole header: stock\'s album label stays, the rest works')
 
     # ------------------------------------------------------------------ the tone
     mm = NowMachine()
@@ -881,8 +1019,41 @@ def run(ctx):
     expect(got == want and len(m.fills) == len(want), f'the four corners are painted pixel by pixel in the window\'s colour under the gradient ({len(m.fills)} pixels)')
     m.fills = []; m.call(PSYMS['np_on_art_paint'], a0=0, a1=0, count=100000)
     expect(not m.fills, 'no canvas: nothing')
+
     # the colour the corners use is the one the style call set
     expect(m.styles[-1][2] & 0xffffff == color, 'the corners use the colour of the last style call')
+
+    # ---- the info page's edge fades: 16 rows at the top (content scrolled) and the bottom (more under the view), painted in the window's tone under the scrim and the gradient, alpha ramping to the edge
+    def fades(m):
+        e = m.alloc(0x40); m.u.mem_write(e, bytes(0x40)); m.setword(e + O['EVENT_PAINT_CANVAS'], 0x7000a000)
+        m.fills = []; m.call(PSYMS['np_on_info_fade'], a0=0, a1=e, count=2000000)
+        return {f[2]: f for f in m.fills}, len(m.fills)
+    def want_fades(rgb, off, ih):
+        vh = 252; out = {}
+        for y in mn.fade_rows(off, ih):
+            k = min(y, vh - 1 - y); out[y] = (mn.fade_color(rgb, y) | mn.fade_alpha(k) << 24, 0, y, 320, 1)
+        return out
+    for tint_rgb, name in (((0x20, 0x20, 0x20), 'the neutral tone'), (mn.tone(*avg), 'a cover\'s tone')):
+        m = NowMachine(); m.page(); m.src(0 if name[4] == 'n' else 2)
+        if name[4] != 'n': m.jpeg(P2, pix=half, size=(4, 4))
+        m.info_page(stock_en); m.play([m.record(**REC)], 0); m.init()
+        for _ in range(mn.I_RELAY): m.tick()
+        ih = vhigh(m); top = ih - 252
+        for off in (0, 1, 40, top - 1, top):
+            m.call(PSYMS['np_info_scroll'], a0=off); got, n = fades(m)
+            exp_ = want_fades(tint_rgb, off, ih)
+            expect({y: f[:5] for y, f in got.items()} == exp_ and n == len(exp_), f'{name}, offset {off} of {top}: {sorted(got)[:1]}.. {n} fade rows ({"top" if off else ""}{" and " if off and off < top else ""}{"bottom" if off < top else ""}), colour and alpha as the model')
+        m.call(PSYMS['np_info_scroll'], a0=0); got, n = fades(m)
+        expect(sorted(got) == list(range(236, 252)) and all(got[236 + k][0] >> 24 == mn.fade_alpha(15 - k) for k in range(16)) and mn.fade_alpha(0) >= 240 and mn.fade_alpha(15) <= 16 and
+               all(mn.fade_alpha(k) > mn.fade_alpha(k + 1) for k in range(15)), 'at the top only the bottom 16 rows fade, strongest at the edge, ramping to nothing')
+        m.call(PSYMS['np_info_scroll'], a0=top)
+        expect(sorted(fades(m)[0]) == list(range(16)), 'at the end only the top 16 rows')
+        expect(fades(m)[0][0][0] & 0xffffff == mn.fade_color(tint_rgb, 0), 'the fade is the page colour at that row')
+    m = info({'label_info': 'FLAC|44.1kHz|16bit|950kbps'}, rec=REC)
+    expect(fades(m) == ({}, 0), 'content that fits has no fades')
+    m = info(stock_en, rec=REC); m.fills = []; m.call(PSYMS['np_on_info_fade'], a0=0, a1=0, count=100000)
+    expect(not m.fills, 'no event, no canvas: nothing')
+    expect(all(mn.fade_color((255, 255, 255), y) >> 8 & 255 > 0 for y in (0, 251)) and mn.fade_color((192, 192, 192), 0) != mn.fade_color((192, 192, 192), 251), 'the model: the colour follows the scrim and the gradient row by row')
 
     # ------------------------------------------------------------------ the built assets
     ui = awtk_ui.parse(open(os.path.join(raw, 'ui', 'playing_page.bin'), 'rb').read())
@@ -890,19 +1061,24 @@ def run(ctx):
     rect = lambda n: (f(n).x, f(n).y, f(n).w, f(n).h)
     expect(rect('img_playcover') == (28, 28, 264, 264) and mn.ART == mod_lockscreen.COVER_SIZE == 264, 'the cover is 264 px at 28, 28: the size demo writes, so it is drawn 1:1')
     lines = [rect(n) for n in ('label_info', 'label_album', 'label_genre', 'label_year', 'label_size', 'label_location')]
-    expect(all(r[0] >= 0 and r[0] + r[2] <= 320 and r[1] + r[3] <= mn.LYR_Y + mn.LYR_H for r in lines) and lines[0][:3] == (16, 120, 288)
+    expect(all(r[0] >= 0 and r[0] + r[2] <= 320 for r in lines) and lines[0][:3] == (16, 120 - 36 - 2, 288) and [r[1] + 36 + 2 for r in lines[2:]] == [112 + 33 * k + 8 for k in (4, 5, 6, 7)]
            and f('label_info').get('style:normal:text_color') == mn.TITLE_RGB and f('label_album').get('style:normal:text_color') == mn.GREY,
-           f'the info page: stock\'s six labels stay where their lines are (the data source, and what shows without the payload) ({lines})')
-    own = [w for w in f('view_info').walk() if w.name and (w.name.startswith('np_i_') or w.name.startswith('img_np_hair'))]
-    expect(len(own) == 30 and all(w.get('sensitive') == 'false' for w in own) and all(w.get('visible') == 'false' for w in own if w.name.startswith('np_i_') and w.name != 'np_i_art'),
-           f'the information page has its own widgets (cover, three texts, two badges, four value and four unit labels, three dividers, four labels and four values, five hairlines): {len(own)}; insensitive, the payload shows them')
-    expect(rect('np_i_art') == (16, 36, 64, 64) and rect('img_np_hair112') == (16, 112, 288, 1) and [w.y for w in own if w.name.startswith('img_np_hair')] == [112, 150, 183, 216, 249]
-           and all(w.get('style:normal:bg_color') == mn.HAIR for w in own if w.name.startswith('img_np_hair')) and max(w.y + w.h for w in own) <= 288 and min(w.x for w in own) >= 16,
-           'cover 64 px at (16, 36); hairlines at 112, 150 and every 33 px, 15 % white from 16 to 304; everything ends above y 288 (the dots sit at 296)')
-    expect(all(w.get('style:normal:font_size') == str(px) for w, px in [(f(n), 20 if n == 'np_i_title' else 16) for n in ('np_i_title', 'np_i_artist', 'np_i_album', 'np_i_v0', 'np_i_k3')])
-           and f('np_i_title').get('style:normal:text_color') == '#FFFFFF' and f('np_i_artist').get('style:normal:text_color') == mn.GREY and f('np_i_qv0').get('style:normal:font_size') == '17'
-           and f('np_i_qu1').get('style:normal:font_size') == '12' and f('np_i_qu1').get('style:normal:text_color') == mn.GREY and f('np_i_v2').get('style:normal:text_align_h') == 'right'
-           and f('np_i_title').get('ellipses') == 'true', 'sizes and colours: title 20 px white, artist and album 16 px #AAAAAA, values 17 px white with 12 px grey units, rows 16 px, values right aligned')
+           f'the info page: stock\'s six labels stay where their rows are (the data source, and what shows without the payload) ({lines})')
+    sc = f('np_i_scroll'); vi = f('view_info')
+    expect(sc.type == 'scroll_view' and (sc.x, sc.y, sc.w, sc.h) == (0, 36, 320, 252) and sc.get('floating') == 'false' and sc.get('sensitive') != 'false' and not sc.get('xslidable') and not sc.get('yslidable') and vi.children[1:] == [sc] and vi.children[0].name == 'img_np_scrim_info',
+           'every widget of the info page is in one scroll_view over the text area, y 36..288 (not slidable, takes the touches); the scrim stays outside')
+    expect(all(n in [c.name for c in sc.children] for n in ('label_info', 'label_album', 'label_genre', 'label_year', 'label_size', 'label_location')), 'stock\'s six labels are in it too')
+    own = [w for w in sc.walk() if w.name and w.name.startswith('np_i_') and w.name != 'np_i_scroll']
+    expect(len(own) == 32 and all(w.get('sensitive') == 'false' for w in own) and all(w.get('visible') == 'false' for w in own if w.name != 'np_i_art' and not w.name.startswith('np_i_h')),
+           f'the information page has its own widgets (cover, title with its second line, artist, album, two badges, eight labels and nine values, eight hairlines): {len(own)}; insensitive, the payload shows them')
+    hairs = [w for w in own if w.name.startswith('np_i_h')]
+    expect(rect('np_i_art') == (16, 0, 64, 64) and [w.y + 36 for w in hairs] == [112 + 33 * r for r in range(8)] and all(w.get('style:normal:bg_color') == mn.HAIR and (w.x, w.w, w.h) == (16, 288, 1) for w in hairs)
+           and min(w.x for w in own) >= 16 and max(w.x + w.w for w in own) <= 304,
+           'cover 64 px at (16, 36); hairlines at 112 and every 33 px, 15 % white from 16 to 304; everything inside the column')
+    expect(all(w.get('style:normal:font_size') == str(px) for w, px in [(f(n), 20 if n == 'np_i_title' else 16) for n in ('np_i_title', 'np_i_artist', 'np_i_album', 'np_i_v0', 'np_i_k3', 'np_i_v7', 'np_i_v8')])
+           and f('np_i_title').get('style:normal:text_color') == '#FFFFFF' and f('np_i_artist').get('style:normal:text_color') == mn.GREY and f('np_i_k0').get('style:normal:text_color') == mn.GREY
+           and f('np_i_v2').get('style:normal:text_align_h') == 'right' and f('np_i_v7').get('style:normal:text_align_h') == 'left' and f('np_i_v8').get('style:normal:text_align_h') == 'left'
+           and f('np_i_v7').get('style:normal:text_color') == '#FFFFFF' and f('np_i_title').get('ellipses') == 'true', 'sizes and colours: title 20 px white, artist and album 16 px #AAAAAA, labels grey, values white and right aligned, the path lines left aligned')
     for text in ('HI-RES', 'DSD'):
         name = 'np_i_badge_' + ('hires' if text == 'HI-RES' else 'dsd')
         from PIL import Image as _I
@@ -934,8 +1110,8 @@ def run(ctx):
            'np_remaining and np_elapsed start hidden; the labels and the gradient are insensitive')
     for n in ('label_index', 'img_hr'):
         expect(rect(n)[2:] == (0, 0) and f(n).get('visible') == 'false' and f(n).get('sensitive') == 'false', f'{n} is kept, hidden and insensitive at 0x0')
-    expect(f('label_album') in f('view_info').children and 'label_album' not in [c.name for c in f('view').children], 'the album line is on the info page, not under the art')
-    expect(f('label_info') in f('view_info').children, 'the quality line is on the info page, not between the times')
+    expect(f('label_album') in f('np_i_scroll').children and 'label_album' not in [c.name for c in f('view').children], 'the album line is on the info page, not under the art')
+    expect(f('label_info') in f('np_i_scroll').children, 'the quality line is on the info page, not between the times')
     expect(f('img_np_tint') is ui.find('view_local').children[0] and rect('img_np_tint') == (0, 0, 320, 450), 'the gradient is the first child of view_local, window sized')
     hidden = [w.name or w.type for w in ui.walk() if w.get('visible') == 'false' and w.get('sensitive') != 'false' and w.name != 'view_dlna' and w.name != 'img_mqa']
     expect(not hidden, f'every hidden widget is also insensitive ({hidden})')
@@ -1278,28 +1454,28 @@ def run(ctx):
         stock = dict(stock_en, label_size='File Size:0.00MB', label_location='Location:' + path)
         m.info_page(stock, True); m.init(); return m
     m = stream_info()
-    expect(rowv(m, 2) == ('File Size', '36.00 MB') and rowv(m, 3) == ('Location', 'https://music.example.com:4533') and rowv(m, 0) == ('Genre', 'Rock'),
-           f'a stream: the server size and address, the other rows as before ({rowv(m, 2)}, {rowv(m, 3)})')
+    expect(rowv(m, 6) == ('File Size', '36.00 MB') and rowv(m, 7) == ('Location', 'https://music.example.com:4533') and rowv(m, 4) == ('Genre', 'Rock'),
+           f'a stream: the server size and address, the other rows as before ({rowv(m, 6)}, {rowv(m, 7)})')
     expect(not any('0123456789abcdef' in t or 'salty' in t or 'bob' in t for h, t in m.texts.items() if h in [m.widgets[n] for n in m.IW]), 'no token, salt or user in the page\'s own labels (stock\'s hidden ones keep stock\'s text)')
     for _ in range(3): m.tick()
     m.calls = []; m.tick(); m.tick()
     expect(not sets(m), 'no loop')
     m.texts[m.widgets['label_size']] = 'File Size:0.00MB'; m.texts[m.widgets['label_location']] = 'Location:' + URL; m.calls = []; m.tick()
-    expect(rowv(m, 2) == ('File Size', '36.00 MB') and rowv(m, 3) == ('Location', 'https://music.example.com:4533'), 'stock writes them again (a track change): ours again')
+    expect(rowv(m, 6) == ('File Size', '36.00 MB') and rowv(m, 7) == ('Location', 'https://music.example.com:4533'), 'stock writes them again (a track change): ours again')
     m = NowMachine(); m.page(); m.src(0); m.pt = (30, 200, 1)
     U2 = URL.replace('t1', 't2')
     m.sbtrack = {-5: 't1', -6: 't2'}; m.sbsize = {-5: 36 * 1048576, -6: 72 * 1048576}; m.sburl = 'https://music.example.com:4533/base'
     m.play([m.record(album='Srv', artist='A', path=URL, rid=-5), m.record(album='Srv', artist='A', path=U2, rid=-6)], 0)
     m.info_page(dict(stock_en, label_size='File Size:0.00MB', label_location='Location:' + URL), True); m.init()
     for _ in range(4): m.tick()   # past the NP_RELAY ticks, which lay the rows out whatever the text
-    expect(rowv(m, 2) == ('File Size', '36.00 MB'), 'first stream: 36 MB')
+    expect(rowv(m, 6) == ('File Size', '36.00 MB'), 'first stream: 36 MB')
     m.play([m.record(album='Srv', artist='A', path=URL, rid=-5), m.record(album='Srv', artist='A', path=U2, rid=-6)], 1); m.tick()
-    expect(rowv(m, 2) == ('File Size', '72.00 MB'), f'the next stream (same stock text): its own size ({rowv(m, 2)})')
+    expect(rowv(m, 6) == ('File Size', '72.00 MB'), f'the next stream (same stock text): its own size ({rowv(m, 6)})')
     for size, want in ((0, 'Unknown'), (7444890, '7.10 MB'), (1048575, '1.00 MB'), (4000000000, '3814.70 MB')):
-        expect(rowv(stream_info(size=size), 2) == ('File Size', want), f'size {size}: {want}')
-    expect(rowv(stream_info(url='https://bob:secret@music.example.com/x?y=1'), 3)[1] == 'https://music.example.com', 'user info, path and query are not shown')
-    expect(rowv(stream_info(url=''), 3)[1] == 'Unknown', 'no saved server: Unknown')
+        expect(rowv(stream_info(size=size), 6) == ('File Size', want), f'size {size}: {want}')
+    expect(rowv(stream_info(url='https://bob:secret@music.example.com/x?y=1'), 7)[1] == 'https://music.example.com', 'user info, path and query are not shown')
+    expect(rowv(stream_info(url=''), 7)[1] == 'Unknown', 'no saved server: Unknown')
     m = stream_info(path='/mnt/mmc/Subsonic/a.flac')
-    expect(rowv(m, 2) == ('File Size', '0.00 MB') and rowv(m, 3) == ('Location', '/mnt/mmc/Subsonic/a.flac'), 'a downloaded track plays from its own path: stock\'s lines')
+    expect(rowv(m, 6) == ('File Size', '0.00 MB') and rowv(m, 7) == ('Location', '/mnt/mmc/Subsonic/a.flac'), 'a downloaded track plays from its own path: stock\'s lines')
     m = stream_info(rid=1)
-    expect(rowv(m, 2) == ('File Size', '0.00 MB') and rowv(m, 3)[1].startswith('...') and rowv(m, 3)[1].endswith('format=raw'), 'a record outside the queue map: stock\'s lines')
+    expect(rowv(m, 6) == ('File Size', '0.00 MB') and (rowv(m, 7)[1] + (T(m, 'np_i_v8') if shown(m, 'np_i_v8') else '')).endswith('format=raw') and len(T(m, 'np_i_v7')) < 60, 'a record outside the queue map: stock\'s lines')

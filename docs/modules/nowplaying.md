@@ -86,43 +86,48 @@ Background and foreground listeners restore black or apply the tint. A top-windo
 timer covers missed events. Foreground work refreshes page data before retinting. Missing bars,
 failed style calls or refused listeners leave the bar untouched.
 
-## Time
-
-`get_playtimeandlength` supplies seconds. `np_elapsed` shows `m:ss` or `h:mm:ss`; `np_remaining`
-shows the negative remaining value, clamped at zero. They replace the visibility of stock time
-labels rather than competing with stock text writes. Invalid lengths restore the stock labels, and
-missing time widgets disable only that part.
-
 ## Information page
 
-Page 3 (`view_info`) is text and hairlines on the existing `np_scrim`.
+Page 3 (`view_info`) is text and hairlines on the existing `np_scrim`. Everything but the scrim is
+inside one scroll container, `np_i_scroll` (y 36, 320 x 252), which clips it. Y values below are
+at offset 0.
 
 | part | layout |
 |---|---|
-| Header | cover (`mb_art_t`, 64 px, 8 px corners, at (16, 36), decoded on the tick, never in paint); title 20 px white at y 38; artist and album 16 px `#AAAAAA` at y 62 and 82; text x 92, 212 px wide, one line, ellipsis at the end. Text is `REC_TITLE` (else file name), `REC_ARTIST`, `REC_ALBUM`, cut below 200 bytes |
-| Badge | `HI-RES` or `DSD` (not translated): gold `#E3C16F` 1 px outline picture (`np_i_badge_hires` / `np_i_badge_dsd`, 49 and 35 by 18 px), right-aligned to x 304 at y 40, never tinted by the accent. The title is narrower by its width + 8 |
-| Quality line | hairline at y 112, line at y 122: format, rate, bit depth, bitrate. Values 17 px white, units (`kHz`, `bit`, `kbps`, always Latin) 12 px `#AAAAAA` 3 px after, 1 px dividers (white 18%). Items as wide as their content with equal gaps across x 16..304 (`qlayout` in `tools/mod_nowplaying.py`). An item with no value or zero is dropped with its divider |
-| Rows | hairline at y 150, four rows 33 px apart (text tops 158, 191, 224, 257): Genre, Year, File Size, Location. Label 16 px `#AAAAAA` at x 16, value 16 px white right-aligned to 304, hairlines (white 15%) between. A long value ends in an ellipsis; Location is cut at the start (`head_fit`, last 200 bytes) so the file name stays. Everything ends above y 288 |
+| Header | cover (`mb_art_t`, 64 px, 8 px corners, at (16, 36), decoded on the tick, never in paint); title 20 px white at y 38, up to two lines 24 px apart; artist and album 16 px `#AAAAAA` below it. Text is `REC_TITLE` (else file name), `REC_ARTIST`, `REC_ALBUM`, cut below 200 bytes, x 92, 212 px wide |
+| Badge | `HI-RES` or `DSD` (not translated): gold `#E3C16F` 1 px outline picture, 8 px left of the Format value, never tinted by the accent |
+| Rows | hairline above each row, rows 33 px apart from y 112: Format, Sample Rate, Bit Depth, Bitrate, Genre, Year, File Size, Location. Label 16 px `#AAAAAA` at x 16, value 16 px white right-aligned to 304. A row with no value (empty, or zero for rate, bit depth and bitrate) is left out and the rows below move up |
+| Location | label on its own line, the path below it wrapped to up to two 288 px lines; only the last 200 bytes are shown |
 
+- **Title.** One line when it fits; otherwise it breaks at the last space that fits 212 px, even
+  when line 2 then ends in an ellipsis. Only with no such space (CJK, a first word wider than the
+  line) does it break at the last character that fits. With a two-line title the artist and album
+  and everything below move 24 px down.
 - **Badge rule** is the cassette theme's `tape_badge` (`patch/tape.c`, one `mclGetInfo`): lossless
   and (over 48 kHz, or 24 bit from 44.1 kHz) is HI-RES, 1 bit is DSD, nothing for CD quality or
   lossy. DSD files are also recognised by extension when the player has no stream yet.
-- Genre, Year and File Size are our keys; stock's `player_filesize` reads "Location" in
-  Ukrainian. Location is stock's word in the app language.
-- Stock writes the quality line and the five "Label:value" lines on a track change (`label_info`,
-  `label_album`, `label_genre`, `label_year`, `label_size`, `label_location`). They stay as the data
-  source, never rewritten, and are hidden and insensitive once ours show.
-- The tick (`np_info`) lays a part out when its stock text hash or the track changed
-  (`mb_track_key`). The header labels are shown after the page opens, and for `NP_RELAY` (3)
-  ticks after it starts or returns, because a label measures in its own style only once the window
-  is open. Labels are placed with `widget_move` / `widget_resize` from measured text (`m1_text_w`).
+- Format, Sample Rate, Bit Depth and Bitrate are read from stock's quality line (`label_info`).
+  Genre, Year and File Size are our keys; Location is stock's word in the app language.
+- Stock's `label_*` widgets stay as the data source, never rewritten, and are hidden once ours
+  show.
+- The tick (`np_info`) lays a part out when its stock text or the track changed (`mb_track_key`).
+  Header labels are shown after the page opens, and for `NP_RELAY` (3) ticks after it starts or
+  returns, because a label measures in its own style only once the window is open.
 - While the playing record is a server stream (`REC_ID <= -2`), `np_stream_text` writes the size
   and location lines itself, since stock's come from the stream address (with token and salt).
   Size is `N.NN MB` from the server size in the queue map, else "Unknown". Location is the saved
   server's scheme and host[:port] ([subsonic](subsonic.md)). A downloaded track keeps stock's lines.
-- Fallback is per part: a part whose widgets the asset lacks, or whose stock text is unreadable
-  (failed read, over the 511 byte buffer, no `Label:value` shape, no quality item), shows stock's
-  label again. The next good text takes it back. The header has no fallback beyond an empty line.
+- Fallback is per part: a part whose widgets the asset lacks, or whose stock text is unreadable,
+  shows stock's label again. The next good text takes it back.
+- **Scrolling.** `np_info_scroll(off)` is the one place that moves the content, clamped to
+  `0..ih-252`. A vertical drag of 10 px or more moves the content with the finger; no overscroll
+  and no fling. A sideways move still turns the page, and a tap does nothing. Only the container
+  takes touches; the stock fallback labels do not move.
+- **Reset.** The content goes back to the top when the page is entered, when Now Playing comes to
+  the front, and on a track change. A content that got shorter pulls the offset back.
+- **Edge fades.** The top and bottom 16 rows of the scroll area fade into the scrim, painted over
+  the content in the colour behind it, and only where content lies beyond that edge. No decode;
+  at most 32 one-row fills per paint.
 
 ## Pins and safety
 

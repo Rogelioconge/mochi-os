@@ -483,17 +483,25 @@
 #define NP_ALPHA_BOTTOM 235
 #define NP_WIN_H 450
 /* The info page (np_info; tools/mod_nowplaying.py is the model, its constants equal these): the stock text of the six data labels is read into NP_INFO_BUF bytes (stock writes them with a 0x200
- * buffer, so a longer text is never used). Header: the cover NPI_ART px at (NPI_X, NPI_ART_Y), corners NPI_ART_R px; the title (NPI_TITLE_PX), artist and album (NPI_META_PX) NPI_TEXT_W wide from NPI_TEXT_X
- * at window y NPI_TITLE_Y, NPI_ARTIST_Y, NPI_ALBUM_Y; the badge (a picture NPI_BADGE_H high, NPI_BADGE_HIRES_W or NPI_BADGE_DSD_W wide) right aligned to NPI_R at NPI_BADGE_Y and NPI_BADGE_GAP
- * before the title. Quality line: values NPI_Q_VPX high, units NPI_Q_UPX (NPI_Q_UGAP after the value) in NPI_Q_W from NPI_X, text tops NPI_Q_Y and NPI_Q_UY, dividers NPI_Q_DIV_H high at NPI_Q_DIV_Y.
- * Rows: NPI_ROWS of NPI_ROW_PITCH from NPI_ROW_Y, NPI_ROW_PX text, the value right aligned to NPI_R, NPI_KEY_GAP after the label. Every own label's box is its text's line plus NPI_PAD above and below.
+ * buffer, so a longer text is never used). Every widget of the page is a child of one scroll_view (np_i_scroll) from window y NPI_TOP, NPI_VIEW_H high, which clips them; a child's y is its page y
+ * minus NPI_TOP minus the content offset np.ioff. Header: the cover NPI_ART px at (NPI_X, NPI_ART_Y), corners NPI_ART_R px; the title (NPI_TITLE_PX), artist and album (NPI_META_PX) NPI_TEXT_W wide from NPI_TEXT_X
+ * at page y NPI_TITLE_Y, NPI_ARTIST_Y, NPI_ALBUM_Y. Rows (NPI_ROWS): Format, Sample Rate, Bit Depth, Bitrate, Genre, Year, File Size, Location; a row is NPI_ROW_PITCH high with a hairline at its top, the first hairline at
+ * NPI_ROW_Y, its text NPI_ROW_TEXT under it, NPI_ROW_PX high, the label at NPI_X, the value right aligned to NPI_R, NPI_KEY_GAP after the label; a missing row is left out and the next ones move up.
+ * The badge (NPI_BADGE_H high, NPI_BADGE_HIRES_W or NPI_BADGE_DSD_W wide) sits NPI_BADGE_GAP left of the Format value. The Location (row NPI_LOC_ROW): its label, then the path left aligned from NPI_LOC_Y under the
+ * hairline in up to NPI_LOC_LINES lines NPI_LOC_LH apart, the content ends NPI_FOOT under the last text. Every own label's box is its text's line plus NPI_PAD above and below.
+ * The title takes up to two lines (NPI_TITLE_LH apart, np_title_fit); a second line moves the artist, the album and everything under the header down by NPI_TITLE_LH. Touch: a vertical drag of NPI_TAP_PX or more
+ * scrolls the content with the finger (np_on_info_touch), a sideways one is the slide view's; the content goes back to the top when the slide view's page (NPI_PAGE: the info page) is left. The top and bottom NPI_FADE rows of
+ * the view fade into the page's colour while there is more content beyond that edge (np_on_info_fade; the colour is the window tone under np_scrim, whose rows are NP_SCRIM_Y.., NP_SCRIM_H high, NP_SCRIM_ALPHA in the
+ * middle, ramping over NP_SCRIM_EDGE rows).
  * NP_RELAY: ticks after the page starts (or returns) that lay everything out again: a label measures in its own style only once the window has opened. */
 #define NP_INFO_N 6
 #define NP_INFO_BUF 512
 #define NP_RELAY 3
-#define NP_ROW_TAIL 200 /* the bytes of a Location's end that np_head_fit looks at */
+#define NP_ROW_TAIL 200 /* the bytes of a Location's end that np_loc_fit looks at */
 #define NPI_X 16
 #define NPI_R 304
+#define NPI_TOP 36
+#define NPI_VIEW_H 252
 #define NPI_ART 64
 #define NPI_ART_Y 36
 #define NPI_ART_R 8
@@ -505,24 +513,29 @@
 #define NPI_ALBUM_Y 82
 #define NPI_META_PX 16
 #define NPI_PAD 2
-#define NPI_BADGE_Y 40
 #define NPI_BADGE_H 18
 #define NPI_BADGE_HIRES_W 49
 #define NPI_BADGE_DSD_W 35
 #define NPI_BADGE_GAP 8
-#define NPI_Q_W 288
-#define NPI_Q_Y 122
-#define NPI_Q_UY 126
-#define NPI_Q_VPX 17
-#define NPI_Q_UPX 12
-#define NPI_Q_UGAP 3
-#define NPI_Q_DIV_Y 123
-#define NPI_Q_DIV_H 18
-#define NPI_ROWS 4
-#define NPI_ROW_Y 150
+#define NPI_ROWS 8
+#define NPI_ROW_Y 112
 #define NPI_ROW_PITCH 33
+#define NPI_ROW_TEXT 8
 #define NPI_ROW_PX 16
+#define NPI_LOC_ROW 7
+#define NPI_LOC_Y 28
+#define NPI_LOC_LH 20
+#define NPI_LOC_LINES 2
+#define NPI_FOOT 8
 #define NPI_KEY_GAP 14
+#define NPI_TITLE_LH 24
+#define NPI_TAP_PX 10
+#define NPI_FADE 16
+#define NPI_PAGE 2
+#define NP_SCRIM_Y 8
+#define NP_SCRIM_H 324
+#define NP_SCRIM_ALPHA 128
+#define NP_SCRIM_EDGE 36
 /* The status bar follows the page (EXPERIMENTAL, np_bar_*): the window events of the page (widget_on on the window:
  * window_manager_default_open_window dispatches 0x12c to the window a new non-keyboard, non-overlay window covers and 0x12d
  * to the one it uncovers, @0x69182c / @0x691b3c), the stock black, and the largest weighted square sum (2126 r^2 + 7152 g^2
