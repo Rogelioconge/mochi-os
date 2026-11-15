@@ -34,6 +34,7 @@ Open **Extras → Settings** to customize the player. To return to the stock gri
 | Shuffle | Shuffle songs, albums or folders from Extras |
 
 In Now Playing, tap **…** for playback options, Look up album, Look up artist and Display Mode, which opens Cassette Mode, Vinyl Mode and Lyrics Mode. For a song playing from Subsonic the two Look up rows open the server's album and the server's artist; while it is streaming (not downloaded), Add to playlist and Delete are dimmed, and it is not added to the card's Recently Played and Most Played lists.
+Swipe to Now Playing's third page for the song's details: the title (up to two lines), artist and album, then Format (with a HI-RES or DSD badge), Sample Rate, Bit Depth, Bitrate, Genre, Year, File Size and the Location on the card (up to two lines). Drag up and down to see it all; it is back at the top the next time you open the page.
 Open its **More** page for **Sleep Timer** (a page with Off, 15 minutes, 30 minutes, 45 minutes, 1 hour, 1.5 hours and 2 hours; the player turns off when the time is up) and the
 online cover and lyrics lookup (Wi-Fi required). The timer counts down in the same setting as Settings > All System Settings > Power; the page checks Off while no timer runs and a time only for as long as the countdown still equals it, so a running timer soon shows no check. While a timer runs, a **Time Left** row under the list shows the time left as hours and minutes (`1:30`, rounded up to the next minute) and follows the countdown every few seconds; it is hidden while the timer is Off.
 
