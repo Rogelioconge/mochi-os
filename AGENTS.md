@@ -31,8 +31,8 @@ Read relevant ranges; avoid loading entire large files or history.
 - Feature branches leave `VERSION`, goldens and history unchanged; release integration owns them.
 - No compatibility flags or code paths solely for old packages.
 - Bluetooth work only for approved features ([Bluetooth](docs/modules/bluetooth.md)). `hciplayer`
-  is patched only for the parametric EQ and Mono / Crossfeed ([peq](docs/modules/peq.md),
-  [stereo](docs/modules/stereo.md)). Any other Bluetooth or `hciplayer` change needs a decision
+  is patched only for the parametric EQ, Mono / Crossfeed and the read-only VU level tap
+  ([peq](docs/modules/peq.md), [stereo](docs/modules/stereo.md), [vu](docs/modules/vu.md)). Any other Bluetooth or `hciplayer` change needs a decision
   first.
 - Keep module docs concise: behavior, interfaces, constraints, source references. No device-test
   status, planning, history or test inventories.

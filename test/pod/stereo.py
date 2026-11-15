@@ -594,8 +594,8 @@ def pin_tests(ctx):
     expect({0x42cd54, 0x42cd64, 0x42ce18, 0x42ce44, 0x4224ec, 0x42929c, 0xadae14} <= pinned, 'the removal, the insert state writes and the strtol stub are pinned')
     expect(all(w(stock, a) == old for a, old, _ in mod_player.PINS), 'every pin is a word of the stock binary')
     expect(mod_player.LIBC['strtol'][2] == 'strtol' and set(mod_player.LIBC) == {'memset', 'memcpy', 'memcmp', 'strcmp', 'strlen', 'calloc', 'free', 'fopen', 'fread', 'fclose',
-                                                                                'clock_gettime', 'strtol', 'pow', 'cos', 'sin'},
-           'one libc import is new, strtol (the call the edit replaces); everything else the stereo stage uses was imported')
+                                                                                'clock_gettime', 'strtol', 'pow', 'cos', 'sin', 'fseek', 'fwrite'},
+           'one libc import is new, strtol (the call the edit replaces); everything else the stereo stage uses was imported (fseek and fwrite are the level tap\'s, hciplayer\'s own slots)')
     # a pin that does not match fails the build: with the hash check out of the way, one changed word in each group is refused
     for at, what in ((mod_player.SETEQ_CALL, 'the strtol call'), (0x42cd54, 'a flag-0 path word'), (0x42ce18, 'the flag-2 store'), (0x4224ec, 'the file-start state'),
                      (0x42929c, 'the removal'), (0xadae14, 'the strtol stub')):

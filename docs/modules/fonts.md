@@ -102,7 +102,7 @@ candidate in `preview_aa.py`). The 256-byte table `TEXT_GAMMA_LUT` is written in
   no glyph is mapped twice. Installing empties the glyph cache and repaints.
 - Mono fonts, fonts that are not stb fonts, a foreign get_glyph slot and the kill switch leave
   stock. No hook and no per-paint work.
-- `lyrics.ttf` is covered too: `ly_start` applies it on each Now Playing open. The first open loads
+- `lyrics.ttf` is covered too: `ly_start` applies it on each Now Playing open, and `ly_title_face` (the Vinyl and VU titles) on each Latin title. The first open loads
   the file earlier than stock would and repaints once. A language or theme change recreates the font
   with the stock slot until the next open.
 

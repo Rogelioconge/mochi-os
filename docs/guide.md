@@ -33,7 +33,7 @@ Open **Extras → Settings** to customize the player. To return to the stock gri
 | Folders | Extras → Folders lists the card's folders and audio files. With the Playback setting **Folder cover** on, a row with a cover shows it (40 px) in place of its icon: a file's is its album's, a folder's is the album of the first song of the library inside it (also in sub-folders); rows without one keep their icon. Only music in the library gets a cover; the covers are the ones the app has already made (Albums, Cover Flow), none are made here |
 | Shuffle | Shuffle songs, albums or folders from Extras |
 
-In Now Playing, tap **…** for playback options, Look up album, Look up artist and Display Mode, which opens Cassette Mode, Vinyl Mode and Lyrics Mode. For a song playing from Subsonic the two Look up rows open the server's album and the server's artist; while it is streaming (not downloaded), Add to playlist and Delete are dimmed, and it is not added to the card's Recently Played and Most Played lists.
+In Now Playing, tap **…** for playback options, Look up album, Look up artist and Display Mode, which opens Cassette Mode, Vinyl Mode, VU Meter Mode and Lyrics Mode. For a song playing from Subsonic the two Look up rows open the server's album and the server's artist; while it is streaming (not downloaded), Add to playlist and Delete are dimmed, and it is not added to the card's Recently Played and Most Played lists.
 Swipe to Now Playing's third page for the song's details: the title (up to two lines), artist and album, then Format (with a HI-RES or DSD badge), Sample Rate, Bit Depth, Bitrate, Genre, Year, File Size and the Location on the card (up to two lines). Drag up and down to see it all; it is back at the top the next time you open the page.
 Open its **More** page for **Sleep Timer** (a page with Off, 15 minutes, 30 minutes, 45 minutes, 1 hour, 1.5 hours and 2 hours; the player turns off when the time is up) and the
 online cover and lyrics lookup (Wi-Fi required). The timer counts down in the same setting as Settings > All System Settings > Power; the page checks Off while no timer runs and a time only for as long as the countdown still equals it, so a running timer soon shows no check. While a timer runs, a **Time Left** row under the list shows the time left as hours and minutes (`1:30`, rounded up to the next minute) and follows the countdown every few seconds; it is hidden while the timer is Off.
@@ -165,8 +165,8 @@ and Reset.
 - **Vinyl Record** and **Base** colours.
 - **Lyrics Text Size**: Small, Medium or Large (the default), 22, 26 or 30 px. An open Now Playing
   picks up a change when you return to it.
-- **Idle Display**: what Now Playing shows after 10 seconds: Off, Album Cover, Cassette, Vinyl or
-  Lyrics. Off is the same switch as Playback Settings → Cover mode.
+- **Idle Display**: what Now Playing shows after 10 seconds: Off, Album Cover, Cassette, Vinyl, Lyrics or
+  VU Meter. Off is the same switch as Playback Settings → Cover mode.
 
 ### Playback
 
@@ -352,7 +352,7 @@ Limits: the Songs list shows the first 10,000 songs, a play queue holds the list
 
 **Cassette Mode** is a landscape Now Playing screen. Tap the cassette to pause/resume and the
 top-left screw to close. The status line shows the format (FLAC 24/96, MP3 320, DSD64). Change its
-theme under Settings → Now Playing, where **Idle Display** can also open it (or Vinyl Mode, or the
+theme under Settings → Now Playing, where **Idle Display** can also open it (or Vinyl Mode, VU Meter Mode, or the
 lyrics page) after 10 idle seconds on Now Playing. Scrolling the lyrics on Now Playing counts as
 activity: the 10 seconds start once the lyrics return to the current line.
 
@@ -364,6 +364,16 @@ Size**. For a track without lyrics the Lyrics Mode row is dimmed, and the idle d
 **Vinyl Mode** is a turntable Now Playing screen: the cover turns as the record's label while
 playing. Tap the record or the large key to pause/resume, the side keys to skip, the top-left
 chevron to close.
+
+**VU Meter Mode** (**…** → Display Mode → VU Meter Mode, or Settings → Now Playing → Idle Display → VU
+Meter after 10 idle seconds) is a portrait screen with two needle VU meters, left above right, that
+follow the music: the needles swing with the level of what is being played, and each PEAK lamp lights
+for a moment when that channel peaks well above the 0 VU mark or reaches digital full scale. The 0 VU
+mark follows the music on its own (like someone setting the record level), so a loud modern master
+settles around -3 VU within a few seconds instead of sitting on the stop, and a quiet one rises to the
+same place over about half a minute; both needles share it, so left and right keep their relation. The keys play/pause and skip; tap above them
+to pause/resume and the top-left chevron to close (when the idle display opened it, that tap
+closes it instead). The needles rest while paused, and do not move for DSD.
 
 **Cover & Lyrics** (Now Playing > ... > More > Cover & Lyrics, needs Wi-Fi) looks up the playing album's covers
 (iTunes, then Deezer) and its lyrics (LRCLIB). Tap a cover to use it for the album everywhere; Save Lyrics writes

@@ -236,6 +236,21 @@ __attribute__((noinline)) int ly_latin(const char *s) {
     return 1;
 }
 
+/* The coverage gamma on the lyrics face (patch/textgamma.c; a no-op once installed). font_manager_get_font loads the font file when it is not loaded yet, and falls back to the default font when it cannot. */
+void ly_font(void) {
+    void *fm = font_manager();
+    if (fm) tg_apply(fm, font_manager_get_font(fm, "lyrics", 0));
+}
+
+/* A single-line title label's font (the Vinyl and VU pages): the bold face when every code point of s is in it, else the default font. The face is the label's own font_name in its three states, set
+ * with the text, so it never depends on the lyrics page having run (the lyrics face is loaded and gamma-mapped here). */
+void ly_title_face(void *w, const char *s) {
+    static const char *const key[3] = {"style:normal:font_name", "style:disable:font_name", "style:focused:font_name"};
+    int i, bold = ly_latin(s);
+    if (bold) ly_font();
+    for (i = 0; i < 3; ++i) widget_set_prop_str(w, key[i], bold ? "lyrics" : "default");
+}
+
 /* The probe in the face's style, resolved; 0: it cannot be yet. widget_use_style resolves a style only in an opened window, and the window resolves every widget's
  * when it is about to open (offsets.inc WINDOW_STAGE_CREATED), after np_start's first tick: a measure before that would be in the label's default style, a width too
  * small that would be kept (a 30 px line of two rows measured as one, its second row cut). So nothing is measured before (the line is retried, as a measure of 0), and
@@ -915,7 +930,6 @@ void ly_stop(void) {
 }
 
 void ly_start(void *win) {
-    void *fm;
     if (ly.win) ly_stop();
     ly_reloading = 0;
     memset(&ly, 0, sizeof ly);
@@ -926,8 +940,7 @@ void ly_start(void *win) {
     ly.view = widget_lookup(win, "view_lrc", 1);
     ly.box = widget_lookup(win, "np_lyrics", 1);
     if (!ly.src || !ly.view || !ly.box) goto fail;
-    fm = font_manager(); /* the coverage gamma on the lyrics face (patch/textgamma.c; a no-op once installed) */
-    if (fm) tg_apply(fm, font_manager_get_font(fm, "lyrics", 0));
+    ly_font();
     if (ly_make(ly.box, ly.lab, &ly.probe, ly.dot) < 0) goto fail;
     ly_fresh_pool();
     ly.win = win;

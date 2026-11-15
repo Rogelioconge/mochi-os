@@ -22,9 +22,14 @@
  * Mono Audio and Crossfeed (patch/stereo.c, docs/modules/stereo.md): Mono Audio runs before the cascade, Crossfeed after it,
  * as the record STEREO_FILE says (read at each REINIT and channel-0 gain command). With the switch off the filter
  * stays in the chain and, with both off, passes the native format and every block through (stock's bits).
+ *
+ * VU Meter Mode's level tap (patch/vu.c, docs/modules/vu.md): while demo's page wants it (VU_FILE exists), play measures each
+ * block it sends on, after the stages in the float path and as it arrives in the native pass-through, and publishes the levels
+ * with the time they are audible (now plus the audio output's delay). It only reads: no sample is written.
  */
 #include "peq.h"
 #include "stereo.h"
+#include "vu.h"
 
 _Static_assert(sizeof(af_data) == 24, "audio ABI");
 _Static_assert(__builtin_offsetof(af_instance, setup) == 16, "setup ABI");
@@ -45,6 +50,9 @@ _Static_assert(__builtin_offsetof(af_instance, mul) == 40, "multiplier ABI");
  * the codec's name (+0x3d0) and driver (+0x3e0), as "Selected audio codec" prints them (0x47ed70). The ten gains
  * mcl-seteq parses (0xb10df4) are no longer read (the 10-Band EQ plays the record's gains). Pinned by tools/mod_player.py. */
 #define MPCTX (*(char *volatile *)0xaf9e30u)
+#define AO_OFFSET \
+    8 /* mpctx->audio_out: the ao driver's table (playing_audio_pts at 0x4300f4 reads it from here, 0x42686c) */
+#define AO_GET_DELAY 0x1c /* its get_delay: float seconds queued in the output (0x430148, called at 0x430170) */
 #define REMOVE_FILTER 0x42929cu /* stock's flag-0 removal of "equalizer" from the chain at mpctx + 0x40 */
 
 typedef struct {
@@ -55,6 +63,7 @@ typedef struct {
     int fresh; /* REINIT done, no block yet: the first one may adopt the carried memory */
     int played; /* this instance has filtered a block */
     int ramp_in; /* it replaces a pass-through instance mid-track: Mono Audio and Crossfeed ramp in */
+    int vu_native; /* the native pass-through blocks of this instance can be measured */
 } player_state;
 
 /* The memory of the instance that just ended, in the payload's .data (no .bss here; one writer: the playback thread). */
@@ -139,6 +148,23 @@ static int dsd(void) {
     return (drv && !strcmp(drv, "dsdiff")) || (name && strlen(name) >= 5 && !memcmp(name, "ffdsd", 5));
 }
 
+/* The audio output's delay in us: what is queued ahead of the block being filtered (0 when the output is not reachable). */
+static int ao_delay_us(void) {
+    char *mp = MPCTX, *ao = mp ? *(char **)(mp + AO_OFFSET) : 0;
+    float (*get_delay)(void) = ao ? *(float (**)(void))(ao + AO_GET_DELAY) : 0;
+    if (!get_delay) return 0;
+    float d = get_delay();
+    return d > 0 && d < 10 ? (int)(d * 1000000) : 0; /* a NaN or a wild value is none */
+}
+
+/* The level tap: one open per block, and only when wanted do the delay and the measuring cost anything. */
+static void tap(const af_data *d) {
+    void *f = vu_open();
+    if (f)
+        vu_block(f, d->audio, d->format, d->bps, d->nch, d->rate, (unsigned)d->len / (unsigned)(d->bps * d->nch),
+                 ao_delay_us());
+}
+
 /* What plays: the record's preset (PEQ_FILE), or the 10-Band EQ's ten gains and preamp (none readable: Flat, Auto). */
 static void effective(peq_preset *p) {
     peq_state s;
@@ -156,9 +182,11 @@ static int control(af_instance *af, int command, void *arg) {
         if (!in || in->nch < 1 || in->nch > PEQ_CHANNELS) return AF_ERROR;
         *af->data = *in;
         pass_native = 0;
+        s->vu_native = 0;
         if (s->off || in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) {
             s->dsp.channels = 0; /* play leaves every block alone */
             carry.valid = 0; /* nothing carries through a pass-through track */
+            if (!s->off) vu_note(0, 0); /* no levels: DSD, a special format, a rate out of range */
             return AF_OK;
         }
         stereo_record rec;
@@ -171,6 +199,8 @@ static int control(af_instance *af, int command, void *arg) {
             s->dsp.channels = 0;
             carry.valid = 0;
             pass_native = 1;
+            s->vu_native = vu_supported(in->format, in->bps) && in->rate > 0;
+            vu_note(s->vu_native ? in->rate : 0, in->nch);
             return AF_OK;
         }
         effective(&s->preset);
@@ -179,6 +209,7 @@ static int control(af_instance *af, int command, void *arg) {
         s->fresh = 1;
         af->data->format = AF_FORMAT_FLOAT;
         af->data->bps = 4;
+        vu_note(in->rate, in->nch);
         if (in->format != AF_FORMAT_FLOAT || in->bps != 4) {
             *in = *af->data; /* ask the chain for float */
             return AF_FALSE;
@@ -220,6 +251,11 @@ static af_data *play(af_instance *af, af_data *data) {
         stereo_pre(&s->st, data->audio, frames);
         peq_process(&s->dsp, data->audio, frames);
         stereo_post(&s->st, data->audio, frames);
+        tap(data);
+    } else if (s->vu_native && !s->dsp.channels && data && data->len > 0 && data->format == af->data->format &&
+               data->bps == af->data->bps && data->nch == af->data->nch && data->rate == af->data->rate &&
+               !(data->len % (data->bps * data->nch))) {
+        tap(data); /* the native pass-through: read, never written */
     }
     return data;
 }

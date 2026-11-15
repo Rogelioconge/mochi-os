@@ -15,8 +15,9 @@ top-left chevron to close. No hook, no boot work, one page timer. Neutral greys 
 ## The page
 
 - **Window:** fullscreen, one view `vinyl_view` (320 x 480, the touch target, painted by the payload
-  in its `EVT_AFTER_PAINT`) and ordinary AWTK labels over it: `vn_title` (22 px, #F4F4F6) with a twin
-  `vn_title2` one pixel right for weight, `vn_artist` (15), `vn_times` (12, `m:ss  -m:ss`),
+  in its `EVT_AFTER_PAINT`) and ordinary AWTK labels over it: `vn_title` (22 px, #F4F4F6; drawn once, in the
+  bold `lyrics` face when its code points are all in `lyrics.ttf`, else in the default font: see
+  "Title face"), `vn_artist` (15), `vn_times` (12, `m:ss  -m:ss`),
   `vn_status` (10, `VOL 42 | FLAC | 21:07`). They are insensitive `hscroll_label`s that never scroll
   and end in an ellipsis, placed from `vinyl_art.TEXT`. Portrait, so no rotated-text path.
 - **Frame:** a 320 x 480 RGBA bitmap the page owns, composed from the layers below. The paint blits it
@@ -63,6 +64,13 @@ top-left chevron to close. No hook, no boot work, one page timer. Neutral greys 
   times each second, and the status line from the status bar's volume (read only), file extension and
   clock. No status bar: `VOL 0`. No battery: 20 % steps would read as false precision. The status
   colour is #BCBCC2 (the build's contrast scan wants 4.5:1).
+- **Title face.** The title is drawn once. When every code point is in `lyrics.ttf` (`ly_latin`, as
+  the [lyrics](lyrics.md) page picks its style) the label's `font_name` is `lyrics` (Inter Bold), else
+  `default`, in the label's three styles (`ly_title_face`, set with each new title). `ly_title_face` also
+  loads the face and installs the coverage gamma on it (`ly_font`, the call `ly_start` makes), so the
+  page needs nothing from Now Playing; a font that cannot load falls back to the default font
+  ([fonts](fonts.md)). The bold face is tracked 16 units (the UI face 8), so the width rule is the
+  label's ellipsis, not a measured fit; `vinyl_art.text` clips with the same face.
 
 ## Record colours
 

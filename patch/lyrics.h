@@ -7,6 +7,12 @@
 /* The page is built (win: the playing window). Finds the asset's np_lyrics box and the stock lyric list, makes the label pool and hides the stock list.
  * Anything missing leaves the stock list as it is. */
 void ly_start(void *win);
+/* Whether every code point of the UTF-8 text is in the bold face lyrics.ttf (Latin, Greek, Cyrillic); any other text is drawn in the default font. */
+int ly_latin(const char *s);
+/* Loads the lyrics face if needed and installs the coverage gamma on it (idempotent). */
+void ly_font(void);
+/* A title label of the Vinyl and VU pages: sets its font to the bold face (lyrics) when s is all in it, else the default font, and makes sure the bold face is loaded with the gamma. Call before setting the text. */
+void ly_title_face(void *w, const char *s);
 /* The page's 500 ms tick: new lyrics, the current line, the layout. */
 void ly_tick(void);
 /* The page is over (or replaced): the animation timer goes, the state is cleared. */

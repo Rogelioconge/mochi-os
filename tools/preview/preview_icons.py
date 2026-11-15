@@ -28,16 +28,23 @@ class Side:
         when the table lacks it, as locale_info_tr does), else its text."""
         k = w.get('tr_text')
         return self.strings.get(k, k) if k is not None else w.get('text')
-    def clip(self, text, px, room):
-        """An hscroll_label that is not scrolling: the text cut with an ellipsis where it passes its box."""
-        while self.font.width(text, px) > room and len(text) > 1: text = text[:-2] + '…' if text.endswith('…') else text[:-1] + '…'
+    def title_face(self, text):
+        """The face of a title (patch/lyrics.c ly_title_face): the lyrics face (Inter Bold) when every code point is in lyrics.ttf (its cmap; the payload's table also leaves out the combining marks and U+200B),
+        else None (the default font)."""
+        if not hasattr(self, 'lyric'): self.lyric = StbFont(os.path.join(self.tree, RAW, 'fonts/lyrics.ttf'))
+        return self.lyric if all(self.lyric.glyph(c) for c in text) else None
+    def clip(self, text, px, room, font=None):
+        """An hscroll_label that is not scrolling: the text cut with an ellipsis where it passes its box (font: the label's face, default the UI font)."""
+        font = font or self.font
+        while font.width(text, px) > room and len(text) > 1: text = text[:-2] + '…' if text.endswith('…') else text[:-1] + '…'
         return text
     def img(self, n): return Image.open(os.path.join(self.d, n + '.png')).convert('RGBA')
-    def text(self, im, x, y_mid, s, px, rgb=WHITE, anchor='l'):
-        w = self.font.width(s, px)
+    def text(self, im, x, y_mid, s, px, rgb=WHITE, anchor='l', font=None):
+        font = font or self.font
+        w = font.width(s, px)
         if anchor == 'm': x -= w // 2
         elif anchor == 'r': x -= w
-        self.font.draw(im, int(x), int(y_mid - px / 2), s, px, rgb + (255,))
+        font.draw(im, int(x), int(y_mid - px / 2), s, px, rgb + (255,))
     def mark(self, im, name, x, y):
         """C / K marker for custom / kept-stock icons (after side only)."""
         if not self.after: return

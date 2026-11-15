@@ -116,11 +116,11 @@ ACT_NDVALUE = 94  # value row of the Navidrome Server page (patch/ndserver.c, to
 ACT_NDACT = 95    # action row of the Navidrome Server page: Sync Now, Sign Out (no accessory, no glyph)
 ACT_CHGLIM = 80     # value row (Settings > Battery): Charge Limit, the saved limit ("80%" .. "100%"); opens its picker page (arg = the page index; patch/charging.c chg_limit)
 ACT_CHGLIMSET = 81  # picker row (Charge Limit): choose the limit (arg = 80, 85, 90, 95 or 100, no limit); a check shows on the chosen row (patch/charging.c chg_set)
-ACT_IDLE = 82       # value row (Settings > Now Playing > Idle Display): where Now Playing goes after ten seconds, Off, Album Cover, Cassette, Vinyl or Lyrics (the payload shows stock's Cover mode byte and the saved destination); opens its picker page (arg = the page index; patch/bigcover.c idle_choice)
+ACT_IDLE = 82       # value row (Settings > Now Playing > Idle Display): where Now Playing goes after ten seconds, Off, Album Cover, Cassette, Vinyl, Lyrics or VU Meter (the payload shows stock's Cover mode byte and the saved destination); opens its picker page (arg = the page index; patch/bigcover.c idle_choice)
 ACT_LYRSIZE = 135   # value row (Settings > Now Playing > Lyrics Text Size): Small, Medium or Large (the saved file nowplaying-lyrics-size); opens its picker page (arg = the page index; patch/lyrics.c ly_size)
 ACT_SCROBPAGE = 139 # value row (Settings > Library): Scrobbling, On or Off as the switch on its page; opens the Scrobbling page (arg = its page index; patch/scrobble.c scrobble_setting)
 ACT_LYRSIZESET = 136 # picker row (Lyrics Text Size): choose Small (arg 0), Medium (1) or Large (2); a check shows on the chosen row (patch/lyrics.c ly_size_set)
-ACT_IDLESET = 83    # picker row (Idle Display): choose Off (arg 0), Album Cover (1), Cassette (2), Vinyl (3) or Lyrics (4); a check shows on the chosen row (patch/bigcover.c idle_set)
+ACT_IDLESET = 83    # picker row (Idle Display): choose Off (arg 0), Album Cover (1), Cassette (2), Vinyl (3), Lyrics (4) or VU Meter (5); a check shows on the chosen row (patch/bigcover.c idle_set)
 ACT_LOCKWP = 84     # link row (Settings > Lock Screen): Wallpaper, our own picker page (patch/lockscreen.c lkwp_open).
 ACT_LOCKSTYLE = 85  # value row (Settings > Lock Screen): Player Style, the saved layout (Large Cover / Mini Player); opens its picker page (arg = the page index; patch/lockscreen.c lk_layout)
 ACT_LOCKINFO = 87   # link row (Settings > Lock Screen): Custom Wallpaper, the instructions on a Release Notes page of our own (patch/relnotes.c lockinfo_open)
@@ -429,6 +429,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_dthour',
     'm1plus_dtminute',
     'm1plus_sleeptimer',
+    'm1plus_vu',
     'm1plus_general',
     'm1plus_netservice',
     'm1plus_wifitransfer',
@@ -953,6 +954,9 @@ VINYL.theme = 'graphite'
 VINYL_WHITE = Page('m1plus_vinyl_white', 'm1plus_vinyl_white_page', 'Vinyl Mode', kind='vinyl')
 VINYL_WHITE.theme = 'white'
 
+# The VU Meter page (patch/vupage.c, docs/modules/vu.md): a fullscreen portrait Now Playing page of two needle meters; one view the payload paints and the text as the Vinyl page's labels (opened from the Display Mode page and Idle Display).
+VU_PAGE = Page('m1plus_vu', 'm1plus_vu_page', 'VU Meter Mode', kind='vu')
+
 # Find Cover & Lyrics (patch/onlineart.c): the stock navbar over a content view the payload paints the cover thumbnails on, with the status and lyrics labels and one pill (opened from Now Playing's
 # More dialog, not from a menu row).
 ONLINEART = Page('m1plus_onlineart', 'm1plus_onlineart_page', 'Cover & Lyrics', kind='onlineart')
@@ -977,13 +981,14 @@ NPSET_PAGE = Page('m1plus_npset', 'm1plus_npset_page', 'Now Playing', layout=[
     Note('Shown after 10 seconds on Now Playing.'),
 ])
 # Settings > Now Playing > Idle Display: the picker (a check on the chosen row). Off is stock's Cover mode switch off (the byte 0xa05aa5, [SYSSET] COVERMODE); the others turn it on and say where the
-# timed view goes (patch/bigcover.c idle_set; the destination is /mnt/data/m1plus/nowplaying-idle: "0\n" Album Cover, "1\n" Cassette, "2\n" Vinyl, "3\n" Lyrics).
+# timed view goes (patch/bigcover.c idle_set; the destination is /mnt/data/m1plus/nowplaying-idle: "0\n" Album Cover, "1\n" Cassette, "2\n" Vinyl, "3\n" Lyrics, "4\n" VU Meter).
 IDLE_PAGE = Page('m1plus_idleview', 'm1plus_idleview_page', 'Idle Display', layout=[
     Row('Off', ACT_IDLESET, 0),
     Row('Album Cover', ACT_IDLESET, 1),
     Row('Cassette', ACT_IDLESET, 2),
     Row('Vinyl', ACT_IDLESET, 3),
     Row('Lyrics', ACT_IDLESET, 4),
+    Row('VU Meter', ACT_IDLESET, 5),
     Note('Shown after 10 seconds on Now Playing.'),
 ])
 # Settings > Now Playing > Lyrics Text Size: the picker (a check on the chosen row); the choice is /mnt/data/m1plus/nowplaying-lyrics-size ("0\n" Small 22 px, "1\n" Medium 26 px, "2\n" Large 30 px, the default).
@@ -993,7 +998,7 @@ LYRSIZE_PAGE = Page('m1plus_lyrsize', 'm1plus_lyrsize_page', 'Lyrics Text Size',
     Row('Large', ACT_LYRSIZESET, 2),
 ])
 LYRSIZE_VALUES = ('Small', 'Medium', 'Large')   # the value the Lyrics Text Size row shows, in the order of the picker's rows
-IDLE_VALUES = ('Off', 'Album Cover', 'Cassette', 'Vinyl', 'Lyrics')   # the value the Idle Display row shows, in the order of the picker's rows
+IDLE_VALUES = ('Off', 'Album Cover', 'Cassette', 'Vinyl', 'Lyrics', 'VU Meter')   # the value the Idle Display row shows, in the order of the picker's rows
 # Settings > Now Playing > Theme: the picker (a check on the chosen row).
 THEME_PAGE = Page('m1plus_tapetheme', 'm1plus_tapetheme_page', 'Cassette Theme', layout=[
     Row('Normal', ACT_THEMESET, 0),

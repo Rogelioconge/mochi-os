@@ -3,13 +3,13 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * The sheet is as high as its page's rows (page 1: PM_PAGE_N = 5 x 50 = 250 px, page 2: PM_PAGE2_N = 6 x 50 = 300 px, the Display Mode page: PM_PAGE_MODE_N = 4 x 50 = 200 px) and sits on the bottom of the screen; the page
+ * The sheet is as high as its page's rows (page 1: PM_PAGE_N = 5 x 50 = 250 px, page 2: PM_PAGE2_N = 6 x 50 = 300 px, the Display Mode page: PM_PAGE_MODE_N = 5 x 50 = 250 px) and sits on the bottom of the screen; the page
  * above it is dimmed by the asset's own dialog highlight (highlight="default(alpha=..)", the AWTK dialog highlighter the window
  * manager sets up when the dialog opens). The glass is the dialog's first child, an insensitive image (pod_glass) that gets the page's own picture and height
- * (pc_sheet5, pc_sheet6, pc_sheet4): never a crop of a taller one. Page 1 (when it opens): Look up album (listitem4), Look up artist (5), Add to playlist
+ * (pc_sheet5, pc_sheet6, pc_sheet2): never a crop of a taller one. Page 1 (when it opens): Look up album (listitem4), Look up artist (5), Add to playlist
  * (2), Display Mode (pod_mode: a chevron at its right) and "More" (pod_more, a row the asset adds, hidden until now; a chevron
  * at its right). A tap on Display Mode switches to the Display Mode page: the header row "< Display Mode" (pod_back; a tap returns to page 1), Cassette Mode (pod_tape: it opens the landscape cassette page, patch/tape.c), Vinyl Mode
- * (pod_vinyl: the turntable page, patch/vinyl.c) and Lyrics Mode (pod_lyr: the full-screen lyrics page, patch/idlelyrics.c; dimmed for a track without lyrics).
+ * (pod_vinyl: the turntable page, patch/vinyl.c), VU Meter Mode (pod_vu: the needle meters, patch/vupage.c) and Lyrics Mode (pod_lyr: the full-screen lyrics page, patch/idlelyrics.c; dimmed for a track without lyrics).
  * A tap on More switches to page 2: the same header row reading "< More" (a tap returns to page 1), Playback speed (1), Sleep Timer (pod_sleep: a link to the stock Power page), A-B repeat (0), Find Cover & Lyrics (pod_art) and
  * Delete (6, its label red in the asset). Online search (3) is never shown. A switch only hides one row set and shows the other and sets the sheet to the page's height;
  * there is no slide. A tap above the sheet closes it: that is the stock handler's (pointer y < dialog y), which works unchanged with the new y.
@@ -47,7 +47,7 @@
 #include "lyrics.h"
 
 #define PM_ROWS \
-    16 /* listitem0..6, then pod_more, pod_back, pod_tape, pod_vinyl, pod_goep, pod_art, pod_sleep, pod_mode, pod_lyr */
+    17 /* listitem0..6, then pod_more, pod_back, pod_tape, pod_vinyl, pod_goep, pod_art, pod_sleep, pod_mode, pod_lyr, pod_vu */
 #define PM_MORE 7
 #define PM_BACK 8
 #define PM_TAPE 9
@@ -57,6 +57,7 @@
 #define PM_SLEEP 13 /* Sleep Timer: a link to the stock Power page, page 2 */
 #define PM_MODE 14 /* Display Mode: opens the Display Mode page, page 1 */
 #define PM_LYR 15 /* Lyrics Mode: the full-screen lyrics page, the Display Mode page */
+#define PM_VU 16 /* VU Meter Mode: the VU Meter page, the Display Mode page (between Vinyl Mode and Lyrics Mode) */
 #define PM_ART_DIM \
     100 /* the Find Cover & Lyrics row's opacity (of 255) while the Wi-Fi is off: dimmed, and it takes no tap */
 #define GO_ALBUM 4 /* listitem4, Look up album */
@@ -74,14 +75,14 @@ static const unsigned char pm_page[5][PM_PAGE_MAX] = {
      6}, /* the back header, Playback speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete */
     {PM_GOEP,
      PM_MORE}, /* page 1 of a podcast episode: Go to Podcasts, More (the rows that mean nothing for an episode are hidden) */
-    {PM_BACK, PM_TAPE, PM_VINYL,
-     PM_LYR}, /* the Display Mode page: the back header, Cassette Mode, Vinyl Mode, Lyrics Mode */
+    {PM_BACK, PM_TAPE, PM_VINYL, PM_VU,
+     PM_LYR}, /* the Display Mode page: the back header, Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode */
     {PM_MODE,
      PM_MORE}, /* page 1 of an audiobook part: Display Mode, More (a part has no album or artist to look up, nor a playlist to join) */
 };
 static const unsigned char pm_rows[5] = {PM_PAGE_N, PM_PAGE2_N, PM_PAGE_EP_N, PM_PAGE_MODE_N, PM_PAGE_BOOK_N};
 static const char *const pm_glass[5] = {
-    "pc_sheet5", "pc_sheet6", "pc_sheet2", "pc_sheet4",
+    "pc_sheet5", "pc_sheet6", "pc_sheet2", "pc_sheet5",
     "pc_sheet2"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
 
 static struct {
@@ -185,7 +186,7 @@ static int pm_on_back(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* Display Mode (the row is pod_mode, page 1): the page of the three Now Playing looks (Cassette Mode, Vinyl Mode, Lyrics Mode); its back header returns to page 1 (pm_on_back). */
+/* Display Mode (the row is pod_mode, page 1): the page of the four Now Playing looks (Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode); its back header returns to page 1 (pm_on_back). */
 static int pm_on_mode(void *ctx, void *e) {
     (void)e;
     if (!pm.dlg || ctx != pm.dlg) return RET_OK;
@@ -210,6 +211,15 @@ static int pm_on_vinyl(void *ctx, void *e) {
     (void)e;
     if (!pm.dlg || ctx != pm.dlg) return RET_OK;
     if (vinyl_open() == 0) window_close(ctx);
+    return RET_OK;
+}
+
+/* VU Meter Mode (the row is pod_vu): the needle meters page (patch/vupage.c), opened the same way: the page first, the sheet closed once it is up. */
+
+static int pm_on_vu(void *ctx, void *e) {
+    (void)e;
+    if (!pm.dlg || ctx != pm.dlg) return RET_OK;
+    if (vupage_open() == 0) window_close(ctx);
     return RET_OK;
 }
 
@@ -583,11 +593,12 @@ static int pm_on_addpl(void *ctx, void *e) {
 }
 
 static void pm_start(void *dlg) {
-    static const char *const names[PM_ROWS] = {
-        "listitem0", "listitem1", "listitem2", "listitem3", "listitem4", "listitem5", "listitem6", "pod_more",
-        "pod_back",  "pod_tape",  "pod_vinyl", "pod_goep",  "pod_art",   "pod_sleep", "pod_mode",  "pod_lyr"};
+    static const char *const names[PM_ROWS] = {"listitem0", "listitem1", "listitem2", "listitem3", "listitem4",
+                                               "listitem5", "listitem6", "pod_more",  "pod_back",  "pod_tape",
+                                               "pod_vinyl", "pod_goep",  "pod_art",   "pod_sleep", "pod_mode",
+                                               "pod_lyr",   "pod_vu"};
     void *more_label, *back_label, *speed_label, *note_label, *tape_label, *vinyl_label, *goep_label, *art_label,
-        *sleep_label, *mode_label, *lyr_label, *track;
+        *sleep_label, *mode_label, *lyr_label, *vu_label, *track;
     unsigned i;
     if (pm.dlg) memset(&pm, 0, sizeof pm); /* an earlier dialog that never said it was gone */
     pm.dlg = dlg;
@@ -606,10 +617,12 @@ static void pm_start(void *dlg) {
     sleep_label = widget_lookup(dlg, "pod_sleep_label", 1);
     mode_label = widget_lookup(dlg, "pod_mode_label", 1);
     lyr_label = widget_lookup(dlg, "pod_lyr_label", 1);
+    vu_label = widget_lookup(dlg, "pod_vu_label", 1);
     if (!pm.lv || !pm.sv || !pm.bar || !pm.glass || !more_label || !back_label || !speed_label || !note_label ||
-        !tape_label || !vinyl_label || !goep_label || !art_label || !sleep_label || !mode_label || !lyr_label)
+        !tape_label || !vinyl_label || !goep_label || !art_label || !sleep_label || !mode_label || !lyr_label ||
+        !vu_label)
         goto fail;
-    for (i = 0; i < PM_ROWS; i++) { /* exactly the asset: sixteen rows in the scroll_view */
+    for (i = 0; i < PM_ROWS; i++) { /* exactly the asset: seventeen rows in the scroll_view */
         pm.row[i] = widget_lookup(dlg, names[i], 1);
         if (!pm.row[i] || *(void **)((char *)pm.row[i] + W_PARENT) != pm.sv) goto fail;
     }
@@ -625,6 +638,7 @@ static void pm_start(void *dlg) {
     if (widget_set_tr_text(note_label, "Files below 48 kHz only") != RET_OK) goto fail;
     if (widget_set_tr_text(tape_label, "Cassette Mode") != RET_OK) goto fail;
     if (widget_set_tr_text(vinyl_label, "Vinyl Mode") != RET_OK) goto fail;
+    if (widget_set_tr_text(vu_label, "VU Meter Mode") != RET_OK) goto fail;
     if (widget_set_tr_text(goep_label, "Go to Podcasts") != RET_OK) goto fail;
     if (widget_set_tr_text(art_label, "Cover & Lyrics") != RET_OK) goto fail;
     if (widget_set_tr_text(sleep_label, "powerm_sleep") != RET_OK)
@@ -641,6 +655,7 @@ static void pm_start(void *dlg) {
     if (!widget_on(pm.row[PM_SLEEP], EVT_CLICK, pm_on_sleep, dlg)) goto fail;
     if (!widget_on(pm.row[PM_MODE], EVT_CLICK, pm_on_mode, dlg)) goto fail;
     if (!widget_on(pm.row[PM_LYR], EVT_CLICK, pm_on_lyr, dlg)) goto fail;
+    if (!widget_on(pm.row[PM_VU], EVT_CLICK, pm_on_vu, dlg)) goto fail;
     pm.back_label = back_label;
     if (!widget_on(pm.row[GO_ALBUM], EVT_CLICK, pm_on_lookup_album, dlg)) goto fail;
     if (!widget_on(pm.row[GO_ARTIST], EVT_CLICK, pm_on_lookup_artist, dlg)) goto fail;

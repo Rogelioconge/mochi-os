@@ -24,7 +24,7 @@ there is no slide.
 | 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, More | 100 px, `pc_sheet2` |
 | 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, More | 100 px, `pc_sheet2` |
 | 2 (More; its back header returns to the page it came from) | back header **< More**, Playback speed, **Sleep Timer**, A-B repeat, **Cover & Lyrics**, Delete song (red `#FF6B6B`) | 300 px, `pc_sheet6` |
-| Display Mode | back header **< Display Mode**, **Cassette Mode**, **Vinyl Mode**, **Lyrics Mode** | 200 px, `pc_sheet4` |
+| Display Mode | back header **< Display Mode**, **Cassette Mode**, **Vinyl Mode**, **VU Meter Mode**, **Lyrics Mode** | 250 px, `pc_sheet5` |
 
 Online search is never shown. Hidden rows are `visible=false` and `sensitive=false`.
 
@@ -50,10 +50,10 @@ Online search is never shown. Hidden rows are `visible=false` and `sensitive=fal
   its window until stock's idle destroy, so the open is retried from `pm_pend_tick` (`PM_PEND_MS`
   30 ms, `PM_PEND_TRIES` 40) while Now Playing stays on top. The library Look up album waits the
   same way when our album page was just closed (`pm_local_tick`).
-- **Display Mode** (`pod_mode`): the three Now Playing looks share one row so page 1 is not half
+- **Display Mode** (`pod_mode`): the four Now Playing looks share one row so page 1 is not half
   modes. An episode's page 1 has none.
-- **Cassette Mode** and **Vinyl Mode** open the landscape page over Now Playing
-  (`tape_open`, [tape](tape.md); `vinyl_open`, [vinyl](vinyl.md)) first and close the sheet once it
+- **Cassette Mode**, **Vinyl Mode** and **VU Meter Mode** open their page over Now Playing
+  (`tape_open`, [tape](tape.md); `vinyl_open`, [vinyl](vinyl.md); `vupage_open`, [vu](vu.md)) first and close the sheet once it
   is up; a page that cannot open leaves the sheet.
 - **Lyrics Mode** opens the full-screen lyrics page (`idlelyrics_open_idle`,
   [idlelyrics](idlelyrics.md)) first, then closes the sheet. It needs lyric rows (`ly_has_rows()`),
@@ -82,7 +82,7 @@ The sheet uses the glass of the Home mini bar and the lock card ([minibar](minib
 [lockscreen](lockscreen.md)).
 
 - **The image:** one picture per page, each its own height (a cropped taller picture showed a wrong top
-  edge): `pc_sheet5.png` (320 x 250), `pc_sheet6.png` (320 x 300), `pc_sheet4.png` (320 x 200). Each is
+  edge): `pc_sheet5.png` (320 x 250), `pc_sheet6.png` (320 x 300), `pc_sheet2.png` (320 x 100). Each is
   `mod_icons.glass_image(320, h, 18, fill=GLASS_SHEET_FILL, top_only=True)`: the dark gradient
   pane with a rim light, only the top corners rounded, fill alpha 0.88 (denser than the card's
   0.76 so the labels sit straight on it). `pod_glass` is the dialog's first child, an insensitive
@@ -129,11 +129,11 @@ the dialog, list_view, scroll_view and bar are resized to the page's height and 
 
 `edit_playmore` asserts every stock widget keeps its type, name and rectangle. `ADD_EDITS` allows
 only the new `pod_more*`, `pod_back*`, `pod_tape*`, `pod_vinyl*`, `pod_goep*`, `pod_art*`,
-`pod_sleep*`, `pod_mode*` and `pod_lyr*` widgets, and a new rectangle for the six speed-row widgets
+`pod_sleep*`, `pod_mode*`, `pod_lyr*` and `pod_vu*` widgets, and a new rectangle for the six speed-row widgets
 (`PM_SPEED`). New rows are `list_item`s styled as the Add to playlist row (icon 24 x 24 at 14,13;
 label 200 px at x 48; chevrons 13 x 22 at 285,14, ink x 288..298); the first row of each page has no
 hairline. The dialog gets `highlight`. New row glyphs: `pod_ic_tape`, `pod_ic_vinyl`, `pod_ic_art`
-(custom SVG in `assets/icons/custom/`), `pod_ic_sleep`, `pod_ic_mode`.
+(custom SVG in `assets/icons/custom/`), `pod_ic_sleep`, `pod_ic_mode`; `pod_ic_vu` is the Lucide `gauge`.
 
 ## Delete and Add to playlist
 

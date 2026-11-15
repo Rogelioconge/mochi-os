@@ -68,17 +68,17 @@ Stock's 264 px picture stays underneath.
 `tools/pod_pages.py` (`IDLE_PAGE`). **Tests:** `test/pod/bigcover.py`.
 
 Settings > Now Playing > **Idle Display** chooses where the timed view goes: **Off**, **Album
-Cover** (stock's page, sharpened above), **Cassette**, **Vinyl** or **Lyrics** (pages of
-[tape](tape.md), [vinyl](vinyl.md), [idlelyrics](idlelyrics.md)). A page the timer opened closes on
-a tap: Cassette anywhere, Vinyl on the record (the chevron closes as always), Lyrics anywhere. The
+Cover** (stock's page, sharpened above), **Cassette**, **Vinyl**, **Lyrics** or **VU Meter** (pages of
+[tape](tape.md), [vinyl](vinyl.md), [idlelyrics](idlelyrics.md), [vu](vu.md)). A page the timer opened closes on
+a tap: Cassette anywhere, Vinyl on the record (the chevron closes as always), Lyrics and VU Meter anywhere. The
 same pages opened from the More sheet are unchanged (tap pauses).
 
 - **Setting.** The last card of Settings > Now Playing is the value row Idle Display (`ACT_IDLE` 82)
   with the note "Shown after 10 seconds on Now Playing." (also on the picker). It opens the picker `m1plus_idleview`
-  (`ACT_IDLESET` 83, arg 0 Off, 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics). Two stores make the
+  (`ACT_IDLESET` 83, arg 0 Off, 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics, 5 VU Meter). Two stores make the
   choice: stock's Cover mode byte `COVER_MODE` (the timed view runs only while it is on) for Off or
-  not, and `/mnt/data/m1plus/nowplaying-idle` (`0\n` Album Cover, `1\n` Cassette, `2\n` Vinyl, `3\n`
-  Lyrics; missing or invalid = Album Cover). `idle_choice` reads both live, so stock's Cover mode row
+  not, and `/mnt/data/m1plus/nowplaying-idle` (`0\n` Album Cover, `1\n` Cassette, `2\n` Vinyl, `3\n` Lyrics, `4\n`
+  VU Meter; missing or invalid = Album Cover). `idle_choice` reads both live, so stock's Cover mode row
   and ours stay in step.
 - **Saving.** Stock flips the byte, then saves `COVERMODE` to `config.ini`. `idle_cover_mode` saves
   first and stores the byte only on success. A destination pick writes the file atomically first,
@@ -90,7 +90,7 @@ same pages opened from the More sheet are unchanged (tap pauses).
 - **Dispatcher** (`bc_timed_open(name)`): the kill switch, another name, a missing or invalid file or
   Album Cover all go to stock's `navigator_to(name)`. Cassette and Vinyl call `tape_open_idle()` /
   `vinyl_open_idle()` (the plain open plus an `idle` flag that makes a tap close the page); on -1,
-  stock's call runs exactly once. Lyrics calls `idlelyrics_open_idle()` only when the track has lyric
+  stock's call runs exactly once. VU Meter calls `vupage_open_idle()`. Lyrics calls `idlelyrics_open_idle()` only when the track has lyric
   rows now or the page is already up; otherwise Album Cover opens, and the next timed open, ten
   seconds later, looks again. Once the lyrics page is up, a track without lyrics keeps it. The page
   opens over Now Playing, which stays alive under it.

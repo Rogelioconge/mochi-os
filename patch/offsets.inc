@@ -816,14 +816,14 @@
 /* Now Playing's More dialog (patch/playmore.c, docs/modules/playmore.md): ui/dialog/playmore_dialog.bin is a 320 px wide
  * sheet pinned at y 130 (the stock init, @0x479d10, and its to-background handler @0x4789f0) holding list_view playmore_listview >
  * scroll_view playmore_scrollview (310 px, the scroll bar scroll_bar_m beside it, 10 px) > list_item rows, PM_ROW_H (50, the
- * list_view's item_height) high each; the asset adds the hidden rows pod_more, pod_back, pod_tape, pod_vinyl, pod_goep, pod_art, pod_sleep, pod_mode and pod_lyr. The payload shows PM_PAGE_N rows (page 1),
+ * list_view's item_height) high each; the asset adds the hidden rows pod_more, pod_back, pod_tape, pod_vinyl, pod_goep, pod_art, pod_sleep, pod_mode, pod_lyr and pod_vu. The payload shows PM_PAGE_N rows (page 1),
  * PM_PAGE2_N (page 2) or PM_PAGE_MODE_N (the Display Mode page) at a time and puts the sheet, as high as they are, on the bottom of the 480 px screen (the stock 130 + 350 ends there too). */
 #define PM_ROW_H 50
 #define PM_PAGE_N 5               /* page 1's rows (Look up album, Look up artist, Add to playlist, Display Mode, More; the asset's pod_goep, Go to Podcasts, is the episode's first row): the sheet is that high (PM_ROW_H x) */
 #define PM_PAGE_EP_N 2            /* page 1 of a podcast episode (Go to Podcasts, More) */
 #define PM_PAGE_BOOK_N 2          /* page 1 of an audiobook part (Display Mode, More) */
 #define PM_PAGE2_N 6              /* page 2's rows (the back header, Speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete) */
-#define PM_PAGE_MODE_N 4          /* the Display Mode page's rows (the back header, Cassette Mode, Vinyl Mode, Lyrics Mode) */
+#define PM_PAGE_MODE_N 5          /* the Display Mode page's rows (the back header, Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode) */
 #define PM_PAGE_MAX 6             /* the tallest page's rows */
 #define PM_SCREEN_H 480
 #define PM_DIALOG_W 320
@@ -1580,6 +1580,30 @@
 #define VN_FIRST_MS 50
 #define VN_COVER_MS 500           /* after a track change the /tmp cover is looked at again every VN_COVER_MS, VN_SETTLE times */
 #define VN_SETTLE 8
+/* The VU Meter page (patch/vupage.c, docs/modules/vu.md; tools/vu_art.py draws the pictures from the same numbers, test/consts.py and test/pod/vu.py check them). PORTRAIT, fullscreen 320 x 480, the same
+ * key band, close chevron, tap distance, timer intervals and VN_DT_MAX as the Vinyl page (VN_*). Meter 0 (LEFT) first; meter 1 lies VU_METER_DY lower. */
+#define VU_WIN_X0 17              /* a dial's window (VU_WIN_X1 - VU_WIN_X0 wide, VU_WIN_H high): what a needle is clipped to */
+#define VU_WIN_X1 303
+#define VU_WIN_Y0 31
+#define VU_WIN_H 144
+#define VU_METER_DY 162
+#define VU_PIV_X 160              /* the needle's pivot (a pixel corner), below the window: the hood hides the root */
+#define VU_PIV_Y 211
+#define VU_R0 20                  /* the radius range the needle is drawn over */
+#define VU_R1 151
+#define VU_RECT_PAD 6             /* what the shadow's blur and the edge's antialiasing reach beyond the needle's corners */
+#define VU_SH_DX 4                /* the needle's shadow lies this far right and down */
+#define VU_SH_DY 5
+#define VU_HOOD_X 118             /* vu_hood (VU_HOOD_W x VU_HOOD_H) on meter 0 */
+#define VU_HOOD_Y 157
+#define VU_HOOD_W 84
+#define VU_HOOD_H 18
+#define VU_LAMP_X 270             /* vu_lamp (VU_LAMP_W x VU_LAMP_H), the lit PEAK lamp, on meter 0 */
+#define VU_LAMP_Y 144
+#define VU_LAMP_W 33
+#define VU_LAMP_H 31
+#define VU_HOLD_MS 400           /* a PEAK lamp stays lit this long after the last peak */
+#define VU_STALL_MS 500           /* a record that has not been written for this long (no new block) is no signal */
 /* ---------------------------------------------------------------------------
  * Light Mode (patch/palette.c, docs/modules/accent.md; the numbers are q2-pod's, tools/palette.py reads them from here). A neutral colour (its channels within LIGHT_SPREAD of each other)
  * flips per channel, black to LIGHT_PAPER and white to LIGHT_INK, alpha kept; any other hue stays. A theme image with no pixel more than LIGHT_CHROMA saturated flips too when it is

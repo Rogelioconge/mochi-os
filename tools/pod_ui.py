@@ -1630,9 +1630,9 @@ def build_idlelyrics_page(page):
 
 
 # The Vinyl page (patch/vinyl.c, docs/modules/vinyl.md): a fullscreen window (320 x 480, portrait), one view over the whole window (vinyl_view: the touch target, painted by the
-# payload in its own EVT_AFTER_PAINT) and the text over it as insensitive hscroll_labels that never scroll (cut with an ellipsis; tools/vinyl_art.py TEXT): the title and its twin one
-# pixel right (the weight of the mock's title), the artist, the times, the status line. label_title (hidden) is the page's name for the i18n and asset tests.
-VN_LABELS = (('vn_title', 'title', 0), ('vn_title2', 'title', 1), ('vn_artist', 'artist', 0), ('vn_times', 'times', 0), ('vn_status', 'status', 0))
+# payload in its own EVT_AFTER_PAINT) and the text over it as insensitive hscroll_labels that never scroll (cut with an ellipsis; tools/vinyl_art.py TEXT): the title (the payload sets its font: the bold face lyrics for a Latin / Greek /
+# Cyrillic title, the default font for any other, patch/lyrics.c ly_title_face), the artist, the times, the status line. label_title (hidden) is the page's name for the i18n and asset tests.
+VN_LABELS = (('vn_title', 'title', 0), ('vn_artist', 'artist', 0), ('vn_times', 'times', 0), ('vn_status', 'status', 0))
 
 
 def build_vinyl_page(page):
@@ -1655,6 +1655,33 @@ def build_vinyl_page(page):
     title = hidden(Widget('label', 36, 14, 200, 22, [('name', 'label_title'), ('style', 'navbar_label_white'), pod_i18n.text_prop(page.title)]))
     if th == 'white':   # never seen; the build's contrast scan still reads it against the light plinth
         for st in ('normal', 'disable', 'focused'): styled(title, (st,), 'text_color', SURFACE_RGB)
+    root.children.append(title)
+    return root
+
+
+# The VU Meter page (patch/vupage.c, docs/modules/vu.md): the Vinyl page's structure, one view (vu_view) painted by the payload and the same four labels (tools/vu_art.py TEXT).
+VU_LABELS = (('vu_title', 'title', 0), ('vu_artist', 'artist', 0), ('vu_times', 'times', 0), ('vu_status', 'status', 0))
+
+
+def build_vu_page(page):
+    import vu_art
+    bg = '#%02X%02X%02X' % tuple(vu_art.WINDOW_BG)
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name), ('fullscreen', 'true')])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', bg)
+    view = Widget('view', 0, 0, 320, 480, [('name', 'vu_view')])
+    styled(view, ('normal',), 'bg_color', bg)
+    root.children = [view]
+    for name, field, dx in VU_LABELS:
+        t = vu_art.TEXT[field]; x, y, w, h = vu_art.label_box(field)
+        lab = Widget('hscroll_label', x + dx, y, w, h, [('name', name), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
+        for st in ('normal', 'disable', 'focused'):
+            styled(lab, (st,), 'font_size', str(t['px']))
+            styled(lab, (st,), 'text_color', '#%02X%02X%02X' % t['rgb'])
+            styled(lab, (st,), 'text_align_h', 'left')
+            styled(lab, (st,), 'text_align_v', 'middle')
+        root.children.append(lab)
+    title = hidden(Widget('label', 36, 14, 200, 22, [('name', 'label_title'), ('style', 'navbar_label_white'), pod_i18n.text_prop(page.title)]))
+    for st in ('normal', 'disable', 'focused'): styled(title, (st,), 'text_color', SURFACE_RGB)   # (never seen; the build's contrast scan reads it against the light faceplate)
     root.children.append(title)
     return root
 
@@ -3270,6 +3297,8 @@ def build_page(page):
         return build_idlelyrics_page(page)
     if page.kind == 'vinyl':
         return build_vinyl_page(page)
+    if page.kind == 'vu':
+        return build_vu_page(page)
     if page.kind == 'onlineart':
         return build_onlineart_page(page)
     if page.kind == 'update':

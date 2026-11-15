@@ -32,7 +32,7 @@ COMPOSE_MAX = 6000000   # instructions: the Cover record composed once into the 
 COVER_MAX = 18000000   # instructions: a track change with Cover (the tint, the ring composed, the box composed again; the black case loads vinyl_base). 16.4 M measured (tint to tint 12.4 M, to black 16.4 M: only the disc written back, the grain kept), 5.5 M of it any track change
 W, H = 320, 480
 OUT = os.path.join(ROOT, 'out', 'preview')
-LABELS = ('vn_title', 'vn_title2', 'vn_artist', 'vn_times', 'vn_status')
+LABELS = ('vn_title', 'vn_artist', 'vn_times', 'vn_status')
 K_NONE, K_CLOSE, K_PREV, K_PLAY, K_NEXT, K_RECORD = range(6)
 
 
@@ -441,7 +441,7 @@ def asset_tests(ctx):
     by = {w.name: w for w in tree.walk() if w.name}
     v = by['vinyl_view']
     expect((v.x, v.y, v.w, v.h) == (0, 0, 320, 480) and v.get('sensitive') != 'false' and v.get('visible') != 'false' and tree.children[0] is v, 'vinyl_view is the whole window, first, and takes the touches')
-    for name, field, dx in (('vn_title', 'title', 0), ('vn_title2', 'title', 1), ('vn_artist', 'artist', 0), ('vn_times', 'times', 0), ('vn_status', 'status', 0)):
+    for name, field, dx in (('vn_title', 'title', 0), ('vn_artist', 'artist', 0), ('vn_times', 'times', 0), ('vn_status', 'status', 0)):
         w = by[name]; x, y, bw, bh = A.label_box(field); t = A.TEXT[field]
         expect(w.type == 'hscroll_label' and (w.x, w.y, w.w, w.h) == (x + dx, y, bw, bh) and w.get('sensitive') == 'false' and w.get('ellipses') == 'true' and w.get('only_parent_focus') == 'true'
                and w.get('style:normal:font_size') == str(t['px']) and w.get('style:normal:text_color') == '#%02X%02X%02X' % t['rgb'], f'{name}: an insensitive, non-scrolling label with an ellipsis at {(x + dx, y, bw, bh)}, {t["px"]} px')
@@ -708,9 +708,9 @@ def theme_tests(ctx):
         key = page.key
         tree = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui/%s.bin' % key), 'rb').read())
         by = {w.name: w for w in tree.walk() if w.name}
-        cols = [by[n].get('style:normal:text_color') for n in ('vn_title', 'vn_title2', 'vn_artist', 'vn_times', 'vn_status')]
-        want = ['#%02X%02X%02X' % A.text_rgb(f, th) for f in ('title', 'title', 'artist', 'times', 'status')]
-        expect(cols == want and tree.get('fullscreen') == 'true', f'{th}: the page asset {key} has the theme\'s text colours {want}')
+        cols = [by[n].get('style:normal:text_color') for n in ('vn_title', 'vn_artist', 'vn_times', 'vn_status')]
+        want = ['#%02X%02X%02X' % A.text_rgb(f, th) for f in ('title', 'artist', 'times', 'status')]
+        expect(cols == want and 'vn_title2' not in by and by['vn_title'].get('style:normal:font_name') is None and tree.get('fullscreen') == 'true', f'{th}: the page asset {key} has the theme\'s text colours {want}')
         m = machine(cover=True, theme=k); assert m.open() == 0; opened_calls = list(m.calls); m.timers = []; m.calls_all = []; m.first(); m.calls_all += m.calls
         expect(('window_open', key) in opened_calls, f'{th}: the page opens its asset {key}')
         loaded = [u for u in m.loads if u.startswith('vinyl_') and u != 'vinyl_label']
@@ -853,7 +853,7 @@ def motion_tests(ctx):
 def text_tests(ctx):
     expect = ctx.expect
     m = opened(title='So What', artist='Miles Davis', pos=14, length=562)
-    expect(m.text_of('vn_title') == m.text_of('vn_title2') == 'So What' and m.text_of('vn_artist') == 'Miles Davis' and m.text_of('vn_times') == '0:14  -9:08', 'the title and its twin, the artist, the times')
+    expect(m.text_of('vn_title') == 'So What' and m.text_of('vn_artist') == 'Miles Davis' and m.text_of('vn_times') == '0:14  -9:08', 'the title, the artist, the times (no twin label)')
     import time as _t
     tm = _t.gmtime(m.wall + m.tz); clock = f'{tm.tm_hour:02d}:{tm.tm_min:02d}'
     expect(m.text_of('vn_status') == A.status_text(42, 'FLAC', clock) == f'VOL 42 | FLAC | {clock}', f'the status line, no battery ({m.text_of("vn_status")})')
@@ -867,6 +867,38 @@ def text_tests(ctx):
     expect(m.text_of('vn_status') == f'VOL 0 | FLAC | {clock}', 'no status bar: VOL 0')
     m.play([m.record(title='', name='track 07.mp3', path='/mnt/mmc/x/track 07.mp3', artist='')], 0); m.tick(500); m.calls_all = m.calls
     expect(m.text_of('vn_title') == 'track 07.mp3' and m.text_of('vn_artist') == '', 'a track without a title: its file name')
+    # the title's face (patch/lyrics.c ly_title_face): drawn once, in the lyrics face when every code point is in lyrics.ttf, else in the default font; the face is loaded with its gamma
+    FM, STB, TG = 0x24000000, O['STB_GET_GLYPH'], PSYMS['tg_get_glyph']
+
+    def face(m): return tuple(m.props.get((m.widgets['vn_title'], f'style:{s}:font_name')) for s in ('normal', 'disable', 'focused'))
+
+    def asked(m): return ('font_manager_get_font', FM, 'lyrics', 0) in m.calls
+    m = opened(title='So What', artist='Miles Davis')
+    expect(face(m) == ('lyrics',) * 3, 'a Latin title: the lyrics face in all three states')
+    f = m.malloc(0xd4); m.u.mem_write(f, bytes(0xd4)); m.setword(f + O['FONT_MATCH'], O['STB_MATCH']); m.setword(f + O['FONT_GET_GLYPH'], STB); m.u.mem_write(f + O['FONT_MONO'], bytes([0])); m.fm, m.font = FM, f
+    m.play([m.record(title='Kind of Blue', artist='Miles Davis')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('lyrics',) * 3 and asked(m) and m.word(f + O['FONT_GET_GLYPH']) == TG, 'a Latin title asks for the lyrics font and installs the coverage gamma on it, without Now Playing\'s lyrics code having run')
+    m.play([m.record(title='Привет мир Ελληνικά', artist='X')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('lyrics',) * 3, 'Cyrillic and Greek are in the face too')
+    m.play([m.record(title='夜に駆ける', artist='YOASOBI')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('default',) * 3 and m.text_of('vn_title') == '夜に駆ける'.encode().decode('latin-1') and not asked(m), 'a CJK title: the default font, drawn once, the lyrics face not asked for')
+    m.play([m.record(title='Hello 世界', artist='X')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('default',) * 3, 'a mixed title: the default font (AWTK takes a glyph from one font only)')
+    m.play([m.record(title='Back In Black', artist='AC/DC')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('lyrics',) * 3, 'a track change back to a Latin title switches the style back')
+    m.play([m.record(title='Back In Black', artist='AC/DC')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('lyrics',) * 3 and m.text_of('vn_title') is None, 'the same track again: nothing is set')
+    m = opened(playing=False, status=3)
+    expect(face(m) == ('lyrics',) * 3 and m.text_of('vn_title') == 'Not Playing', 'nothing playing: "Not Playing" in the lyrics face')
+    m = opened(title='So What'); m.fm, m.font = FM, 0
+    m.play([m.record(title='Kind of Blue')], 0); m.tick(500); m.calls_all = m.calls
+    expect(face(m) == ('lyrics',) * 3 and m.text_of('vn_title') == 'Kind of Blue', 'a lyrics font that cannot be loaded (none returned): the label still names it and the page works (the stock fallback draws the default font)')
+    from stb_raster import StbFont
+    ldir = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/fonts')
+    bold, reg = StbFont(os.path.join(ldir, 'lyrics.ttf')), StbFont(os.path.join(ldir, 'default.ttf'))
+    sample = 'The quick brown fox jumps over the lazy dog, ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789'
+    wb, wr = bold.width(sample, A.TEXT['title']['px']), reg.width(sample, A.TEXT['title']['px'])
+    expect(wb <= wr, f'the bold face is no wider than the default font (measured 0.94 - 0.98 of its width): {wb} px against {wr} px for a 80-character line at 22 px ({wb / wr:.3f}); the label clips by its own ellipsis at {A.TEXT["title"]["w"]} px, so the width rule holds')
     # the widest status line fits its label at 10 px with the shipped font
     from stb_raster import StbFont
     font = StbFont(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/fonts/default.ttf'))

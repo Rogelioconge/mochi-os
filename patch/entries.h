@@ -62,7 +62,7 @@ int queue_open(void); /* our Queue page; 0 once it is open, else the stock drawe
 
 /* patch/bigcover.c */
 int idle_choice(
-    void); /* Idle Display: 0 Off (stock's Cover mode byte off), 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics; read live */
+    void); /* Idle Display: 0 Off (stock's Cover mode byte off), 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics, 5 VU Meter; read live */
 int idle_set(
     int choice); /* choose it, saved (the byte through stock's save, the destination atomically); the choice or -1 */
 
@@ -83,6 +83,11 @@ int vinyl_record(void); /* the saved record colour, 0 Black (the default) .. VN_
 int vinyl_record_set(int rec); /* choose it, saved atomically; the colour or -1 */
 int vinyl_theme(void); /* the saved plinth theme, 0 Graphite (the default), 1 White */
 int vinyl_theme_set(int theme); /* choose it, saved atomically; the theme or -1 */
+
+/* patch/vupage.c (docs/modules/vu.md) */
+int vupage_open(void); /* the VU Meter page: 0 once it is up (or already open), -1 when it could not open */
+int vupage_open_idle(void); /* the same for Now Playing's idle timer (a tap on the page closes it) */
+void vupage_boot(void); /* demo starts: a level-tap mark left by an earlier run is removed */
 
 /* patch/libload.c (docs/modules/libload.md) */
 int lib_deque_swap(void *a, void *b); /* two deques' contents exchanged in place; 0 when refused (nothing changed) */

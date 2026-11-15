@@ -3,8 +3,7 @@
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
  * docs/modules/vinyl.md has the design. The page is ui/m1plus_vinyl.bin (tools/pod_ui.py build_vinyl_page): a fullscreen window (320 x 480, the stock status bar is not drawn)
- * holding one view vinyl_view (the whole window: the touch target, painted by this file in its own EVT_AFTER_PAINT) and the text as ordinary labels over it (the title, its
- * twin one pixel right for weight, the artist, the times, the status line). Like the Tape page (patch/tape.c) it has no hook, no widget per thing drawn, one page-scoped
+ * holding one view vinyl_view (the whole window: the touch target, painted by this file in its own EVT_AFTER_PAINT) and the text as ordinary labels over it (the title, the artist, the times, the status line). Like the Tape page (patch/tape.c) it has no hook, no widget per thing drawn, one page-scoped
  * timer set in place with timer_modify, and nothing at boot.
  *
  *   picture   a 320 x 480 RGBA frame this file owns, composed from tools/vinyl_art.py's layers: vinyl_base (the plinth, the record with its static grooves and sheen,
@@ -26,6 +25,7 @@
 #include "libsrc.h"
 #include "entries.h"
 #include "scrobble.h"
+#include "lyrics.h"
 
 enum { K_NONE, K_CLOSE, K_PREV, K_PLAY, K_NEXT, K_RECORD };
 
@@ -43,7 +43,7 @@ static const short vn_sin_t[91] = {
     16135, 16182, 16225, 16262, 16294, 16322, 16344, 16362, 16374, 16382, 16384};
 
 static struct {
-    void *win, *view, *title, *title2, *artist, *times, *status;
+    void *win, *view, *title, *artist, *times, *status;
     void *frame, *base, *keys, *arm, *sh, *lid, *cap, *fall,
         *cover; /* RGBA8888 bitmaps: the frame, the layers, the fallback label, the decoded cover */
     unsigned timer, ival;
@@ -634,8 +634,8 @@ static void vn_update(int force) {
         if (t && !*s) s = cc_str(t, REC_NAME);
         vn.key = key;
         vn_copy(line, sizeof line, t ? s : TR("Not Playing"));
+        ly_title_face(vn.title, line);
         widget_set_text_utf8(vn.title, line);
-        widget_set_text_utf8(vn.title2, line);
         vn_copy(line, sizeof line, t ? cc_str(t, REC_ARTIST) : "");
         widget_set_text_utf8(vn.artist, line);
         vn_format(vn.fmt, t ? cc_str(t, REC_PATH) : "");
@@ -1032,11 +1032,10 @@ int vinyl_open(void) {
     widget_on(vn.win, EVT_DESTROY, vn_on_destroy, vn.win);
     vn.view = widget_lookup(vn.win, "vinyl_view", 1);
     vn.title = widget_lookup(vn.win, "vn_title", 1);
-    vn.title2 = widget_lookup(vn.win, "vn_title2", 1);
     vn.artist = widget_lookup(vn.win, "vn_artist", 1);
     vn.times = widget_lookup(vn.win, "vn_times", 1);
     vn.status = widget_lookup(vn.win, "vn_status", 1);
-    if (vn.view && vn.title && vn.title2 && vn.artist && vn.times && vn.status) {
+    if (vn.view && vn.title && vn.artist && vn.times && vn.status) {
         unsigned *f;
         vn.base = m1_asset_rgba(vn.win, vn_names[vn.theme][0], VN_W, VN_H, 0);
         if (vn.base) vn_grain(vn.base, 0, 0, VN_W, VN_H);

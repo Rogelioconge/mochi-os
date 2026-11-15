@@ -56,7 +56,7 @@ KEY_SHEET = (286, BAND_Y[1] - BAND_Y[0])
 
 # the text: AWTK labels of the page (tools/pod_ui.py build_vinyl_page): x, the line's vertical middle, px, colour, the label's width
 TEXT = {
-    'title':  dict(x=16, y=392, px=22, rgb=(0xF4, 0xF4, 0xF6), w=280, bold=True),   # bold: a twin label 1 px right (the mock draws it twice)
+    'title':  dict(x=16, y=392, px=22, rgb=(0xF4, 0xF4, 0xF6), w=280),
     'artist': dict(x=16, y=416, px=15, rgb=(0xC8, 0xC8, 0xCE), w=280),
     'times':  dict(x=16, y=449, px=12, rgb=(0xB4, 0xB4, 0xBA), w=140),
     'status': dict(x=34, y=12, px=10, rgb=(0xBC, 0xBC, 0xC2), w=200),   # (the mock's #ACACB2 is 4.2:1 on the plinth: lifted to 4.5:1 at its lightest, the top)
@@ -641,8 +641,8 @@ def design(s, f):
 
 def text(s, out, f, status, times):
     """The page's four lines as the AWTK labels draw them (an hscroll_label that does not scroll: cut with an ellipsis to its width)."""
-    t = TEXT['title']; title = s.clip(f['title'], t['px'], t['w'])
-    for dx in ((0, 1) if t.get('bold') else (0,)): s.text(out, t['x'] + dx, t['y'], title, t['px'], T['text'].get('title', t['rgb']))
+    t = TEXT['title']; face = s.title_face(f['title']); title = s.clip(f['title'], t['px'], t['w'], face)
+    s.text(out, t['x'], t['y'], title, t['px'], T['text'].get('title', t['rgb']), font=face)   # drawn once: the lyrics face (Inter Bold) for a Latin / Greek / Cyrillic title, else the default font (patch/lyrics.c ly_title_face)
     for name, value in (('artist', f['artist']), ('times', times), ('status', status)):
         t = TEXT[name]; s.text(out, t['x'], t['y'], s.clip(value, t['px'], t['w']), t['px'], T['text'].get(name, t['rgb']))
 

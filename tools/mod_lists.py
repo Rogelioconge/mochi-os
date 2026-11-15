@@ -271,7 +271,7 @@ def edit_playmore(root, pal):
     has none, A-B repeat is no longer first, the back header has none); Playback speed's row with room for its label. Stock
     widgets keep their names, order and rectangles, but the speed row's (PM_SPEED)."""
     sv, add, first, ab = root.find('playmore_scrollview'), root.find('listitem2'), root.find('listitem4'), root.find('listitem0')
-    assert sv and add and first and ab and add in sv.children and root.find('pod_more') is None and root.find('pod_back') is None and root.find('pod_tape') is None and root.find('pod_vinyl') is None and root.find('pod_goep') is None and root.find('pod_art') is None and root.find('pod_sleep') is None and root.find('pod_mode') is None and root.find('pod_lyr') is None, 'unexpected playmore_dialog'
+    assert sv and add and first and ab and add in sv.children and root.find('pod_more') is None and root.find('pod_back') is None and root.find('pod_tape') is None and root.find('pod_vinyl') is None and root.find('pod_goep') is None and root.find('pod_art') is None and root.find('pod_sleep') is None and root.find('pod_mode') is None and root.find('pod_lyr') is None and root.find('pod_vu') is None, 'unexpected playmore_dialog'
     assert root.type == 'dialog' and root.get('highlight') is None
     root.set('highlight', PM_HIGHLIGHT)
     for name, (stock, ours) in PM_SPEED.items():
@@ -309,13 +309,16 @@ def edit_playmore(root, pal):
         awtk_ui.Widget('image', 14, 13, 24, 24, [('name', 'pod_sleep_icon'), ('draw_type', 'default'), ('image', 'pod_ic_sleep'), ('sensitive', 'false')]),
         awtk_ui.Widget('hscroll_label', 48, 15, 200, 20, [('name', 'pod_sleep_label'), ('style', 'srlabel_item_white_style')]),
         awtk_ui.Widget('image', 285, 14, 13, 22, [('name', 'pod_sleep_chev'), ('draw_type', 'default'), ('image', 'right_arrow'), ('sensitive', 'false')])])
-    row('pod_mode', [   # page 1, above More: opens the Display Mode page (Cassette Mode, Vinyl Mode, Lyrics Mode); a top hairline, the grey chevron-right of a row that opens a page
+    row('pod_mode', [   # page 1, above More: opens the Display Mode page (Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode); a top hairline, the grey chevron-right of a row that opens a page
         awtk_ui.Widget('image', 14, 13, 24, 24, [('name', 'pod_mode_icon'), ('draw_type', 'default'), ('image', 'pod_ic_mode'), ('sensitive', 'false')]),
         awtk_ui.Widget('hscroll_label', 48, 15, 200, 20, [('name', 'pod_mode_label'), ('style', 'srlabel_item_white_style')]),
         awtk_ui.Widget('image', 285, 14, 13, 22, [('name', 'pod_mode_chev'), ('draw_type', 'default'), ('image', 'right_arrow'), ('sensitive', 'false')])])
     row('pod_lyr', [   # the Display Mode page's last row: the full-screen lyrics page (patch/idlelyrics.c); the glyph is the Lucide mic-vocal (the Artists row's image); the payload dims it and takes its touches away while the track has no lyrics
         awtk_ui.Widget('image', 14, 13, 24, 24, [('name', 'pod_lyr_icon'), ('draw_type', 'default'), ('image', 'pod_ic_artists'), ('sensitive', 'false')]),
         awtk_ui.Widget('hscroll_label', 48, 15, 200, 20, [('name', 'pod_lyr_label'), ('style', 'srlabel_item_white_style')])])
+    row('pod_vu', [   # the Display Mode page, between Vinyl Mode and Lyrics Mode: the VU Meter page (patch/vupage.c); the glyph is the Lucide gauge
+        awtk_ui.Widget('image', 14, 13, 24, 24, [('name', 'pod_vu_icon'), ('draw_type', 'default'), ('image', 'pod_ic_vu'), ('sensitive', 'false')]),
+        awtk_ui.Widget('hscroll_label', 48, 15, 200, 20, [('name', 'pod_vu_label'), ('style', 'srlabel_item_white_style')])])
     assert first.get('style:normal:border') == 'top' and ab.get('style:normal:border') == 'none'
     goep.set('style:normal:border', 'none')
     first.set('style:normal:border', 'none')
@@ -389,7 +392,7 @@ def build_ui(work):
         old, new, _ = edit_ui(path, lambda root, rel=rel: ui_edit(rel, root, pal))
         shape = lambda d: [(w.type, w.name, w.x, w.y, w.w, w.h) for w in awtk_ui.parse(d).walk()]
         if rel in ADD_EDITS:
-            ours = lambda s: s[1] in ('pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', PM_GLASS) or s[1].startswith(('pod_more_', 'pod_back_', 'pod_tape_', 'pod_vinyl_', 'pod_goep_', 'pod_art_', 'pod_sleep_', 'pod_mode_', 'pod_lyr_'))
+            ours = lambda s: s[1] in ('pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', 'pod_vu', PM_GLASS) or s[1].startswith(('pod_more_', 'pod_back_', 'pod_tape_', 'pod_vinyl_', 'pod_goep_', 'pod_art_', 'pod_sleep_', 'pod_mode_', 'pod_lyr_', 'pod_vu_'))
             other = lambda s: s[:2] if s[1] in PM_SPEED else s   # the speed row's rectangles are ours (PM_SPEED)
             assert [other(s) for s in shape(new) if not ours(s)] == [other(s) for s in shape(old)], f'{rel}: a stock widget was removed, renamed or moved'
         elif rel in GEOMETRY_EDITS:

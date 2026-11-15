@@ -57,7 +57,7 @@ Other hook sites (call-site words and two-word stubs):
 
 hciplayer (`$gp` `0xb16750`, payload `0xe10000`): equalizer `af_info` `0x893808` (open slot
 `0x89381c`), rate gates `0x42ce34` / `0x42fa78`, `mcl-seteq` flag parse `0x42cd1c`, gains
-`0xb10df4`, `mpctx` `0xaf9e30`; see `PINS` in `tools/mod_player.py`. On demo's side:
+`0xb10df4`, `mpctx` `0xaf9e30` (`audio_out` at +8, its `get_delay` at +0x1c: `playing_audio_pts` `0x4300f4`); see `PINS` in `tools/mod_player.py`. On demo's side:
 `set_equalizer_value` `0x4d851c`, `equalizer_flag` `0xa05ac2`, `equalizer_mode` `0x97cb00`.
 
 ## Stock functions and data the payload calls

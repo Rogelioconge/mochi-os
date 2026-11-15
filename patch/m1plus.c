@@ -89,8 +89,8 @@ enum {
     ACT_CHGLIM = 80, /* Settings > Battery: Charge Limit, a value row opening its picker */
     ACT_CHGLIMSET = 81, /* the Charge Limit picker's rows (arg = the limit, 80 .. 100) */
     ACT_IDLE =
-        82, /* Settings > Now Playing > Idle Display: a value row (Off, Album Cover, Cassette, Vinyl) opening its picker */
-    ACT_IDLESET = 83, /* the picker's rows (arg 0 Off, 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics) */
+        82, /* Settings > Now Playing > Idle Display: a value row (Off, Album Cover, Cassette, Vinyl, Lyrics, VU Meter) opening its picker */
+    ACT_IDLESET = 83, /* the picker's rows (arg 0 Off, 1 Album Cover, 2 Cassette, 3 Vinyl, 4 Lyrics, 5 VU Meter) */
     ACT_LOCKWP = 84, /* Settings > Lock Screen > Wallpaper: our picker page (patch/lockscreen.c lkwp_open) */
     ACT_LOCKSTYLE =
         85, /* Settings > Lock Screen > Player Style: a value row (Large Cover / Mini Player) opening its picker */
@@ -812,7 +812,7 @@ static void bind_switch(void *win, unsigned i, const struct pod_row *row) {
 
 /* The values (tr keys of the stock tables where the value is stock's own, so they follow Settings > General > Language): Wi-Fi and Bluetooth On / Off (the flags the status bar reads), the EQ (Off, or the preset's name from stock's own lookup), the album order and the
  * cassette theme (ours). */
-static const char *const idle_key[5] = {"Off", "Album Cover", "Cassette", "Vinyl", "Lyrics"};
+static const char *const idle_key[6] = {"Off", "Album Cover", "Cassette", "Vinyl", "Lyrics", "VU Meter"};
 static const char *const lyrsize_key[3] = {"Small", "Medium", "Large"};
 static const char *const tape_theme_key[4] = {"Normal", "Chrome", "Metal", "Auto"};
 static const char *const record_key[VN_RECS] = {"Black", "Cover"};

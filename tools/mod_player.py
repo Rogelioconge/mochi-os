@@ -4,7 +4,7 @@ patch/peq_player.c (docs/modules/peq.md, docs/modules/stereo.md).
 
 hciplayer (/usr/bin/hciplayer, the audio daemon: MPlayer 1.3.0 modified) is pinned by SHA-256. Its final program
 header is an unused PT_NULL; pod.py's append_payload turns it into a file-backed PT_LOAD (RWX) at PLAYER_BASE holding the
-payload (patch/peq.c, patch/stereo.c and patch/peq_player.c, built with PEQ_PLAYER, non-PIC, linked at PLAYER_BASE, no .bss: per-instance
+payload (patch/peq.c, patch/stereo.c, patch/vu.c and patch/peq_player.c, built with PEQ_PLAYER, non-PIC, linked at PLAYER_BASE, no .bss: per-instance
 state is heap). Four edits, each pinned with its neighbours and the facts the C code reads:
 
   * the equalizer's af_info open slot (EQ_OPEN_SLOT, stock af_equalizer open 0x44fd14) becomes peq_open;
@@ -31,7 +31,7 @@ REL = 'usr/bin/hciplayer'
 PLAYER_SHA = 'a64503746862af3e69b57f2e06167351b30cda28479348a845be5172e083a8c6'
 PLAYER_GP = 0xb16750          # DT_PLTGOT + 0x7ff0
 PLAYER_BASE = 0xe10000        # stock's last LOAD ends at 0xe03b38
-SOURCES = ['peq.c', 'stereo.c', 'peq_player.c']
+SOURCES = ['peq.c', 'stereo.c', 'vu.c', 'peq_player.c']
 FLAGS = [*pod.FLAGS, '-mnan=2008', '-fno-math-errno', '-DPEQ_PLAYER']   # hciplayer: FP64, NaN2008 (its .MIPS.abiflags, e_flags 0x400)
 
 # The equalizer's af_info: info, name ("equalizer"), author, comment, flags, open.
@@ -109,6 +109,13 @@ PINS = (
     (0x44fe3c, 0x24420100, 'stock control: AF_CONTROL_REINIT 0x10000100'),
     (0x44fe48, 0x3c022000, 'stock control: lui 0x2000'),
     (0x44fe4c, 0x24420300, 'stock control: AF_CONTROL_COMMAND_LINE 0x20000300'),
+    (0x42686c, 0x8e060008, 'playing_audio_pts caller: lw $a2, 8($s0): mpctx->audio_out (the level tap reads the output delay from it)'),
+    (0x426878, 0x8e050034, 'playing_audio_pts caller: lw $a1, 0x34($s0): mpctx->d_audio'),
+    (0x42687c, 0x0c10c03d, 'playing_audio_pts caller: jal 0x4300f4'),
+    (0x43010c, 0x00c08825, 'playing_audio_pts: move $s1, $a2 (the audio_out)'),
+    (0x430148, 0x8e39001c, 'playing_audio_pts: lw $t9, 0x1c($s1): audio_out->get_delay'),
+    (0x430170, 0x0320f809, 'playing_audio_pts: jalr $t9 (no argument; the float seconds come back in $f0)'),
+    (0x43018c, 0x46010002, 'playing_audio_pts: mul.s $f0, $f0, $f1 (speed): the delay is a single float'),
     (0x44fddc, 0x3c024000, 'stock control: lui 0x4000'),
     (0x44fdec, 0x24431d00, 'stock control: AF_CONTROL_EQUALIZER_GAIN 0x40001d00'),
 )
@@ -121,6 +128,7 @@ LIBC = {
     'strlen': ('unsigned', 'const char *', 'strlen'), 'calloc': ('void *', 'unsigned, unsigned', 'calloc'),
     'free': ('void', 'void *', 'free'), 'fopen': ('void *', 'const char *, const char *', 'fopen64'),
     'fread': ('unsigned', 'void *, unsigned, unsigned, void *', 'fread'), 'fclose': ('int', 'void *', 'fclose'),
+    'fseek': ('int', 'void *, long, int', 'fseek'), 'fwrite': ('unsigned', 'const void *, unsigned, unsigned, void *', 'fwrite'),
     'clock_gettime': ('int', 'int, void *', 'clock_gettime'), 'strtol': ('long', 'const char *, char **, int', 'strtol'),
     'pow': ('double', 'double, double', '__pow_finite'), 'cos': ('double', 'double', 'cos'), 'sin': ('double', 'double', 'sin'),
 }
