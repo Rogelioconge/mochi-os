@@ -31,6 +31,8 @@
 #define SBA_STARRED_MAX 3000 /* tracks of getStarred2 kept (the answer is one response of at most SBN_RESPONSE_MAX) */
 #define SBA_ARTISTS_MAX 6000
 #define SBA_PLAYLISTS_MAX 500
+#define SBA_FOLDER_DIR SBA_DIR "/nd/dir" /* the Folders levels: <key>.idx */
+#define SBA_FOLDERS 64 /* music folders of getMusicFolders kept */
 #define SBA_ALBUM_TRACKS 3000 /* tracks of one getAlbum / getPlaylist kept */
 #define SBA_KEEP_BODY \
     (256u * \
@@ -201,6 +203,8 @@ static void sba_dirs(void) {
     mkdir(SBA_DIR "/al", 0755);
     mkdir(SBA_DIR "/ar", 0755);
     mkdir(SBA_DIR "/pl", 0755);
+    mkdir(SBA_DIR "/nd", 0755);
+    mkdir(SBA_FOLDER_DIR, 0755);
     mkdir(SBA_COVER_DIR, 0755);
 }
 
@@ -457,6 +461,8 @@ static void sba_cache_clear(void) {
     sba_empty_dir(SBA_DIR "/al", 1, 0);
     sba_empty_dir(SBA_DIR "/ar", 1, 0);
     sba_empty_dir(SBA_DIR "/pl", 1, 0);
+    sba_empty_dir(SBA_FOLDER_DIR, 1, 0);
+    sba_empty_dir(SBA_DIR "/nd", 1, 0);
     sba_empty_dir(SBA_COVER_DIR, 1, 0);
     sba_empty_dir(SBA_DIR, 0, 1);
     ++sba.agen;
@@ -822,13 +828,16 @@ static int sba_parse_p(const char *j, unsigned n, void *out, int max, int *err) 
     return sba_parse_playlists(j, n, (sba_playlist_t *)out, max, err);
 }
 
-/* Parse the current response as kind (rows of rowsize, at most max) and replace path with them. */
-static int sba_store(sba_wk_t *w, const char *path, unsigned kind, unsigned rowsize, int max, unsigned flags,
-                     unsigned *count) {
-    sba_parse_fn fn = kind == SBK_TRACK    ? sba_parse_t
-                      : kind == SBK_ALBUM  ? sba_parse_a
-                      : kind == SBK_ARTIST ? sba_parse_r
-                                           : sba_parse_p;
+static int sba_parse_folder_idx(const char *j, unsigned n, void *out, int max, int *err) {
+    return sba_parse_indexes(j, n, (sba_track_t *)out, max, err);
+}
+static int sba_parse_folder_dir(const char *j, unsigned n, void *out, int max, int *err) {
+    return sba_parse_dir(j, n, (sba_track_t *)out, max, err);
+}
+
+/* Parse the current response with fn (rows of rowsize, at most max) and replace path with them: nothing is written when the response does not parse (the old file stays). */
+static int sba_store_fn(sba_wk_t *w, sba_parse_fn fn, const char *path, unsigned kind, unsigned rowsize, int max,
+                        unsigned flags, unsigned *count) {
     void *rows = calloc((unsigned)max, rowsize);
     int n, err = 0, code;
     if (!rows) return SBA_MEM;
@@ -848,6 +857,46 @@ static int sba_store(sba_wk_t *w, const char *path, unsigned kind, unsigned rows
         sba_bump();
     }
     return code;
+}
+
+static int sba_store(sba_wk_t *w, const char *path, unsigned kind, unsigned rowsize, int max, unsigned flags,
+                     unsigned *count) {
+    sba_parse_fn fn = kind == SBK_TRACK    ? sba_parse_t
+                      : kind == SBK_ALBUM  ? sba_parse_a
+                      : kind == SBK_ARTIST ? sba_parse_r
+                                           : sba_parse_p;
+    return sba_store_fn(w, fn, path, kind, rowsize, max, flags, count);
+}
+
+/* A Folders level (key as in sbapi.h). The root asks getMusicFolders first: several music folders are the level's rows; one (or none) goes on to getIndexes. A music folder key is its getIndexes; any other key a getMusicDirectory. */
+static int sba_run_folder(sba_wk_t *w, const char *key) {
+    char path[SBA_PATH], extra[SBA_ID * 3 + 32];
+    int code, root = !strcmp(key, SBA_FOLDER_ROOT),
+              mf = key[0] == 'm' && key[1] == 'f' && key[2] == ':'; /* SBA_FOLDER_MF */
+    if (sba_idpath(path, sizeof path, SBA_FOLDER_DIR, key, ".idx")) return SBA_PARSE;
+    if (!root && !mf) {
+        if ((code = sba_get(w, "getMusicDirectory", key, 0)) != 0) return code;
+        return sba_store_fn(w, sba_parse_folder_dir, path, SBK_TRACK, sizeof(sba_track_t), SBA_FOLDER_MAX, 0, 0);
+    }
+    extra[0] = 0;
+    if (mf) {
+        unsigned o = (unsigned)snprintf(extra, sizeof extra, "&musicFolderId=");
+        if (!(o = m1_urlenc(extra, sizeof extra, o, key + 3))) return SBA_PARSE;
+    } else {
+        sba_track_t *folders = calloc(SBA_FOLDERS, sizeof *folders);
+        int n = 0, err = 0;
+        if (!folders) return SBA_MEM;
+        code = sba_get(w, "getMusicFolders", 0, 0);
+        if (!code && (n = sba_parse_folders(w->sink->data, w->sink->used, folders, SBA_FOLDERS, &err)) < 0)
+            code = err ? err : SBA_PARSE;
+        if (!code && n > 1 && !(code = sba_stop(w)) &&
+            !(code = sba_wlist(path, SBK_TRACK, sizeof *folders, 0, folders, (unsigned)n)))
+            sba_bump();
+        free(folders);
+        if (code || n > 1) return code;
+    }
+    if ((code = sba_get(w, "getIndexes", 0, extra[0] ? extra : 0)) != 0) return code;
+    return sba_store_fn(w, sba_parse_folder_idx, path, SBK_TRACK, sizeof(sba_track_t), SBA_FOLDER_MAX, 0, 0);
 }
 
 /* The library's signature, the sync's own totals (no extra request): the track count, the seconds, the album count and the newest album's creation time, mixed (never 0). Phase 2 fills the library again when it changes. */
@@ -1234,6 +1283,8 @@ static int sba_run(sba_wk_t *w, sba_slot_t *s) {
         return artist ? sba_store(w, path, SBK_ALBUM, sizeof(sba_album_t), SBA_ALBUM_TRACKS, 0, 0)
                       : sba_store(w, path, SBK_TRACK, sizeof(sba_track_t), SBA_ALBUM_TRACKS, 0, 0);
     }
+    case SBA_K_FOLDER:
+        return sba_run_folder(w, s->id);
     case SBA_K_SONGS:
         return sba_run_songs(w, s->arg);
     case SBA_K_SEARCH:
@@ -2013,6 +2064,7 @@ int sba_fetch_album(const char *id) { return id && id[0] ? sba_ask(SBA_K_ALBUM, 
 int sba_fetch_artist(const char *id) { return id && id[0] ? sba_ask(SBA_K_ARTIST, id, 0, 0, 0) : SBA_NOTFOUND; }
 int sba_fetch_playlist(const char *id) { return id && id[0] ? sba_ask(SBA_K_PLAYLIST, id, 0, 0, 0) : SBA_NOTFOUND; }
 int sba_fetch_songs(unsigned offset) { return sba_ask(SBA_K_SONGS, "", offset, 0, 0); }
+int sba_fetch_folder(const char *key) { return key && key[0] ? sba_ask(SBA_K_FOLDER, key, 0, 0, 0) : SBA_NOTFOUND; }
 int sba_scrobble(const char *id) { return id && id[0] ? sba_ask(SBA_K_SCROBBLE, id, 0, 0, 0) : SBA_NOTFOUND; }
 int sba_search(const char *term) { return term && term[0] ? sba_ask(SBA_K_SEARCH, "", 0, term, 0) : SBA_PARSE; }
 int sba_search_is(const char *term) { return term && sba.search_done == sba_fnv(term); }
@@ -2413,6 +2465,13 @@ int sba_artist_albums(const char *id, sba_albums_t *out) {
     } while (got && from < total);
     free(chunk);
     return out->n;
+}
+
+int sba_folder_rows(const char *key, sba_tracks_t *out) {
+    char path[SBA_PATH];
+    out->n = 0, out->v = (sba_track_t *)0;
+    if (!key || sba_idpath(path, sizeof path, SBA_FOLDER_DIR, key, ".idx")) return 0;
+    return sba_tracks_at(path, SBA_FOLDER_MAX, out);
 }
 
 int sba_playlist_tracks(const char *id, sba_tracks_t *out) {

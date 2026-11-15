@@ -150,6 +150,9 @@ int bp_codec_set(
 int nd_root_open(void); /* the Navidrome root page; -1 when it did not open */
 void nd_synced_line(char *out, unsigned size); /* "Synced 5m ago" / "Synced just now" / "Not synced yet" */
 
+/* patch/ndfolders.c */
+int nd_folders_open(void); /* the Subsonic Folders browser (the root's Folders row); -1 when it did not open */
+
 /* patch/ndserver.c */
 int nd_server_open(void);
 void nd_sync_now(void); /* asks first, then syncs */

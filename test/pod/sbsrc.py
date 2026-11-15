@@ -153,7 +153,7 @@ def big_songs(m, n, flags=0):
     for i in range(n):
         ident = f'{i:08x}-1111-2222-3333-{i:012x}'
         out += struct.pack(SA.TRACK, ident.encode(), f'Track number {i} of the album'.encode(), b'The Example Quartet', b'An Album With A Fairly Long Name', b'al-' + ident.encode(), f'mf-{ident}_66aa11bb'.encode(), b'flac',
-                           200 + i % 100, i % 20 + 1, 1, 2000, 30000000, 900, 44100, 16, 1700000000, 0)
+                           200 + i % 100, i % 20 + 1, 1, 2000, 30000000, 900, 44100, 16, 1700000000, 0, 0)
     m.put(f'{ND}/songs.idx', bytes(out))
 
 

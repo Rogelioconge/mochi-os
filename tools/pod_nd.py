@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The asset of the Navidrome root page (patch/ndroot.c, docs/modules/subsonic.md ND-11): the stock navbar (Back, the "..." capsule's left cap on the 214 slot, then Now Playing's
-right cap; the hidden Search button is the capsule's left cap on the 168 slot while a server is saved) over a stock list holding one column: the large title, a grey status line under it (a 14 px glyph, nd_st_icon / the spinner nd_st_spin, then "Synced 5m ago"), six menu rows (Albums, Artists, Songs, Playlists,
+right cap; the hidden Search button is the capsule's left cap on the 168 slot while a server is saved) over a stock list holding one column: the large title, a grey status line under it (a 14 px glyph, nd_st_icon / the spinner nd_st_spin, then "Synced 5m ago"), seven menu rows (Albums, Artists, Songs, Playlists, Folders,
 Favorites, Downloaded: the Main Menu rows' look, a 24 px glyph, the 21 px label, the shared chevron, a hairline) and a grey footer (nd_foot: "2431 songs", the library's footer) under them. The "..." card is the shared view-sort card
 with two action rows, Sync Now and Server Settings (patch/ndroot.c; vs_item6 / vs_item7). Hidden over the list, the shared empty state of a page with no server
 saved (the Find Cover & Lyrics block: tools/pod_ui.py OA_ES_*): a plug, "Not Connected", one sentence and the Add Server pill, and its own copy of the large title. The rows are named pod_row0..5
@@ -23,7 +23,7 @@ HAIR_RGB = '#222222'          # patch/offsets.inc LIST_HAIR
 STATUS_PX = 15
 GREY = SUB_RGB            # the empty state's sentence: the secondary grey (tools/pod_ui.py SUB_RGB)
 ROW_GREY = SUB_RGB        # the status line: the grey must pass the build's 4.5:1 check on black (tools/mod_theme.py)
-ROWS = (('Albums', 'pod_ic_albums'), ('Artists', 'pod_ic_artists'), ('Songs', 'pod_ic_songs'), ('Playlists', 'pod_ic_playlists'), ('Favorites', 'pod_ic_fav'), ('Downloaded', 'pod_sb_download'))
+ROWS = (('Albums', 'pod_ic_albums'), ('Artists', 'pod_ic_artists'), ('Songs', 'pod_ic_songs'), ('Playlists', 'pod_ic_playlists'), ('Folders', 'pod_ic_folders'), ('Favorites', 'pod_ic_fav'), ('Downloaded', 'pod_sb_download'))
 
 
 def column():
@@ -107,4 +107,36 @@ def build(page):
     root.children.append(dl)
     scrim, card = view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=('Sync Now', 'Server Settings'), act_glyphs=('pod_ic_vsrefresh', 'pod_ic_vsserver'))
     root.children.extend((scrim, card))   # last: above everything (the "..." card; vs_bind offers the two action rows, Server Settings alone with no server saved)
+    return root
+
+
+def build_folders(page):
+    """The Folders browser (patch/ndfolders.c, docs/modules/subsonic.md "Folders"): the local Folders page's look (tools/pod_ui.py build_folders_page) over the Artists page's index: the glass navbar with Back, the
+    small title and Now Playing's disc (no "..."), a stock list holding one content view that paints the rows, the large title and the hidden Play / Shuffle pills in it, the A-Z letters and rail beside it, the
+    state line and the loading spinner, the row "..." sheet last."""
+    from pod_ui import (Widget, styled, large_title, navbar, stock_list, nav_fade, hidden, sg_pill, row_menu, azlist_labels, azlist_rail, wf_image, label, style_labels, room_y,
+                        SG_PILL_PRESS_RGB, OFFSETS, SCREEN_W, GRID_VIEW_H, HINT_RGB, WF_SPIN_PX, LIST_TITLE_PX, INK_RGB)
+    o = OFFSETS
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
+    nb = navbar(page.title)
+    nb.children[0].set('visible', 'false')   # the small title: the payload shows it once the large title has scrolled away
+    root.children.append(nb)
+    lv = stock_list([], True)
+    lv.set('name', 'nf_listview')
+    sv = lv.children[0]
+    sv.set('name', 'nf_scrollview')
+    grid = Widget('view', 0, 0, SCREEN_W, GRID_VIEW_H, [('name', 'view_grid')])
+    styled(grid, ('normal',), 'bg_color', '#000000')
+    grid.children = [large_title('nf_title', page.title), hidden(sg_pill('btn_play', o['SG_PILL_X0'], o['SG_PILL_Y'], 'Play', 'sg_play', down=SG_PILL_PRESS_RGB)),
+                     hidden(sg_pill('btn_shuffle', o['SG_PILL_X1'], o['SG_PILL_Y'], 'Shuffle', 'sg_shuffle', down=SG_PILL_PRESS_RGB))]
+    sv.children.append(grid)
+    root.children.append(lv)
+    root.children.append(nav_fade(shown=False))   # patch/ndfolders.c shows it while yoffset > 0
+    root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
+    root.children.append(hidden(wf_image('nf_spin', (SCREEN_W - WF_SPIN_PX) // 2, room_y(WF_SPIN_PX), WF_SPIN_PX, WF_SPIN_PX, 'wf_spin0', 'default')))   # ls_spin under the large title
+    root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB),))
+    root.children.extend(azlist_labels())
+    root.children.extend(azlist_rail())
+    root.children.extend(row_menu())   # last: above everything (the song rows' "..." sheet, patch/rowmenu.c)
     return root

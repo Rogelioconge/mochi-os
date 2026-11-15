@@ -27,7 +27,7 @@
 #define SBA_MAX_ALBUMS 20000 /* a library with more albums or artists is cut here (sba_summary says so) */
 #define SBA_MAX_TRACKS 50000 /* the Songs list's cap (paged search3) */
 #define SBA_DIR \
-    "/mnt/mmc/.m1plus/subsonic" /* the cache: albums.idx, artists.idx, playlists.idx, starred.idx (tracks), songs.idx, search.idx, search-al.idx, search-ar.idx, al/<id>.idx, ar/<id>.idx, pl/<id>.idx, covers/, sync.txt, bg.txt, songs.part; dl.idx is the download manifest (sbdl.c), not cache */
+    "/mnt/mmc/.m1plus/subsonic" /* the cache: albums.idx, artists.idx, playlists.idx, starred.idx (tracks), songs.idx, search.idx, search-al.idx, search-ar.idx, al/<id>.idx, ar/<id>.idx, pl/<id>.idx, nd/dir/<key>.idx (Folders levels), covers/, sync.txt, bg.txt, songs.part; dl.idx is the download manifest (sbdl.c), not cache */
 #define SBA_COVER_DIR \
     SBA_DIR \
     "/covers" /* Navidrome covers only (never Cover Flow's own folder): <hash of the coverArt id>-168.jpg, the Cover Flow cache file format; an empty file = the server has no art */
@@ -83,6 +83,8 @@ typedef struct {
     unsigned bit_depth; /* 0 unknown */
     unsigned created; /* seconds since the epoch, 0 unknown */
     unsigned char starred; /* in the server's favourites (getStarred2, star / unstar) */
+    unsigned char
+        dir; /* 1 = a directory row of a Folders level (id, title, cover; `album` = the index letter it sat under at the root); 0 everywhere else. Fits the struct's padding: the row size is unchanged */
 } sba_track_t;
 
 typedef struct {
@@ -173,7 +175,8 @@ enum {
     SBA_K_SEARCH, /* the last search3; `id` ignored */
     SBA_K_COVER, /* id = the coverArt id */
     SBA_K_STAR, /* id = the track */
-    SBA_K_SCROBBLE /* id = the track; no status record (nobody waits for it) */
+    SBA_K_SCROBBLE, /* id = the track; no status record (nobody waits for it) */
+    SBA_K_FOLDER /* id = a Folders level key (SBA_FOLDER_ROOT, SBA_FOLDER_MF + a music folder id, or a directory id) */
 };
 
 unsigned sba_gen(
@@ -227,6 +230,19 @@ unsigned sba_bg_gen(void); /* moves with every step of phase 2 (the root page re
 int sba_fetch_album(const char *id); /* getAlbum: al/<id>.idx */
 int sba_fetch_artist(const char *id); /* getArtist: ar/<id>.idx (the artist's albums) */
 int sba_fetch_playlist(const char *id); /* getPlaylist: pl/<id>.idx */
+/* ---- Folders (docs/modules/subsonic.md "Folders"): the server's own tree. A level is named by a KEY: SBA_FOLDER_ROOT for the top, SBA_FOLDER_MF + the music folder's id for the index of one of several music folders, else a
+ * directory's id. A level's file is nd/dir/<key>.idx (rows of sba_track_t, `dir` set for a directory, in the server's order; a song row is read exactly like any other list's). Rows of a directory level hold the ids to pass back as keys
+ * (a music folder row's id already starts with SBA_FOLDER_MF). The root: one music folder (or none listed) gives its getIndexes entries (letter in `album`, then the shortcuts the index lacks, then the loose songs); several give the
+ * music folders as rows. A failed refresh keeps the file; sba_state(SBA_K_FOLDER, key). */
+#define SBA_FOLDER_ROOT "/"
+#define SBA_FOLDER_MF "mf:"
+#define SBA_FOLDER_MAX 6000 /* rows of a level kept */
+int sba_fetch_folder(
+    const char *
+        key); /* refresh the level in the background: the guard, SBA_OK queued (a repeat of a queued key is one request) */
+int sba_folder_rows(
+    const char *key,
+    sba_tracks_t *out); /* the cached rows (heap, sba_free_tracks; hearts applied), 0 when never cached */
 int sba_fetch_songs(
     unsigned
         offset); /* search3 with an empty query, SBA_SONG_PAGE songs from offset, appended to songs.idx; offset 0 starts the list again */
@@ -386,6 +402,15 @@ int sba_parse_albums(const char *json, unsigned n, sba_album_t *out, int max,
 int sba_parse_artists(const char *json, unsigned n, sba_artist_t *out, int max,
                       int *err); /* getArtists (index[].artist[] flattened), search3 and getStarred2 artist[] */
 int sba_parse_playlists(const char *json, unsigned n, sba_playlist_t *out, int max, int *err); /* getPlaylists */
+int sba_parse_folders(const char *json, unsigned n, sba_track_t *out, int max,
+                      int *err); /* getMusicFolders: dir rows, id = SBA_FOLDER_MF + the folder's id */
+int sba_parse_indexes(
+    const char *json, unsigned n, sba_track_t *out, int max,
+    int *
+        err); /* getIndexes: index[].artist[] as dir rows (letter in `album`), shortcut[] the index lacks, child[] songs */
+int sba_parse_dir(
+    const char *json, unsigned n, sba_track_t *out, int max,
+    int *err); /* getMusicDirectory: child[] in the server's order, isDir true = dir row, else a song row */
 int sba_parse_ping(
     const char *json, unsigned n,
     int *

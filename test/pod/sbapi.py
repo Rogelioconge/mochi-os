@@ -1,5 +1,5 @@
 """The Navidrome data layer (patch/sbapi.c, patch/sbapi.h, docs/modules/subsonic.md "Cache and requests"): the conf file, the guard, the cache files on the card, the metadata worker (one detached
-thread, a small request queue, a generation counter, a status record) and every request it makes, against a scripted libcurl. The parsers are patch/sbparse.c's (real), so the fixtures are real Subsonic JSON. Sections: conf, guard, cache, worker, sync, songs, star, cover, play, urls, bg, big (everything, or `sbapi/<section>`)."""
+thread, a small request queue, a generation counter, a status record) and every request it makes, against a scripted libcurl. The parsers are patch/sbparse.c's (real), so the fixtures are real Subsonic JSON. Sections: conf, guard, cache, worker, sync, songs, folders, star, cover, play, urls, bg, big (everything, or `sbapi/<section>`)."""
 import hashlib, json, os, re, struct
 from urllib.parse import parse_qs, urlparse
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
@@ -10,10 +10,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PCN = sibling('pcnet')   # the card machine and scripted libcurl the podcast network tests use
 CONF, ND, COVERS, CA = '/mnt/mmc/.m1plus/subsonic.conf', '/mnt/mmc/.m1plus/subsonic', '/mnt/mmc/.m1plus/subsonic/covers', '/etc/m1plus-cacert.pem'
 R = dict(OK=0, NOCONF=1, NOWIFI=2, NOCLOCK=3, NOCERT=4, CERT=5, NET=6, AUTH=7, NOTFOUND=8, HTTP=9, PARSE=10, STORAGE=11, MEM=12, QFULL=13, CARDFULL=14, NOTAUDIO=15, WRITE=16, CANCELLED=17)
-K = dict(PING=0, SYNC=1, ALBUM=2, ARTIST=3, PLAYLIST=4, SONGS=5, SEARCH=6, COVER=7, STAR=8, SCROBBLE=9)
+K = dict(PING=0, SYNC=1, ALBUM=2, ARTIST=3, PLAYLIST=4, SONGS=5, SEARCH=6, COVER=7, STAR=8, SCROBBLE=9, FOLDER=10)
 ST = dict(NONE=0, LOAD=1, OK=2, FAIL=3)
 KIND = dict(track=1, album=2, artist=3, playlist=4)
-TRACK = '<64s192s192s192s64s64s12s9IB3x'      # sba_track_t
+TRACK = '<64s192s192s192s64s64s12s9I2B2x'      # sba_track_t
 ALBUM = '<64s192s192s64s64s4IB3x'             # sba_album_t
 ARTIST = '<64s192s64sIB3x'                    # sba_artist_t
 PLAYLIST = '<64s192s64s2I'                    # sba_playlist_t
@@ -46,7 +46,7 @@ fnv = fnv_plain   # (sbsrc and ndflow read it as SA.fnv)
 
 def row(kind, **kw):
     """A cache row as the payload's struct lays it out (strings and numbers by member name; the rest zero)."""
-    names = dict(track=('id', 'title', 'artist', 'album', 'album_id', 'cover', 'suffix', 'seconds', 'track', 'disc', 'year', 'size', 'bitrate', 'sample_rate', 'bit_depth', 'created', 'starred'),
+    names = dict(track=('id', 'title', 'artist', 'album', 'album_id', 'cover', 'suffix', 'seconds', 'track', 'disc', 'year', 'size', 'bitrate', 'sample_rate', 'bit_depth', 'created', 'starred', 'dir'),
                  album=('id', 'name', 'artist', 'artist_id', 'cover', 'year', 'songs', 'seconds', 'created', 'starred'),
                  artist=('id', 'name', 'cover', 'albums', 'starred'), playlist=('id', 'name', 'cover', 'songs', 'seconds'))[kind]
     out, i = [], 0
@@ -254,7 +254,7 @@ def conf(ctx):
     expect(call(m3, 'sba_configured') == 1 and call(m3, 'sba_conf_user_set', 'u') == 0, 'a trailing newline is tolerated and the password is the rest of the line')
     # a changed server drops the cache, the manifest stays; Sign Out drops everything but the music manifest
     m = machine()
-    for p in ('albums.idx', 'songs.idx', 'al/x.idx', 'ar/y.idx', 'pl/z.idx', 'covers/00000001-168.jpg', 'sync.txt'):
+    for p in ('albums.idx', 'songs.idx', 'al/x.idx', 'ar/y.idx', 'pl/z.idx', 'nd/dir/d1.idx', 'covers/00000001-168.jpg', 'sync.txt'):
         m.put(f'{ND}/{p}', b'x')
     m.put(f'{ND}/dl.idx', b'manifest')
     call(m, 'sba_conf_password_set', 'other')
@@ -629,6 +629,110 @@ def songs(ctx):
     expect(call(m, 'sba_fetch_album', '') == R['NOTFOUND'], 'an empty id is refused')
 
 
+def folders(ctx):
+    """The Folders levels (docs/modules/subsonic.md "Folders"): getMusicFolders / getIndexes / getMusicDirectory into nd/dir/<key>.idx, read back, refreshed, kept on a failure, gone on Sign Out."""
+    expect = ctx.expect
+    DIR = f'{ND}/nd/dir'
+
+    def path(key): return f'{DIR}/{key}.idx' if key.isalnum() else f'{DIR}/x{fnv(key):08x}.idx'
+
+    def fetch(m, key, site=None): return run_one(m, 'sba_fetch_folder', key, site=site)
+
+    def rows(m, key): return read_rows(m, path(key), 'track')
+
+    def level(m, key):
+        out = m.alloc(8)
+        n = call(m, 'sba_folder_rows', key, out)
+        got = [unrow('track', bytes(m.u.mem_read(m.word(out + 4) + i * struct.calcsize(TRACK), struct.calcsize(TRACK)))) for i in range(n)]
+        call(m, 'sba_free_tracks', out)
+        return got
+    here = os.path.dirname(os.path.abspath(__file__))
+
+    def load(name):
+        with open(os.path.join(os.path.dirname(here), 'data', 'navidrome', name), 'rb') as f:
+            return f.read()
+    # Navidrome (real answers): one music folder, so the root is its getIndexes
+    site = Site(getMusicFolders={'body': load('folders-musicfolders.json')}, getIndexes={'body': load('folders-indexes.json')})
+    m = machine(site=site)
+    g0 = gen(m)
+    expect(call(m, 'sba_folder_rows', '/', m.alloc(8)) == 0, 'a level never cached: 0 rows')
+    fetch(m, '/')
+    expect(site.views() == ['getMusicFolders', 'getIndexes'] and 'musicFolderId' not in site.query(1), f'root, one music folder: getMusicFolders then a plain getIndexes ({site.views()})')
+    r = rows(m, '/')
+    expect(r is not None and len(r) == 26 and r[0][0] == '33X3V2Xn7Cip7WqqfXNkL8' and r[0][1] == '2 Mello' and r[0][3] == '#' and r[1][3] == 'B' and all(x[-1] == 1 for x in r),
+           f'nd/dir/<hashed "/">.idx holds the index entries in the server order as dir rows (letter in album): {r and r[:2]}')
+    expect(state(m, K['FOLDER'], '/') == (ST['OK'], 0) and gen(m) != g0 and level(m, '/') == r, 'the status is OK, the generation moved, sba_folder_rows returns the same rows')
+    # a directory level, songs and directories
+    site.routes['getMusicDirectory'] = {'body': load('folders-dir-album.json')}
+    fetch(m, '6qVa68sKTKahAuJabPcGQu')
+    q = site.query(-1)
+    r = rows(m, '6qVa68sKTKahAuJabPcGQu')
+    expect(site.views()[-1] == 'getMusicDirectory' and q['id'] == '6qVa68sKTKahAuJabPcGQu' and [x[1] for x in r] == ['Intro', 'Public Chrono Announcement (Jay-Z vs. Chrono Trigger Mashup)', 'An Encore in Time (Jay-Z vs. Chrono Trigger Mashup)']
+           and r[0][6] == 'mp3' and r[0][7] == 20 and all(x[-1] == 0 for x in r), 'getMusicDirectory?id=: the songs as song rows in nd/dir/<id>.idx')
+    expect(state(m, K['FOLDER'], '6qVa68sKTKahAuJabPcGQu') == (ST['OK'], 0), 'each level has its own status')
+    # Gonic style: several music folders, a mixed directory
+    mixed = ok_json(directory={'id': 'd1', 'name': 'Album', 'child': [{'id': 'd1-cd1', 'isDir': True, 'title': 'CD1', 'coverArt': 'al-9'}, {'id': 'tr-1', 'isDir': False, 'title': 'Intro', 'suffix': 'flac'},
+                                                                 {'id': 'd1-x', 'isDir': True, 'title': 'Scans'}, {'id': 'tr-2', 'isDir': False, 'title': 'Outro', 'suffix': 'dsf'}]})
+    two = ok_json(musicFolders={'musicFolder': [{'id': 1, 'name': 'Music'}, {'id': 2, 'name': 'Books'}]})
+    site = Site(getMusicFolders={'body': two}, getIndexes=lambda url, o: {'body': ok_json(indexes={'index': [{'name': 'A', 'artist': [{'id': 'ar-1', 'name': 'ABBA'}]}], 'child': [{'id': 'tr-7', 'isDir': False, 'title': 'Loose', 'suffix': 'mp3'}]})},
+                getMusicDirectory={'body': mixed})
+    m = machine(site=site)
+    fetch(m, '/')
+    r = rows(m, '/')
+    expect(site.views() == ['getMusicFolders'] and [(x[0], x[1], x[-1]) for x in r] == [('mf:1', 'Music', 1), ('mf:2', 'Books', 1)], f'several music folders: the root level is the folders and nothing else is asked: {site.views()} {r}')
+    fetch(m, 'mf:2')
+    q = site.query(-1)
+    r = rows(m, 'mf:2')
+    expect(site.views()[-1] == 'getIndexes' and q['musicFolderId'] == '2' and [(x[0], x[-1]) for x in r] == [('ar-1', 1), ('tr-7', 0)] and state(m, K['FOLDER'], 'mf:2') == (ST['OK'], 0),
+           'a music folder key asks getIndexes with musicFolderId; the loose root song is a song row after the artists')
+    fetch(m, 'd1')
+    r = rows(m, 'd1')
+    expect([(x[0], x[-1]) for x in r] == [('d1-cd1', 1), ('tr-1', 0), ('d1-x', 1), ('tr-2', 0)] and r[0][5] == 'al-9' and r[3][6] == 'dsf', 'a mixed directory is stored in the server order')
+    expect([x[0] for x in level(m, 'd1')] == ['d1-cd1', 'tr-1', 'd1-x', 'tr-2'], 'sba_folder_rows reads it back in the same order')
+    # a refresh replaces the file; a failed one keeps it
+    site.routes['getMusicDirectory'] = {'body': ok_json(directory={'id': 'd1', 'child': [{'id': 'tr-9', 'isDir': False, 'title': 'New', 'suffix': 'flac'}]})}
+    g0 = gen(m)
+    fetch(m, 'd1')
+    expect([x[0] for x in rows(m, 'd1')] == ['tr-9'] and gen(m) != g0, 'a refresh replaces the level and moves the generation')
+    before = m.fs[path('d1')]
+    for why, reply, want in (('Subsonic 70', {'body': err_json(70)}, 'NOTFOUND'), ('a web page', {'body': b'<html>502</html>'}, 'PARSE'), ('HTTP 500', {'rc': 22, 'code': 500}, 'HTTP'), ('no answer', {'rc': 7}, 'NET'),
+                             ('a truncated answer', {'body': mixed[:len(mixed) // 2]}, 'PARSE')):
+        site.routes['getMusicDirectory'] = reply
+        fetch(m, 'd1')
+        expect(state(m, K['FOLDER'], 'd1') == (ST['FAIL'], R[want]) and m.fs[path('d1')] == before and not [p for p in m.fs if p.endswith('.tmp')],
+               f'a refresh that fails ({why}): SBA_{want}, the cached level and its rows stay, no temporary file left')
+    site.routes['getMusicDirectory'] = {'body': ok_json(directory={'id': 'd1'})}
+    fetch(m, 'd1')
+    expect(rows(m, 'd1') == [] and state(m, K['FOLDER'], 'd1')[0] == ST['OK'], 'an emptied directory is an empty cached level (OK, not a failure)')
+    # a failed first fetch leaves nothing; a failed root (getMusicFolders) keeps the old root
+    site.routes['getMusicFolders'] = {'rc': 7}
+    fetch(m, '/')
+    expect(state(m, K['FOLDER'], '/') == (ST['FAIL'], R['NET']) and rows(m, '/') is not None and len(rows(m, '/')) == 2, 'a failed root refresh keeps the old root')
+    site.routes['getMusicDirectory'] = {'rc': 7}
+    fetch(m, 'neverseen')
+    expect(path('neverseen') not in m.fs and level(m, 'neverseen') == [], 'a failed first fetch caches nothing')
+    # the page's calls: guards at once (offline reads the cache), repeats are one request, a bad key
+    m.wifi = -1
+    r, th = ask(m, 'sba_fetch_folder', 'd1')
+    expect(r == R['NOWIFI'] and th is None and len(level(m, '/')) == 2 and state(m, K['FOLDER'], 'd1')[0] != ST['LOAD'], 'offline: the ask is refused at once with SBA_NOWIFI and the cached level still reads')
+    m.wifi = 3
+    r1, th = ask(m, 'sba_fetch_folder', 'd1')
+    r2, th2 = ask(m, 'sba_fetch_folder', 'd1')
+    expect(r1 == 0 and r2 == 0 and th and th2 is None and state(m, K['FOLDER'], 'd1')[0] == ST['LOAD'], 'asking for a level already queued is one request (status LOAD meanwhile)')
+    drain(m, th)
+    expect(call(m, 'sba_fetch_folder', '') == R['NOTFOUND'], 'an empty key is refused')
+    # Sign Out and a changed server clear nd/dir with the rest of the cache
+    m.put(f'{ND}/dl.idx', b'manifest')
+    expect(path('d1') in m.fs and f'{ND}/nd' in m.dirs, 'the levels are on the card before Sign Out')
+    call(m, 'sba_conf_user_set', 'bob')
+    expect(not [p for p in m.fs if p.startswith(f'{ND}/nd')] and f'{DIR}' not in m.dirs and f'{ND}/dl.idx' in m.fs, 'another user empties nd/dir (the manifest stays)')
+    m.put(f'{ND}/albums.idx', b'x')
+    site.routes['getMusicFolders'] = {'body': two}
+    fetch(m, '/')
+    expect(path('/') in m.fs, 'a level is fetched again after the clear (the folders are made anew)')
+    expect(call(m, 'sba_conf_clear') == 0 and not [p for p in m.fs if p.startswith(f'{ND}/nd')] and f'{ND}/albums.idx' not in m.fs and f'{ND}/nd' not in m.dirs, 'Sign Out removes nd/dir and nd')
+
+
 def star(ctx):
     expect = ctx.expect
     site = Site(star={'body': ok_json()}, unstar={'body': ok_json()})
@@ -638,13 +742,13 @@ def star(ctx):
     seed(m, f'{ND}/search.idx', 'track', [dict(id='t1', title='One')])
     t = m.alloc(struct.calcsize(TRACK))
     m.u.mem_write(t, row('track', id='t1', title='One', album_id='al1'))
-    flag = lambda p, i=0: read_rows(m, p, 'track')[i][-1]
+    flag = lambda p, i=0: read_rows(m, p, 'track')[i][-2]
     pending = lambda: call(m, 'sba_star_pending', 't1')
     out = m.alloc(8)
 
     def songs_flag(i=1):
         n = call(m, 'sba_songs', out)
-        v = struct.unpack(TRACK, bytes(m.u.mem_read(m.word(out + 4) + i * struct.calcsize(TRACK), struct.calcsize(TRACK))))[-1]
+        v = struct.unpack(TRACK, bytes(m.u.mem_read(m.word(out + 4) + i * struct.calcsize(TRACK), struct.calcsize(TRACK))))[-2]
         call(m, 'sba_free_tracks', out)
         return v if n > i else None
     before = bytes(m.fs[f'{ND}/songs.idx'])
@@ -706,7 +810,7 @@ def star(ctx):
     ask(m, 'sba_star', t, 1)
     expect(call(m, 'sba_star_pending', 't1') == 1, 'queued: the overlay holds the star')
     call(m, 'sba_cancel')
-    expect(call(m, 'sba_star_pending', 't1') == -1 and read_rows(m, f'{ND}/songs.idx', 'track')[0][-1] == 0 and f'{ND}/starred.idx' not in m.fs,
+    expect(call(m, 'sba_star_pending', 't1') == -1 and read_rows(m, f'{ND}/songs.idx', 'track')[0][-2] == 0 and f'{ND}/starred.idx' not in m.fs,
            'a star dropped by sba_cancel is taken back (the overlay goes; no file was written)')
     # two stars of one id in flight: the overlay shows the latest wish until the last one is done
     m = machine(site=Site(star={'body': ok_json()}, unstar={'body': ok_json()}))
@@ -717,7 +821,7 @@ def star(ctx):
     r2, th2 = ask(m, 'sba_star', t, 0)
     expect(call(m, 'sba_star_pending', 't1') == 0, 'two stars in flight: the latest wish shows')
     drain(m, th1)
-    expect(read_rows(m, f'{ND}/songs.idx', 'track')[0][-1] == 0 and read_rows(m, f'{ND}/starred.idx', 'track') == [] and call(m, 'sba_star_pending', 't1') == -1,
+    expect(read_rows(m, f'{ND}/songs.idx', 'track')[0][-2] == 0 and read_rows(m, f'{ND}/starred.idx', 'track') == [] and call(m, 'sba_star_pending', 't1') == -1,
            'the worker ran both in order: star then unstar, the file is off, the overlay gone')
 
 
@@ -1471,9 +1575,9 @@ def bg(ctx):
     holder['m'] = m
     bg_run(m)
     rows = read_rows(m, f'{ND}/songs.idx', 'track')
-    flags = {r[0]: r[-1] for r in rows}
+    flags = {r[0]: r[-2] for r in rows}
     expect(holder.get('star') == 0 and flags['a0-t0'] == 1 and sum(flags.values()) == 1 and 'star' in site.views(), 'the star is in the replaced songs.idx (and in the album file derived after it), sent to the server')
-    expect([r[-1] for r in read_rows(m, f'{ND}/al/a0.idx', 'track') if r[0] == 'a0-t0'] == [1], 'and in the derived album file')
+    expect([r[-2] for r in read_rows(m, f'{ND}/al/a0.idx', 'track') if r[0] == 'a0-t0'] == [1], 'and in the derived album file')
 
     # a reboot in the middle of the derive: the new run reads bg.txt, asks the server for nothing and derives from the album it stopped at
     site, songs, ids = bg_lib()
@@ -1575,14 +1679,14 @@ def hearts(ctx):
 
     def flags(fn='sba_album_tracks', *args):
         n = call(m, fn, *args, out) if fn == 'sba_album_tracks' else call(m, fn, out)
-        r = [struct.unpack(TRACK, bytes(m.u.mem_read(m.word(out + 4) + i * size, size)))[-1] for i in range(max(n, 0))]
+        r = [struct.unpack(TRACK, bytes(m.u.mem_read(m.word(out + 4) + i * size, size)))[-2] for i in range(max(n, 0))]
         call(m, 'sba_free_tracks', out)
         return r
 
     def window():
         buf = m.alloc(4 * size)
         n = call(m, 'sba_songs_window', 0, 4, buf)
-        return [struct.unpack(TRACK, bytes(m.u.mem_read(buf + i * size, size)))[-1] for i in range(n)]
+        return [struct.unpack(TRACK, bytes(m.u.mem_read(buf + i * size, size)))[-2] for i in range(n)]
     expect(flags('sba_album_tracks', 'al1') == [0, 1, 0, 1] and window() == [0, 1, 0, 1], 'no starred.idx (no sync yet): the files\' own flags stand, in an album and in the Songs window')
     m.put(f'{ND}/starred.idx', cache_file('track', [row('track', id='t0', starred=1), row('track', id='t2', starred=1)]))
     expect(flags('sba_album_tracks', 'al1') == [0, 1, 0, 1], 'a starred.idx the worker did not commit (no counter move) is not read again: the set is the one of before')
@@ -1656,7 +1760,7 @@ def hearts(ctx):
            'an unstar cancelled during its request is not reverted (starred.idx stays without the track), the overlay is released and the status cleared')
 
 
-SECTIONS = [conf, guard, cache, trial, worker, sync, songs, star, hearts, cover, play, urls, bg, big]
+SECTIONS = [conf, guard, cache, trial, worker, sync, songs, folders, star, hearts, cover, play, urls, bg, big]
 
 
 def run(ctx):

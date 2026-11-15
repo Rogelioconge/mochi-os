@@ -408,3 +408,132 @@ int sba_parse_playlists(const char *json, unsigned n, sba_playlist_t *out, int m
         if (sp_playlist(&out[count], o, oe)) ++count;
     return count;
 }
+
+/* ---- folders (getMusicFolders, getIndexes, getMusicDirectory): rows of one kind, sba_track_t, with dir set for a directory ---- */
+
+static int sp_same(const char *a, const char *b) {
+    while (*a && *a == *b) ++a, ++b;
+    return *a == *b;
+}
+
+/* A directory entry as a row: id, name (title, else name), coverArt; `section` is the index letter the entry sat under ("" when none). */
+static int sp_dir(sba_track_t *t, const char *o, const char *e, const char *section) {
+    sp_zero(t, sizeof *t);
+    if (!sp_id(t->id, o, e, "id")) return 0;
+    sp_text(t->title, SBA_TEXT, o, e, "title");
+    if (!t->title[0]) sp_text(t->title, SBA_TEXT, o, e, "name");
+    sp_id(t->cover, o, e, "coverArt");
+    t->starred = sp_flag(o, e, "starred");
+    t->dir = 1;
+    if (section) sp_copy(t->album, section);
+    return 1;
+}
+
+/* A child of a directory: a directory (isDir true) or a song, which is read exactly like the songs of every other list. */
+static int sp_child(sba_track_t *t, const char *o, const char *e) {
+    if (sbn_bool(o, e, "isDir")) return sp_dir(t, o, e, 0);
+    return sp_track(t, o, e, 0);
+}
+
+int sba_parse_folders(const char *json, unsigned n, sba_track_t *out, int max, int *err) {
+    const char *end, *resp, *head = 0, *o, *oe;
+    sp_it_t it;
+    int count = 0, r;
+    if (!(resp = sp_open(json, n, &end, err))) return -1;
+    if (err) *err = SBA_OK;
+    r = sp_find(resp, end, "musicFolders", "musicFolder", &it, &head);
+    if (r < 0) {
+        if (err) *err = SBA_PARSE;
+        return -1;
+    }
+    if (r == 0 || !out || max <= 0) return 0;
+    while (count < max && sp_next(&it, &o, &oe)) {
+        sba_track_t *t = &out[count];
+        char raw[SBA_ID];
+        sp_zero(t, sizeof *t);
+        if (!sp_id(raw, o, oe, "id") || sbn_len(raw) + 3 >= SBA_ID) continue;
+        sp_copy(t->id, SBA_FOLDER_MF);
+        sp_copy(t->id + 3, raw);
+        sp_text(t->title, SBA_TEXT, o, oe, "name");
+        t->dir = 1;
+        ++count;
+    }
+    return count;
+}
+
+int sba_parse_indexes(const char *json, unsigned n, sba_track_t *out, int max, int *err) {
+    const char *end, *resp, *head = 0, *o, *oe, *arr;
+    sp_it_t it, in;
+    int count = 0, r, first, q;
+    if (!(resp = sp_open(json, n, &end, err))) return -1;
+    if (err) *err = SBA_OK;
+    if (!out || max <= 0) return 0;
+    r = sp_find(resp, end, "indexes", "index", &it, &head);
+    if (r < 0) {
+        if (err) *err = SBA_PARSE;
+        return -1;
+    }
+    if (r > 0) { /* index[] of letters, each with artist[] */
+        while (count < max && sp_next(&it, &o, &oe)) {
+            char section[SBA_TEXT];
+            sp_text(section, SBA_TEXT, o, oe, "name");
+            q = sbn_array_member(o, oe, "artist", &arr);
+            if (q < 0) {
+                if (err) *err = SBA_PARSE;
+                return -1;
+            }
+            if (q == 0) continue;
+            in.p = arr;
+            in.end = oe;
+            while (count < max && sp_next(&in, &o, &oe))
+                if (sp_dir(&out[count], o, oe, section)) ++count;
+        }
+    }
+    if (!head) return count;
+    first = count;
+    q = sbn_array_member(head, end, "shortcut",
+                         &arr); /* shortcuts repeat an artist of the index: only the ones it lacks are added */
+    if (q < 0) {
+        if (err) *err = SBA_PARSE;
+        return -1;
+    }
+    if (q > 0) {
+        in.p = arr;
+        in.end = end;
+        while (count < max && sp_next(&in, &o, &oe)) {
+            int i, dup = 0;
+            if (!sp_dir(&out[count], o, oe, 0)) continue;
+            for (i = 0; i < first && !dup; ++i) dup = sp_same(out[i].id, out[count].id);
+            if (!dup) ++count;
+        }
+    }
+    q = sbn_array_member(head, end, "child", &arr); /* loose songs of the root */
+    if (q < 0) {
+        if (err) *err = SBA_PARSE;
+        return -1;
+    }
+    if (q > 0) {
+        in.p = arr;
+        in.end = end;
+        while (count < max && sp_next(&in, &o, &oe))
+            if (sp_child(&out[count], o, oe)) ++count;
+    }
+    return count;
+}
+
+int sba_parse_dir(const char *json, unsigned n, sba_track_t *out, int max, int *err) {
+    const char *end, *resp, *head = 0, *o, *oe;
+    sp_it_t it;
+    int count = 0, r;
+    if (!(resp = sp_open(json, n, &end, err))) return -1;
+    if (err) *err = SBA_OK;
+    r = sp_find(resp, end, "directory", "child", &it, &head);
+    if (r < 0) {
+        if (err) *err = SBA_PARSE;
+        return -1;
+    }
+    if (r == 0 || !out || max <= 0) return 0;
+    while (count < max && sp_next(&it, &o, &oe))
+        if (sp_child(&out[count], o, oe)) ++count;
+    return count;
+}

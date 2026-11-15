@@ -236,6 +236,7 @@ static int sbn_member_mode(const char *obj, const char *end, const char *key, ch
             }
             if (*p == 'n' || *p == 't' || *p == 'f') {
                 if (out && cap) out[0] = 0;
+                if (truncate_text == 2 && *p == 't' && num) *num = 1; /* sbn_bool */
                 return 1;
             }
             return 0;
@@ -253,6 +254,12 @@ static int sbn_member_mode(const char *obj, const char *end, const char *key, ch
 
 int sbn_member(const char *obj, const char *end, const char *key, char *out, unsigned cap, unsigned *num) {
     return sbn_member_mode(obj, end, key, out, cap, num, 0);
+}
+
+int sbn_bool(const char *obj, const char *end, const char *key) {
+    unsigned v = 0;
+    char c[2];
+    return sbn_member_mode(obj, end, key, c, sizeof c, &v, 2) == 1 && v == 1;
 }
 
 int sbn_member_truncate(const char *obj, const char *end, const char *key, char *out, unsigned cap) {

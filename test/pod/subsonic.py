@@ -1,5 +1,5 @@
 """Navidrome/Subsonic network helpers (patch/sbnet.c) and the response parsers (patch/sbparse.c)."""
-import json, struct
+import json, os, struct
 from harness import *  # noqa: F401,F403
 
 REGION, SIZE = 0x30000000, 0x40000
@@ -29,7 +29,7 @@ def parser_tests(ctx):
 
 # patch/sbparse.c: the struct layouts of patch/sbapi.h (o32, little endian): text arrays then 32-bit counters, then the flag byte, padded to 4
 ID, TXT = 64, 192
-TRACK = (ID + TXT * 3 + ID + ID + 12 + 9 * 4 + 1 + 3)
+TRACK = (ID + TXT * 3 + ID + ID + 12 + 9 * 4 + 2 + 2)   # ..., starred, dir, 2 bytes of padding
 ALBUM = (ID + TXT + TXT + ID + ID + 4 * 4 + 1 + 3)
 ARTIST = (ID + TXT + ID + 4 + 1 + 3)
 PLAYLIST = (ID + TXT + ID + 2 * 4)
@@ -77,6 +77,12 @@ class Parser:
 
     def playlists(self, body, mx=100): return self.run('sba_parse_playlists', body, PLAYLIST, mx)
 
+    def folders(self, body, mx=100): return self.run('sba_parse_folders', body, TRACK, mx)
+
+    def indexes(self, body, mx=100): return self.run('sba_parse_indexes', body, TRACK, mx)
+
+    def dir(self, body, mx=100): return self.run('sba_parse_dir', body, TRACK, mx)
+
 
 def track_at(raw, i):
     r = raw[i * TRACK:(i + 1) * TRACK]
@@ -85,7 +91,7 @@ def track_at(raw, i):
     return dict(id=cstr(r, 0, ID), title=cstr(r, ID, TXT), artist=cstr(r, ID + TXT, TXT), album=cstr(r, ID + TXT * 2, TXT),
                 album_id=cstr(r, ID + TXT * 3, ID), cover=cstr(r, ID + TXT * 3 + ID, ID), suffix=cstr(r, ID + TXT * 3 + ID * 2, 12),
                 seconds=nums[0], track=nums[1], disc=nums[2], year=nums[3], size=nums[4], bitrate=nums[5], rate=nums[6], depth=nums[7],
-                created=nums[8], starred=r[o + 36])
+                created=nums[8], starred=r[o + 36], dir=r[o + 37])
 
 
 def parse(ctx):
@@ -243,4 +249,84 @@ def parse(ctx):
     expect(n == 300 and track_at(raw, 299)['id'] == 'id299', f'a page of 300 songs ({len(big)} bytes) parses in full')
 
 
-SECTIONS = [parser_tests, parse]   # tools/check.py runs each as its own task
+DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'navidrome')
+
+
+def fixture(name):
+    with open(os.path.join(DATA, name), 'rb') as f:
+        return f.read()
+
+
+def folders_parse(ctx):
+    """patch/sbparse.c Folders parsers: getMusicFolders, getIndexes, getMusicDirectory (docs/modules/subsonic.md "Folders")."""
+    expect = ctx.expect
+    P = Parser()
+    # the public Navidrome demo (real answers)
+    n, err, raw = P.folders(fixture('folders-musicfolders.json'))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect(n == 1 and err == ERR_OK and t[0]['id'] == 'mf:1' and t[0]['title'] == 'Music Library' and t[0]['dir'] == 1, f'Navidrome getMusicFolders: a numeric id becomes mf:<id>: {t}')
+    n, err, raw = P.indexes(fixture('folders-indexes.json'))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    names = [r['title'] for r in t]
+    expect(n == 26 and err == ERR_OK and names[0] == '2 Mello' and names[1:5] == ['Back On Earth', 'Binaerpilot', 'Brad Sucks', 'Brock Berrigan'] and 'The Knife' in names,
+           f'Navidrome getIndexes: artists flattened in the server order (not re-sorted): {n} {names[:6]}')
+    expect(all(r['dir'] == 1 and r['id'] for r in t) and t[0]['cover'].startswith('ar-33X3V2Xn7Cip7WqqfXNkL8') and t[0]['starred'] == 1 and t[0]['album'] == '#' and t[1]['album'] == 'B' and t[names.index('The Knife')]['album'] == 'K',
+           'index rows are dir rows with their coverArt and the index letter the server filed them under ("The Knife" sits under K)')
+    n, err, raw = P.dir(fixture('folders-dir-artist.json'))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect(n == 1 and t[0]['dir'] == 1 and t[0]['title'] == 'Chrono Jigga' and t[0]['id'] == '6qVa68sKTKahAuJabPcGQu' and t[0]['cover'].startswith('al-') and t[0]['starred'] == 1,
+           f'Navidrome artist level: an album child (isDir true) is a dir row with title, cover and star: {t}')
+    n, err, raw = P.dir(fixture('folders-dir-album.json'))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect(n == 3 and all(r['dir'] == 0 for r in t) and t[0]['title'] == 'Intro' and t[0]['id'] == '0xeB5VXHxD6BpHc3YHxgNR' and t[0]['suffix'] == 'mp3' and t[0]['seconds'] == 20
+           and t[0]['track'] == 1 and t[0]['album'] == 'Chrono Jigga' and t[0]['album_id'] == '6qVa68sKTKahAuJabPcGQu' and t[0]['cover'].startswith('mf-') and t[0]['size'] == 1492672
+           and t[0]['bitrate'] == 320, f'Navidrome album level: songs read like every song list (isDir false): {t[0]}')
+    # a Gonic-style server: real nested directories, several music folders, a loose song at the root
+    n, err, raw = P.folders(resp({"musicFolders": {"musicFolder": [{"id": 1, "name": "Music"}, {"id": "2", "name": "Audiobooks 音"}, {"name": "no id"}]}}))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect(n == 2 and [r['id'] for r in t] == ['mf:1', 'mf:2'] and t[1]['title'] == 'Audiobooks 音' and all(r['dir'] for r in t), f'several music folders: rows in order, id-less skipped: {t}')
+    n, err, raw = P.folders(resp({"musicFolders": {}}))
+    expect(n == 0 and err == ERR_OK, 'no music folders listed: zero rows')
+    idx = {"indexes": {"ignoredArticles": "", "lastModified": 1, "shortcut": [{"id": "ar-1", "name": "ABBA"}, {"id": "ar-9", "name": "Favourite"}],
+                       "index": [{"name": "A", "artist": [{"id": "ar-1", "name": "ABBA"}, {"id": "ar-2", "name": "Air"}]}, {"name": "B", "artist": [{"id": "ar-3", "name": "Bjork"}]}],
+                       "child": [{"id": "tr-77", "parent": "root", "isDir": False, "title": "Loose Song", "suffix": "flac", "duration": 61, "path": "loose.flac"},
+                                 {"id": "dir-5", "isDir": True, "title": "Misc"}]}}
+    n, err, raw = P.indexes(resp(idx))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect([(r['id'], r['dir']) for r in t] == [('ar-1', 1), ('ar-2', 1), ('ar-3', 1), ('ar-9', 1), ('tr-77', 0), ('dir-5', 1)],
+           f'getIndexes: index entries, then the shortcuts the index lacks (ABBA is not repeated), then the loose root children: {[(r["id"], r["dir"]) for r in t]}')
+    expect(t[0]['album'] == 'A' and t[2]['album'] == 'B' and t[3]['album'] == '' and t[4]['title'] == 'Loose Song' and t[4]['suffix'] == 'flac' and t[4]['seconds'] == 61,
+           'index letters ride in `album` (a shortcut has none); the loose song is a song row')
+    n, err, raw = P.indexes(resp(idx), mx=2)
+    expect(n == 2, 'getIndexes honours the row cap')
+    n, err, raw = P.indexes(resp({"indexes": {}}))
+    expect(n == 0 and err == ERR_OK, 'an empty getIndexes is zero rows')
+    n, err, raw = P.indexes(resp({"indexes": {"child": [{"id": "t1", "isDir": False, "title": "Only"}]}}))
+    expect(n == 1 and track_at(raw, 0)['title'] == 'Only', 'getIndexes with only loose songs')
+    # a directory holding both sub-directories and songs: the server's order is kept
+    d = {"directory": {"id": "d1", "parent": "root", "name": "Album", "child": [
+        {"id": "d1-cd1", "parent": "d1", "isDir": True, "title": "CD1", "coverArt": "al-cd1"},
+        {"id": "tr-1", "parent": "d1", "isDir": False, "title": "Intro", "suffix": "FLAC", "albumId": "al-1", "artist": "X", "track": 1},
+        {"id": "d1-scans", "parent": "d1", "isDir": True, "title": "Scans"},
+        {"id": "tr-2", "parent": "d1", "isDir": False, "title": "Outro", "contentType": "audio/x-dsf", "starred": "2024-01-01T00:00:00Z"},
+        {"title": "no id"}, {"id": "d1-name", "isDir": True, "name": "Named only"}]}}
+    n, err, raw = P.dir(resp(d))
+    t = [track_at(raw, i) for i in range(max(n, 0))]
+    expect([(r['id'], r['dir'], r['title']) for r in t] == [('d1-cd1', 1, 'CD1'), ('tr-1', 0, 'Intro'), ('d1-scans', 1, 'Scans'), ('tr-2', 0, 'Outro'), ('d1-name', 1, 'Named only')],
+           f'a mixed directory keeps the server order; dirs and songs by isDir; a name stands in for a missing title: {[(r["id"], r["dir"]) for r in t]}')
+    expect(t[0]['cover'] == 'al-cd1' and t[1]['suffix'] == 'flac' and t[1]['album_id'] == 'al-1' and t[1]['artist'] == 'X' and t[3]['suffix'] == 'dsf' and t[3]['starred'] == 1 and t[1]['starred'] == 0,
+           'a song child keeps suffix (lower case), album id, artist, DSD contentType and star like any song row')
+    n, err, raw = P.dir(resp({"directory": {"id": "e", "name": "Empty"}}))
+    expect(n == 0 and err == ERR_OK, 'an empty directory is zero rows, not an error')
+    n, err, raw = P.dir(resp(d), mx=2)
+    expect(n == 2, 'getMusicDirectory honours the row cap')
+    # a string isDir or a missing flag is a song (only the JSON literal true makes a directory)
+    n, err, raw = P.dir(resp({"directory": {"child": [{"id": "a", "title": "A", "isDir": "true"}, {"id": "b", "title": "B"}, {"id": "c", "title": "C", "isDir": None}]}}))
+    expect(n == 3 and [track_at(raw, i)['dir'] for i in range(3)] == [0, 0, 0], 'isDir other than true is a song')
+    fail = lambda code: resp({"error": {"code": code, "message": "x"}}, status='failed')
+    for fn in (P.folders, P.indexes, P.dir):
+        res = [fn(fail(40))[:2], fn(fail(70))[:2], fn(b'<html>502</html>')[:2], fn(resp(d)[:60])[:2]]
+        expect(res == [(-1, ERR_AUTH), (-1, ERR_NOTFOUND), (-1, ERR_PARSE), (-1, ERR_PARSE)], f'{fn.__name__}: errors and truncated bodies are refused whole: {res}')
+
+
+SECTIONS = [parser_tests, parse, folders_parse]   # tools/check.py runs each as its own task

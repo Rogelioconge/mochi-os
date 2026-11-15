@@ -3254,6 +3254,8 @@ def build_page(page):
         import pod_ndserver; return pod_ndserver.build(page)
     if page.kind == 'ndroot':
         import pod_nd; return pod_nd.build(page)
+    if page.kind == 'ndfolders':
+        import pod_nd; return pod_nd.build_folders(page)
     if page.kind == 'album':
         return build_album_page(page)
     if page.kind == 'queue':

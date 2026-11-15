@@ -50,3 +50,8 @@ const char *sbs_cover_url(char *out, unsigned key);
 /* The cover keys of a list of tracks for a mosaic (the Playlists page, a playlist's header): the first four distinct cover files among the first PL_SCAN tracks, as sbs_cover_url keys, into key (4). src->cover is
  * asked for each track's album (the files that are missing are fetched). *miss (NULL ok) is set when a cover was asked for and is not there yet. The number of keys. */
 int sbs_mosaic_keys(const lib_src_t *src, void *list, unsigned *key, int *miss);
+
+/* A Folders level by key (patch/sbapi.h SBA_FOLDER_*; NULL or "" = the root) as records, the list(LS_FOLDERS) rows: directories (type 4, REC_TITLE the name, REC_ALBUM the root index letter, cover in the row's data) and songs (type 8, as every track list);
+ * the caller destroys the deque; NULL when the level is not cached or empty. Asks the server for a refresh once a run. sbs_folder_state: LS_ST_* of the level (LOADING, FAILED, OFFLINE, READY). */
+void *sbs_folder_list(const char *key);
+int sbs_folder_state(const char *key);

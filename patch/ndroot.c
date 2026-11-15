@@ -3,12 +3,12 @@
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
  * Opened by the menu row Subsonic (patch/m1plus.c ACT_SUBSONIC). With a server saved the page is the large title, a grey status line under it (a 14 px glyph, then "Synced 5m ago": the check circle
- * when connected, the spinner and "Syncing..." while a sync runs, the unplugged plug and the same line when offline, "Not Connected" when the server does not answer), six menu rows (Albums, Artists, Songs,
- * Playlists, Favorites, Downloaded: each opens the library's own page on lib_nd) and the library's grey footer under them ("2431 songs", nothing before the first sync). The large title scrolls away and the navbar's small
+ * when connected, the spinner and "Syncing..." while a sync runs, the unplugged plug and the same line when offline, "Not Connected" when the server does not answer), seven menu rows (Albums, Artists, Songs,
+ * Playlists, Folders, Favorites, Downloaded: each opens the library's own page on lib_nd) and the library's grey footer under them ("2431 songs", nothing before the first sync). The large title scrolls away and the navbar's small
  * title fades in (m1_title_gone, as on every large-title page). The navbar's Search button (btn_search, the capsule's left cap at NAV_CF_X, the Songs page's place: shown with a server saved when lib_nd has
  * LS_CAP_SEARCH) opens the library's search on the source (search_open_src). The navbar's "..." (btn_more) opens the shared view-sort card with two action rows: Sync Now (slot VS_SEARCH; inactive while a sync runs, the Wi-Fi toast
  * when there is none) and Server Settings (slot VS_SELECT; the Server page, as the Add Server pill). With none saved the list is hidden and the shared empty state shows: a plug, "Not Connected", one
- * sentence, the Add Server pill and, under it, a Downloaded pill (the card's downloads stay reachable); the card then holds Server Settings alone. The page's asset is tools/pod_nd.py (window m1plus_ndroot: rows pod_row0..5,
+ * sentence, the Add Server pill and, under it, a Downloaded pill (the card's downloads stay reachable); the card then holds Server Settings alone. The page's asset is tools/pod_nd.py (window m1plus_ndroot: rows pod_row0..6,
  * the status line nd_status with nd_st_icon / nd_st_spin, nd_foot, nd_es_*).
  *
  * Opening asks for a sync when the cache is older than a quarter of an hour (sba_sync_auto; nothing without Wi-Fi). The page only READS the status record: a 500 ms timer re-reads it when
@@ -33,9 +33,9 @@
 
 #define NR_TICK_MS 500
 #define NR_FORCE_TICKS 8 /* the Wi-Fi state is read again every 4 s */
-#define NR_ROWS 6
+#define NR_ROWS 7
 
-enum { NR_ALBUMS, NR_ARTISTS, NR_SONGS, NR_PLAYLISTS, NR_FAVORITES, NR_DOWNLOADED };
+enum { NR_ALBUMS, NR_ARTISTS, NR_SONGS, NR_PLAYLISTS, NR_FOLDERS, NR_FAVORITES, NR_DOWNLOADED };
 enum { NR_CONNECTED, NR_OFFLINE, NR_NOT_CONNECTED, NR_SYNCING }; /* the status line's glyph */
 
 static struct {
@@ -242,6 +242,9 @@ static int nr_on_row(void *ctx, void *e) {
         break;
     case NR_PLAYLISTS:
         playlists_open_src(&lib_nd);
+        break;
+    case NR_FOLDERS:
+        nd_folders_open();
         break;
     case NR_FAVORITES:
         songs_open_src(&lib_nd, LS_FAVORITES, TR("Favorites"));

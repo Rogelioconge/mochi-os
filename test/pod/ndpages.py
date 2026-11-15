@@ -7,7 +7,7 @@ the room its text needs), each field row opening the Sign In page (tools/pod_nds
 the page going back on a good answer and showing the reason under the card on a bad one (wrong password, no answer, certificate, clock, no Wi-Fi, an unwritable conf), a typed character ending a wait, Sync Now (confirm first, then the sync; nothing without a server or on a
 No), Sign Out (confirm first, then the conf and the cache go, the downloaded music and its manifest stay), the strings in 13 languages, and the page's life (one open, destroy clears).
 
-Section `root` (task ND-11): the root page (patch/ndroot.c, tools/pod_nd.py): the built asset (the large title, the grey status line under it with its glyph and spinner, the six rows, the footer, the navbar's "..." on the 214 slot and its card, the hidden
+Section `root` (task ND-11): the root page (patch/ndroot.c, tools/pod_nd.py): the built asset (the large title, the grey status line under it with its glyph and spinner, the seven rows, the footer, the navbar's "..." on the 214 slot and its card, the hidden
 empty state, the page last in the table), the large title's collapse on both pages (the small title from SG_COLLAPSE, the fade while scrolled), the "..." card (Sync Now, Server Settings), each row's open (the library pages' openers trapped: albums_open_src, artists_open_src, songs_open_src, playlists_open_src), the card's Server Settings row and the Add Server pill
 opening the Server page (nd_server_open), the status line per state (the glyph and "Synced 5m ago", Syncing... with the spinner, offline, Not Connected, "Not synced yet"), the footer's count, the empty state with no server saved
 (list hidden, no sync asked), Downloaded with the Wi-Fi off, the sync asked on open (only when due), the page's refresh on the status record's counter, its life, the menu entry and the strings in 13 languages."""
@@ -583,15 +583,16 @@ def page_touch(ctx):
     miss = touch_misses(m, ui('m1plus_ndserver'), nav + tuple(f'pod_row{i}' for i in range(5)))   # noqa: F821
     expect(not miss, f'the Server page: Back, Now Playing and the five rows take their touches ({miss})')
     m = root_opened(fresh=True)
-    rows = tuple(f'pod_row{i}' for i in range(6))
-    miss = touch_misses(m, ui('m1plus_ndroot'), nav + ('btn_more', 'btn_search') + rows)   # noqa: F821
-    expect(not miss, f'the root page with a server: the navbar buttons and the six rows take their touches ({miss})')
+    rows = tuple(f'pod_row{i}' for i in range(7))
+    miss = touch_misses(m, ui('m1plus_ndroot'), nav + ('btn_more', 'btn_search') + rows[:6])   # noqa: F821
+    expect(not miss, f'the root page with a server: the navbar buttons and the first six rows take their touches ({miss})')
+    expect(50 + pod_nd.BIG_H + 6 * pod_nd.ROW_H + pod_nd.ROW_H // 2 > 450, 'the seventh row (Downloaded) starts below the fold at rest: it takes its touch once the list is scrolled')   # noqa: F821
     hid = touch_misses(m, ui('m1plus_ndroot'), ('nd_es_pill', 'nd_es_dl'))   # noqa: F821
     expect(len(hid) == 2, f'and the empty state\'s pills, hidden, take none ({hid})')
     m = root_opened(conf=False)
     miss = touch_misses(m, ui('m1plus_ndroot'), nav + ('btn_more', 'nd_es_pill', 'nd_es_dl'))   # noqa: F821
     hid = touch_misses(m, ui('m1plus_ndroot'), ('btn_search',) + rows)   # noqa: F821
-    expect(not miss and len(hid) == 7, f'the root page with no server: Back, Now Playing, "..." and the two pills take theirs ({miss}); Search and the rows under the empty state take none ({hid})')
+    expect(not miss and len(hid) == 8, f'the root page with no server: Back, Now Playing, "..." and the two pills take theirs ({miss}); Search and the rows under the empty state take none ({hid})')
 
 
 def server_login(ctx):
@@ -761,13 +762,13 @@ def server(ctx):
     for f in (server_asset, server_rows, server_collapse, server_login, server_signin, server_actions, server_sync, server_strings): f(ctx)
 
 
-ROOT_LABELS = ('Albums', 'Artists', 'Songs', 'Playlists', 'Favorites', 'Downloaded')
-ROOT_NAMES = ('btn_return', 'btn_backtoplayer', 'btn_more', 'btn_search', 'nd_list', 'nd_status', 'nd_st_icon', 'nd_st_spin', 'nd_foot', 'pod_scrollview', 'label_title', 'img_nb_fade', 'vs_scrim', 'vs_card', 'vs_hair', 'nd_es_big', 'nd_es_icon', 'nd_es_title', 'nd_es_text', 'nd_es_pill', 'nd_es_dl') + tuple(f'pod_row{i}' for i in range(6)) + tuple(f'vs_item{i}' for i in range(8)) + tuple(f'vs_label{i}' for i in range(8)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_glyph{i}' for i in range(4, 8))
-ROOT_KEYS = ('Downloading 1 song', 'Downloading %d songs', '1 download waiting', '%d downloads waiting', 'Subsonic', 'Albums', 'Artists', 'Songs', 'Playlists', 'Favorites', 'Downloaded', 'Not Connected', 'Syncing…', 'Updating library… %d/%d', 'Loading covers… %d/%d', 'Loading artist images… %d/%d', 'Synced %s', 'Synced just now', 'Not synced yet', '%d song', '%d songs', 'Sync Now', 'Server Settings',
+ROOT_LABELS = ('Albums', 'Artists', 'Songs', 'Playlists', 'Folders', 'Favorites', 'Downloaded')
+ROOT_NAMES = ('btn_return', 'btn_backtoplayer', 'btn_more', 'btn_search', 'nd_list', 'nd_status', 'nd_st_icon', 'nd_st_spin', 'nd_foot', 'pod_scrollview', 'label_title', 'img_nb_fade', 'vs_scrim', 'vs_card', 'vs_hair', 'nd_es_big', 'nd_es_icon', 'nd_es_title', 'nd_es_text', 'nd_es_pill', 'nd_es_dl') + tuple(f'pod_row{i}' for i in range(7)) + tuple(f'vs_item{i}' for i in range(8)) + tuple(f'vs_label{i}' for i in range(8)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_glyph{i}' for i in range(4, 8))
+ROOT_KEYS = ('Downloading 1 song', 'Downloading %d songs', '1 download waiting', '%d downloads waiting', 'Subsonic', 'Albums', 'Artists', 'Songs', 'Playlists', 'Folders', 'Favorites', 'Downloaded', 'Not Connected', 'Syncing…', 'Updating library… %d/%d', 'Loading covers… %d/%d', 'Loading artist images… %d/%d', 'Synced %s', 'Synced just now', 'Not synced yet', '%d song', '%d songs', 'Sync Now', 'Server Settings',
              'Navidrome, Gonic, Airsonic and other Subsonic servers', 'Add Server', 'Just now', '%dm ago', '%dh ago', '%dd ago')
 F_CAPS = 48   # lib_src_t.caps (test/pod/sbsrc.py F_CAPS)
 LS = dict(ALBUMS=0, ARTISTS=1, SONGS=2, PLAYLISTS=3, FAVORITES=4, DOWNLOADED=5)
-OPENERS = ('albums_open_src', 'artists_open_src', 'songs_open_src', 'playlists_open_src', 'nd_server_open', 'nd_signin_open', 'search_open_src')
+OPENERS = ('albums_open_src', 'artists_open_src', 'songs_open_src', 'playlists_open_src', 'nd_folders_open', 'nd_server_open', 'nd_signin_open', 'search_open_src')
 
 
 def trap(m, names=OPENERS):
@@ -878,13 +879,13 @@ def root_asset(ctx):
     sv = f('pod_scrollview')
     expect(sv is not None and f('img_nb_fade').get('visible') == 'false' and f('img_nb_fade').get('sensitive') == 'false', 'the scroll view is there and the fade under the bar starts hidden')
     expect(all(f(n) is not None for n in ROOT_NAMES), 'every widget the payload looks up is in the asset')
-    expect(f('nd_host') is None and f('nd_footer') is None and f('nd_value') is None and f('pod_row6') is None and f('pod_label6') is None and f('nd_gap') is None,
+    expect(f('nd_host') is None and f('nd_footer') is None and f('nd_value') is None and f('pod_row7') is None and f('pod_label7') is None and f('nd_gap') is None,
            'no Server row, no gap, no host line, no footer: the status line is the only text under the title')
     col, end = pod_nd.column()
     ys = {w.name: w.y for w in tree.walk() if w.name in {n for n, _, _ in col}}
     expect(all(ys[n] == y for n, y, _ in col) and end <= 400 + 120, f'the column the layouter stacks: {[(n, y) for n, y, _ in col]}')
     rows = [(n, y, h) for n, y, h in col if n.startswith('pod_row')]
-    expect([r[2] for r in rows] == [52] * 6 and rows[0][1] == pod_nd.BIG_H and end == pod_nd.BIG_H + 6 * 52 + pod_nd.FOOT_H and pod_nd.FOOT_H == O['SG_FOOT_H'] + 12, 'the top item (the title and the status line) then six menu rows, 52 px high, and the footer\'s item (SG_FOOT_H and 12 px)')
+    expect([r[2] for r in rows] == [52] * 7 and rows[0][1] == pod_nd.BIG_H and end == pod_nd.BIG_H + 7 * 52 + pod_nd.FOOT_H and pod_nd.FOOT_H == O['SG_FOOT_H'] + 12, 'the top item (the title and the status line) then seven menu rows, 52 px high, and the footer\'s item (SG_FOOT_H and 12 px)')
     expect(end - 400 >= O['SG_COLLAPSE'], f'the column ({end} px) is longer than the list (400 px) by at least the collapse offset: the page scrolls far enough for the title to go')
     big = f('nd_big')
     expect(big.get('tr_text') == 'Subsonic' and big.x == O['SG_TITLE_X'] and big.w == O['SG_TITLE_W'] and big.h == O['PP_TITLE_H'] and big.get('style:normal:font_size') == str(O['PP_TITLE_PX']), 'the large title: the shared heading')
@@ -905,7 +906,7 @@ def root_asset(ctx):
            and f('vs_glyph6').get('image') == 'pod_ic_vsrefresh' and f('vs_glyph7').get('image') == 'pod_ic_vsserver' and f('vs_item8') is None,
            'the "..." card: hidden, two action rows (Sync Now with refresh-cw, Server Settings with server)')
     expect(f('nd_es_big').get('tr_text') == 'Subsonic' and f('nd_es_big').y == 50, 'the empty state has its own large title at the list\'s top')
-    icons = ['pod_ic_albums', 'pod_ic_artists', 'pod_ic_songs', 'pod_ic_playlists', 'pod_ic_fav', 'pod_sb_download']
+    icons = ['pod_ic_albums', 'pod_ic_artists', 'pod_ic_songs', 'pod_ic_playlists', 'pod_ic_folders', 'pod_ic_fav', 'pod_sb_download']
     for i, lab in enumerate(ROOT_LABELS):
         row, l, ic, ch = f(f'pod_row{i}'), f(f'pod_label{i}'), f(f'pod_icon{i}'), f(f'pod_chev{i}')
         expect(l.get('tr_text') == lab and l.x == 56 and ic.get('image') == icons[i] and (ic.x, ic.w, ic.h) == (16, 24, 24) and ch.get('image') == 'right_arrow' and ch.x == 285 and row.get('style') == 'list_item_style',
@@ -929,7 +930,7 @@ def root_rows(ctx):
     m = root_opened(fresh=True)
     lib = m.symbol('lib_nd') if hasattr(m, 'symbol') else PSYMS['lib_nd']   # noqa: F821
     want = [('albums_open_src', lib, 0, None), ('artists_open_src', lib, None, None), ('songs_open_src', lib, LS['SONGS'], 'Songs'), ('playlists_open_src', lib, None, None),
-            ('songs_open_src', lib, LS['FAVORITES'], 'Favorites'), ('songs_open_src', lib, LS['DOWNLOADED'], 'Downloaded')]
+            ('nd_folders_open', None, None, None), ('songs_open_src', lib, LS['FAVORITES'], 'Favorites'), ('songs_open_src', lib, LS['DOWNLOADED'], 'Downloaded')]
     for i, w in enumerate(want):
         root_click(m, i)
         got = [c for c in m.calls if c[0] in OPENERS]
@@ -940,8 +941,8 @@ def root_rows(ctx):
         m.calls = []
         m.call(fn_, a0=ctx_, a1=0, count=20000000)
         expect([c[0] for c in m.calls if c[0] in OPENERS] == ['nd_server_open'], f'{n} opens the Server page (nd_server_open)')
-    expect(all((m.widgets[f'pod_row{i}'], EVT_CLICK) in m.bound for i in range(6)) and (m.widgets['btn_return'], EVT_CLICK) in m.bound and (m.widgets['btn_backtoplayer'], EVT_CLICK) in m.bound
-           and (m.widgets['nd_es_pill'], EVT_CLICK) in m.bound and (m.widgets['btn_more'], EVT_CLICK) in m.bound and (m.widgets['vs_item6'], EVT_CLICK) in m.bound, 'the six rows, the "..." button, the card\'s rows, the pill, Back and Now Playing are bound')
+    expect(all((m.widgets[f'pod_row{i}'], EVT_CLICK) in m.bound for i in range(7)) and (m.widgets['btn_return'], EVT_CLICK) in m.bound and (m.widgets['btn_backtoplayer'], EVT_CLICK) in m.bound
+           and (m.widgets['nd_es_pill'], EVT_CLICK) in m.bound and (m.widgets['btn_more'], EVT_CLICK) in m.bound and (m.widgets['vs_item6'], EVT_CLICK) in m.bound, 'the seven rows, the "..." button, the card\'s rows, the pill, Back and Now Playing are bound')
 
 
 def glyph(m):
@@ -1105,7 +1106,7 @@ def root_collapse(ctx):
     expect(lit(m, 'label_title'), 'at SG_COLLAPSE the small title shows')
     at(0, True)
     expect(not lit(m, 'label_title') and not lit(m, 'img_nb_fade'), 'back at the top (EVT_SCROLL_END): the small title and the fade go')
-    expect(pod_nd.FOOT_H and (80 + 6 * 52 + pod_nd.FOOT_H - 400) >= O['SG_COLLAPSE'], 'the column scrolls at least SG_COLLAPSE px, so the heading can go')
+    expect(pod_nd.FOOT_H and (80 + 7 * 52 + pod_nd.FOOT_H - 400) >= O['SG_COLLAPSE'], 'the column scrolls at least SG_COLLAPSE px, so the heading can go')
     m = root_opened(fresh=True, widget_on_fail={O['EVT_SCROLL']})
     expect(lit(m, 'label_title'), 'no scroll events: the navbar keeps its title')
     m = root_opened(conf=False)
@@ -1243,10 +1244,10 @@ def root_offline(ctx):
     expect = ctx.expect
     m = root_opened(fresh=True, wifi=-1)
     m.put(SB.ND + '/dl.idx', b'')
-    for i in (0, 1, 2, 3, 4, 5):
+    for i in (0, 1, 2, 3, 4, 5, 6):
         root_click(m, i)
         expect([c[0] for c in m.calls if c[0] in OPENERS] != [] and m.thread is None and not [c for c in m.calls if c[0] == 'toast'], f'Wi-Fi off: row {i} opens its page, no request, no toast')
-    root_click(m, 5)
+    root_click(m, 6)
     got = [c for c in m.calls if c[0] == 'songs_open_src']
     expect(got and got[0][2] == LS['DOWNLOADED'], 'Downloaded opens with the Wi-Fi off')
     expect(m.call(PSYMS['sba_guard']) & 0xffffffff == SB.R['NOWIFI'], 'the guard says no Wi-Fi: the rows need none of it (the list reads the manifest)')

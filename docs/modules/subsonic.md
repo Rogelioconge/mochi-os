@@ -440,3 +440,81 @@ and an after-transfer observer through `sbn_init`.
 - `subsonic.conf` travels with the card and is as good as the password for the Subsonic API; it
   is not in the settings folder rule (`/mnt/data/m1plus/...`), which is for small settings.
 - A server's `getPlaylist` and `getStarred2` have no paging, so a list over 4 MiB fails.
+
+## Folders
+
+**Sources:** `patch/ndfolders.c` (the page), `patch/sbsrc.c` (`sbs_folder_list`, `LS_FOLDERS`), `tools/pod_nd.py` `build_folders`. **Tests:** `test/pod/ndfolders.py`. **Preview:** `tools/preview/preview_ndfolders.py` (`nd-folders-*.png`).
+
+A **Folders** row after Playlists on the Subsonic root (every server type, Navidrome included: its tree
+is tag-built, artist, album, songs) opens a folder browser over the Subsonic API. On Gonic, Airsonic and
+LMS the levels are the real directories. A directory child has `isDir`, `title`, `coverArt` and
+`parent`; a song child has the usual song fields.
+
+### Decisions (final)
+
+- Root: one music folder lists its `getIndexes` entries directly (A-Z sections); several list the music
+  folders as plain rows first, one tap enters that folder's index.
+- Directory rows: 40 px square cover when the entry has `coverArt`, else the folder glyph (artists
+  square too). Song rows: file glyph, title and the existing Subsonic row marks.
+- No "..." on any Folders level (navbar: Back and Now Playing only). No Download Folder.
+- Each level is cached as `nd/dir/<key>.idx` under the Subsonic cache dir; the page shows the cache
+  first and refreshes in the background.
+- A song tap plays the level's songs from the tapped index, by the rules of the other source rows (list
+  order, window around the tapped row, `SBA_QUEUE_MAX`).
+
+### Look (phase 1; rows are the local [Folders page](folders.md)'s with its `--covers` geometry)
+
+- Root with one folder: A-Z index (section letters 20 px at x 10, 28 px high, and the rail; rows,
+  hairline and chevron give up `SG_RAIL_INSET`, as Artists). Title "Folders".
+- A level shows the directory's name as the large title. Play / Shuffle pills only when the level holds
+  songs (first row at `SG_TOP`, else `FO_TOP_PLAIN`).
+- A song row carries the source marks ending at the text end (256): downloaded disc, download ring with
+  stop square, DSD tag (`ls_marks_draw`); the title is cut for their room.
+- Loading is `ls_spin` centred under the kept large title and navbar; offline and failed reuse the
+  source pages' texts ("Connect to Wi-Fi first", "Can't connect to the server").
+
+### Data layer (phase 2a, `patch/sbapi.c`, `sbparse.c`; tests `sbapi/folders`, `subsonic/folders_parse`)
+
+Page-facing API (`patch/sbapi.h`):
+
+- A level is named by a **key**: `SBA_FOLDER_ROOT` ("/") for the top, `SBA_FOLDER_MF` ("mf:") plus a
+  music folder id for the index of one of several music folders, otherwise a directory's server id.
+  Rows carry the key to pass back: a music folder row's `id` already starts with "mf:", an artist or
+  directory row's `id` is its directory id.
+- `sba_fetch_folder(key)` queues a refresh on the metadata worker (kind `SBA_K_FOLDER`): returns at once
+  with `SBA_OK` or the guard (`SBA_NOWIFI`, `SBA_NOCONF`, `SBA_QFULL`...); asking for a key already
+  queued is one request. Never writes on the UI thread.
+- `sba_folder_rows(key, &list)` reads the cached level (heap, `sba_free_tracks`; star hearts applied
+  like every track list); 0 rows when never cached. Call it first, then `sba_fetch_folder`.
+- `sba_state(SBA_K_FOLDER, key, &code)`: `SBA_ST_NONE` / `LOAD` / `OK` / `FAIL`, `code` is the `SBA_*`
+  reason (`sbs_request_message`). Offline with nothing cached: the ask returns `SBA_NOWIFI` and the state
+  stays NONE (show the offline text). `sba_gen()` moves when a level file is replaced or a status
+  changes; re-read the rows when it moves.
+- Rows are `sba_track_t`. New byte `dir` (in the struct's padding; row size unchanged): 1 = directory
+  (use `id`, `title`, `cover`, `starred`), 0 = a song row parsed by the same `sp_track` as every other
+  list (suffix, size, album id, DSD, favourite all work). At the **root index** a dir row's `album` is the
+  server's index letter ("#", "B"...; "The Knife" sits under K on Navidrome): use it for the A-Z sections
+  instead of guessing from the title. Max `SBA_FOLDER_MAX` (6000) rows a level.
+- Order: the server's, never sorted. Root index: `index[].artist[]`, then `shortcut[]` entries the index
+  lacks, then loose `child[]` songs. A directory: `child[]` as sent (Navidrome never mixes dirs and
+  songs; a Gonic-style mixed directory is kept in the server's order, which we have not seen on a real
+  Gonic: do not re-sort or group).
+- Root with several music folders: `getMusicFolders` rows only (nothing else is asked); with one (or
+  none listed) it goes on to `getIndexes` and the root level is the index. A music folder key asks
+  `getIndexes&musicFolderId=<id>`.
+- A failed refresh (any `SBA_*`) writes nothing: the cached file stays and the state is FAIL. A level
+  with no children is an empty cached level (OK).
+- Cache: `nd/dir/<key>.idx` (a key that is not letters, digits, '-' or '_' is hashed, `x<8 hex>`),
+  written by the worker (tmp, fsync, rename). Sign Out and a changed user or address remove `nd/dir`
+  and `nd` with the rest of the cache.
+
+### The page (`patch/ndfolders.c`)
+
+A standalone page (`m1plus_ndfolders`, last in `PAGE_ORDER`), not a source list page: rows mix directories with covers and song rows, which no existing list page paints. It still goes through the source seam: `lib_nd.list(LS_FOLDERS, scope)` (scope NULL = root, a directory record = that level) and `sbs_folder_list(key)` / `sbs_folder_state(key)` give records (directory: type 4, REC_TITLE, REC_ALBUM = index letter on index levels, cover in the row data `d\t<cover>`; song: type 8 as every track list), so play (`so_play_src`: list order, `SBA_QUEUE_MAX` window, DSD "Download to Play?"), marks (`lib_nd.row`), covers (`lib_nd.cover`, shared `ls_cover_poll`) and the row "..." sheet (`rowmenu_open_src`) are the source's own. The refresh is asked once a run per level (`nl_ask`), as albums.
+
+- One window; a stack of (key, name, offset): a directory tap pushes, Back pops with the offset kept, at the root it closes. Navbar: Back and Now Playing's disc only; the large title is "Folders" at the root, else the directory's name; the small title takes over once scrolled.
+- Rows are the local Folders page's: 52 px, 24 px glyph or 40 px cover (LIST_R corners) at x 8, name at x 56 cut at 256, chevron on directories. Songs: file glyph, title, marks ending at the text end, and the row "..." (the Songs page's zone; the text then ends before it). Pills only when the level holds a song; the rows then start at `SG_TOP`, also on an index level with loose songs (sections below the pills). A directory's cover not yet ready shows the folder glyph. Play queues the level's songs only (directories are left out before the `SBA_QUEUE_MAX` window).
+- A-Z sections and rail on index levels (the root with one music folder, one music folder's index; keys `/` and `mf:`), from the index letters, respecting Settings > Library > List Navigation; every other level is plain.
+- No rows: spinner under the title while loading, else "Connect to Wi-Fi first", "Can't connect to the server" or "Empty folder". The page re-reads when `sba_gen` moves (same rows only swap the records).
+- Not done: a playing-now wave on rows; dimming of offline rows (a tap says "Connect to Wi-Fi first").
+- A level of thousands of rows is held as records (about 350 bytes a row); a windowed read like `sba_songs_window` is the fix if that proves heavy.

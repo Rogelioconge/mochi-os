@@ -125,6 +125,8 @@ const char *sbn_object(const char *obj, const char *end, const char *key); /* th
 /* Member key of the object obj: a string goes to out, a number to *num (out[0] = 0), true/false/null
  * leave both empty. 1 found, 0 absent or odd type, -1 string too long for cap. */
 int sbn_member(const char *obj, const char *end, const char *key, char *out, unsigned cap, unsigned *num);
+/* 1 when member key of obj is the JSON literal true (false, null, absent and anything else: 0). */
+int sbn_bool(const char *obj, const char *end, const char *key);
 /* As sbn_member for strings, but a too-long string is cut at a UTF-8 boundary instead of failing. */
 int sbn_member_truncate(const char *obj, const char *end, const char *key, char *out, unsigned cap);
 /* Find the array member key of obj (checked structurally, so a title containing "song": cannot

@@ -147,6 +147,8 @@ static void nl_ask(int kind, const char *tag, const char *id, int have) {
         rc = sba_fetch_album(id);
     else if (kind == SBA_K_ARTIST)
         rc = sba_fetch_artist(id);
+    else if (kind == SBA_K_FOLDER)
+        rc = sba_fetch_folder(id);
     else
         rc = sba_fetch_playlist(id);
     if (rc != SBA_OK && !have) nl_refused(tag, id, rc);
@@ -236,6 +238,17 @@ static int nl_push_playlist(void *q, const sba_playlist_t *p) {
     memset(&r, 0, sizeof r);
     r.id = p->id, r.title = p->name, r.meta = meta;
     r.rid = nl_rid(p->id), r.type = 4;
+    return nl_push(q, &r);
+}
+
+/* A Folders directory row: "d\t<cover>", type 4, REC_TITLE the name, REC_ALBUM the index letter of the root level ("" elsewhere). */
+static int nl_push_dir(void *q, const sba_track_t *t) {
+    char meta[NL_META];
+    nl_rec_t r;
+    snprintf(meta, sizeof meta, "d\t%s", t->cover);
+    memset(&r, 0, sizeof r);
+    r.id = t->id, r.title = t->title, r.album = t->album, r.meta = meta;
+    r.rid = nl_rid(t->id), r.type = 4;
     return nl_push(q, &r);
 }
 
@@ -359,6 +372,21 @@ static void *nl_artists(void) {
     return nl_done(q);
 }
 
+/* A Folders level (docs/modules/subsonic.md "Folders"): the cached rows in the server's order, directories and songs alike; the refresh is asked for once a run (nl_ask). */
+static void *nl_folder(const char *key) {
+    sba_tracks_t t;
+    void *q;
+    int n = sba_folder_rows(key, &t), i;
+    nl_ask(SBA_K_FOLDER, "fo", key, n > 0);
+    q = n > 0 ? nl_new() : (void *)0;
+    for (i = 0; q && i < t.n; ++i)
+        if (!(t.v[i].dir ? nl_push_dir(q, &t.v[i]) : nl_push_track(q, &t.v[i]))) break;
+    sba_free_tracks(&t);
+    return nl_done(q);
+}
+
+void *sbs_folder_list(const char *key) { return nl_folder(key && key[0] ? key : SBA_FOLDER_ROOT); }
+
 static void *nl_playlists(void) {
     sba_playlists_t p;
     void *q = nl_new();
@@ -403,6 +431,8 @@ static void *nd_list(const lib_src_t *s, int which, void *scope) {
         return I(scope, REC_ID) == ID_ALL_SONGS ? nl_artist_tracks(id) : nl_album_tracks(id);
     case LS_PLAYLISTS:
         return scope ? nl_playlist_tracks(id, 0) : nl_playlists();
+    case LS_FOLDERS:
+        return nl_folder(scope ? id : SBA_FOLDER_ROOT);
     case LS_FAVORITES:
         if (scope) return (void *)0;
         sba_starred_tracks(&t);
@@ -917,11 +947,14 @@ static int nd_ask_state(int kind, const char *id, int known) {
     return LS_ST_LOADING;
 }
 
+int sbs_folder_state(const char *key) { return nd_ask_state(SBA_K_FOLDER, key && key[0] ? key : SBA_FOLDER_ROOT, 0); }
+
 /* LS_ST_*: whether the rows of a list can still arrive. The tracks of an album, an artist or a playlist row, and (scope NULL) the whole-library lists: albums, artists, playlists and favourites
  * come with the sync, the Songs list with its own paging. An artist's All songs row is loading while any of its albums is. */
 static int nd_state(const lib_src_t *s, int which, void *rec) {
     const char *id;
     int kind, st;
+    if (which == LS_FOLDERS) return sbs_folder_state(rec ? nd_rec_id(s, rec) : SBA_FOLDER_ROOT);
     if (!rec) {
         if (which == LS_SONGS) return nd_ask_state(SBA_K_SONGS, "", 0);
         if (which == LS_ALBUMS || which == LS_ARTISTS || which == LS_PLAYLISTS || which == LS_FAVORITES)

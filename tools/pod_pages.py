@@ -388,6 +388,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_ndlogin',
     'm1plus_ndserver',
     'm1plus_ndroot',
+    'm1plus_ndfolders',
     'm1plus_display',
     'm1plus_lighttime',
     'm1plus_ledlight',
@@ -519,6 +520,7 @@ NEXTALBUM_PAGE_INDEX = page_index('m1plus_nextalbum')   # Settings > Playback > 
 NDLOGIN_PAGE_INDEX = page_index('m1plus_ndlogin')   # the Navidrome Sign In page
 NDSERVER_PAGE_INDEX = page_index('m1plus_ndserver')   # the Navidrome Server page
 NDROOT_PAGE_INDEX = page_index('m1plus_ndroot')   # the Navidrome root
+NDFOLDERS_PAGE_INDEX = page_index('m1plus_ndfolders')   # the Subsonic Folders browser
 DISPLAY_PAGE_INDEX = page_index('m1plus_display')   # Settings > Display, then its Screen Timeout picker
 LIGHTTIME_PAGE_INDEX = page_index('m1plus_lighttime')
 LED_PAGE_INDEX = page_index('m1plus_ledlight')
@@ -1312,6 +1314,7 @@ TENPREAMP_PAGE.layout = [Row('Auto', ACT_PEQ_PAUTO), Note('Auto reduces the leve
 
 # The Navidrome root page (patch/ndroot.c, tools/pod_nd.py): the menu rows, the Server row, the footer and the shared empty state. It binds its own rows, so it is not a cards page (no rows for patch/m1plus.c).
 NDROOT_PAGE = Page('m1plus_ndroot', 'm1plus_ndroot_page', 'Subsonic', kind='ndroot')
+NDFOLDERS_PAGE = Page('m1plus_ndfolders', 'm1plus_ndfolders_page', 'Folders', kind='ndfolders')   # the Subsonic Folders browser (patch/ndfolders.c, tools/pod_nd.py build_folders): one window for every level
 
 # The Navidrome Server page (patch/ndserver.c, tools/pod_ndserver.py): two cards of the Settings look, the login's three fields and Sync Now / Sign Out. It binds its own rows, so it is not a cards page
 # (no rows for patch/m1plus.c): `layout` is only the asset's.

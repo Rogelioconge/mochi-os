@@ -26,7 +26,8 @@ enum {
     LS_DOWNLOADED,
     LS_SEARCH_ARTISTS,
     LS_SEARCH_ALBUMS,
-    LS_SEARCH_SONGS
+    LS_SEARCH_SONGS,
+    LS_FOLDERS
 }; /* the list a page asks for */
 enum {
     LS_PLAY_KEEP,
@@ -68,6 +69,7 @@ struct lib_src {
      *   LS_ARTISTS   NULL
      *   LS_SONGS     NULL: every song; an album row: its tracks (an artist's All songs row: all the artist's songs)
      *   LS_PLAYLISTS NULL: the playlists; a playlist row: its tracks
+     *   LS_FOLDERS   (Navidrome only) NULL: the Folders root; a directory row: that directory's rows (directory rows type 4, REC_ALBUM the index letter at the root, songs type 8)
      * LS_FAVORITES, LS_DOWNLOADED and LS_SEARCH_ARTISTS / _ALBUMS / _SONGS (scope NULL: the cached results of the last sba_search, patch/search.c) are Navidrome's lists; the stock source returns NULL for them. After a stock list of tracks the browsing record (CLASSINFO) is what the query left,
      * as the page needs it for a play (the page saves and puts it back as it does today). */
     void *(*list)(const lib_src_t *s, int which, void *scope);
