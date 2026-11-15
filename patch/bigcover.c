@@ -39,6 +39,8 @@
 #define BC_IDLE 0 /* the track is known, its job not started */
 #define BC_RUN 1 /* the job runs on the shared worker */
 #define BC_READY 2 /* the bitmap holds the track's picture */
+#define BC_SRV 1 /* bc.srv: the server's cover file */
+#define BC_BOOK 2 /* bc.srv: the book's cover */
 #define BC_GAVE 3 /* nothing more is tried for this track */
 
 static struct {
@@ -48,7 +50,7 @@ static struct {
         t0; /* the timer, the playing track's key (0 none), time_now_ms of the track's first sight / its job's start */
     int st, worker,
         src; /* BC_*; this page holds the shared job set; the cover source the job (or the picture) was made for */
-    int srv; /* the picture is the server's cover file (a server track), not a job's: no source word to compare */
+    int srv; /* the picture is not a job's: BC_SRV the server's cover file (a server track, no source word to compare), BC_BOOK the book's cover (np_cover_file still answering it) */
 } bc __attribute__((section(".scratch")));
 
 /* A server track (streamed or downloaded): its queue record is in the queue map. */
@@ -85,12 +87,20 @@ static int bc_src(const char *path) {
     return strcmp((const char *)COVER_PARSED, path) ? 0 : src;
 }
 
-/* The job's source is still the track's current one. */
+/* The book's cover when np_cover_file answers it (an audiobook part stock has no picture of, and stock is not busy), else NULL. */
+static const char *bc_book_file(void) {
+    int busy;
+    const char *file = np_cover_file(&busy);
+    return file && file == np_book_cover() ? file : (const char *)0;
+}
+
+/* The job's source is still the track's current one. A book cover stays only while stock still has no picture: once stock starts on one (busy) it goes. */
 static int bc_same(void) {
     unsigned key;
     const char *path = bc_track(&key);
     if (key != bc.tkey) return 0;
-    return bc.srv || (bc.src && bc_src(path) == bc.src);
+    if (bc.srv == BC_BOOK) return bc_book_file() != (const char *)0;
+    return bc.srv == BC_SRV || (bc.src && bc_src(path) == bc.src);
 }
 
 /* The finished job: its file into the bitmap. READY, or GAVE when there is no file or it does not decode. */
@@ -131,16 +141,10 @@ static void bc_start_job(const char *path) {
     bc.worker = 1, bc.st = BC_RUN, bc.src = src, bc.t0 = time_now_ms();
 }
 
-/* A server track's picture: the cover file Now Playing draws (sba_rec_cover on the queue record, asked for when it is not cached), decoded and fitted into the page's bitmap at 320 px (the 168 px file
- * enlarged by the same exact average). 1 when it is up; 0 to go on (not cached yet: asked and looked at again next tick; or none: a downloaded track then takes the job below, a stream keeps stock's). */
-static int bc_server_art(void *rec, int *wait) {
-    char url[120];
+/* A picture file (a server track's cover, or a book's) decoded and fitted into the page's bitmap at 320 px (the 168 px file enlarged by the same exact average). 1 when it is up. */
+static int bc_show(const char *url, int srv) {
     unsigned *px;
-    int ok = 0, r;
-    memcpy(url, "file://", 8);
-    r = sba_rec_cover(rec, url + 7, sizeof url - 7);
-    *wait = r == 0;
-    if (r != 1) return 0;
+    int ok = 0;
     if (!bc.bmp) bc.bmp = bitmap_create_ex(BC_SIZE, BC_SIZE, BC_SIZE * 4, BITMAP_RGBA8888);
     px = bc.bmp ? (unsigned *)bitmap_lock_buffer_for_write(bc.bmp) : (unsigned *)0;
     if (px) {
@@ -148,9 +152,29 @@ static int bc_server_art(void *rec, int *wait) {
         bitmap_unlock_buffer(bc.bmp);
     }
     if (!ok) return 0;
-    bc.st = BC_READY, bc.srv = 1;
+    bc.st = BC_READY, bc.srv = srv;
     if (bc.img) widget_invalidate_force(bc.img, (void *)0);
     return 1;
+}
+
+/* A server track's picture: the cover file Now Playing draws (sba_rec_cover on the queue record, asked for when it is not cached). 1 when it is up; 0 to go on (not cached yet: asked and looked at
+ * again next tick; or none: a downloaded track then takes the job below, a stream keeps stock's). */
+static int bc_server_art(void *rec, int *wait) {
+    char url[120];
+    int r;
+    memcpy(url, "file://", 8);
+    r = sba_rec_cover(rec, url + 7, sizeof url - 7);
+    *wait = r == 0;
+    return r == 1 && bc_show(url, BC_SRV);
+}
+
+/* An audiobook part stock has no picture of (np_cover_file answers the book's cover, not a /tmp file): the book's cover, shown as a server track's is (its file is the track's own). */
+static int bc_book_art(void) {
+    const char *file = bc_book_file();
+    char url[NP_COVER_URL];
+    if (!file || strlen(file) + 8 > sizeof url) return 0;
+    memcpy(url, "file://", 7), memcpy(url + 7, file, strlen(file) + 1);
+    return bc_show(url, BC_BOOK);
 }
 
 /* One step: the track, its job. */
@@ -185,6 +209,7 @@ static void bc_step(void) {
             return;
         }
     }
+    if (bc_book_art()) return;
     if (now - bc.t1 > BC_TRY_MS)
         bc.st = BC_GAVE;
     else

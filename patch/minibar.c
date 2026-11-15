@@ -184,7 +184,7 @@ void mb_art_end(mb_art_t *a, unsigned *px) {
 /* The playing track's cover into the bitmap. first: a new track (the /tmp file is read again for a few ticks). 1 when the bitmap changed. A server track's is the server's file (the one Now Playing
  * shows), a placeholder until it lands (mb_art_settle keeps looking), else demo's /tmp file; never the library's album of the same name. */
 int mb_art_cover(mb_art_t *a, void *win, void *t, int first) {
-    char url[80], tmp[120];
+    char url[80], tmp[NP_COVER_URL];
     const char *file = (const char *)0, *path;
     unsigned album = *cc_str(t, REC_ALBUM) ? cc_album_key(t) : 0, *px, i;
     int busy = 0, server, sc = ls_rec_cover(t, tmp, sizeof tmp, &server);

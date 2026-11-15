@@ -563,7 +563,7 @@ static int ip_server_cover(void *t, char *url, unsigned cap, int *server) {
 
 /* The Now Playing cover: a server track's own file (never the library's album of the same name; the placeholder until it lands, the settle ticks look again), else the album's cached cover, else the /tmp one. */
 static void ip_cover(void *t, int first) {
-    char url[80], tmp[40], srv[120];
+    char url[80], tmp[NP_COVER_URL], srv[120];
     const char *file = (const char *)0, *path;
     unsigned album = t && *cc_str(t, REC_ALBUM) ? cc_album_key(t) : 0, *px, i;
     int busy = 0, server, sc = ip_server_cover(t, srv, sizeof srv, &server);
@@ -861,7 +861,7 @@ static int ip_pane_xfer_start(const char *track) {
  * transient: the extracted file for key's album is there (ip_pane_xfer_*): decoded, then deleted. The source is, in order, that file, the playing track's full-resolution file
  * (for the playing album), the 168 px cache file; one that fails to decode falls to the next. */
 static int ip_pane_decode(int s, unsigned key, int transient) {
-    char url[80];
+    char url[NP_COVER_URL];
     const char *file = (const char *)0;
     unsigned *px, i;
     int lvl = 0, ok = 0, busy;

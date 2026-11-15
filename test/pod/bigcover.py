@@ -54,6 +54,8 @@ class BC(Machine):
         self.clock = 1000
         self.sbtrack, self.sbcover = {}, {}   # server track REC_ID -> track id (sba_rec_track); REC_ID -> (sba_rec_cover's answer, the file's path) (patch/sbapi.c, tested in sbapi.py)
         for n in ('sba_rec_track', 'sba_rec_cover'): self.handlers[PSYMS[n]] = n
+        self.bkcov = {}            # an audiobook part's path -> the book's cover file (bk_art_cover, patch/bkmodel.c, tested in queuepage.py)
+        self.handlers[PSYMS['bk_art_cover']] = 'bk_art_cover'
 
     # -- the scripted worker
     def _hook(self, u, address, size, _):
@@ -61,6 +63,10 @@ class BC(Machine):
         if name == 'stock_bigcover_resume':
             self.calls.append(('stock_bigcover_resume', u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)))
             u.reg_write(UC_MIPS_REG_V0, self.init_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'bk_art_cover':
+            a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1); f = self.bkcov.get(self.read_cstr(a0))
+            if f: self.u.mem_write(a1, ('file://' + f).encode() + b'\0')
+            u.reg_write(UC_MIPS_REG_V0, a1 if f else 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         if name in ('sba_rec_track', 'sba_rec_cover'):
             a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
             if name == 'sba_rec_track':
@@ -746,4 +752,27 @@ def server_tests(ctx):
     expect(m.count('cc_build_add_aspect') == 0 and m.count('cc_build_open') == 0, 'the stream address is never handed to the worker even when stock\'s parser reports it')
 
 
-SECTIONS = [hook_tests, job_tests, life_tests, idle_tests, idle_setting_tests, server_tests]
+def book_tests(ctx):
+    """An audiobook part stock has no picture of: the book's cover (the file np_cover_file answers), fitted at 320 px, no job; with a stock picture the job is as for any local track."""
+    expect = ctx.expect
+    BK, BKF = '/mnt/mmc/Audiobooks/Book One/01.mp3', '/mnt/mmc/.m1plus/covers/book-168.jpg'
+    def book(src, cover=BKF):
+        m = BC(tracks=(BK,), src=src)
+        if cover: m.bkcov[BK] = cover; m.present.add(cover); m.images['file://' + cover] = (168, 168, rgba(168, 168, lambda x, y: (10, 200, 90))); m.load_image = 0
+        return m
+    m = book(0); m.open()
+    b = m.bmp()
+    expect(b is not None and set(m.pixels(b)) == {word_of((10, 200, 90))} and m.paint() == [(b, (0, 0, 320, 320), (0, 0, 320, 320))], 'a part with no stock picture: the book\'s cover, fitted and drawn')
+    expect(m.count('cc_build_open') == 0 and not m.held, 'no job on the shared worker')
+    m = book(2); m.open()
+    expect(m.bmp() is None and m.all('cc_build_add_aspect') == [('cc_build_add_aspect', BK, TMP, 320, 2)], 'a part with an embedded picture: the job as for any local track, the book\'s cover unused')
+    m = book(0, cover=None); m.open(); m.tick()
+    expect(m.bmp() is None and m.count('cc_build_open') == 0, 'a book with no cover: stock\'s page stays')
+    m = book(0); m.open()
+    m.setword(COVER_SRC, 1); m.tick()
+    expect(m.paint() == [], 'stock starts on a picture of the part (busy) after the book\'s cover went up: the book\'s cover goes')
+    m.parse(BK); m.setword(COVER_SRC, 2); m.tick()
+    expect(m.paint() == [] and m.all('cc_build_add_aspect') == [('cc_build_add_aspect', BK, TMP, 320, 2)], 'and the part\'s own embedded picture gets the job, the book\'s cover never back over it')
+
+
+SECTIONS = [hook_tests, job_tests, life_tests, idle_tests, idle_setting_tests, server_tests, book_tests]

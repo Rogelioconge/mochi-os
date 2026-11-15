@@ -49,7 +49,15 @@ Navidrome track has no such file, so its cached server cover is drawn over `img_
 one is decoded, and the decode is never in paint: a 30 ms one-shot starts it on a new record. A
 track with no cover file yet keeps the previous cover for `NP_SB_WAIT` (10) ticks, then stock's
 picture shows. While a server track plays, `np_prefetch` asks for the next queue record's cover
-once. A local track draws nothing of ours. `COVER_SRC` is 1 while busy, 2 for embedded art, 3 for folder art, 5
+once. A local track draws nothing of ours, except an audiobook part stock has no picture of (`COVER_SRC` not
+busy, not 2, 3 or 5): `np_cover_file` then answers the book's cover (`np_book_cover`: `bk_art_cover`, asked once per
+track path, so one folder read per track change; `np_cover_file` forgets the answer whenever the playing track
+is not the one it is for, whatever the stock source, and while stock is busy, so an art cache file built
+meanwhile shows when the part plays again), the
+tone comes from it, and `np_server_art` decodes it into the same bitmap (`sbbook`), drawn over stock's placeholder.
+A part with a picture of its own keeps stock's. The mini player bar, the Pod theme, Vinyl and the
+[big cover page](bigcover.md) read `np_cover_file`, so they show the book cover too (the bar and Pod cover first
+use the album's cache file when one exists). `COVER_SRC` is 1 while busy, 2 for embedded art, 3 for folder art, 5
 for cached art. The payload reads files only in the ready states and never waits on the extraction
 mutex. Unreadable or empty files are retried; a rejected decode is retried only after the file
 changes.

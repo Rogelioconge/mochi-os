@@ -27,10 +27,6 @@
 #include "entries.h"
 #include "scrobble.h"
 
-extern unsigned np_file_key(const char *path); /* patch/nowplaying.c: a hash of the picture file, 0 if unreadable */
-extern const char *
-np_cover_file(int *busy); /* the /tmp file of the playing track's cover, NULL for none; busy while demo makes it */
-
 enum { K_NONE, K_CLOSE, K_PREV, K_PLAY, K_NEXT, K_RECORD };
 
 /* tools/vinyl_art.py groove_table16: the arm's turn on the groove at p = i / VN_GROOVE_N of the track (test/pod/vinyl.py compares) */
@@ -517,7 +513,7 @@ static int vn_server_cover(void *t, char *url, unsigned cap, int *server) {
  * (/mnt/mmc/.m1plus/covers), else the playing track's /tmp cover once demo has made it, reduced to VN_LAB_PX; else vinyl_label.
  * first: a new track (the /tmp file is looked at again VN_SETTLE times: demo writes it a little after the change). */
 static void vn_cover(void *t, int first) {
-    char url[80], tmp[40], srv[120];
+    char url[80], tmp[NP_COVER_URL], srv[120];
     const char *file = (const char *)0, *path;
     unsigned album = t && *cc_str(t, REC_ALBUM) ? cc_album_key(t) : 0, *px;
     int busy = 0, ok = 0, server, sc = vn_server_cover(t, srv, sizeof srv, &server);

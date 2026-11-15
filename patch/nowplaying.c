@@ -49,6 +49,7 @@ static int np_on_queue(void *ctx, void *e) {
     return queue_open() == 0 ? RET_STOP : RET_OK;
 }
 #include "podcasts.h"
+#include "books.h" /* bk_art_cover */
 #include "minibar.h" /* mb_art_t: the header cover of the info page */
 #include "fnv.h"
 
@@ -109,6 +110,7 @@ static struct {
         *sbmp; /* img_playcover, and the NP_ART x NP_ART RGBA bitmap of a server track's cover (made on first use, freed with the page) */
     unsigned sbkey; /* np_hash of the cover file sbmp holds */
     int sbrec, sbshow; /* the REC_ID of the track sbmp is for; 1: sbmp is drawn over stock's picture */
+    int sbbook; /* 1: sbmp is the book cover of a local audiobook part stock has no picture of (np_book_cover) */
     int sbseen; /* the REC_ID np_server_art last looked at */
     int sbwait; /* ticks the playing server track has had no cover file while sbmp (the previous track's) is kept on show */
     int pfrec; /* the REC_ID of the queue record whose cover was last asked for ahead */
@@ -154,7 +156,7 @@ static int np_on_art_paint(void *ctx, void *e) {
                    * the new cover is decoded (np_art_once, a moment after the change is seen here, or the tick); a local track draws stock's picture */
         void *t = cc_playing();
         int rec = t ? *(int *)((char *)t + REC_ID) : 0;
-        if (rec <= -2) {
+        if (rec <= -2 || np.sbbook) { /* (or a book part's cover: np_server_art drops it with the tick) */
             int r[4] = {0, 0, NP_ART, NP_ART};
             if (np.sbshow && np.sbmp) canvas_draw_image(canvas, np.sbmp, r, r);
             if (rec != np.sbseen && !np.once) np.once = timer_add(np_art_once, (void *)0, NP_ONCE_MS);
@@ -231,22 +233,49 @@ void np_relight(void) {
     if (np.win && np_tone_raw) np_set_color(np_tone_raw); /* (patch/palette.c pal_apply) */
 }
 
-/* The cover file of the source type, or NULL for a source with no JPEG file; busy is set while demo is still making it. */
+unsigned np_hash(const char *s);
+
+/* An audiobook part's own cover, the book's (bk_art_cover), for a part stock has no picture of: "file://<path>" in npb.url, asked once per playing track path (a readdir). The answer is
+ * forgotten by np_cover_file whenever the playing track is not the one it is for (whatever stock's source says meanwhile) and while stock is busy (every track start, a restart of the
+ * same part too), so a book art file built meanwhile shows when the part plays again. NULL: not a part, or the book has no cover. */
+static struct {
+    unsigned key; /* np_hash of the track path the answer is for, 0 none yet */
+    int ok;
+    char url[NP_COVER_URL];
+} npb __attribute__((section(".scratch")));
+
+/* np_hash of the playing track's path when it is an audiobook part, else 0. */
+static unsigned np_book_key(const char **path) {
+    void *t = cc_playing();
+    const char *p = t ? cc_str(t, REC_PATH) : (const char *)0;
+    *path = p;
+    return p && bk_is_path(p) ? np_hash(p) : 0;
+}
+
+const char *np_book_cover(void) {
+    const char *p;
+    unsigned key = np_book_key(&p);
+    if (!key) return (const char *)0;
+    if (key != npb.key) npb.key = key, npb.ok = bk_art_cover(p, npb.url, sizeof npb.url) != (const char *)0;
+    return npb.ok ? npb.url + 7 : (const char *)0;
+}
+
+/* The cover file of the source type, or NULL for a source with no JPEG file; busy is set while demo is still making it. A part of an audiobook that stock has no picture of (no source, not busy) gets its book's cover. */
 const char *np_cover_file(int *busy) { /* also the mini player bar's (patch/minibar.c) */
     int src = *(volatile int *)COVER_SRC;
-    const char *server_cover = sba_now_cover(cc_playing());
+    const char *server_cover = sba_now_cover(cc_playing()), *p;
     *busy = src == COVER_SRC_BUSY;
+    if (*busy || np_book_key(&p) != npb.key) npb.key = 0; /* another track, or a (re)start: asked again */
     if (server_cover) return server_cover;
     if (src == COVER_SRC_EMBEDDED) return "/tmp/coverpic.jpg";
     if (src == COVER_SRC_FOLDER || src == COVER_SRC_CACHE) return "/tmp/externpic.jpg";
-    return (const char *)0;
+    return *busy ? (const char *)0 : np_book_cover();
 }
 
 /* The cheap look at the cover (no byte of it is read): a hash of the source type, the file's length (fseek/ftell) and the
  * playing track's path. demo writes a new cover for every track change (and passes through the busy state first), so while
  * all three are as at the last full hash the file is taken as unchanged; any difference sends it to np_file_key. 0: the
  * file cannot be opened (a full look, which tries again too). */
-unsigned np_hash(const char *s);
 __attribute__((noinline)) unsigned np_cover_sig(const char *path, int src) {
     void *f = fopen(path, "rb");
     void *track;
@@ -274,23 +303,32 @@ static void np_prefetch(int rec) {
     if (nrec <= -2 && nrec != rec && nrec != np.pfrec) np.pfrec = nrec, (void)sba_now_cover(next);
 }
 
-/* A playing server track's cover file is the big art: stock draws /tmp/coverpic.jpg, which it never writes for a stream. The picture is decoded once into a bitmap of ours
- * and drawn over stock's by np_on_art_paint; a track with no cached cover (sba_now_cover asks for it) shows stock's, and so does every local track. */
+/* A playing server track's cover file (or the book cover of a local audiobook part stock has no picture of) is the big art: stock draws /tmp/coverpic.jpg, which it never writes for a stream. The picture is decoded once into a bitmap of ours
+ * and drawn over stock's by np_on_art_paint; a track with no cached cover (sba_now_cover asks for it) shows stock's, and so does every other local track. */
 static void np_server_art(void) {
     void *t = cc_playing();
     int rec = t ? *(int *)((char *)t + REC_ID) : 0;
     const char *path;
     unsigned key, *px;
-    char url[160]; /* "file://" and a cover file's path */
+    char url[NP_COVER_URL]; /* "file://" and a cover file's path */
     if (!np.art) return;
     np.sbseen = rec;
-    if (rec > -2) { /* a local track (or none): stock's picture */
-        if (np.sbshow) np.sbshow = 0, widget_invalidate_force(np.art, (void *)0);
-        np.sbwait = 0;
-        return;
+    /* a local track (or none): stock's picture, unless it is an audiobook part stock has none of: the book's cover */
+    if (rec > -2) {
+        int busy;
+        path = np_cover_file(&busy);
+        if (!(path && path == npb.url + 7) && !(busy && np.sbbook)) {
+            if (np.sbshow) np.sbshow = 0, widget_invalidate_force(np.art, (void *)0);
+            np.sbbook = np.sbwait = 0;
+            return;
+        }
+        if (!path) return; /* stock is making a picture: the book's stays until it is there */
+        np.sbbook = 1;
+    } else {
+        np.sbbook = 0;
+        np_prefetch(rec);
+        path = sba_now_cover(t);
     }
-    np_prefetch(rec);
-    path = sba_now_cover(t);
     if (!path) { /* not cached yet (sba_now_cover has asked), or the track has none: the previous cover stays for NP_SB_WAIT ticks, then stock's */
         if (np.sbshow && ++np.sbwait > NP_SB_WAIT)
             np.sbshow = 0, np.sbwait = 0, widget_invalidate_force(np.art, (void *)0);
@@ -325,7 +363,7 @@ static void np_cover(void) {
     int busy;
     const char *path = np_cover_file(&busy);
     unsigned key, sig, px, album, tone;
-    char url[80]; /* cc_url's size */
+    char url[NP_COVER_URL]; /* cc_url's size at least, and "file://" with np_cover_file's path */
     void *track;
     if (busy) return; /* the file is being replaced: keep the colour */
     if (!path) { /* no picture file: the neutral tone, once */
@@ -337,7 +375,8 @@ static void np_cover(void) {
         return; /* same source, length and track as at the last look */
     track =
         cc_playing(); /* the track's album: its tone may be known (the album page's, an earlier play); an untagged one has no key */
-    album = track && *cc_str(track, REC_ALBUM) ? cc_album_key(track) : 0;
+    /* (a book part's cover is not its tags' album) */
+    album = track && *cc_str(track, REC_ALBUM) && path != npb.url + 7 ? cc_album_key(track) : 0;
     if (sig && album && m1_tone_get(album, &tone)) { /* known: no hash of the file (up to NP_HASH_MAX bytes) */
         np.sig = sig, np.key = NP_KEY_TONE; /* a key no hash is compared equal to: the next full look colours again */
         np_set_color(tone);

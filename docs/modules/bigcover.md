@@ -48,6 +48,11 @@ Stock's 264 px picture stays underneath.
   cover is on its way keeps stock's page and asks again every tick for `BC_SRV_MS` (60 s); one the
   server has no picture for is given up. A downloaded track without a server picture uses the local
   job.
+- **Audiobook part** with no stock picture (`np_cover_file` answers the book's cover, not a `/tmp` file):
+  the book's cover file fitted into the same bitmap, no job, like a server track's. Tried until the
+  per-track give-up time; a part with embedded or folder art takes the job as any local track. The
+  book's cover stays only while `np_cover_file` still answers it: once stock starts on a picture
+  (busy), it goes and the part's own picture gets the job.
 - **Paint:** `EVT_AFTER_PAINT` draws the bitmap 1:1 over the widget only while the picture is ready
   and the playing track's key is the one it was made for. A stale picture is never drawn between a
   track change and the next tick.

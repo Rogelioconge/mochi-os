@@ -36,6 +36,8 @@ class NowMachine(Machine):
         self.on_fail = set()      # event types whose widget_on returns 0 (refused)
         self.sbcov = {}           # server track REC_ID -> its cached cover file (None: not cached yet); sba_now_cover (patch/sbapi.c, tested in sbapi.py) answers from it
         self.handlers[PSYMS['sba_now_cover']] = 'sba_now_cover'
+        self.bkcov = {}           # an audiobook part's path -> the book's cover file (bk_art_cover, patch/bkmodel.c, tested in queuepage.py and bkmodel.py); missing: the book has none
+        self.handlers[PSYMS['bk_art_cover']] = 'bk_art_cover'
         self.sbtrack, self.sbsize, self.sburl = {}, {}, ''   # sba_rec_track / sba_rec_size / sba_url (patch/sbapi.c): queue record -> track id, -> server bytes, the saved address
         for n in ('sba_rec_track', 'sba_rec_size', 'sba_url'): self.handlers[PSYMS[n]] = n
         self.sbfav, self.sbgen = {}, 0   # server track REC_ID -> starred (lib_nd.row on a queue record, patch/sbsrc.c, tested in sbsrc.py); sba_gen
@@ -92,6 +94,10 @@ class NowMachine(Machine):
         elif name == 'sba_now_cover':
             rid = self.word(a0 + O['REC_ID']) if a0 else 0; rid = rid - (1 << 32) if rid >= 1 << 31 else rid
             self.calls.append(('sba_now_cover', rid)); p = self.sbcov.get(rid); ret = self.cstr(p) if p else 0
+        elif name == 'bk_art_cover':
+            p = self.read_cstr(a0); self.calls.append(('bk_art_cover', p)); f = self.bkcov.get(p)
+            if f: self.u.mem_write(a1, ('file://' + f).encode() + b'\0')
+            ret = a1 if f else 0
         elif name == 'sba_rec_track':
             rid = a0 - (1 << 32) if a0 >= 1 << 31 else a0; ret = self.cstr(self.sbtrack.get(rid, ''))
         elif name == 'sba_rec_size':
@@ -1193,6 +1199,57 @@ def run(ctx):
     m.call(PSYMS['np_on_destroy'], a0=WIN, a1=0)
     m.calls = []; m.call(PSYMS['np_art_once'], a0=0)
     expect(not [c for c in m.calls if c[0] in ('widget_load_image', 'sba_now_cover')], 'a one-shot after the page is gone does nothing')
+
+    # an audiobook part stock has no picture of shows its book's cover (np_cover_file, the big art, the tone); stock's picture, when there is one, wins
+    BK = '/mnt/mmc/Audiobooks/Book One/01.mp3'; BKF = '/mnt/mmc/.m1plus/covers/book-168.jpg'
+    def bk_machine(src, path=BK, cover=BKF, **kw):
+        m = NowMachine(); m.page(); m.src(src)
+        if cover: m.bkcov[path] = cover; m.jpeg(cover, size=(4, 4), pix=bytes([20, 200, 20, 255]) * 16)
+        m.jpeg('/tmp/coverpic.jpg', data=b'stock cover' * 40, pix=bytes([200, 40, 40, 255]) * 16, size=(4, 4))
+        m.play([m.record(album='Book One', artist='N', path=path, rid=3)], 0); m.init()
+        m.ev = m.alloc(0x40); m.u.mem_write(m.ev, bytes(0x40)); m.setword(m.ev + O['EVENT_PAINT_CANVAS'], 0x7000a000)
+        return m
+    m = bk_machine(0)
+    expect(('widget_load_image', 'file://' + BKF) in m.calls and ('bitmap_create_ex', 264, 264) in m.calls and len(art_paint(m)) == 1, 'a book part with no stock picture: the book\'s cover is the big art, drawn over stock\'s')
+    expect(m.styles and m.styles[-1][2] == word_of(mn.tone(20, 200, 20)), 'and its colour is the tone of that cover')
+    m.calls = []; [m.tick() for _ in range(5)]
+    expect(not [c for c in m.calls if c[0] in ('bk_art_cover', 'widget_load_image', 'bitmap_create_ex')], 'later ticks: the book is asked for once, the cover decoded once')
+    m.calls = []; art_paint(m)
+    expect(not [c for c in m.calls if c[0] == 'bk_art_cover'], 'and the paint asks for nothing')
+    m.play([m.record(album='Local', artist='A', path='/mnt/mmc/a/1.flac', rid=1)], 0); m.tick()
+    expect(not art_paint(m), 'a local track that is not a part: stock\'s picture again')
+    m.src(2); m.play([m.record(album='Book One', artist='N', path=BK, rid=3)], 0); m.tick()
+    expect(not art_paint(m), 'the part with an embedded picture of its own: stock\'s (the part\'s) art, no overlay')
+    m = bk_machine(2)
+    expect(not [c for c in m.calls if c[0] == 'bk_art_cover'] and not art_paint(m) and 'file:///tmp/coverpic.jpg' in m.loads and 'file://' + BKF not in m.loads, 'a part whose stock source is embedded keeps /tmp/coverpic.jpg (the book is not asked)')
+    m = bk_machine(0, cover=None)
+    expect(not art_paint(m) and m.styles[-1][2] == O['NP_NEUTRAL'], 'a book with no cover at all: as before, no art of ours, the neutral tone')
+    m = bk_machine(0, path='/mnt/mmc/a/1.flac')
+    expect(not [c for c in m.calls if c[0] == 'bk_art_cover'] and not art_paint(m), 'a track that is not a part: the book is never asked, nothing drawn')
+    m = bk_machine(1)
+    m.calls = []; m.src(0); m.tick()
+    expect(len(art_paint(m)) == 1, 'busy, then no picture: the book\'s cover')
+    m = bk_machine(0, cover=None)
+    m.bkcov[BK] = BKF; m.jpeg(BKF, size=(4, 4), pix=bytes([20, 200, 20, 255]) * 16); m.tick()
+    expect(not art_paint(m), 'a book cover made while its part plays: the part keeps the answer it got (asked once per track)')
+    m.src(1); m.tick(); m.src(0); m.tick()
+    expect(len(art_paint(m)) == 1, 'the part restarting (stock busy, then no picture): the book is asked again and its new cover shows')
+    m = bk_machine(0, cover=None)
+    m.play([m.record(album='Local', artist='A', path='/mnt/mmc/a/1.flac', rid=1)], 0); m.tick()
+    m.bkcov[BK] = BKF; m.jpeg(BKF, size=(4, 4), pix=bytes([20, 200, 20, 255]) * 16)
+    m.play([m.record(album='Book One', artist='N', path=BK, rid=3)], 0); m.tick()
+    expect(len(art_paint(m)) == 1, 'back to the part after another track: the book is asked again')
+    for src in (2, 3, 5):   # the track between has stock art of its own, and no tick sees stock busy on either change
+        m = bk_machine(0, cover=None)
+        m.src(src); m.play([m.record(album='Local', artist='A', path='/mnt/mmc/a/1.flac', rid=1)], 0); m.tick()
+        m.bkcov[BK] = BKF; m.jpeg(BKF, size=(4, 4), pix=bytes([20, 200, 20, 255]) * 16)
+        m.src(0); m.play([m.record(album='Book One', artist='N', path=BK, rid=3)], 0); m.tick()
+        expect(len(art_paint(m)) == 1, f'back to the part after a track with stock art (source {src}), stock never seen busy: the book is asked again')
+    LONG = 'A Long Audiobook Name ' * 5 + 'Volume One'   # 120 bytes: a book folder name as long as BK_FILE allows (ASCII: the harness reads names as Latin-1)
+    LBK, LBKF = f'/mnt/mmc/Audiobooks/{LONG}/01.mp3', f'/mnt/mmc/Audiobooks/{LONG}/cover.jpg'
+    m = bk_machine(0, path=LBK, cover=LBKF)
+    expect(('widget_load_image', 'file://' + LBKF) in m.calls and len(art_paint(m)) == 1 and m.styles and m.styles[-1][2] == word_of(mn.tone(20, 200, 20)),
+           'a book with a long name: its cover.jpg path fits, the big art and the tone come from it')
 
     # the cover of the next queue record is asked for once, while a server track plays
     m = NowMachine(); m.page(); m.src(0); m.sbcov = {-5: None, -6: None, -7: None}

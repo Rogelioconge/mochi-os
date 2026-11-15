@@ -115,7 +115,8 @@ files change; Clear Cover Cache rebuilds it. Delete Book leaves it.
 
 `bk_art_cover(path)` (`patch/bkmodel.c`) gives the cover of the book an Audiobooks path is in: the
 cover file, else the art cache file when it exists. The [Queue](queue.md) page uses it for the rows
-and header of a part; it never starts the worker.
+and header of a part; it never starts the worker. Now Playing and the surfaces sharing its cover use it only
+as a fallback, for a part stock has no picture of ([nowplaying](nowplaying.md)).
 
 ## LibriVox
 

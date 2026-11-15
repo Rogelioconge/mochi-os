@@ -41,8 +41,12 @@ int ab_has_tone(
     void); /* the page shows a cover's tone now (the album page when tinted; the Show page, not the shows list or an episode) */
 
 /* patch/nowplaying.c */
+/* "file://" and any path np_cover_file answers (a book's cover: the Audiobooks root, a folder and a file name of BK_FILE each) */
+#define NP_COVER_URL 320
 const char *
 np_cover_file(int *busy); /* demo's cover file of the playing track, NULL for none; busy while demo makes it */
+/* the book's cover file of the playing audiobook part (a plain path), NULL for another track or a book with none; np_cover_file answers it when stock has no picture */
+const char *np_book_cover(void);
 unsigned np_file_key(const char *path); /* a hash of the picture file, 0 if unreadable */
 void np_relight(void);
 void *np_window(void); /* Now Playing's window, 0 when it has none (patch/idlelyrics.c) */
