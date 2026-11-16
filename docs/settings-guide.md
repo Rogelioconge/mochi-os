@@ -84,8 +84,8 @@ Settings tile opens its hub and is dimmed on the hub and its Volume & Sound and 
 | Setting | What it does |
 |---|---|
 | Update Library | Scan the card for music. |
-| Rebuild Covers / Rebuild Artist Photos | Rebuild cached artwork; see [artist photos](guide.md#artist-photos). |
-| Split Artists | List songs under each tagged artist; choose separators. See [Split Artists](guide.md#split-artists). |
+| Rebuild Covers / Rebuild Artist Photos | Rebuild cached artwork; see [artist photos](library-guide.md#artist-photos). |
+| Split Artists | List songs under each tagged artist; choose separators. See [Split Artists](library-guide.md#split-artists). |
 | Index Rail / Section Headers | Show the rail and section letters on supported lists; both are on by default. Albums in Year order use a decades rail in the list. |
 | Folder Album Cover | Show available covers in Folders; on by default. |
 | Cover Flow / Volume Buttons | Choose landscape orientation or use the volume buttons to browse albums. |

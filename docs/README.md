@@ -5,7 +5,8 @@
 | Guide | Use it for |
 |---|---|
 | [Install](install.md) | Prepare the card, update the player, disable the mod or restore stock |
-| [User guide](guide.md) | Browse music, control playback and customize the interface |
+| [User guide](guide.md) | Get started with browsing and playback |
+| [Library and playback](library-guide.md) | Browse, manage the queue and set up artist photos |
 | [Settings](settings-guide.md) | Find settings and their device paths |
 | [Equalizer](equalizer-guide.md) | Adjust EQ and manage presets |
 | [Features and extras](features-guide.md) | Radio, Subsonic, podcasts, audiobooks and scrobbling |
