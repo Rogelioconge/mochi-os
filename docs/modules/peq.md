@@ -8,7 +8,7 @@ filter), `patch/peq_ui.c` (Equalizer page), `patch/peqlib.c` (Presets page), `pa
 (page models), `build_peq_page` / `build_peqpage_page` in `tools/pod_ui.py`. **Tests:**
 `test/pod/peq.py`, `test/pod/autoeq.py`. **Preview:** `tools/preview/preview_peq.py`,
 `preview_peqpage.py`, `preview_peqband.py`, `preview_tenband.py`, `preview_autoeq.py`.
-User instructions: [guide](../guide.md#equalizer).
+User instructions: [equalizer guide](../equalizer-guide.md).
 
 A parametric EQ that runs inside hciplayer as an audio filter, with APO / AutoEq presets from the
 card, a 10-Band editor, and a separate setting per output. Based on Diamond Bond's open-source Q2

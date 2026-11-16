@@ -4,7 +4,7 @@
 `patch/datetime.c`, `patch/playset.c`, `patch/battery.c`, `patch/pcregion.c`, `tools/pod_settings.py`,
 `tools/pod_ui.py`, `tools/pod_pages.py`. **Tests:** `test/pod/settings.py`, `test/pod/pdtiles.py`,
 `test/pod/homecover.py`. **Preview:** `tools/preview/preview_settings.py`. User instructions are in
-the [guide](../guide.md#settings).
+the [settings guide](../settings-guide.md).
 
 Settings is main-menu item 18 (`j`), hidden by default. The Extras navbar always reaches it and it cannot
 be turned off. It is an iOS-style page of grouped cards. This doc owns the page tree, the card layout, the

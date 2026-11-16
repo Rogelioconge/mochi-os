@@ -6,6 +6,9 @@
 |---|---|
 | [Install](install.md) | Prepare the card, update the player, disable the mod or restore stock |
 | [User guide](guide.md) | Browse music, control playback and customize the interface |
+| [Settings](settings-guide.md) | Find settings and their device paths |
+| [Equalizer](equalizer-guide.md) | Adjust EQ and manage presets |
+| [Features and extras](features-guide.md) | Radio, Subsonic, podcasts, audiobooks and scrobbling |
 | [Development](workflow.md) | Set up uv, build, test, format and prepare releases |
 
 ## References
