@@ -132,9 +132,19 @@ def badge_x(value_w, badge_w):
 
 def i_row_text_y(r): return flow([True] * I_ROWS)[1][r]
 
+def end_fit(s, room, measure):
+    """np_fit: s whole when it fits room px, else its longest start that fits with "..." after it (the spaces before the dots dropped). The page's labels are plain ones (no ellipsis of their own): stock's hscroll_label
+    clips to its resting place on the screen, so its text was cut while the slide_view moved the page."""
+    long = len(s.encode()) > I_ROW_TAIL             # only the first I_ROW_TAIL bytes are measured: a longer text is never shown whole
+    if not long and measure(s) <= room: return s
+    n = len(s)
+    while long and len(s[:n].encode()) > I_ROW_TAIL: n -= 1
+    while n and measure(s[:n] + '...') > room: n -= 1
+    return s[:n].rstrip(' ') + '...'
+
 def title_wrap(s, room, measure):
     """np_title_fit: the title in up to two lines of room px. Returns ([lines], cut): one line when it fits; else the break is at the last space that leaves line 1 within room (the spaces round it dropped), always, even
-    when line 2 then needs the label's end ellipsis (cut True); only with no such space (CJK, a first word wider than room) at the last character that fits line 1."""
+    when line 2 then needs an end ellipsis (cut True; end_fit); only with no such space (CJK, a first word wider than room) at the last character that fits line 1."""
     if measure(s) <= room: return [s], False
     n1 = 0
     while n1 < len(s) and measure(s[:n1 + 1]) <= room: n1 += 1
@@ -143,7 +153,7 @@ def title_wrap(s, room, measure):
     a = s[:k].rstrip(' ') if k >= 1 else ''
     if not a: k, a = n1, s[:n1]
     b = s[k:].lstrip(' ')
-    return [a, b], measure(b) > room
+    return [a, end_fit(b, room, measure)], measure(b) > room
 
 def fade_alpha(k):
     """The edge fade's alpha (0..255) on row k (0 the edge row) of its I_FADE rows: a linear ramp, nearly opaque at the edge (patch/nowplaying.c np_on_info_fade)."""
@@ -480,26 +490,26 @@ def apply_ui(root):
     for r, n in ((4, 'label_genre'), (5, 'label_year'), (6, 'label_size'), (7, 'label_location')):
         w = find(root, n); move(w, I_X, cy(ty(r) - I_PAD), I_W, I_ROW_PX + 2 * I_PAD); text_style(w, I_ROW_PX, GREY, 'left')
     own = []
-    def label(name, kind, x, y, w, px, rgb, align, ellipsis=False):
+    def label(name, x, y, w, px, rgb, align):       # a plain label: the payload cuts a long text itself (np_fit, np_loc_fit), an hscroll_label's clip does not follow the sliding page
         y0, h = i_box(cy(y), px)
-        wd = awtk_ui.Widget(kind, x, y0, w, h, [('name', name), ('visible', 'false'), ('sensitive', 'false')] + ([('only_parent_focus', 'true'), ('ellipses', 'true')] if ellipsis else []))
+        wd = awtk_ui.Widget('label', x, y0, w, h, [('name', name), ('visible', 'false'), ('sensitive', 'false')])
         text_style(wd, px, rgb, align); each(wd, STATES, 'margin_left', '0'); each(wd, STATES, 'margin_right', '0'); own.append(wd)
     def solid(name, x, y, w, h, rgb, shown):
         wd = awtk_ui.Widget('view', x, cy(y), w, h, [('name', name), ('sensitive', 'false')] + ([] if shown else [('visible', 'false')])); each(wd, STATES, 'bg_color', rgb); own.append(wd)
     hairs, _, _, _ = flow([True] * I_ROWS)
     for r in range(I_ROWS): solid(f'np_i_h{r}', I_X, hairs[r], I_W, 1, HAIR, True)
     art = awtk_ui.Widget('view', I_X, cy(I_ART_Y), I_ART, I_ART, [('name', 'np_i_art'), ('sensitive', 'false')]); each(art, STATES, 'bg_color', '#00000000'); own.append(art)
-    label('np_i_title', 'hscroll_label', I_TEXT_X, I_TITLE_Y, I_TEXT_W, I_TITLE_PX, TITLE_RGB, 'left', True)
-    label('np_i_title2', 'hscroll_label', I_TEXT_X, I_TITLE_Y + I_TITLE_LH, I_TEXT_W, I_TITLE_PX, TITLE_RGB, 'left', True)
-    label('np_i_artist', 'hscroll_label', I_TEXT_X, I_ARTIST_Y, I_TEXT_W, I_META_PX, GREY, 'left', True)
-    label('np_i_album', 'hscroll_label', I_TEXT_X, I_ALBUM_Y, I_TEXT_W, I_META_PX, GREY, 'left', True)
+    label('np_i_title', I_TEXT_X, I_TITLE_Y, I_TEXT_W, I_TITLE_PX, TITLE_RGB, 'left')
+    label('np_i_title2', I_TEXT_X, I_TITLE_Y + I_TITLE_LH, I_TEXT_W, I_TITLE_PX, TITLE_RGB, 'left')
+    label('np_i_artist', I_TEXT_X, I_ARTIST_Y, I_TEXT_W, I_META_PX, GREY, 'left')
+    label('np_i_album', I_TEXT_X, I_ALBUM_Y, I_TEXT_W, I_META_PX, GREY, 'left')
     for text, name in (('HI-RES', 'np_i_badge_hires'), ('DSD', 'np_i_badge_dsd')):
         own.append(awtk_ui.Widget('image', I_R - I_BADGE_W[text], cy(ty(0) - 1), I_BADGE_W[text], I_BADGE_H, [('name', name), ('image', name), ('draw_type', 'default'), ('visible', 'false'), ('sensitive', 'false')]))
-    for r in range(I_ROWS): label(f'np_i_k{r}', 'label', I_X, ty(r), 100, I_ROW_PX, GREY, 'left')
+    for r in range(I_ROWS): label(f'np_i_k{r}', I_X, ty(r), 100, I_ROW_PX, GREY, 'left')
     for r in range(I_ROWS):
-        if r == I_LOC_ROW: label(f'np_i_v{r}', 'hscroll_label', I_X, ty(r) + I_LOC_Y - I_ROW_TEXT, I_W, I_ROW_PX, TITLE_RGB, 'left', True)
-        else: label(f'np_i_v{r}', 'hscroll_label', I_X + 100, ty(r), I_W - 100, I_ROW_PX, TITLE_RGB, 'right', True)
-    label(f'np_i_v{I_ROWS}', 'hscroll_label', I_X, ty(I_LOC_ROW) + I_LOC_Y - I_ROW_TEXT + I_LOC_LH, I_W, I_ROW_PX, TITLE_RGB, 'left', True)
+        if r == I_LOC_ROW: label(f'np_i_v{r}', I_X, ty(r) + I_LOC_Y - I_ROW_TEXT, I_W, I_ROW_PX, TITLE_RGB, 'left')
+        else: label(f'np_i_v{r}', I_X + 100, ty(r), I_W - 100, I_ROW_PX, TITLE_RGB, 'right')
+    label(f'np_i_v{I_ROWS}', I_X, ty(I_LOC_ROW) + I_LOC_Y - I_ROW_TEXT + I_LOC_LH, I_W, I_ROW_PX, TITLE_RGB, 'left')
     # all of it in one scroll_view over the text area (it clips its children; not slidable, sensitive: it takes the touches, the payload moves the children and scrolls on a vertical drag, patch/nowplaying.c np_on_info_touch): the page's children but the scrim
     scrim = info.children[0]; assert scrim.name == 'img_np_scrim_info'
     kids = info.children[1:] + own

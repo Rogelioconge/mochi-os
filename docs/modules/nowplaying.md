@@ -104,6 +104,10 @@ at offset 0.
   when line 2 then ends in an ellipsis. Only with no such space (CJK, a first word wider than the
   line) does it break at the last character that fits. With a two-line title the artist and album
   and everything below move 24 px down.
+- **Plain labels.** Every text of ours on this page is a plain `label`, and `np_fit` cuts a long
+  title line 2, artist, album or value to its room with `...` after it. Stock's `hscroll_label`
+  clips to its resting screen position (`widget_to_screen` in its paint, `0x609e54`), not to the
+  canvas offset, so its text was cut off while the `slide_view` dragged the page sideways.
 - **Badge rule** is the cassette theme's `tape_badge` (`patch/tape.c`, one `mclGetInfo`): lossless
   and (over 48 kHz, or 24 bit from 44.1 kHz) is HI-RES, 1 bit is DSD, nothing for CD quality or
   lossy. DSD files are also recognised by extension when the player has no stream yet.

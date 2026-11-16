@@ -624,6 +624,7 @@ static void np_head_place(void) {
 }
 
 static void np_title_fit(const char *v);
+static void np_fit(void *w, const char *v, int room);
 
 /* The header: the playing record's title, artist and album, its cover; the badge of a Hi-Res or DSD track (the cassette theme's rule: tape_badge) is np_flow's, on the Format row.
  * New text and cover only when the track changed (mb_track_key) or the layout is redone. */
@@ -644,9 +645,9 @@ static unsigned np_header(int force) {
     np_cut(b, sizeof b, title);
     np_title_fit(b);
     np_cut(b, sizeof b, t ? cc_str(t, REC_ARTIST) : "");
-    widget_set_text_utf8(np.iw[NI_ARTIST], b);
+    np_fit(np.iw[NI_ARTIST], b, NPI_TEXT_W);
     np_cut(b, sizeof b, t ? cc_str(t, REC_ALBUM) : "");
-    widget_set_text_utf8(np.iw[NI_ALBUM], b);
+    np_fit(np.iw[NI_ALBUM], b, NPI_TEXT_W);
     np_head_place();
     np_vis(np.iw[NI_TITLE], 1);
     np_vis(np.iw[NI_ARTIST], 1);
@@ -723,6 +724,34 @@ static unsigned np_mid(const char *v, unsigned lo, unsigned hi) {
         while (m < hi && np_cont(v, m)) ++m;
     }
     return m;
+}
+
+/* v in the label w, room px wide: whole when it fits, else the longest start (of its first NP_ROW_TAIL bytes: no more is measured) that fits with "..." after it (the spaces before the dots dropped). The labels of the page are plain ones, which have no ellipsis of their
+ * own: stock's hscroll_label clips to its resting place on the screen (widget_to_screen), not to where the canvas paints it, so its text was cut while the slide view moved the page. tools/mod_nowplaying.py end_fit
+ * is the model. */
+static void np_fit(void *w, const char *v, int room) {
+    char l[NP_ROW_TAIL + 8];
+    unsigned len = 0, lo = 0, hi, m;
+    while (v[len]) ++len;
+    if (len <= NP_ROW_TAIL && np_mw(w, 0, v, len) <= room) { /* whole only when all of it was measured */
+        widget_set_text_utf8(w, v);
+        return;
+    }
+    hi = len > NP_ROW_TAIL ? NP_ROW_TAIL : len; /* the longest start that fits before the dots */
+    while (hi && np_cont(v, hi)) --hi;
+    if (len > NP_ROW_TAIL && np_mw(w, 1, v, hi) <= room)
+        lo = hi; /* a longer text whose measured start fits: that start and the dots */
+    while ((m = np_mid(v, lo, hi)) < hi) {
+        if (np_mw(w, 1, v, m) <= room)
+            lo = m;
+        else
+            hi = m;
+    }
+    while (lo && v[lo - 1] == ' ') --lo;
+    memcpy(l, v, lo);
+    l[lo] = l[lo + 1] = l[lo + 2] = '.';
+    l[lo + 3] = 0;
+    widget_set_text_utf8(w, l);
 }
 
 /* The Location v in w1 and w2 (the second line), room px wide each; np.locn lines. 1: one line when it fits. 2: else broken after the last '/' that fits line 1, when the rest fits line 2. 3: else at the last character
@@ -804,8 +833,8 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
 }
 
 /* The title v in np_i_title and, when it does not fit NPI_TEXT_W, np_i_title2: np.tsh is NPI_TITLE_LH with two lines, else 0. The break is at the last space that leaves line 1 inside the width (the spaces round it
- * dropped), always, even when line 2 then needs its own end ellipsis; only with no such space (CJK, a first word wider than the line) at the last character that fits. Line 2 is the rest whole, which the label cuts
- * with its own ellipsis at the end. tools/mod_nowplaying.py title_wrap is the model. */
+ * dropped), always, even when line 2 then needs its own end ellipsis; only with no such space (CJK, a first word wider than the line) at the last character that fits. Line 2 is the rest, cut
+ * with an ellipsis at the end when it is too long (np_fit). tools/mod_nowplaying.py title_wrap is the model. */
 static void np_title_fit(const char *v) {
     char l[NP_ROW_TAIL + 8];
     void *w1 = np.iw[NI_TITLE], *w2 = np.iw[NI_TITLE2];
@@ -841,7 +870,7 @@ static void np_title_fit(const char *v) {
     memcpy(l, v, e);
     l[e] = 0;
     widget_set_text_utf8(w1, l);
-    widget_set_text_utf8(w2, rest);
+    np_fit(w2, rest, NPI_TEXT_W);
 }
 
 /* Row r shows ours (own) or nothing of ours (rows 4..7: stock's label of it, never both visible). */
@@ -871,7 +900,7 @@ static void np_set_row(int r, const char *key, const char *val) {
         if (room < 0) room = 0;
         np.rvx[r] = NPI_R - room;
         np.rvw[r] = room;
-        widget_set_text_utf8(w, val);
+        np_fit(w, val, room);
         if (r == 0) np.fmtw = np_tw(w);
     }
     np_row_own(r, 1);

@@ -486,7 +486,7 @@ def run(ctx):
     expect(not any(present(m)), 'a failed read: stock\'s labels stay')
     for t in ('Genres:' + 'x' * 600, 'Genres:' + '歌' * 200, 'Genres:' + 'x' * 506):
         m = info({'label_genre': t}); expect(rowv(m, 4) is None and m.visible('label_genre') != 0, f'a tag of {len(t.encode())} bytes (the buffer holds 511 and a NUL): stock\'s label')
-    m = info({'label_genre': 'Genres:' + 'x' * 500}); expect(rowv(m, 4) == ('Genre', 'x' * 500), 'a text that fits the buffer is ours')
+    m = info({'label_genre': 'Genres:' + 'x' * 500}); expect(rowv(m, 4) == ('Genre', mn.end_fit('x' * 500, P(m, 'np_i_v4')[2], lambda x: ms(x, 16))) and ms(rowv(m, 4)[1], 16) <= P(m, 'np_i_v4')[2], 'a text that fits the buffer is ours (cut to its room)')
     m = info({'label_genre': 'Genres:Rock'}, own=False)
     expect(m.visible('label_genre') is None and not sets(m), 'a page without our row labels leaves stock\'s alone')
     # layout again for NP_RELAY ticks: a label measures in its own style only once the window is open (the first look can be wrong)
@@ -573,21 +573,35 @@ def run(ctx):
               'Cyrillic': 'Прекрасное далёко (из к/ф Гостья из будущего) Remastered', 'Arabic': 'مرحبا بالعالم الجميل في كل مكان ومن كل مكان', 'accents': 'Éléphant à côté de l’océan très éloigné d’ici', 'spaces': 'Hello   ' + 'W' * 30 + '   World   ' + 'x' * 20}
     for name, t in tcases.items():
         m = title_page(t); lines, cut = TW(t); got = [T(m, 'np_i_title')] + ([T(m, 'np_i_title2')] if shown(m, 'np_i_title2') else [])
-        ok = got == lines and ms(lines[0], 20) <= 212 and (cut or all(ms(l, 20) <= 212 for l in lines))
-        expect(ok and len(lines) <= 2, f'{name}: {got} the model\'s {lines}, line 1 within 212 px, line 2 {"cut by the label\'s ellipsis" if cut else "whole"}')
+        ok = got == lines and all(ms(l, 20) <= 212 for l in lines) and cut == lines[-1].endswith('...')
+        expect(ok and len(lines) <= 2, f'{name}: {got} the model\'s {lines}, line 1 within 212 px, line 2 {"cut with an end ellipsis" if cut else "whole"}')
         sh = 24 if len(lines) > 1 else 0
         expect(P(m, 'np_i_art')[1] == 0 and P(m, 'np_i_title') == (92, 0, 212, 24) and (len(lines) < 2 or P(m, 'np_i_title2') == (92, 24, 212, 24)) and P(m, 'np_i_artist')[1] == 24 + sh and P(m, 'np_i_album')[1] == 44 + sh and P(m, 'np_i_h0')[1] == 76 + sh,
                f'{name}: the cover stays, artist, album and the first hairline move down {sh} px')
         check_flow(m, name)
     ls, cut = TW(tcases['a longer two lines']); expect(len(ls) == 2 and not cut and ' '.join(ls) == tcases['a longer two lines'] and ls[0] == 'Bohemian Rhapsody', f'a word break: no word is cut ({ls})')
-    ls, cut = TW(tcases['a word break']); expect(ls[0] == 'Wish You Were Here' and ls[1].startswith('(2011 Remastered') and cut and ms(ls[1], 20) > 212, f'the word break is kept even when line 2 then needs its end ellipsis ({ls})')
+    ls, cut = TW(tcases['a word break']); expect(ls[0] == 'Wish You Were Here' and ls[1].startswith('(2011 Remastered') and cut and ls[1].endswith('...') and ms(ls[1], 20) <= 212, f'the word break is kept even when line 2 then needs its end ellipsis ({ls})')
     ls, cut = TW('周杰伦 Jay Chou 稻香 Rice Fragrance'); expect(len(ls) == 2 and ' ' not in ls[0][-1:] and ls[0].split(' ')[-1] != '' and ''.join(ls).replace(' ', '') == '周杰伦JayChou稻香RiceFragrance' and ls[0].count(' ') >= 1, f'mixed text breaks at a space when one qualifies ({ls})')
     ls, cut = TW(tcases['CJK']); expect(len(ls) == 2 and not cut and ''.join(ls) == tcases['CJK'] and ms(ls[0], 20) <= 212 and ms(ls[0] + '夜', 20) > 212, 'CJK has no space: a character break at the last character that fits, nothing lost')
-    ls, cut = TW(tcases['one long word']); expect(len(ls) == 2 and ''.join(ls) == tcases['one long word'] and ms(ls[0], 20) <= 212 and ms(ls[0] + ls[1][0], 20) > 212, 'one long word breaks at the last character that fits line 1')
-    ls, cut = TW(tcases['ellipsis']); expect(cut and len(ls) == 2 and ms(ls[1], 20) > 212, 'more than two lines: line 2 is the rest whole, the label puts the ellipsis at its end')
+    ls, cut = TW(tcases['one long word']); expect(len(ls) == 2 and cut and ls[1].endswith('...') and tcases['one long word'].startswith(ls[0] + ls[1][:-3]) and ms(ls[0], 20) <= 212 and ms(ls[0] + ls[1][0], 20) > 212 and ms(ls[1], 20) <= 212, 'one long word breaks at the last character that fits line 1, line 2 ends in the ellipsis')
+    ls, cut = TW(tcases['ellipsis']); expect(cut and len(ls) == 2 and ls[1].endswith('...') and not ls[1].endswith(' ...') and ms(ls[1], 20) <= 212 and tcases['ellipsis'].startswith(ls[0] + ' ' + ls[1][:-3]), 'more than two lines: line 2 is the longest start of the rest that fits with the ellipsis after it')
     ls, cut = TW(tcases['spaces']); expect(not ls[0].endswith(' ') and not ls[1].startswith(' '), 'the spaces round a break are dropped')
     m = title_page('Wish You Were Here (2011 Remastered Version)'); h2 = vhigh(m); h1 = vhigh(title_page('Money'))
     expect(h2 == h1 + 24, f'two lines make the content 24 px longer ({h1} -> {h2})')
+
+    # ---- the plain labels have no ellipsis of their own: a long artist, album or value is cut to its room with "..." after it (np_fit; tools/mod_nowplaying.py end_fit)
+    EF = lambda t, room, px=16: mn.end_fit(t, room, lambda x: ms(x, px))
+    for name, artist, album in (('Latin', 'The Jimi Hendrix Experience and Friends Live', 'Electric Ladyland (50th Anniversary Deluxe Edition)'), ('CJK', '久石譲' * 9, '千と千尋の神隠し サウンドトラック ' * 3),
+                                ('short', 'Pink Floyd', 'The Wall'), ('a space before the cut', 'A' * 21 + '    ' + 'B' * 20, 'W' * 40)):
+        m = info(stock_en, rec=dict(REC, artist=artist, album=album)); got = (T(m, 'np_i_artist'), T(m, 'np_i_album'))
+        expect(got == (EF(artist, 212), EF(album, 212)) and all(ms(g, 16) <= 212 and ' ...' not in g for g in got) and (name != 'short' or got == (artist, album)) and (name == 'short' or all(g.endswith('...') for g in got)),
+               f'{name}: artist and album within 212 px, the longest start that fits and "..." ({got})')
+    genre = 'Progressive Rock; Psychedelic Rock; Art Rock; Experimental'
+    m = info(dict(stock_en, label_genre='Genres:' + genre)); room = P(m, 'np_i_v4')[2]
+    expect(T(m, 'np_i_v4') == EF(genre, room) and T(m, 'np_i_v4').endswith('...') and ms(T(m, 'np_i_v4'), 16) <= room and T(m, 'np_i_v5') == '1999', f'a value wider than its room is cut with "..." ({T(m, "np_i_v4")}, {room} px); the others stay whole')
+    for genre in ('\U0001F3B5' * 50 + 'Progressive Rock', '\u200b' * 70 + 'Progressive Rock and more', 'i' * 201):
+        m = info(dict(stock_en, label_genre='Genres:' + genre)); room = P(m, 'np_i_v4')[2]; got = T(m, 'np_i_v4')
+        expect(got == EF(genre, room) and got.endswith('...') and ms(got, 16) <= room, f'a value over {mn.I_ROW_TAIL} bytes is never shown whole, even when its measured start fits ({len(genre.encode())} bytes -> {ms(got, 16)} of {room} px)')
     m.call(PSYMS['np_info_scroll'], a0=10000); expect(P(m, 'np_i_art')[1] == -(vhigh(m) - 252), 'the scroll range follows')
     m.play([m.record(title='Short', artist='X', album='Y', path='/mnt/mmc/x/9.flac', name='9.flac', rid=9)], 0); m.tick()
     expect(not shown(m, 'np_i_title2') and T(m, 'np_i_title2') == '' and P(m, 'np_i_artist')[1] == 24 and vhigh(m) == h1, 'the next track with a short title: one line again, the second label hidden and empty')
@@ -610,7 +624,7 @@ def run(ctx):
     m.play([m.record(title='', artist='X', album='', path='/mnt/mmc/x/3.flac', name='3 Name.flac', rid=3)], 0); m.tick()
     expect((T(m, 'np_i_title'), T(m, 'np_i_album')) == ('3 Name.flac', ''), 'no title: the file name; no album: an empty line')
     m.play([m.record(title='歌' * 100, artist='a', album='b', rid=4)], 0); m.tick()
-    expect(len(m.texts[m.widgets['np_i_title']]) <= 199 and len(m.texts[m.widgets['np_i_title2']]) <= 199 and T(m, 'np_i_title') + T(m, 'np_i_title2') == '歌' * 66, 'a long title is cut at a character boundary below 200 bytes')
+    expect(len(m.texts[m.widgets['np_i_title']]) <= 199 and len(m.texts[m.widgets['np_i_title2']]) <= 199 and T(m, 'np_i_title2').endswith('...') and ('歌' * 66).startswith(T(m, 'np_i_title') + T(m, 'np_i_title2')[:-3]) and ms(T(m, 'np_i_title2'), 20) <= 212, 'a long title is cut at a character boundary below 200 bytes, its second line to the column with the ellipsis')
     m.setword(pod.DATA['PLAY_QUEUE'][0], m.new_deque([])); m.tick()
     expect(T(m, 'np_i_title') == '' and not shown(m, 'np_i_badge_hires'), 'no record: an empty header')
     m = info(stock_en)
@@ -1078,7 +1092,7 @@ def run(ctx):
     expect(all(w.get('style:normal:font_size') == str(px) for w, px in [(f(n), 20 if n == 'np_i_title' else 16) for n in ('np_i_title', 'np_i_artist', 'np_i_album', 'np_i_v0', 'np_i_k3', 'np_i_v7', 'np_i_v8')])
            and f('np_i_title').get('style:normal:text_color') == '#FFFFFF' and f('np_i_artist').get('style:normal:text_color') == mn.GREY and f('np_i_k0').get('style:normal:text_color') == mn.GREY
            and f('np_i_v2').get('style:normal:text_align_h') == 'right' and f('np_i_v7').get('style:normal:text_align_h') == 'left' and f('np_i_v8').get('style:normal:text_align_h') == 'left'
-           and f('np_i_v7').get('style:normal:text_color') == '#FFFFFF' and f('np_i_title').get('ellipses') == 'true', 'sizes and colours: title 20 px white, artist and album 16 px #AAAAAA, labels grey, values white and right aligned, the path lines left aligned')
+           and f('np_i_v7').get('style:normal:text_color') == '#FFFFFF' and all(w.type == 'label' for w in own if w.name.startswith(('np_i_title', 'np_i_artist', 'np_i_album', 'np_i_k', 'np_i_v'))), 'plain labels (an hscroll_label clips to its resting place: its text was cut while the page slid); sizes and colours: title 20 px white, artist and album 16 px #AAAAAA, labels grey, values white and right aligned, the path lines left aligned')
     for text in ('HI-RES', 'DSD'):
         name = 'np_i_badge_' + ('hires' if text == 'HI-RES' else 'dsd')
         from PIL import Image as _I
