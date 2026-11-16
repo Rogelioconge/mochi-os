@@ -11,7 +11,7 @@ import cdefs
 OFF = cdefs.defines(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'patch', 'offsets.inc'))
 W, R, PX0 = OFF['BHC_W'], OFF['BHC_R'], OFF['BHC_PX0']
 LH, LCARD, LPY0, LPH, LPITCH, LBAR = (OFF[k] for k in ('BHL_H', 'BHL_CARD', 'BHL_PY0', 'BHL_PH', 'BHL_PITCH', 'BHL_BAR'))
-AH, ACARD, APY0, APH, APITCH, ABAR, ALEG = (OFF[k] for k in ('BHA_H', 'BHA_CARD', 'BHA_PY0', 'BHA_PH', 'BHA_PITCH', 'BHA_BAR', 'BHA_LEGEND_Y'))
+AH, ACARD, APY0, APH, APITCH, ABAR, ABAR_R, ALEG = (OFF[k] for k in ('BHA_H', 'BHA_CARD', 'BHA_PY0', 'BHA_PH', 'BHA_PITCH', 'BHA_BAR', 'BHA_BAR_R', 'BHA_LEGEND_Y'))
 SCARD, SPAD, SBAR_Y, SBAR_H, SROW0, SROW_H, SMARK_X, SMARK, SMARK_R, SMARK_CY = (OFF[k] for k in ('BHS_CARD', 'BHS_PAD', 'BHS_BAR_Y', 'BHS_BAR_H', 'BHS_ROW0_Y', 'BHS_ROW_H', 'BHS_MARK_X', 'BHS_MARK_SIZE', 'BHS_MARK_R', 'BHS_MARK_CY'))
 SBAR_W = W - 2 * SPAD
 BUCKETS, SECS, NONE, F_CHG, F_GAP = 96, 900, 255, 1, 2
@@ -74,6 +74,16 @@ def rrect(im, x0, y0, w, h, r, rgb):
         for x in range(x0, x0 + w): blend(im, x, y, rgb, cover(x, y, x0, y0, w, h, r))
 
 
+def draw_bar(im, x, w, top, yb, r, rgb, rgb2=None, split=0):
+    """A chart bar x, w wide from row top down to the plot's bottom yb: top corners of radius r, the bottom flat; rows above split take rgb2 (the stacked activity bar)."""
+    for y in range(top, yb):
+        for xx in range(x, x + w):
+            cx = clamp(xx + 0.5, x + r, x + w - r)
+            cy = max(y + 0.5, top + r)
+            dx, dy = xx + 0.5 - cx, y + 0.5 - cy
+            blend(im, xx, y, rgb2 if y < split else rgb, clamp(r - math.sqrt(dx * dx + dy * dy) + 0.5, 0, 1))
+
+
 def mark(im, x, cy, rgb): rrect(im, x, cy - SMARK // 2, SMARK, SMARK, SMARK_R, rgb)
 
 
@@ -127,7 +137,8 @@ def render_level(b, head, tz):
     for j, bar in enumerate(level_bars(b)):
         if not bar: continue
         h = (bar[0] * LPH + 50) // 100
-        rect(im, PX0 + LPITCH * j, LPY0 + LPH - h, LBAR, h, level_color(*bar))
+        c = level_color(*bar)
+        draw_bar(im, PX0 + LPITCH * j, LBAR, LPY0 + LPH - h, LPY0 + LPH, LBAR / 2, c)
     return im
 
 
@@ -147,8 +158,7 @@ def render_activity(b, head, tz):
         hpl = (play * APH + 1800) // 3600
         hpl = min(hpl, APH - hon)
         x = PX0 + APITCH * m
-        rect(im, x, APY0 + APH - hon, ABAR, hon, ON_RGB)
-        rect(im, x, APY0 + APH - hon - hpl, ABAR, hpl, PLAY_RGB)
+        draw_bar(im, x, ABAR, APY0 + APH - hon - hpl, APY0 + APH, ABAR_R, ON_RGB, PLAY_RGB, APY0 + APH - hon)
     mark(im, SW_X[0], ALEG, ON_RGB)
     mark(im, SW_X[1], ALEG, PLAY_RGB)
     return im

@@ -8,7 +8,7 @@
  * closes up and grows in place.
  *
  * The card and the charts are bitmaps painted into a view the width of the list (the preset page's graph card: patch/peqpage.c, peq_blit): the card (#1C1C1E, rounded), the stacked bar of the card (screen on / playing with the screen off /
- * standby since the charger was removed), the dotted gridlines and the bars, from bh_snapshot; tools/batthist_model.py is the model test/pod/batthist.py compares them with. The level chart has 48 bars of two buckets (the later level; grey,
+ * standby since the charger was removed), the dotted gridlines and the bars, from bh_snapshot; tools/batthist_model.py is the model test/pod/batthist.py compares them with. The chart bars have rounded tops (radius BHL_BAR / 2, BHA_BAR_R) and flat bottoms. The level chart has 48 bars of two buckets (the later level; grey,
  * green when either bucket saw the charger, red at 20 % or less on battery, none without data), the activity chart 24 hourly bars of four buckets (the seconds with the screen on light grey at the bottom, playing with the screen off mid grey on
  * top); a bucket on external power has a faint band behind its bars. The legend marks are the same 10 px rounded squares everywhere. The texts, the axis and the hour ticks are real labels (the language's text and font). The hour ticks are
  * bucket boundaries at local multiples of six hours: the zone's offset is read once from localtime at the open bucket (the buckets are UTC quarter hours, which are quarter hours in every zone of the picker) and the labels follow 24-Hour Time.
@@ -121,6 +121,23 @@ static void bhp_grid(unsigned *px, int py0, int ph, const int *idx, int n) {
 
 static int bhp_has(const struct bh_bucket *k) { return !(k->flags & BH_F_GAP); }
 
+/* A chart bar x, w wide, from y top down to the plot's bottom yb, its top corners rounded with radius r (the bottom flat), blended over the plot; rows above split (the stacked activity bar's boundary) take c2, the rest c.
+ * Only the corner pixels (dx and dy both off the centre) need the root; the rest are covered whole and stored opaque. */
+static void bhp_bar(unsigned *px, int x, int w, int top, int yb, double r, const unsigned char *c,
+                    const unsigned char *c2, int split) {
+    int i, j;
+    for (j = top; j < yb; ++j)
+        for (i = x; i < x + w; ++i) {
+            const unsigned char *k = j < split ? c2 : c;
+            double cx = bhp_clamp(i + 0.5, x + r, x + w - r), cy = j + 0.5 < top + r ? top + r : j + 0.5,
+                   dx = i + 0.5 - cx, dy = j + 0.5 - cy;
+            if (dx == 0 || dy == 0)
+                px[j * BHC_W + i] = bhp_px(255, k[0], k[1], k[2]);
+            else
+                bhp_blend(px, i, j, k, bhp_clamp(r - __builtin_sqrt(dx * dx + dy * dy) + 0.5, 0, 1));
+        }
+}
+
 /* The faint band behind the bars: each bucket on external power is its slice of the plot (bucket i from BHC_PX0 + 5 i / 2 to BHC_PX0 + 5 (i + 1) / 2), the plot's height. */
 static void bhp_band(unsigned *px, const struct bh_view *v, int py0, int ph) {
     int i;
@@ -139,11 +156,13 @@ static void bhp_level(unsigned *px, const struct bh_view *v, const int *idx, int
                   : bhp_has(e) && e->level <= 100 ? e->level
                                                   : -1,
             chg = (bhp_has(e) && (e->flags & BH_F_CHG)) || (bhp_has(l) && (l->flags & BH_F_CHG)), h;
-        unsigned c;
+        static const unsigned char green[3] = {0x34, 0xC7, 0x59}, red[3] = {0xFF, 0x14, 0x48},
+                                   grey[3] = {BHP_LEVEL, BHP_LEVEL, BHP_LEVEL};
+        const unsigned char *c;
         if (lev < 0) continue;
         h = (lev * BHL_PH + 50) / 100;
-        c = chg ? bhp_px(255, 0x34, 0xC7, 0x59) : lev <= BHP_LOW ? bhp_px(255, 0xFF, 0x14, 0x48) : bhp_grey(BHP_LEVEL);
-        bhp_rect(px, BHC_PX0 + BHL_PITCH * j, BHL_PY0 + BHL_PH - h, BHL_BAR, h, c);
+        c = chg ? green : lev <= BHP_LOW ? red : grey;
+        bhp_bar(px, BHC_PX0 + BHL_PITCH * j, BHL_BAR, BHL_PY0 + BHL_PH - h, BHL_PY0 + BHL_PH, BHL_BAR / 2.0, c, c, 0);
     }
 }
 
@@ -158,10 +177,8 @@ static void bhp_activity(unsigned *px, const struct bh_view *v, const int *idx, 
             if (bhp_has(&v->b[i])) on += v->b[i].on * 8u, play += v->b[i].play * 8u;
         hon = (on * BHA_PH + 1800) / 3600, hpl = (play * BHA_PH + 1800) / 3600;
         if (hpl > BHA_PH - hon) hpl = BHA_PH - hon;
-        bhp_rect(px, BHC_PX0 + BHA_PITCH * m, BHA_PY0 + BHA_PH - hon, BHA_BAR, hon,
-                 bhp_px(255, bhp_kind[0][0], bhp_kind[0][1], bhp_kind[0][2]));
-        bhp_rect(px, BHC_PX0 + BHA_PITCH * m, BHA_PY0 + BHA_PH - hon - hpl, BHA_BAR, hpl,
-                 bhp_px(255, bhp_kind[1][0], bhp_kind[1][1], bhp_kind[1][2]));
+        bhp_bar(px, BHC_PX0 + BHA_PITCH * m, BHA_BAR, BHA_PY0 + BHA_PH - (int)(hon + hpl), BHA_PY0 + BHA_PH, BHA_BAR_R,
+                bhp_kind[0], bhp_kind[1], BHA_PY0 + BHA_PH - (int)hon);
     }
     bhp_mark(px, 14, BHA_LEGEND_Y, 0);
     bhp_mark(px, 124, BHA_LEGEND_Y, 1);

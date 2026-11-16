@@ -200,6 +200,10 @@ local midnight.
 On the activity chart a bucket with `BH_F_CHG` (and data) has a faint `#2A2A2C` band behind the bars (the level chart's green bars already say it): its 2.5 px slice of the
 plot (bucket i from `BHC_PX0 + 5 i / 2` to `BHC_PX0 + 5 (i + 1) / 2`), the plot's height, not below the axis.
 
+The bars' tops are rounded as on iOS, the bottoms flat: radius 1.5 (half the width) on the level chart, 3
+(`BHA_BAR_R`) on the activity chart, where the whole stack has one rounded top; the corners are antialiased over
+the card, the gridlines and the band.
+
 Axis: level 100% / 50% / 0% (fixed text); activity "60 min" / "30 min" / "0" (`%d min` through the language's table).
 Hour labels: four bucket boundaries (0..95) fall on local multiples of six hours; the zone's offset is read once, from
 `localtime` at the open bucket (UTC quarter hours are quarter hours in every picker zone; a DST change inside the 24

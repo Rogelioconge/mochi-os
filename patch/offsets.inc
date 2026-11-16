@@ -1777,7 +1777,7 @@
 /* The Battery History charts (patch/bhpage.c, tools/pod_ui.py cards_hist, tools/batthist_model.py, docs/modules/batthist.md "History page"): three items of Settings > Battery, hidden while the switch is off. Each chart item
  * is a transparent view BHC_LIST_W wide whose EVT_BEFORE_PAINT blits a BHC_W x item-height bitmap (the card baked in: #1C1C1E, BHC_R corners in the alpha, the dotted gridlines, the bars) at x BHC_X; the axis, the hour
  * ticks and the legend are labels over it. The plot is BHC_PX0 from the card's left, 48 half-hour bars BHL_PITCH apart (BHL_BAR wide) over BHL_PH rows from BHL_PY0, or 24 hourly bars BHA_PITCH apart (BHA_BAR wide)
- * over BHA_PH rows; the 96 quarter-hour buckets sit 2.5 px apart on both (a tick at bucket boundary i is x BHC_PX0 + 5 * i / 2). The summary item (Since Last Charge) is a BHS_CARD high card bitmap in a BHS_H item:
+ * over BHA_PH rows; the bars' tops are rounded (radius BHL_BAR / 2, BHA_BAR_R; flat bottoms); the 96 quarter-hour buckets sit 2.5 px apart on both (a tick at bucket boundary i is x BHC_PX0 + 5 * i / 2). The summary item (Since Last Charge) is a BHS_CARD high card bitmap in a BHS_H item:
  * a stacked bar BHS_BAR_H high at BHS_BAR_Y between BHS_PAD and the right edge less BHS_PAD, and three BHS_ROW_H rows from BHS_ROW0_Y (a BHS_MARK_SIZE mark at BHS_MARK_X centred BHS_MARK_CY under the row's top, a hairline above rows 1 and 2); the caption, the
  * duration, the percent left and the row labels are labels over it, centred on BHS_CAP_Y, BHS_DUR_Y, BHS_LEFT_Y and, in a row, the name on BHS_MARK_CY, the duration on BHS_SUB_CY and the percent on BHS_PCT_CY. */
 #define BHC_LIST_W 310
@@ -1797,6 +1797,7 @@
 #define BHA_PH 76
 #define BHA_PITCH 10
 #define BHA_BAR 8
+#define BHA_BAR_R 3
 #define BHA_LEGEND_Y 134
 #define BHC_AXIS_X 256
 #define BHC_AXIS_W 42
