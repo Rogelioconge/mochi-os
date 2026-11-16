@@ -1286,7 +1286,8 @@ def library_tests(ctx, on_row):
     expect(layout[layout.index('Row:Landscape'):][:3] == ['Row:Landscape', 'Row:Volume Buttons', 'Note:In Cover Flow, the volume buttons move between albums.'] and P.ACT_VOLKEYS == 89
            and P.ACT_VOLKEYS in P.SWITCH_ACTIONS and P.row_kind(C.rows[vk_i]) == 'switch', f'Volume Buttons is a switch row (89) right below Landscape, with its note ({layout})')
     m = open_lib()
-    expect(('label_set_line_wrap', m.widgets['pod_note1_t'], 1) in m.calls, 'the note, a plain label, has its line wrap on')
+    expect(('label_set_line_wrap', m.widgets['pod_note1_t'], 1) in m.calls and m.props.get((m.widgets['pod_note1_t'], 'word_wrap')) in (1, True),
+           'the note, a plain label, has its line wrap on and breaks at spaces (word_wrap), not mid-word')
     # generic: the page table carries a bit per wrapping note (Note.lines > 1), never one for a one-line note, and open_page wraps exactly those
     notes = [x for x in C.layout if isinstance(x, P.Note)]
     expect(C.wrap_notes() == sum(1 << n for n, x in enumerate(notes) if x.lines > 1) and C.wrap_notes() == 0b10

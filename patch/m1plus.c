@@ -1207,7 +1207,10 @@ static int open_page(int index, int as_home) {
             void *note;
             snprintf(nm, sizeof nm, "pod_note%d_t", i);
             note = widget_lookup(win, nm, 1);
-            if (note) label_set_line_wrap(note, 1);
+            if (note) { /* break at spaces, as the lyrics lines (a character break cut a word in two) */
+                label_set_line_wrap(note, 1);
+                widget_set_prop_bool(note, "word_wrap", 1);
+            }
         }
     if (index == POD_CACHE_PAGE) dur_stat_open(); /* the track table's header, read once as the page opens */
     if (index !=
