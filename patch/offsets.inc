@@ -1776,8 +1776,8 @@
  * is a transparent view BHC_LIST_W wide whose EVT_BEFORE_PAINT blits a BHC_W x item-height bitmap (the card baked in: #1C1C1E, BHC_R corners in the alpha, the dotted gridlines, the bars) at x BHC_X; the axis, the hour
  * ticks and the legend are labels over it. The plot is BHC_PX0 from the card's left, 48 half-hour bars BHL_PITCH apart (BHL_BAR wide) over BHL_PH rows from BHL_PY0, or 24 hourly bars BHA_PITCH apart (BHA_BAR wide)
  * over BHA_PH rows; the 96 quarter-hour buckets sit 2.5 px apart on both (a tick at bucket boundary i is x BHC_PX0 + 5 * i / 2). The summary item (Since Last Charge) is a BHS_CARD high card bitmap in a BHS_H item:
- * a stacked bar BHS_BAR_H high at BHS_BAR_Y between BHS_PAD and the right edge less BHS_PAD, and three BHS_ROW_H rows from BHS_ROW0_Y (a BHS_MARK_SIZE mark at BHS_MARK_X, a hairline above rows 1 and 2); the caption, the
- * duration, the percent left and the row labels are labels over it, centred on BHS_CAP_Y, BHS_DUR_Y, BHS_LEFT_Y and the row's middle. */
+ * a stacked bar BHS_BAR_H high at BHS_BAR_Y between BHS_PAD and the right edge less BHS_PAD, and three BHS_ROW_H rows from BHS_ROW0_Y (a BHS_MARK_SIZE mark at BHS_MARK_X centred BHS_MARK_CY under the row's top, a hairline above rows 1 and 2); the caption, the
+ * duration, the percent left and the row labels are labels over it, centred on BHS_CAP_Y, BHS_DUR_Y, BHS_LEFT_Y and, in a row, the name on BHS_MARK_CY, the duration on BHS_SUB_CY and the percent on BHS_PCT_CY. */
 #define BHC_LIST_W 310
 #define BHC_W 300
 #define BHC_X 10
@@ -1801,8 +1801,8 @@
 #define BHC_TICK_W 44
 #define BHL_TICK_Y 128
 #define BHA_TICK_Y 104
-#define BHS_H 254
-#define BHS_CARD 244
+#define BHS_H 302
+#define BHS_CARD 292
 #define BHS_PAD 12
 #define BHS_CAP_Y 22
 #define BHS_DUR_Y 55
@@ -1810,8 +1810,11 @@
 #define BHS_BAR_Y 86
 #define BHS_BAR_H 10
 #define BHS_ROW0_Y 108
-#define BHS_ROW_H 44
+#define BHS_ROW_H 60
 #define BHS_MARK_X 14
 #define BHS_MARK_SIZE 10
 #define BHS_MARK_R 4
 #define BHS_NAME_X 34
+#define BHS_MARK_CY 20
+#define BHS_SUB_CY 42
+#define BHS_PCT_CY 30

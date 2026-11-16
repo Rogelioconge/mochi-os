@@ -1,6 +1,7 @@
 """Battery History (patch/batthist.c, docs/modules/batthist.md): the recorder's samples run against fake sysfs, clocks and stock words: buckets and the ring, the since-charge counters, the attribution of a
 gauge drop, charging, standby and reboot gaps, the wall clock jumping, the file (fixed size, validated), the switch and the thread's end, and the Settings row."""
 import os, struct
+import calendar, time as _time
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 import cdefs
 import batthist_model as HM
@@ -12,8 +13,9 @@ FILE, DATA, TMP, DTMP, STATUS, GAUGE = DEFS['BH_FILE'], DEFS['BH_DATA'], DEFS['B
 N, SECS, KILL = DEFS['BH_BUCKETS'], DEFS['BH_SECS'], '/mnt/mmc/m1plus-off'
 GAP, CHG = DEFS['BH_F_GAP'], DEFS['BH_F_CHG']
 NONE = DEFS['BH_NONE']
-FILE_SIZE = 36 + 8 * N          # magic, version, count, head, unplug_at, unplug_lvl, sc_play, sc_on, sc_total, sum, the ring
-VIEW_SIZE = 4 + 8 * N + 6 * 4 + 2 * 4 + 6 * 4
+HDR = 52
+FILE_SIZE = HDR + 8 * N         # magic, version, count, head, unplug_at, unplug_lvl, sc_play, sc_on, sc_total, sc_d_on, sc_d_play, sc_d_idle, since_on, sum, the ring
+VIEW_SIZE = 4 + 8 * N + 10 * 4
 T0 = 1800000000                 # a quarter hour edge: T0 // 900 = 2000000
 assert T0 % SECS == 0
 
@@ -56,12 +58,16 @@ def view(m):
     buf = m.alloc(VIEW_SIZE)
     r = m.call(PSYMS['bh_snapshot'], a0=buf, count=2000000)
     raw = bytes(m.u.mem_read(buf, VIEW_SIZE))
-    head, b, *rest = struct.unpack('<I%ds8Ii5I' % (8 * N), raw)
+    head, b, *rest = struct.unpack('<I%dsi9I' % (8 * N), raw)
     if not r:
         assert raw == bytes(VIEW_SIZE), 'a refused snapshot leaves the view zeroed'
         return None
-    keys = ('t_on', 't_play', 't_idle', 'd_on', 'd_play', 'd_idle', 'act_on', 'act_play', 'unplug_at', 'unplug_lvl', 'level', 'sc_play', 'sc_on', 'sc_total')
-    return dict(zip(keys, rest), head=head, b=[struct.unpack_from('8B', b, 8 * i) for i in range(N)])
+    keys = ('unplug_at', 'unplug_lvl', 'since_on', 'level', 'sc_play', 'sc_on', 'sc_total', 'sc_d_on', 'sc_d_play', 'sc_d_idle')
+    bk = [struct.unpack_from('8B', b, 8 * i) for i in range(N)]
+    live = [k for k in bk if not k[1] & GAP and not k[1] & CHG]   # the buckets' own totals (what the ring attributes): with data, off the charger
+    tot = dict(t_on=sum(k[2] * 8 for k in live), t_idle=sum(max(0, k[4] - k[2] - k[3]) * 8 for k in live), d_on=sum(k[5] for k in live), d_play=sum(k[6] for k in live), d_idle=sum(k[7] for k in live),
+               act_on=sum(k[2] * 8 for k in bk if not k[1] & GAP))
+    return dict(zip(keys, rest), head=head, b=bk, **tot)
 
 
 def last(m): return view(m)['b'][-1]
@@ -82,8 +88,8 @@ def constants_tests(ctx):
     m = machine()
     step(m, 0)
     step(m, 900)
-    expect(len(m.fs[DATA]) == FILE_SIZE == 804 < 1024, f'the file is {len(m.fs[DATA])} bytes')
-    expect(m.fs[DATA][:4] == b'BHS1' and struct.unpack_from('<HH', m.fs[DATA], 4) == (3, N) and struct.unpack_from('<I', m.fs[DATA], 8)[0] == (T0 + 960) // SECS, 'magic, version, count, the newest bucket')
+    expect(len(m.fs[DATA]) == FILE_SIZE == 820 < 1024, f'the file is {len(m.fs[DATA])} bytes')
+    expect(m.fs[DATA][:4] == b'BHS1' and struct.unpack_from('<HH', m.fs[DATA], 4) == (4, N) and struct.unpack_from('<I', m.fs[DATA], 8)[0] == (T0 + 960) // SECS, 'magic, version, count, the newest bucket')
 
 
 def sample_tests(ctx):
@@ -326,16 +332,16 @@ def corrupt_tests(ctx):
     flip = lambda i, to=None: good[:i] + bytes([(good[i] ^ 0x55) if to is None else to]) + good[i + 1:]
     struct_head = lambda v: good[:8] + struct.pack('<I', v) + good[12:]
     cases = {'missing': None, 'empty': b'', 'truncated': good[:-1], 'too long': good + b'\0', 'magic': flip(0), 'version': flip(4), 'count': flip(6), 'a byte of a bucket (the checksum)': flip(100),
-             'the checksum': flip(32), 'the since-charge counters (the checksum)': flip(20), 'play over the total with a matching checksum': None, 'screen on and playing together over the total with a matching checksum': None, 'a level over 100 with a matching checksum': None, 'head far in the past': struct_head(1), 'zeros': bytes(FILE_SIZE), 'text': b'1\n' * 400}
+             'the checksum': flip(48), 'the since-charge counters (the checksum)': flip(20), 'a version 3 file (the old size and version)': None, 'play over the total with a matching checksum': None, 'screen on and playing together over the total with a matching checksum': None, 'a level over 100 with a matching checksum': None, 'head far in the past': struct_head(1), 'zeros': bytes(FILE_SIZE), 'text': b'1\n' * 400}
     # a file with every field checked but a wrong value and a right checksum
     def resum(f):
-        h = struct.unpack_from('<6I', f, 8)
-        sm = (h[0] * 2654435761 + h[1] * 31 + h[2] + h[3] * 7 + h[4] * 13 + h[5] * 17) & 0xffffffff
-        for b in f[36:]: sm = (sm * 31 + b) & 0xffffffff
-        struct.pack_into('<I', f, 32, sm)
+        h = struct.unpack_from('<10I', f, 8)
+        sm = (h[0] * 2654435761 + h[1] * 31 + h[2] + h[3] * 7 + h[4] * 13 + h[5] * 17 + h[6] * 19 + h[7] * 23 + h[8] * 29 + h[9] * 37) & 0xffffffff
+        for b in f[HDR:]: sm = (sm * 31 + b) & 0xffffffff
+        struct.pack_into('<I', f, 48, sm)
         return bytes(f)
     f = bytearray(good)
-    f[36] = 150
+    f[HDR] = 150
     cases['a level over 100 with a matching checksum'] = resum(f)
     f = bytearray(good)
     struct.pack_into('<4I', f, 12, (head - 1) * SECS, 80, 500, 100)
@@ -351,6 +357,26 @@ def corrupt_tests(ctx):
     m2 = reload(resum(f))
     expect(len(real(view(m2))) > 1 and (view(m2)['unplug_at'], view(m2)['unplug_lvl'], view(m2)['sc_play'], view(m2)['sc_on'], view(m2)['sc_total']) == ((head - 1) * SECS, 80, 300, 100, 600),
            'control: a file with since-charge counters is read')
+    f = bytearray(good)
+    struct.pack_into('<4I', f, 12, (head - 1) * SECS, 80, 300, 100)
+    struct.pack_into('<5I', f, 28, 600, 20, 10, 5, 1)
+    m2 = reload(resum(f)); v2 = view(m2)
+    expect(len(real(v2)) > 1 and (v2['sc_d_on'], v2['sc_d_play'], v2['sc_d_idle'], v2['since_on']) == (20, 10, 5, 1), 'control: a file with drops and since_on 1 is read')
+    f = bytearray(good)
+    f[4:6] = struct.pack('<H', 3)
+    cases['a version 3 file (the old size and version)'] = resum(f)
+    cases['a version 3 file (the old size and version)'] = cases['a version 3 file (the old size and version)'][:36 + 8 * N]
+    for name, put in (('since_on 2', (2, 0, 0, 0)), ('sc_d_on 101', (1, 101, 0, 0)), ('sc_d_play 101', (1, 0, 101, 0)), ('sc_d_idle 101', (1, 0, 0, 101))):
+        f = bytearray(good)
+        struct.pack_into('<4I', f, 12, (head - 1) * SECS, 80, 300, 100)
+        struct.pack_into('<5I', f, 28, 600, put[1], put[2], put[3], put[0])
+        cases[f'{name} with a matching checksum'] = resum(f)
+    for name, off in (('sc_d_on', 32), ('sc_d_idle', 40), ('since_on', 44)):
+        f = bytearray(good)
+        struct.pack_into('<4I', f, 12, 0, NONE, 0, 0)
+        struct.pack_into('<5I', f, 28, 0, 0, 0, 0, 0)
+        struct.pack_into('<I', f, off, 1)
+        cases[f'{name} without an unplug_at (matching checksum)'] = resum(f)
     for name, data in cases.items():
         m2 = reload(data)
         v = view(m2)
@@ -452,34 +478,98 @@ def settings_tests(ctx):
     expect, P = ctx.expect, pod_pages
     B, H = P.BATTERY_PAGE, P.BATTHIST_PAGE
     expect(P.ACT_BATTHIST == 188 and P.ACT_BATTHIST in P.SWITCH_ACTIONS and 'battery-history' in P.SETTING_FILES and FILE.rsplit('/', 1)[1] == 'battery-history'
-           and P.SETTING_FILES.index('battery-history') == P.SETTING_FILES.index('battery-charge-limit') + 1 and P.ACT_BHROW == 189 and P.ACT_BHPAGE == 190, 'ACT 188 (a switch), 189 and 190 (the Battery page\'s value row), listed on Settings Files')
+           and P.SETTING_FILES.index('battery-history') == P.SETTING_FILES.index('battery-charge-limit') + 1 and P.ACT_BHPAGE == 190 and not hasattr(P, 'ACT_BHROW'), 'ACT 188 (a switch) and 190 (the Battery page\'s value row), listed on Settings Files')
     expect([(r.label, r.action, r.arg) for r in B.rows] == [('Battery Percentage', P.ACT_BATTPCT, 0), ('Charge Limit', P.ACT_CHGLIM, P.CHGLIMIT_PAGE_INDEX), ('Battery History', P.ACT_BHPAGE, P.BATTHIST_PAGE_INDEX)]
            and P.row_kind(B.rows[2]) == 'value' and P.ACT_BHPAGE in P.VALUE_ACTIONS and P.VALUE_INIT[P.ACT_BHPAGE] == 'Off' and not any(getattr(x, 'start_hidden', 0) for x in B.layout)
            and P.PAGES[P.BATTHIST_PAGE_INDEX] is H and H.title == 'Battery History' and P.BATTHIST_PAGE_INDEX == P.CHGLIMIT_PAGE_INDEX + 1, 'the Battery page: a Battery History value row opening its page, no hidden items')
-    expect([(r.label, r.action) for r in H.rows[:1]] == [('Battery History', P.ACT_BATTHIST)] and P.row_kind(H.rows[0]) == 'switch' and H.layout[1].text == 'Keeps the last 24 hours of battery level and use. Turning it off deletes them.',
-           'the Battery History page: the switch with its note')
-    expect([(r.label, r.action, r.arg) for r in H.rows[1:]] == [('Screen On', P.ACT_BHROW, 0), ('Playing, Screen Off', P.ACT_BHROW, 1), ('Standby', P.ACT_BHROW, 2)] and [P.row_kind(r) for r in H.rows[1:]] == ['stat'] * 3,
-           'three On Battery rows: Screen On, Playing / Screen Off, Standby')
+    expect([(r.label, r.action) for r in H.rows] == [('Battery History', P.ACT_BATTHIST)] and P.row_kind(H.rows[0]) == 'switch' and H.layout[1].text == 'Keeps the last 24 hours of battery level and use. Turning it off deletes them.'
+           and H.layout[2].text == 'Turning it off deletes the history.' and H.layout[1].lines == 2 and H.layout[2].lines == 1, 'the Battery History page: the switch with its two notes (off: the long one, on: the short one)')
     kinds = [type(x).__name__ + (':' + x.kind if isinstance(x, P.HistChart) else '') for x in H.layout[2:]]
-    expect(kinds == ['Hdr', 'HistSummary', 'Hdr', 'HistChart:level', 'Hdr', 'HistChart:activity', 'Hdr', 'Row', 'Row', 'Row', 'Note', 'Note'] and all(x.start_hidden for x in H.layout[2:]) and not any(getattr(x, 'start_hidden', 0) for x in H.layout[:2]),
-           f'after the switch\'s note the History items, all hidden at the start ({kinds})')
-    expect([x.text for x in H.layout[2:] if isinstance(x, P.Hdr)] == ['Since Last Charge', 'Last 24 Hours', 'Activity', 'On Battery'] and H.layout[-2].text == 'Estimated from the battery gauge.', 'the section headers and the gauge note')
+    expect(kinds == ['Note', 'Hdr', 'HistSummary', 'Note', 'Hdr', 'HistChart:level', 'Hdr', 'HistChart:activity', 'Note'] and all(x.start_hidden for x in H.layout[2:]) and not any(getattr(x, 'start_hidden', 0) for x in H.layout[:2]),
+           f'after the long note the short note and the History items, all hidden at the start ({kinds})')
+    expect([x.text for x in H.layout[2:] if isinstance(x, P.Hdr)] == ['Since Last Charge', 'Last 24 Hours', 'Activity'] and H.layout[5].text == 'Estimated from the battery gauge.', 'the section headers and the gauge note under the card')
     import pod_i18n
     for loc in pod_i18n.LOCALES:
-        expect(all(pod_i18n.TEXT[k][loc] for k in ('Battery History', H.layout[1].text, 'Since Last Charge', 'Unplugged at %s, %s', 'Unplugged at %s', '%s left', 'Last 24 Hours', 'Activity', 'Screen On', 'Playing, Screen Off', 'Standby', 'On Battery',
-                                                  '%d h %d min', '%d h', '%d min', H.layout[-2].text, H.layout[-1].text)), f'the page texts have a translation in {loc}')
-    expect(not any(k in pod_i18n.TEXT for k in ('Last charged to %s', 'By Activity', 'Total on Battery', '%s an hour')), 'the strings of the old page are gone')
+        expect(all(pod_i18n.TEXT[k][loc] for k in ('Battery History', H.layout[1].text, 'Since Last Charge', 'Unplugged %s, %s', 'Unplugged %s', 'Recording since %s, %s', 'Recording since %s', 'yesterday %s', '%s left', 'Last 24 Hours', 'Activity', 'Screen On', 'Playing, Screen Off', 'Standby',
+                                                  '%d h %d min', '%d h', '%d min', H.layout[2].text, H.layout[5].text, H.layout[-1].text)), f'the page texts have a translation in {loc}')
+    expect(not any(k in pod_i18n.TEXT for k in ('Last charged to %s', 'By Activity', 'Total on Battery', '%s an hour', 'On Battery', 'Unplugged at %s, %s', 'Unplugged at %s')), 'the strings of the old page are gone')
 
 
 def sc_tests(ctx):
     """Since Last Charge: the run starts when the charger is removed, counts playing with the screen off, screen on and the total with idle and standby (the three exclusive), stands still on the charger, and outlives the ring and a reboot."""
     expect = ctx.expect
     sc = lambda v: (v['sc_play'], v['sc_on'], v['sc_total'])
-    # nothing counts before the first unplug that was seen
-    m = machine(); step(m, 0)
-    for i in range(8): step(m, 15, lit=True, play=2)
+    # nothing counts before a run exists: recording that starts on the charger, or with an unreadable status, has none
+    for name, kw in (('on the charger', dict(status=b'Charging\n')), ('with an unreadable status', dict(status=b'Weird\n'))):
+        m = machine(**kw); step(m, 0)
+        for i in range(8): step(m, 15, lit=True, play=2)
+        v = view(m)
+        expect(v['unplug_at'] == 0 and sc(v) == (0, 0, 0) and (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle'], v['since_on']) == (0, 0, 0, 0), f'started {name}: no run yet, nothing counts')
+    m = machine(); m.fs.pop(STATUS); step(m, 0); step(m, 15, lit=True)
+    expect(view(m)['unplug_at'] == 0 and view(m)['since_on'] == 0, 'started with no status file: no run')
+    # a status that reads later: the run begins at the first sample that says Discharging, with the last gauge reading; the time and the drop before it are not the run's
+    m = machine(status=b'Weird\n', gauge=80); step(m, 0)
+    for i in range(4): step(m, 15, lit=True)
+    step(m, 60, lit=True, gauge=78, status=b'Discharging\n')
     v = view(m)
-    expect(v['unplug_at'] == 0 and sc(v) == (0, 0, 0), 'started on battery: no run yet, nothing counts')
+    expect(v['unplug_at'] == T0 + 60 + 120 and v['since_on'] == 1 and v['unplug_lvl'] == 78 and sc(v) == (0, 0, 0) and (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle']) == (0, 0, 0),
+           f'the status reads Discharging after being unreadable: a run begins there ({v["unplug_at"] - T0}, {v["since_on"]}, {v["unplug_lvl"]}, {sc(v)})')
+    step(m, 15, lit=True); step(m, 60, lit=False, play=2, gauge=77)
+    v = view(m)
+    expect(sc(v) == (60, 15, 75) and v['sc_d_play'] == 1 and v['unplug_at'] == T0 + 180, f'and counts from then on ({sc(v)}, {v["sc_d_play"]})')
+    # the seconds before the run do not attribute its drops: six minutes of screen on with no status, the run begins at the same gauge, then a minute of playing with the screen off falls 1 %
+    m = machine(status=b'Weird\n', gauge=80); step(m, 0)
+    for i in range(6): step(m, 60, lit=True)
+    step(m, 15, lit=True, status=b'Discharging\n')
+    v = view(m)
+    expect(v['since_on'] == 1 and v['unplug_lvl'] == 80 and sc(v) == (0, 0, 0), f'the run begins with the gauge unchanged ({v["unplug_lvl"]}, {sc(v)})')
+    step(m, 60, lit=False, play=2, gauge=79)
+    v = view(m)
+    expect(sc(v) == (60, 0, 60) and (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle']) == (0, 1, 0), f'its drop is the playing\'s, not the screen\'s of before the run ({sc(v)}, {(v["sc_d_on"], v["sc_d_play"], v["sc_d_idle"])})')
+    m = machine(status=b'Weird\n'); step(m, 0); step(m, 15, lit=True); step(m, 15, status=b'Charging\n'); step(m, 15, status=b'Discharging\n')
+    expect(view(m)['since_on'] == 0 and view(m)['unplug_at'] == T0 + 60 + 45, 'unreadable, then the charger, then battery: the charger\'s removal begins the run')
+    m = machine(status=b'Charging\n'); step(m, 0)
+    for g in (79, 78, 77): step(m, 60, lit=True, gauge=g)
+    expect(view(m)['unplug_at'] == 0 and view(m)['sc_d_on'] == 0, 'drops on external power are not counted')
+    # recording started on battery: the first sample starts a run (since_on 1, the gauge then)
+    m = machine(gauge=80); step(m, 0)
+    v = view(m)
+    expect(v['unplug_at'] == m.wall and v['unplug_lvl'] == 80 and v['since_on'] == 1 and sc(v) == (0, 0, 0) and (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle']) == (0, 0, 0), f'started on battery: a run from the first sample ({v["unplug_at"]}, {v["unplug_lvl"]}, {v["since_on"]})')
+    # drops since the run began land where the bucket's drops do
+    for g in (79, 78): step(m, 60, lit=True, gauge=g)
+    step(m, 60, lit=False, play=2, gauge=78); step(m, 60, lit=False, play=2, gauge=77)
+    for g in (77, 77, 77, 76): step(m, 60, lit=False, play=1, gauge=g)
+    v = view(m)
+    dd = (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle'])
+    expect(dd[0] == 2 and dd[1] + dd[2] == 2 and sum(dd) == 4 and (v['d_on'], v['d_play'], v['d_idle']) == dd and v['since_on'] == 1, f'the run\'s drops are the buckets\' ({dd}, since_on {v["since_on"]})')
+    # the charger on, off: a new run, the drops zeroed, since_on 0
+    step(m, 60, status=b'Charging\n', gauge=90); step(m, 60, lit=True, gauge=89)
+    expect(tuple(view(m)[k] for k in ('sc_d_on', 'sc_d_play', 'sc_d_idle')) == dd, 'on external power the drops stand still')
+    step(m, 60, lit=True, status=b'Discharging\n', gauge=88)
+    v = view(m)
+    expect(v['since_on'] == 0 and v['unplug_at'] == m.wall and (v['sc_d_on'], v['sc_d_play'], v['sc_d_idle']) == (0, 0, 0), 'the charger removed: a new run, since_on 0, drops 0')
+    step(m, 60, lit=True, gauge=87)
+    expect(view(m)['sc_d_on'] == 1, 'and it counts the drop after it')
+    # they are saved and read back
+    for i in range(8): step(m, 300, lit=True, gauge=87)
+    saved = m.fs[DATA]; v = view(m)
+    expect(struct.unpack_from('<4I', saved, 32) == (1, 0, 0, 0) and len(saved) == FILE_SIZE, 'the file holds the drops and since_on')
+    m2 = BM(); m2.fs = {FILE: b'1\n', DATA: saved, GAUGE: b'70\n', STATUS: b'Discharging\n'}
+    m2.wall = (v['head'] + 1) * SECS + 100; m2.clock_ids = {1: 7, 7: 7}; m2.screen(False); m2.play_status = 1
+    m2.call(PSYMS['bh_poll'], count=200000); m2.call(PSYMS['bh_load'], count=2000000); step(m2, 0)
+    v2 = view(m2)
+    expect((v2['sc_d_on'], v2['sc_d_play'], v2['sc_d_idle'], v2['since_on']) == (1, 0, 0, 0) and v2['unplug_at'] == v['unplug_at'], 'a reboot keeps the run and its drops; the new baseline starts no other')
+    # a since_on run round-trips too, and a reboot keeps it
+    m = machine(gauge=60); step(m, 0)
+    for g in (59, 59): step(m, 60, lit=True, gauge=g)
+    for i in range(8): step(m, 300, lit=False, play=1, gauge=59)
+    saved = m.fs[DATA]; v = view(m)
+    expect(struct.unpack_from('<4I', saved, 32)[3] == 1 and struct.unpack_from('<I', saved, 12)[0] == T0 + 60, 'since_on 1 in the file')
+    m2 = BM(); m2.fs = {FILE: b'1\n', DATA: saved, GAUGE: b'50\n', STATUS: b'Discharging\n'}
+    m2.wall = (v['head'] + 1) * SECS + 100; m2.clock_ids = {1: 7, 7: 7}; m2.screen(False); m2.play_status = 1
+    m2.call(PSYMS['bh_poll'], count=200000); m2.call(PSYMS['bh_load'], count=2000000); step(m2, 0)
+    v2 = view(m2)
+    expect(v2['since_on'] == 1 and v2['unplug_at'] == T0 + 60 and v2['unplug_lvl'] == 60 and v2['sc_d_on'] == 1, f'a reboot keeps a since_on run as it was ({v2["since_on"]}, {v2["unplug_at"]})')
     # the charger removed: a new run, counters 0, the time and the level noted; this step's time is still the charger's
     m = machine(gauge=77, status=b'Charging\n'); step(m, 0)
     for i in range(4): step(m, 15, lit=True, play=2)
@@ -557,18 +647,18 @@ def sc_tests(ctx):
     expect(view(m3)['unplug_at'] == m3.wall and sc(view(m3)) == (0, 0, 0), 'and the unplug starts a new one')
     # the setting off deletes the run with the rest
     m.call(PSYMS['bh_toggle'], count=4000000); m.call(PSYMS['bh_toggle'], count=4000000); step(m, 0)
-    expect(view(m)['unplug_at'] == 0 and sc(view(m)) == (0, 0, 0), 'the setting off and on again: no run')
+    expect(view(m)['unplug_at'] == m.wall and view(m)['since_on'] == 1 and sc(view(m)) == (0, 0, 0), 'the setting off and on again: the old run is gone, a new one starts on battery')
 
 
 # ---- the History page (patch/bhpage.c, tools/batthist_model.py)
 HEAD = T0 // SECS + 3          # 08:45 UTC
-NAMES = ('pod_sec0 pod_sec1 pod_sec2 pod_sec3 pod_note1 pod_note2 pod_hist0 pod_hist1 pod_hist2 pod_row1 pod_row2 pod_row3 pod_sub1 pod_sub2 pod_sub3 pod_value1 pod_value2 pod_value3 pod_hs_cap pod_hs_dur pod_hs_left pod_hs_d0 pod_hs_d1 pod_hs_d2 '
+NAMES = ('pod_sec0 pod_sec1 pod_sec2 pod_note0 pod_note1 pod_note2 pod_note3 pod_hist0 pod_hist1 pod_hist2 pod_hs_cap pod_hs_dur pod_hs_left pod_hs_d0 pod_hs_d1 pod_hs_d2 pod_hs_p0 pod_hs_p1 pod_hs_p2 '
          'pod_ha_a0 pod_ha_a1 pod_ha_a2 ' + ' '.join(f'pod_h{k}_t{i}' for k in 'la' for i in range(4))).split()
-ITEMS = 'pod_sec0 pod_hist0 pod_sec1 pod_hist1 pod_sec2 pod_hist2 pod_sec3 pod_row1 pod_row2 pod_row3 pod_note1 pod_note2'.split()
-SC = {'pod_sec0', 'pod_hist0'}   # the Since Last Charge header and card: only with an unplug_at
-SHOWN = {'off': set(), 'empty': {'pod_note2'}, 'data': set(ITEMS) - {'pod_note2'} - SC}
-DEMO_SC = (HEAD * SECS - 100000, 100, 3 * 3600 + 53 * 60, 2 * 3600 + 12 * 60, 31 * 3600 + 20 * 60)   # unplug_at, unplug_lvl, sc_play, sc_on, sc_total
-ON_PX, PLAY_PX, STBY_PX, CARD_PX = 0xffe6e6e6, 0xff7c7878, 0xff3c3a3a, 0xff1e1c1c   # (alpha, blue, green, red)
+ITEMS = 'pod_note0 pod_note1 pod_sec0 pod_hist0 pod_note2 pod_sec1 pod_hist1 pod_sec2 pod_hist2 pod_note3'.split()
+SC = {'pod_sec0', 'pod_hist0', 'pod_note2'}   # the Since Last Charge header, card and its note: only with an unplug_at
+SHOWN = {'off': {'pod_note0'}, 'empty': {'pod_note1', 'pod_note3'}, 'data': set(ITEMS) - {'pod_note0', 'pod_note3'} - SC}
+DEMO_SC = (HEAD * SECS - 100000, 100, 3 * 3600 + 53 * 60, 2 * 3600 + 12 * 60, 31 * 3600 + 20 * 60, 6, 12, 10, 0)   # unplug_at, unplug_lvl, sc_play, sc_on, sc_total, sc_d_on, sc_d_play, sc_d_idle, since_on
+ON_PX, PLAY_PX, STBY_PX, CARD_PX = 0xffe6e6e6, 0xff7c7878, 0xff5c5858, 0xff1e1c1c   # (alpha, blue, green, red)
 
 
 def u8(s): return s.encode('latin-1').decode('utf-8')
@@ -587,25 +677,26 @@ def fake_ring():
     return b
 
 
-def file_bytes(buckets, head, sc=(0, NONE, 0, 0, 0)):
-    """sc: unplug_at, unplug_lvl, sc_play, sc_on, sc_total."""
+def file_bytes(buckets, head, sc=(0, NONE, 0, 0, 0, 0, 0, 0, 0)):
+    """sc: unplug_at, unplug_lvl, sc_play, sc_on, sc_total, sc_d_on, sc_d_play, sc_d_idle, since_on."""
     ring = bytearray(8 * N)
     for i, k in enumerate(buckets):
         pos = 8 * ((head - (N - 1) + i) % N)
         ring[pos:pos + 8] = bytes(k)
-    f = bytearray(b'BHS1') + struct.pack('<HHI6I', 3, N, head, *sc, 0) + ring
-    sm = (head * 2654435761 + sc[0] * 31 + sc[1] + sc[2] * 7 + sc[3] * 13 + sc[4] * 17) & 0xffffffff
-    for x in f[36:]: sm = (sm * 31 + x) & 0xffffffff
-    struct.pack_into('<I', f, 32, sm)
+    sc = tuple(sc) + (0,) * (9 - len(sc))
+    f = bytearray(b'BHS1') + struct.pack('<HHI10I', 4, N, head, *sc, 0) + ring
+    sm = (head * 2654435761 + sc[0] * 31 + sc[1] + sc[2] * 7 + sc[3] * 13 + sc[4] * 17 + sc[5] * 19 + sc[6] * 23 + sc[7] * 29 + sc[8] * 37) & 0xffffffff
+    for x in f[HDR:]: sm = (sm * 31 + x) & 0xffffffff
+    struct.pack_into('<I', f, 48, sm)
     return bytes(f)
 
 
-def page(buckets=None, tz=0, h24=1, on=True, sc=(0, NONE, 0, 0, 0)):
+def page(buckets=None, tz=0, h24=1, on=True, sc=(0, NONE, 0, 0, 0), head=HEAD):
     """The player with the setting on and a ring read from a file, the Battery History page's widgets registered, bhpage_show run once."""
     buckets = fake_ring() if buckets is None else buckets
     m = BM(); m.fs = {GAUGE: b'70\n', STATUS: b'Discharging\n'}
-    if on: m.fs[FILE] = b'1\n'; m.fs[DATA] = file_bytes(buckets, HEAD, sc)
-    m.wall = HEAD * SECS + 100; m.clock_ids = {1: 7, 7: 7}; m.tz = tz; m.screen(False); m.play_status = 1
+    if on: m.fs[FILE] = b'1\n'; m.fs[DATA] = file_bytes(buckets, head, sc)
+    m.wall = head * SECS + 100; m.clock_ids = {1: 7, 7: 7}; m.tz = tz; m.screen(False); m.play_status = 1
     m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([h24]))
     m.call(PSYMS['bh_poll'], count=200000); m.call(PSYMS['bh_load'], count=2000000)
     for n in NAMES: m.widget(n)
@@ -613,6 +704,12 @@ def page(buckets=None, tz=0, h24=1, on=True, sc=(0, NONE, 0, 0, 0)):
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
     m.shown_calls = list(m.calls)   # (a later call of the machine starts its own list)
     return m
+
+
+def local5(t, tz):
+    """The local (year, month, day, hour, minute) of the wall time t in a zone tz seconds ahead of UTC."""
+    g = _time.gmtime(t + tz)
+    return g.tm_year, g.tm_mon, g.tm_mday, g.tm_hour, g.tm_min
 
 
 def shown(m): return {n for n in ITEMS if m.props.get((m.widgets[n], 'visible')) == 1}
@@ -631,8 +728,8 @@ def history_tests(ctx):
     expect = ctx.expect
     m = page(sc=DEMO_SC)
     ring = fake_ring()
-    expect(shown(m) == SHOWN['data'] | SC, f'a ring with closed buckets and an unplug: every item but the empty note shows ({sorted(shown(m) ^ (SHOWN["data"] | SC))})')
-    expect([c for c in m.calls if c[0] == 'bitmap_create_ex'] == [('bitmap_create_ex', 300, HM.SCARD), ('bitmap_create_ex', 300, 150), ('bitmap_create_ex', 300, 150)] and len(m.bitmaps) == 3, 'three bitmaps: the card 300 x 214, the two charts 300 x 150')
+    expect(shown(m) == SHOWN['data'] | SC, f'a ring with closed buckets and an unplug: every item but the long note and the empty note shows ({sorted(shown(m) ^ (SHOWN["data"] | SC))})')
+    expect([c for c in m.calls if c[0] == 'bitmap_create_ex'] == [('bitmap_create_ex', 300, HM.SCARD), ('bitmap_create_ex', 300, 150), ('bitmap_create_ex', 300, 150)] and len(m.bitmaps) == 3, 'three bitmaps: the card 300 x 292, the two charts 300 x 150')
     (b2, w2, h2, px2), (b0, w0, h0, px0), (b1, w1, h1, px1) = bmp(m, 0), bmp(m, 1), bmp(m, 2)
     v = view(m)
     expect(v['b'] == ring and len(v['b']) == 96, 'the view is the ring that was read')
@@ -643,6 +740,7 @@ def history_tests(ctx):
     bad = off_pixels(px1, w1, h1, HM.render_activity(ring, HEAD, 0))
     expect(not bad, f'the activity chart is the model\'s pixel for pixel ({len(bad)} differ: {bad[:3]})')
     # the card: the bar split by the seconds, the marks, the hairlines
+    expect((HM.SROW_H, HM.SCARD, HM.OFF['BHS_H'], HM.SMARK_CY, HM.OFF['BHS_SUB_CY'], HM.OFF['BHS_PCT_CY']) == (60, 292, 302, 20, 42, 30), 'the card: 60 px rows, 292 high in a 302 px item, mark and name on 20, duration on 42, percent on 30')
     e1, e2 = HM.bar_edges(DEMO_SC[3], DEMO_SC[2], DEMO_SC[4])
     by = HM.SBAR_Y + HM.SBAR_H // 2
     expect(e1 == (276 * 7920 + 56400) // 112800 and e2 == (276 * (7920 + 13980) + 56400) // 112800 and 0 < e1 < e2 < 276, f'the bar\'s edges: screen on {e1} px, playing {e2 - e1} px, the rest standby ({e1}, {e2})')
@@ -650,13 +748,14 @@ def history_tests(ctx):
     expect(row(e1 - 1) == ON_PX and row(e1) == PLAY_PX and row(e2 - 1) == PLAY_PX and row(e2) == STBY_PX and row(2) == ON_PX and row(270) == STBY_PX, 'the bar: screen on, playing with the screen off, standby, left to right')
     expect(px2[HM.SBAR_Y * 300 + HM.SPAD] == CARD_PX and px2[(HM.SBAR_Y + 9) * 300 + HM.SPAD + 275] == CARD_PX and px2[by * 300 + HM.SPAD - 1] == CARD_PX, 'the bar\'s ends are rounded (its corners are the card\'s)')
     for k, want in enumerate((ON_PX, PLAY_PX, STBY_PX)):
-        cy = HM.SROW0 + HM.SROW_H * k + HM.SROW_H // 2
+        cy = HM.SROW0 + HM.SROW_H * k + 20   # on the name's line, not the row's middle
         expect(px2[cy * 300 + HM.SMARK_X + 5] == want and px2[(cy - 5) * 300 + HM.SMARK_X] == CARD_PX and px2[(cy - 5) * 300 + HM.SMARK_X + 5] == want, f'row {k}: a 10 px mark of the kind\'s colour with rounded corners')
+        expect(px2[(HM.SROW0 + HM.SROW_H * k + 30) * 300 + HM.SMARK_X + 5] == CARD_PX, f'row {k}: nothing at the row\'s middle (the mark is on the name\'s line)')
         expect(px2[(HM.SROW0 + HM.SROW_H * k) * 300 + 100] == (0xff333333 if k else CARD_PX), f'row {k}: {"a hairline above it" if k else "no hairline above the first"}')
     z = [HM.bar_edges(0, 0, 0), HM.bar_edges(10, 20, 30), HM.bar_edges(9 << 20, 3 << 20, 18 << 20)]
     expect(z == [(0, 0), (92, 276), (138, 184)], f'the bar\'s edges: no time, all of it; a long run is scaled before it is divided ({z})')
     cols = {c for c in (px0[y * 300 + x] for y in range(HM.LPY0, HM.LPY0 + HM.LPH) for x in range(300))}
-    GREEN, RED, GREY = 0xff59c734, 0xff4814ff, 0xffd8d8d8
+    GREEN, RED, GREY = 0xff59c734, 0xff4814ff, 0xffa5a5a5
     expect({GREEN, RED, GREY} <= cols, 'the level chart has green (charging), red (20 % or less) and grey bars')
     bars = HM.level_bars(ring)
     for j, bar in enumerate(bars):
@@ -712,7 +811,7 @@ def history_tests(ctx):
 
 
 def texts_tests(ctx):
-    """The labels: ticks in local time across zones and both clocks, the Since Last Charge card's texts, the On Battery rows, the axis."""
+    """The labels: ticks in local time across zones and both clocks (the same text on both charts), the Since Last Charge card's texts (the caption's day word, Recording since, the percents), the axis, the notes."""
     expect = ctx.expect
     for tz, h24 in ((0, 1), (19800, 1), (-12600, 0), (3600 * 9, 0)):
         m = page(tz=tz, h24=h24)
@@ -721,69 +820,130 @@ def texts_tests(ctx):
         for k, chart in ((0, 'level'), (1, 'activity')):
             name = 'la'[k]
             got = [(texts(m, f'pod_h{name}_t{i}'), [(c[2], c[3]) for c in m.shown_calls if c[0] == 'widget_move' and c[1] == m.widgets[f'pod_h{name}_t{i}']]) for i in range(4)]
-            want = [([HM.hour_text(h, h24, chart)], [(10 + 12 + 5 * i // 2 - 22, (128 if k == 0 else 104) - 9)]) for i, h in tk]
-            want = [(t, [(x, y)]) for (t, [(x, y)]) in want]
-            expect(got == [(t, p_) for t, p_ in want], f'tz {tz}, {"24" if h24 else "12"} h, {chart} chart: the labels and their places ({got[:2]})')
+            want = [([HM.hour_text(h, h24)], [(10 + 12 + 5 * i // 2 - 22, (128 if k == 0 else 104) - 9)]) for i, h in tk]
+            expect(got == want, f'tz {tz}, {"24" if h24 else "12"} h, {chart} chart: the labels and their places ({got[:2]})')
     m = page()
-    v = view(m)
+    expect([texts(m, f'pod_ha_t{i}') for i in range(4)] == [texts(m, f'pod_hl_t{i}') for i in range(4)] and texts(m, 'pod_hl_t0')[0].endswith(':00'), 'the activity chart\'s hour ticks read as the level chart\'s ("18:00")')
     expect(texts(m, 'pod_ha_a0') == ['60 min'] and texts(m, 'pod_ha_a1') == ['30 min'] and texts(m, 'pod_ha_a2') == ['0'], 'the activity axis: 60 min, 30 min, 0')
     face = lambda mm, w: mm.props.get((mm.widgets[w], 'style:normal:font_name'))
-    for k, (t, d) in enumerate(((v['t_on'], v['d_on']), (v['t_play'], v['d_play']), (v['t_idle'], v['d_idle']))):
-        expect(texts(m, f'pod_sub{1 + k}') == [HM.dur_text(t)] and texts(m, f'pod_value{1 + k}') == [HM.stat_text(d)], f'row {k}: "{HM.dur_text(t)}" and "{HM.stat_text(d)}" ({texts(m, f"pod_sub{1 + k}")}, {texts(m, f"pod_value{1 + k}")})')
-        expect(face(m, f'pod_value{1 + k}') == 'lyrics' and face(m, f'pod_sub{1 + k}') is None, f'row {k}: the percent in the bold face, the duration in the default')
-    expect(v['act_on'] > v['t_on'] > 0 and v['act_play'] > v['t_play'] > 0, 'the activity chart counts the charging buckets, the rows leave them out')
-    # Since Last Charge: hidden without an unplug_at, else the card's texts (the caption, the total, the percent left, the three durations)
-    expect(not SC & shown(m) and not any(texts(m, n) for n in ('pod_hs_cap', 'pod_hs_dur', 'pod_hs_left', 'pod_hs_d0', 'pod_hs_d1', 'pod_hs_d2')), 'no unplug_at: the Since Last Charge section is hidden and nothing is written to it')
+    # Since Last Charge: hidden without an unplug_at, else the card's texts (the caption, the total, the percent left, the three durations and percents)
+    names = ('pod_hs_cap', 'pod_hs_dur', 'pod_hs_left', 'pod_hs_d0', 'pod_hs_d1', 'pod_hs_d2', 'pod_hs_p0', 'pod_hs_p1', 'pod_hs_p2')
+    expect(not SC & shown(m) and not any(texts(m, n) for n in names), 'no unplug_at: the Since Last Charge section is hidden and nothing is written to it')
     unplug = HEAD * SECS - 100000
-    local = lambda t, tz: ((t + tz) % 86400 // 3600, (t + tz) % 3600 // 60)
     for tz, h24, lvl in ((0, 1, 82), (19800, 1, 100), (-12600, 0, 5), (3600 * 9, 0, 255)):
-        mm = page(tz=tz, h24=h24, sc=(unplug, lvl, 5 * 3600 + 12 * 60, 3 * 3600 + 30 * 60, 30 * 3600 + 29 * 60 + 29))
+        mm = page(tz=tz, h24=h24, sc=(unplug, lvl, 5 * 3600 + 12 * 60, 3 * 3600 + 30 * 60, 30 * 3600 + 29 * 60 + 29, 3, 5, 7, 0))
         v = view(mm)
-        cap = HM.caption_text(HM.clock_text(*local(unplug, tz), h24), lvl)
-        expect(SC <= shown(mm) and shown(mm) == set(ITEMS) - {'pod_note2'} and texts(mm, 'pod_hs_cap') == [cap], f'tz {tz}, {"24" if h24 else "12"} h, level {lvl}: the card shows with "{cap}" ({texts(mm, "pod_hs_cap")})')
+        now = HEAD * SECS + 100
+        cap = HM.caption_text(HM.when_text(local5(unplug, tz), local5(now, tz), h24), lvl, 0)
+        expect(SC <= shown(mm) and shown(mm) == set(ITEMS) - {'pod_note0', 'pod_note3'} and texts(mm, 'pod_hs_cap') == [cap] and cap.startswith('Unplugged yesterday '), f'tz {tz}, {"24" if h24 else "12"} h, level {lvl}: the card shows with "{cap}" ({texts(mm, "pod_hs_cap")})')
         left = [f'{v["level"]}% left'] if v['level'] <= 100 else []
         expect(texts(mm, 'pod_hs_left') == (left or ['']) and v['level'] == 8, f'the percent left is the gauge now ({texts(mm, "pod_hs_left")})')
     expect([texts(mm, n) for n in ('pod_hs_dur', 'pod_hs_d0', 'pod_hs_d1', 'pod_hs_d2')] == [['30 h 29 min'], ['3 h 30 min'], ['5 h 12 min'], ['21 h 47 min']],
            f'the total 30 h 29 min, Screen On 3 h 30 min, Playing 5 h 12 min, Standby the rest 21 h 47 min (rounded to the minute) ({[texts(mm, n) for n in ("pod_hs_dur", "pod_hs_d0", "pod_hs_d1", "pod_hs_d2")]})')
-    expect(face(mm, 'pod_hs_dur') == 'lyrics' and face(mm, 'pod_hs_cap') is None, 'the total is in the bold face, the caption is not')
+    expect([texts(mm, f'pod_hs_p{k}') for k in range(3)] == [['~3%'], ['~5%'], ['~7%']], 'the percents the gauge fell, per kind, from the run')
+    expect(face(mm, 'pod_hs_dur') == 'lyrics' and face(mm, 'pod_hs_cap') is None and all(face(mm, f'pod_hs_p{k}') == 'lyrics' for k in range(3)) and all(face(mm, f'pod_hs_d{k}') is None for k in range(3)),
+           'the total and the percents are in the bold face, the caption and the durations are not')
+    # the caption's time: the clock the same day, "yesterday" with the clock the day before, MM-DD and the clock before that; Recording since when the run began with the recording; no level when unknown
+    now = HEAD * SECS + 100   # 2027-01-15 08:46 UTC
+    for tz, h24, ago, want in ((0, 1, 3 * 3600, 'Unplugged 05:46, 100%'), (0, 1, 8 * 3600 + 46 * 60, 'Unplugged 00:00, 100%'), (0, 1, 8 * 3600 + 47 * 60, 'Unplugged yesterday 23:59, 100%'), (0, 0, 8 * 3600 + 47 * 60, 'Unplugged yesterday 11:59 PM, 100%'),
+                               (0, 1, 32 * 3600 + 46 * 60, 'Unplugged yesterday 00:00, 100%'),
+                               (0, 1, 32 * 3600 + 47 * 60, 'Unplugged 01-13 23:59, 100%'), (0, 0, 3 * 86400, 'Unplugged 01-12 8:46 AM, 100%'), (19800, 1, 3 * 3600, 'Unplugged 11:16, 100%'),
+                               (-12600, 1, 5 * 3600 + 16 * 60, 'Unplugged 00:00, 100%'), (-12600, 1, 5 * 3600 + 17 * 60, 'Unplugged yesterday 23:59, 100%'), (0, 1, 400 * 86400, 'Unplugged 12-11 08:46, 100%')):
+        mm = page(tz=tz, h24=h24, sc=(now - ago, 100, 0, 0, 3600, 0, 0, 0, 0))
+        expect(texts(mm, 'pod_hs_cap') == [want], f'tz {tz}, {ago} s ago: "{want}" ({texts(mm, "pod_hs_cap")})')
+        expect(texts(mm, 'pod_hs_cap') == [HM.caption_text(HM.when_text(local5(now - ago, tz), local5(now, tz), h24), 100, 0)], f'the model says the same ({want})')
+    # across a month and a year boundary: 2027-01-01 00:16 UTC, the day before is Dec 31
+    nyh = calendar.timegm((2027, 1, 1, 0, 15, 0)) // SECS
+    ny = nyh * SECS + 100
+    for ago, want in ((5 * 60, 'Unplugged 00:11, 100%'), (17 * 60, 'Unplugged yesterday 23:59, 100%'), (86400 + 17 * 60, 'Unplugged 12-30 23:59, 100%'), (-86400, 'Unplugged 01-02 00:16, 100%')):
+        mm = page(sc=(ny - ago, 100, 0, 0, 3600, 0, 0, 0, 0), head=nyh)
+        expect(texts(mm, 'pod_hs_cap') == [want], f'across the year end, {ago} s ago: "{want}" ({texts(mm, "pod_hs_cap")})')
+    # a day with a DST step (New York, 2026-11-01: 25 hours, EDT until 06:00 UTC, then EST): the day before is still "yesterday", in the morning and in the evening; and the 23 hour day (2027-03-14)
+    for step_at, before, after, cases in ((calendar.timegm((2026, 11, 1, 6, 0, 0)), -4, -5, (((2026, 11, 1, 15, 0, 0), (2026, 11, 1, 1, 25, 0), 'Unplugged yesterday 21:25, 100%'), ((2026, 11, 1, 6, 30, 0), (2026, 10, 31, 4, 0, 0), 'Unplugged yesterday 00:00, 100%'),
+                                                                                             ((2026, 11, 2, 4, 45, 0), (2026, 11, 1, 4, 30, 0), 'Unplugged 00:30, 100%'), ((2026, 11, 2, 5, 15, 0), (2026, 11, 2, 4, 30, 0), 'Unplugged yesterday 23:30, 100%'))),
+                                          (calendar.timegm((2027, 3, 14, 7, 0, 0)), -5, -4, (((2027, 3, 14, 15, 0, 0), (2027, 3, 14, 2, 25, 0), 'Unplugged yesterday 21:25, 100%'), ((2027, 3, 15, 3, 45, 0), (2027, 3, 14, 5, 30, 0), 'Unplugged 00:30, 100%'),
+                                                                                            ((2027, 3, 15, 4, 15, 0), (2027, 3, 13, 5, 0, 0), 'Unplugged 03-13 00:00, 100%')))):
+        zone = lambda t, s=step_at, b=before, a=after: (b if t < s else a) * 3600
+        for at, unplugged, want in cases:
+            h = calendar.timegm(at) // SECS
+            mm = page(tz=zone, sc=(calendar.timegm(unplugged), 100, 0, 0, 3600, 0, 0, 0, 0), head=h)
+            expect(texts(mm, 'pod_hs_cap') == [want], f'DST step {before} to {after}, {at[1:5]} UTC: "{want}" ({texts(mm, "pod_hs_cap")})')
+    mm = page(sc=(now - 3 * 3600, 85, 0, 0, 3 * 3600, 0, 0, 0, 1))
+    expect(texts(mm, 'pod_hs_cap') == ['Recording since 05:46, 85%'] and texts(mm, 'pod_hs_cap') == [HM.caption_text('05:46', 85, 1)], 'a run that began with the recording: "Recording since 05:46, 85%"')
+    mm = page(sc=(now - 100000, 85, 0, 0, 3 * 3600, 0, 0, 0, 1))
+    expect(texts(mm, 'pod_hs_cap') == ['Recording since yesterday 05:00, 85%'], f'and yesterday ({texts(mm, "pod_hs_cap")})')
     ring = fake_ring()[:-1] + [(NONE, 0, 0, 0, 0, 0, 0, 0)]
-    mm = page(ring, sc=(unplug, NONE, 0, 0, 3600))
-    expect(texts(mm, 'pod_hs_cap') == [HM.caption_text(HM.clock_text(*local(unplug, 0), 1), NONE)] and ',' not in texts(mm, 'pod_hs_cap')[0] and texts(mm, 'pod_hs_left') == [''], 'an unknown level: no ", N%" in the caption and nothing left to say')
-    mm = page(sc=(HEAD * SECS - 100, 90, 0, 0, 0))
-    expect(SC <= shown(mm) and [texts(mm, n) for n in ('pod_hs_dur', 'pod_hs_d0', 'pod_hs_d1', 'pod_hs_d2')] == [['0 min']] * 4, 'a run just begun: the card shows, 0 min each')
+    for since_on, want in ((0, 'Unplugged yesterday 04:58'), (1, 'Recording since yesterday 04:58')):
+        mm = page(ring, sc=(unplug, NONE, 0, 0, 3600, 0, 0, 0, since_on))
+        expect(texts(mm, 'pod_hs_cap') == [want] and texts(mm, 'pod_hs_cap') == [HM.caption_text('yesterday 04:58', NONE, since_on)] and texts(mm, 'pod_hs_left') == [''], f'an unknown level: no ", N%" in the caption ("{want}") and nothing left to say ({texts(mm, "pod_hs_cap")})')
+    mm = page(sc=(HEAD * SECS - 100, 90, 0, 0, 0, 0, 0, 0, 0))
+    expect(SC <= shown(mm) and [texts(mm, n) for n in ('pod_hs_dur', 'pod_hs_d0', 'pod_hs_d1', 'pod_hs_d2')] == [['0 min']] * 4 and [texts(mm, f'pod_hs_p{k}') for k in range(3)] == [['~0%']] * 3, 'a run just begun: the card shows, 0 min and ~0% each')
     expect(set(bmp(mm, 0)[3]) >= {STBY_PX}, 'and its bar is the standby track alone')
+    # the caption fits its 276 px box in every language, in the longest cases (a day word or a date, the 12-hour clock, the level)
+    import pod_i18n
+    from awtk_text import Ttf, StbText
+    font = Ttf(os.path.join(WORK, 'rootfs', 'release', 'assets', 'default', 'raw', 'fonts', 'default.ttf'))
+    width = lambda text: StbText(font, ST.NOTE_PX).layout(text)[1]
+    room, over = ST.CARD_W - 2 * HM.SPAD, []
+    for loc in pod_i18n.LOCALES:
+        T = lambda k: pod_i18n.TEXT[k][pod_i18n.table_for(loc)]
+        for head in ('Unplugged %s, %s', 'Recording since %s, %s'):
+            for when in (T('yesterday %s') % '12:25 PM', '12-28 12:25 PM'):
+                text = T(head) % (when, '100%')
+                if width(text) > room: over.append((loc, text, width(text)))
+        for k in ('Turning it off deletes the history.', 'Estimated from the battery gauge.'):
+            if width(T(k)) > ST.HDR_W - 4: over.append((loc, k, width(T(k))))
+    expect(not over, f'the caption (276 px) and the one-line notes fit in all 13 languages at {ST.NOTE_PX} px ({over})')
 
 
 def visibility_tests(ctx):
-    """The items are there only while the switch is on; the empty state; the switch updates the page in place."""
+    """The items are there only while the switch is on; the switch's two notes; the empty state; the switch updates the page in place."""
     expect = ctx.expect
     m = page(on=False)
-    expect(shown(m) == set() and not m.bitmaps and not [c for c in m.calls if c[0] in ('bitmap_create_ex', 'widget_set_text_utf8')], 'the switch off: every History item hidden, nothing drawn or written')
-    expect(all(m.props.get((m.widgets[n], 'visible')) == 0 for n in ITEMS), 'each one is told to hide (not left to the asset)')
+    expect(shown(m) == {'pod_note0'} and not m.bitmaps and not [c for c in m.calls if c[0] in ('bitmap_create_ex', 'widget_set_text_utf8')], 'the switch off: the long note alone, nothing drawn or written')
+    expect(all(m.props.get((m.widgets[n], 'visible')) == (1 if n == 'pod_note0' else 0) for n in ITEMS), 'each item is told to show or hide (not left to the asset)')
+    m = page()
+    expect('pod_note0' not in shown(m) and 'pod_note1' in shown(m), 'the switch on: the short note instead of the long one')
+    # recording that starts on battery has a run from its first sample: the card shows as soon as a bucket has closed, "Recording since"
     m = machine(); m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([1]))
     for n in NAMES: m.widget(n)
     m.win = m.alloc(0x80)
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(shown(m) == SHOWN['empty'] and not m.bitmaps, 'the switch on, no sample yet: the empty note only')
+    expect(shown(m) == SHOWN['empty'] and not m.bitmaps, 'the switch on, no sample yet: the short note and the empty note')
     step(m, 0)
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
     expect(shown(m) == SHOWN['empty'] and not m.bitmaps, 'one open bucket: still the empty state')
     step(m, 900); step(m, 900, lit=True)
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(shown(m) == SHOWN['data'] and len(m.bitmaps) == 2, 'a closed bucket: the charts show (no unplug seen: no Since Last Charge card)')
-    ids = set(m.bitmaps)
-    m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(set(m.bitmaps) == ids and 'bitmap_create_ex' not in m.names() and len(m.bitmaps) == 2, 'shown again: the same two bitmaps drawn in place')
+    expect(shown(m) == SHOWN['data'] | SC and len(m.bitmaps) == 3, 'started on battery, a bucket closed: the Since Last Charge card, its note and the charts show')
+    m.shown_calls = []; m.calls = []
+    m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000); m.shown_calls = list(m.calls)
+    expect(texts(m, 'pod_hs_cap') and texts(m, 'pod_hs_cap')[0].startswith('Recording since ') and texts(m, 'pod_hs_cap')[0].endswith(', 80%'), f'the caption says Recording since ({texts(m, "pod_hs_cap")})')
+    # recording that starts on the charger, or with an unreadable status: no run, no card until the charger is removed
+    for name, status in (('on the charger', b'Charging\n'), ('with an unreadable status', b'Weird\n')):
+        m = machine(status=status); m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([1]))
+        for n in NAMES: m.widget(n)
+        m.win = m.alloc(0x80)
+        step(m, 0); step(m, 900); step(m, 900, lit=True)
+        m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
+        expect(shown(m) == SHOWN['data'] and len(m.bitmaps) == 2, f'recording started {name}: the charts show, no Since Last Charge card or note')
+        ids = set(m.bitmaps)
+        m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
+        expect(set(m.bitmaps) == ids and 'bitmap_create_ex' not in m.names() and len(m.bitmaps) == 2, 'shown again: the same two bitmaps drawn in place')
+    m = machine(status=b'Charging\n'); m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([1]))
+    for n in NAMES: m.widget(n)
+    m.win = m.alloc(0x80)
+    step(m, 0); step(m, 900); step(m, 900, lit=True)
     step(m, 60, lit=True, status=b'Charging\n'); step(m, 60, lit=True, status=b'Discharging\n')
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(shown(m) == SHOWN['data'] | SC and len(m.bitmaps) == 3, 'the charger removed: the Since Last Charge card appears in place')
-    # the switch turned off: everything hides again (and the bitmaps stay for a later turn-on; the data is gone)
+    expect(shown(m) == SHOWN['data'] | SC and len(m.bitmaps) == 3, 'the charger removed: the Since Last Charge card and its note appear in place')
+    # the switch turned off: the long note comes back and the rest hides (and the bitmaps stay for a later turn-on; the data is gone)
     m.call(PSYMS['bh_toggle'], count=4000000)
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(shown(m) == set(), 'turned off: every item hides')
+    expect(shown(m) == SHOWN['off'], 'turned off: the long note alone')
     m.call(PSYMS['bh_toggle'], count=4000000)
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
-    expect(shown(m) == SHOWN['empty'], 'turned on again: the empty state (the ring was deleted)')
+    expect(shown(m) == SHOWN['empty'], 'turned on again: the empty state (the ring was deleted), the short note')
     # a page the payload does not know (a missing widget): nothing happens
     m2 = page(on=True); m2.widgets.pop('pod_hist1'); m2.call(PSYMS['bhpage_show'], a0=m2.alloc(0x80), count=4000000)
     expect(True, 'a window without our widgets is left alone')
@@ -793,32 +953,31 @@ def visibility_tests(ctx):
     sv = root.find('pod_scrollview')
     got = [(c.name, c.h, c.get('visible') == 'false') for c in sv.children]
     want = [('pod_top', ST.CM, False)] + [(n, h, hd) for n, h, hd in [
-        ('pod_row0', 52, False), ('pod_note0', 55, False),
-        ('pod_sec0', ST.HDR_H, True), ('pod_hist0', 254, True), ('pod_sec1', ST.HDR_H, True), ('pod_hist1', 150, True), ('pod_sec2', ST.HDR_H, True), ('pod_hist2', 150, True), ('pod_sec3', ST.HDR_H, True),
-        ('pod_row1', 60, True), ('pod_row2', 60, True), ('pod_row3', 60, True), ('pod_note1', ST.NOTE_H, True), ('pod_note2', ST.NOTE_H + ST.WRAP_LINE, True)]] + [('pod_end', ST.END_H, False)]
-    expect(got == want, f'the asset: the switch and its note, the History items hidden at the start, in order ({[g for g, w_ in zip(got, want) if g != w_][:3]})')
+        ('pod_row0', 52, False), ('pod_note0', 55, False), ('pod_note1', ST.NOTE_H, True),
+        ('pod_sec0', ST.HDR_H, True), ('pod_hist0', 302, True), ('pod_note2', ST.NOTE_H, True), ('pod_sec1', ST.HDR_H, True), ('pod_hist1', 150, True), ('pod_sec2', ST.HDR_H, True), ('pod_hist2', 150, True),
+        ('pod_note3', ST.NOTE_H + ST.WRAP_LINE, True)]] + [('pod_end', ST.END_H, False)]
+    expect(got == want, f'the asset: the switch and its notes, the History items hidden at the start (only the long note shows), in order ({[g for g, w_ in zip(got, want) if g != w_][:3]})')
     names = {w.name for w in root.walk()}
-    expect(all(n in names for n in NAMES + ['pod_ha_l0', 'pod_ha_l1', 'pod_hl_a0', 'pod_hl_a1', 'pod_hl_a2', 'pod_hs_n0', 'pod_hs_n1', 'pod_hs_n2']), 'every widget the payload looks up is in the asset')
+    expect(all(n in names for n in NAMES + ['pod_ha_l0', 'pod_ha_l1', 'pod_hl_a0', 'pod_hl_a1', 'pod_hl_a2', 'pod_hs_n0', 'pod_hs_n1', 'pod_hs_n2']) and not [n for n in names if n.startswith(('pod_sub', 'pod_value', 'pod_mark')) or n == 'pod_sec3'],
+           'every widget the payload looks up is in the asset, and no On Battery rows')
+    expect([r.name for r in sv.children if r.type == 'list_item'] == ['pod_row0'], 'the switch is the page\'s only row')
     expect({n.name: n.get('text') for n in root.walk() if n.name in ('pod_hl_a0', 'pod_hl_a1', 'pod_hl_a2')} == {'pod_hl_a0': '100%', 'pod_hl_a1': '50%', 'pod_hl_a2': '0%'}, 'the level chart\'s axis: 100%, 50%, 0%')
     import pod_i18n
     hs = {w.name: w for w in root.walk() if w.name.startswith('pod_hs_')}
-    expect([pod_i18n.shown_english(hs[f'pod_hs_n{k}']) for k in range(3)] == ['Screen On', 'Playing, Screen Off', 'Standby'] and [(hs[f'pod_hs_n{k}'].x, hs[f'pod_hs_n{k}'].y + 13) for k in range(3)] == [(10 + HM.OFF['BHS_NAME_X'], HM.SROW0 + HM.SROW_H * k + HM.SROW_H // 2) for k in range(3)],
-           'the card\'s three names, centred on their rows, after the mark')
-    expect(hs['pod_hs_dur'].get('style:normal:font_size') == '28' and hs['pod_hs_cap'].get('style:normal:font_size') == '15' and hs['pod_hs_left'].get('style:normal:text_align_h') == 'right' and hs['pod_hs_d0'].get('style:normal:text_align_h') == 'right'
-           and hs['pod_hs_d0'].x + hs['pod_hs_d0'].w == 10 + 300 - HM.SPAD and hs['pod_hs_left'].x + hs['pod_hs_left'].w == 10 + 300 - HM.SPAD, 'the big total (26 px), the caption (13 px), the percent left and the durations right aligned at the bar\'s right edge')
-    for i, piece in ((1, 'top'), (2, 'mid'), (3, 'bot')):
-        r = root.find(f'pod_row{i}')
-        lx, lw = ST.label_box('stat', False)
-        sub, val, lab, mk = (next(c for c in r.children if c.name == f'pod_{n}') for n in (f'sub{i}', f'value{i}', f'label{i}', 'mark'))
-        expect((r.h, r.get('style:normal:bg_image')) == (60, f'pod_cdl_{piece}') and (lab.x, lab.w, lab.y, lab.h) == (lx, lw, ST.LIB_TITLE_Y, ST.LIB_TITLE_H) and (sub.x, sub.w, sub.y, sub.h) == (lx, lw, ST.LIB_SUB_Y, ST.LIB_SUB_H)
-               and (val.x, val.w) == ST.stat_box() and val.get('style:normal:text_align_h') == 'right' and val.get('style:normal:text_color') != sub.get('style:normal:text_color') and val.get('style:normal:font_size') == '17'
-               and not [c for c in r.children if c.name in ('pod_icon', 'pod_chevron')] and bool([c for c in r.children if c.name == 'pod_hair']) == (piece != 'bot'),
-               f'row {i}: a {piece} piece of 60 px, the name, the grey duration, the white percent at the right edge, no glyph and no chevron')
-        expect((mk.x, mk.y, mk.w, mk.h) == (ST.CM + ST.PAD, ST.STAT_MARK_Y, 10, 10) and mk.get('style:normal:round_radius') == '4' and mk.get('style:normal:bg_color').lower() == ('#e6e6e6', '#78787c', '#3a3a3c')[i - 1] and mk.get('sensitive') == 'false',
-               f'row {i}: a 10 px mark of radius 4 in the kind\'s colour')
-    expect(ST.stat_box()[0] + ST.stat_box()[1] == ST.RIGHT and lw + lx + ST.VALUE_LABEL_GAP == ST.stat_box()[0] and lx == ST.STAT_TEXT_X, 'the percent ends at the right ink edge, the label stops short of it')
-    sens = {w.name: w.get('sensitive') for w in root.walk() if w.name in ('pod_row1', 'pod_hist0', 'pod_hist1', 'pod_hist2')}
-    expect(set(sens.values()) == {'false'}, 'the History rows and charts never take a touch')
+    box = lambda n: (hs[n].x, hs[n].y, hs[n].w, hs[n].h)
+    expect([pod_i18n.shown_english(hs[f'pod_hs_n{k}']) for k in range(3)] == ['Screen On', 'Playing, Screen Off', 'Standby']
+           and [box(f'pod_hs_n{k}') for k in range(3)] == [(10 + 34, 108 + 60 * k + 20 - 12, 170, 24) for k in range(3)]
+           and [box(f'pod_hs_d{k}') for k in range(3)] == [(10 + 34, 108 + 60 * k + 42 - 10, 170, 20) for k in range(3)]
+           and [box(f'pod_hs_p{k}') for k in range(3)] == [(10 + 300 - 12 - 60, 108 + 60 * k + 30 - 12, 60, 24) for k in range(3)],
+           'a row: the name centred on 20 under the row\'s top after the mark, the duration under it on 42, the percent at the right on 30')
+    expect(all(hs[f'pod_hs_n{k}'].x + hs[f'pod_hs_n{k}'].w < hs[f'pod_hs_p{k}'].x and hs[f'pod_hs_d{k}'].x + hs[f'pod_hs_d{k}'].w < hs[f'pod_hs_p{k}'].x for k in range(3)), 'the name and duration boxes end before the percent\'s')
+    expect(hs['pod_hs_dur'].get('style:normal:font_size') == '28' and hs['pod_hs_cap'].get('style:normal:font_size') == '15' and hs['pod_hs_left'].get('style:normal:text_align_h') == 'right'
+           and all(hs[f'pod_hs_d{k}'].get('style:normal:text_align_h') == 'left' and hs[f'pod_hs_d{k}'].get('style:normal:font_size') == '16' and hs[f'pod_hs_n{k}'].get('style:normal:font_size') == '18'
+                   and hs[f'pod_hs_p{k}'].get('style:normal:text_align_h') == 'right' and hs[f'pod_hs_p{k}'].get('style:normal:font_size') == '17' for k in range(3))
+           and hs['pod_hs_p0'].get('style:normal:text_color') != hs['pod_hs_d0'].get('style:normal:text_color') and hs['pod_hs_p0'].x + hs['pod_hs_p0'].w == 10 + 300 - HM.SPAD and hs['pod_hs_left'].x + hs['pod_hs_left'].w == 10 + 300 - HM.SPAD,
+           'the big total (28 px), the caption (15 px), the percent left, the grey durations on the left and the white percents on the right at the bar\'s right edge')
+    sens = {w.name: w.get('sensitive') for w in root.walk() if w.name in ('pod_hist0', 'pod_hist1', 'pod_hist2')}
+    expect(set(sens.values()) == {'false'}, 'the History charts never take a touch')
 
 
 SECTIONS = [constants_tests, sample_tests, attribution_tests, ring_tests, gap_tests, corrupt_tests, switch_tests, sc_tests, settings_tests, history_tests, texts_tests, visibility_tests]

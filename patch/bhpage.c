@@ -1,10 +1,10 @@
-/* M1+ Music Battery History page: the Since Last Charge card, the charts and the On Battery rows of Settings > Battery > Battery History (docs/modules/batthist.md "History page").
+/* M1+ Music Battery History page: the Since Last Charge card and the charts of Settings > Battery > Battery History (docs/modules/batthist.md "History page").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * The Battery History page (tools/pod_pages.py BATTHIST_PAGE) carries the History items after the switch's note: the Since Last Charge header and card, the "Last 24 Hours" header and level chart, the Activity header and chart, the On Battery
- * header, rows and note, and an empty note. All start hidden in the asset; bhpage_show (called by m1plus.c page_refresh: as the page opens, each time it is back in front and when the switch is turned) shows the ones that belong to the
- * state: switch off, none; on with no closed bucket yet, the empty note alone; otherwise everything (the Since Last Charge header and card only with an unplug_at, else they stay hidden). The list_view layouter skips hidden items, so the page
+ * The Battery History page (tools/pod_pages.py BATTHIST_PAGE) carries the switch's two notes (the long one while the switch is off, a short one while it is on) and the History items after them: the Since Last Charge header, card and its note, the "Last 24 Hours" header and level chart, the Activity header and chart, and an empty
+ * note. All but the long note start hidden in the asset; bhpage_show (called by m1plus.c page_refresh: as the page opens, each time it is back in front and when the switch is turned) shows the ones that belong to the
+ * state: switch off, the long note; on with no closed bucket yet, the short note and the empty note; otherwise the short note and everything (the Since Last Charge header, card and note only with an unplug_at, else they stay hidden). The list_view layouter skips hidden items, so the page
  * closes up and grows in place.
  *
  * The card and the charts are bitmaps painted into a view the width of the list (the preset page's graph card: patch/peqpage.c, peq_blit): the card (#1C1C1E, rounded), the stacked bar of the card (screen on / playing with the screen off /
@@ -27,21 +27,21 @@
 #define BHP_CARD_GREY 28
 #define BHP_GRID 48 /* the dotted gridlines */
 #define BHP_TICK 62 /* the hour ticks under the plot */
-#define BHP_LEVEL 216 /* level bars */
+#define BHP_LEVEL 165 /* level bars */
 #define BHP_HAIR 51 /* the card's hairlines */
 #define BHP_LOW 20 /* the level at which a bar on battery turns red */
 #define BHP_BAR_W (BHC_W - 2 * BHS_PAD) /* the stacked bar */
 
-/* The three kinds' colours (screen on, playing with the screen off, standby): the bar, the legend marks, the rows' marks (tools/pod_ui.py HIST_KIND_RGB). */
-static const unsigned char bhp_kind[3][3] = {{0xE6, 0xE6, 0xE6}, {0x78, 0x78, 0x7C}, {0x3A, 0x3A, 0x3C}};
+/* The three kinds' colours (screen on, playing with the screen off, standby): the bar, the legend marks, the rows' marks. */
+static const unsigned char bhp_kind[3][3] = {{0xE6, 0xE6, 0xE6}, {0x78, 0x78, 0x7C}, {0x58, 0x58, 0x5C}};
 
-enum { I_SEC0, I_HIST0, I_SEC1, I_HIST1, I_SEC2, I_HIST2, I_SEC3, I_ROW0, I_ROW1, I_ROW2, I_NOTE1, I_NOTE2, I_COUNT };
+enum { I_NOTE0, I_NOTE1, I_SEC0, I_HIST0, I_NOTE2, I_SEC1, I_HIST1, I_SEC2, I_HIST2, I_NOTE3, I_COUNT };
 
 static struct {
     void *win;
     void *item[I_COUNT]; /* the items that show and hide, I_* */
     void *bmp[3]; /* the card's, the level and the activity chart's bitmaps, made when the first data shows */
-    void *tick[2][4], *axis[3], *cap, *dur, *left, *sc_val[3], *sub[3], *val[3];
+    void *tick[2][4], *axis[3], *cap, *dur, *left, *sc_val[3], *sc_pct[3];
 } bhp __attribute__((section(".scratch")));
 
 static unsigned bhp_px(unsigned a, unsigned r, unsigned g, unsigned b) { return a << 24 | b << 16 | g << 8 | r; }
@@ -167,7 +167,7 @@ static void bhp_activity(unsigned *px, const struct bh_view *v, const int *idx, 
     bhp_mark(px, 124, BHA_LEGEND_Y, 1);
 }
 
-/* The Since Last Charge card: the card, the stacked bar (screen on, playing with the screen off, standby; rounded ends) and the three rows' marks and hairlines. The seconds are halved until the total is under 2**20. */
+/* The Since Last Charge card: the card, the stacked bar (screen on, playing with the screen off, standby; rounded ends) and the three rows' marks (on the name's line) and hairlines. The seconds are halved until the total is under 2**20. */
 static void bhp_summary(unsigned *px, const struct bh_view *v) {
     unsigned total = v->sc_total, on = v->sc_on, play = v->sc_play;
     int e1 = 0, e2 = 0, x, y, k;
@@ -185,7 +185,7 @@ static void bhp_summary(unsigned *px, const struct bh_view *v) {
                                                   : 2],
                       bhp_cover(x, y, BHS_PAD, BHS_BAR_Y, BHP_BAR_W, BHS_BAR_H, BHS_BAR_H / 2));
     for (k = 0; k < 3; ++k) {
-        bhp_mark(px, BHS_MARK_X, BHS_ROW0_Y + BHS_ROW_H * k + BHS_ROW_H / 2, k);
+        bhp_mark(px, BHS_MARK_X, BHS_ROW0_Y + BHS_ROW_H * k + BHS_MARK_CY, k);
         if (k) bhp_rect(px, BHS_PAD, BHS_ROW0_Y + BHS_ROW_H * k, BHP_BAR_W, 1, bhp_grey(BHP_HAIR));
     }
 }
@@ -242,22 +242,20 @@ static void bhp_dur(char *out, unsigned size, unsigned secs) {
         pc_fmt(out, size, TR("%d min"), m);
 }
 
-/* A tick's label: the level chart's "18:00" or "6 PM", the activity chart's "18" or "6 PM". */
-static void bhp_hour(char *out, unsigned size, int hour, int level) {
+/* A tick's label (both charts): "18:00" or "6 PM". */
+static void bhp_hour(char *out, unsigned size, int hour) {
     if (dt_24h())
-        snprintf(out, size, level ? "%02d:00" : "%02d", hour);
+        snprintf(out, size, "%02d:00", hour);
     else
         snprintf(out, size, "%d %s", hour % 12 ? hour % 12 : 12, hour < 12 ? "AM" : "PM");
 }
 
-/* One On Battery row: the duration and the percent the gauge fell in it, "~12%" (bold: the estimate is the row's figure). */
-static void bhp_row(int k, unsigned t, unsigned d) {
-    char line[48], num[12];
-    bhp_dur(line, sizeof line, t);
-    bhp_text(bhp.sub[k], line);
+/* One Since Last Charge row's percent the gauge fell, "~12%" (bold: the estimate is the row's figure). */
+static void bhp_pct(int k, unsigned d) {
+    char num[12];
     snprintf(num, sizeof num, "~%u%%", d);
-    bhp_text(bhp.val[k], num);
-    ly_title_face(bhp.val[k], num);
+    bhp_text(bhp.sc_pct[k], num);
+    ly_title_face(bhp.sc_pct[k], num);
 }
 
 /* The bucket boundaries (0 .. 95) of the view that fall on a local multiple of six hours, and their local hours: four of them. The zone's offset is the one at the open bucket. */
@@ -283,16 +281,38 @@ static void bhp_clock(char *out, unsigned size, long t) {
         snprintf(out, size, "%d:%02d %s", h % 12 ? h % 12 : 12, m, h < 12 ? "AM" : "PM");
 }
 
-/* The Since Last Charge card's texts: "Unplugged at 21:25, 100%" (without the level when it is unknown), the total on battery in bold, "58% left" and the three durations (standby is the rest of the total). */
-static void bhp_since(const struct bh_view *v) {
-    char line[96], clock[16], lvl[8], dur[24];
+/* The local calendar date of t as year * 10000 + month * 100 + day into *d, and its seconds into the day; -1 when localtime has none. */
+static long bhp_date(long t, long *d) {
+    const int *tm = localtime(&t);
+    if (!tm) return -1;
+    *d = (long)(tm[5] + 1900) * 10000 + (tm[4] + 1) * 100 + tm[3];
+    return (long)tm[2] * 3600 + tm[1] * 60 + tm[0];
+}
+
+/* The caption's time: the clock when t is on the local day of now, "yesterday 21:25" the day before, else "11-14 21:25". localtime has one buffer, so each date is copied out at once. The day before is the date half a day before the local midnight by the clock, which a DST step (it moves that point by its hour) leaves inside yesterday. */
+static void bhp_when(char *out, unsigned size, long t, long now) {
+    long dt, dn, dy, sod = bhp_date(now, &dn);
+    char clock[16];
+    bhp_clock(clock, sizeof clock, t);
+    if (bhp_date(t, &dt) < 0 || sod < 0 || bhp_date(now - sod - 43200, &dy) < 0 || dt == dn)
+        snprintf(out, size, "%s", clock);
+    else if (dt == dy)
+        dur_subst(out, size, TR("yesterday %s"), 0, clock, (const char *)0);
+    else
+        snprintf(out, size, "%02d-%02d %s", (int)(dt / 100 % 100), (int)(dt % 100), clock);
+}
+
+/* The Since Last Charge card's texts: "Unplugged 21:25, 100%" (or "Recording since 14:05, 85%" when the run began with the recording; without the level when it is unknown), the total on battery in bold, "58% left", and the three kinds' durations and percents (standby is the rest of the total). */
+static void bhp_since(const struct bh_view *v, long now) {
+    char line[96], when[40], lvl[8], dur[24];
     unsigned rest = v->sc_total > v->sc_on + v->sc_play ? v->sc_total - v->sc_on - v->sc_play : 0;
-    bhp_clock(clock, sizeof clock, v->unplug_at);
+    bhp_when(when, sizeof when, v->unplug_at, now);
     snprintf(lvl, sizeof lvl, "%u%%", v->unplug_lvl);
     if (v->unplug_lvl <= 100)
-        dur_subst(line, sizeof line, TR("Unplugged at %s, %s"), 0, clock, lvl);
+        dur_subst(line, sizeof line, v->since_on ? TR("Recording since %s, %s") : TR("Unplugged %s, %s"), 0, when, lvl);
     else
-        dur_subst(line, sizeof line, TR("Unplugged at %s"), 0, clock, (const char *)0);
+        dur_subst(line, sizeof line, v->since_on ? TR("Recording since %s") : TR("Unplugged %s"), 0, when,
+                  (const char *)0);
     bhp_text(bhp.cap, line);
     bhp_dur(dur, sizeof dur, v->sc_total);
     bhp_text(bhp.dur, dur);
@@ -309,6 +329,9 @@ static void bhp_since(const struct bh_view *v) {
     bhp_text(bhp.sc_val[1], dur);
     bhp_dur(dur, sizeof dur, rest);
     bhp_text(bhp.sc_val[2], dur);
+    bhp_pct(0, v->sc_d_on);
+    bhp_pct(1, v->sc_d_play);
+    bhp_pct(2, v->sc_d_idle);
 }
 
 /* ---------------------------------------------------------------------------
@@ -318,9 +341,8 @@ static void *bhp_find(void *win, const char *name) { return widget_lookup(win, n
 
 /* The page's widgets, bound the first time the window shows; 0 when the asset is not ours. */
 static int bhp_init(void *win) {
-    static const char *const names[I_COUNT] = {"pod_sec0", "pod_hist0", "pod_sec1",  "pod_hist1",
-                                               "pod_sec2", "pod_hist2", "pod_sec3",  "pod_row1",
-                                               "pod_row2", "pod_row3",  "pod_note1", "pod_note2"};
+    static const char *const names[I_COUNT] = {"pod_note0", "pod_note1", "pod_sec0", "pod_hist0", "pod_note2",
+                                               "pod_sec1",  "pod_hist1", "pod_sec2", "pod_hist2", "pod_note3"};
     char nm[24];
     int i, k;
     if (bhp.win == win) return 1;
@@ -335,20 +357,20 @@ static int bhp_init(void *win) {
     for (i = 0; i < 3; ++i) {
         snprintf(nm, sizeof nm, "pod_ha_a%d", i);
         if (!(bhp.axis[i] = bhp_find(win, nm))) goto bad;
-        snprintf(nm, sizeof nm, "pod_sub%d", 1 + i);
-        bhp.sub[i] = bhp_find(win, nm);
-        snprintf(nm, sizeof nm, "pod_value%d", 1 + i);
-        bhp.val[i] = bhp_find(win, nm);
         snprintf(nm, sizeof nm, "pod_hs_d%d", i);
         bhp.sc_val[i] = bhp_find(win, nm);
-        if (!bhp.sub[i] || !bhp.val[i] || !bhp.sc_val[i]) goto bad;
+        snprintf(nm, sizeof nm, "pod_hs_p%d", i);
+        bhp.sc_pct[i] = bhp_find(win, nm);
+        if (!bhp.sc_val[i] || !bhp.sc_pct[i]) goto bad;
     }
     bhp.cap = bhp_find(win, "pod_hs_cap");
     bhp.dur = bhp_find(win, "pod_hs_dur");
     bhp.left = bhp_find(win, "pod_hs_left");
     if (!bhp.cap || !bhp.dur || !bhp.left) goto bad;
     bhp.win = win;
-    for (k = 0; k < 3; ++k) widget_on(bhp.item[I_HIST0 + 2 * k], EVT_BEFORE_PAINT, bhp_on_paint, (void *)(long)k);
+    widget_on(bhp.item[I_HIST0], EVT_BEFORE_PAINT, bhp_on_paint, (void *)0L);
+    widget_on(bhp.item[I_HIST1], EVT_BEFORE_PAINT, bhp_on_paint, (void *)1L);
+    widget_on(bhp.item[I_HIST2], EVT_BEFORE_PAINT, bhp_on_paint, (void *)2L);
     widget_on(win, EVT_DESTROY, bhp_on_destroy, (void *)0);
     return 1;
 bad: /* an asset that is not ours: the items stay hidden */
@@ -356,16 +378,16 @@ bad: /* an asset that is not ours: the items stay hidden */
     return 0;
 }
 
-/* The state the History items show: 0 off, 1 on with no closed bucket yet, 2 data; fills the bitmaps and the texts in that last case. */
+/* The state the page's items show: 0 off, 1 on with no closed bucket yet, 2 data; fills the bitmaps and the texts in that last case. */
 void bhpage_show(void *win) {
     struct bh_view v;
     char buf[40];
     int idx[4], hr[4], nt = 0, mode = 0, i, k;
     static const unsigned char show[3][I_COUNT] = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, /* off */
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, /* on, nothing complete yet: the empty note alone */
-        {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-         0}}; /* the data (the Since Last Charge header and card only with an unplug_at) */
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, /* off: the long note */
+        {0, 1, 0, 0, 0, 0, 0, 0, 0, 1}, /* on, nothing complete yet: the short note and the empty note */
+        {0, 1, 1, 1, 1, 1, 1, 1, 1,
+         0}}; /* the data (the Since Last Charge header, card and note only with an unplug_at) */
     if (!bhp_init(win)) return;
     if (bh_setting() && bh_snapshot(&v)) {
         mode = 1;
@@ -377,6 +399,7 @@ void bhpage_show(void *win) {
     if (mode != 2) return;
     widget_set_visible(bhp.item[I_SEC0], v.unplug_at != 0, 0); /* hidden until a charger removal was seen: no dashes */
     widget_set_visible(bhp.item[I_HIST0], v.unplug_at != 0, 0);
+    widget_set_visible(bhp.item[I_NOTE2], v.unplug_at != 0, 0);
     nt = bhp_ticks(&v, idx, hr);
     for (k = 0; k < 3; ++k) {
         unsigned *px;
@@ -393,7 +416,7 @@ void bhpage_show(void *win) {
         }
         if (!k) continue;
         for (i = 0; i < 4; ++i) {
-            bhp_hour(buf, sizeof buf, hr[i], k == 1);
+            bhp_hour(buf, sizeof buf, hr[i]);
             bhp_text(bhp.tick[k - 1][i], buf);
             widget_move(bhp.tick[k - 1][i], BHC_X + BHC_PX0 + 5 * idx[i] / 2 - BHC_TICK_W / 2,
                         (k == 2 ? BHA_TICK_Y : BHL_TICK_Y) - 9);
@@ -404,8 +427,5 @@ void bhpage_show(void *win) {
     pc_fmt(buf, sizeof buf, TR("%d min"), 30);
     bhp_text(bhp.axis[1], buf);
     bhp_text(bhp.axis[2], "0");
-    bhp_row(0, v.t_on, v.d_on);
-    bhp_row(1, v.t_play, v.d_play);
-    bhp_row(2, v.t_idle, v.d_idle);
-    if (v.unplug_at) bhp_since(&v);
+    if (v.unplug_at) bhp_since(&v, time((long *)0));
 }

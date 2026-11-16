@@ -4,7 +4,7 @@
 tools/preview/preview_batthist.py draws the page from it and test/pod/batthist.py checks the payload's bitmaps and labels against it. A bucket is the tuple of struct bh_bucket (level, flags, on, play, cov, d_on, d_play, d_idle),
 oldest first, 96 of them (patch/batthist.h); `head` is the newest bucket's number (wall seconds / 900). Pixels are (alpha, red, green, blue).
 """
-import math, os, sys
+import datetime, math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdefs
 
@@ -12,12 +12,12 @@ OFF = cdefs.defines(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath
 W, R, PX0 = OFF['BHC_W'], OFF['BHC_R'], OFF['BHC_PX0']
 LH, LCARD, LPY0, LPH, LPITCH, LBAR = (OFF[k] for k in ('BHL_H', 'BHL_CARD', 'BHL_PY0', 'BHL_PH', 'BHL_PITCH', 'BHL_BAR'))
 AH, ACARD, APY0, APH, APITCH, ABAR, ALEG = (OFF[k] for k in ('BHA_H', 'BHA_CARD', 'BHA_PY0', 'BHA_PH', 'BHA_PITCH', 'BHA_BAR', 'BHA_LEGEND_Y'))
-SCARD, SPAD, SBAR_Y, SBAR_H, SROW0, SROW_H, SMARK_X, SMARK, SMARK_R = (OFF[k] for k in ('BHS_CARD', 'BHS_PAD', 'BHS_BAR_Y', 'BHS_BAR_H', 'BHS_ROW0_Y', 'BHS_ROW_H', 'BHS_MARK_X', 'BHS_MARK_SIZE', 'BHS_MARK_R'))
+SCARD, SPAD, SBAR_Y, SBAR_H, SROW0, SROW_H, SMARK_X, SMARK, SMARK_R, SMARK_CY = (OFF[k] for k in ('BHS_CARD', 'BHS_PAD', 'BHS_BAR_Y', 'BHS_BAR_H', 'BHS_ROW0_Y', 'BHS_ROW_H', 'BHS_MARK_X', 'BHS_MARK_SIZE', 'BHS_MARK_R', 'BHS_MARK_CY'))
 SBAR_W = W - 2 * SPAD
 BUCKETS, SECS, NONE, F_CHG, F_GAP = 96, 900, 255, 1, 2
 CARD, CARD_BLUE, GRID, TICK = 28, 30, 48, 62          # the surface #1C1C1E (blue 2 above its grey), the dotted gridlines, the hour ticks
-LEVEL = 216                                           # level bars
-ON_RGB, PLAY_RGB, STBY_RGB = (0xE6,) * 3, (0x78, 0x78, 0x7C), (0x3A, 0x3A, 0x3C)   # screen on, playing with the screen off, standby: the bar, the legend marks, the rows' marks
+LEVEL = 165                                           # level bars
+ON_RGB, PLAY_RGB, STBY_RGB = (0xE6,) * 3, (0x78, 0x78, 0x7C), (0x58, 0x58, 0x5C)   # screen on, playing with the screen off, standby: the bar, the legend marks, the rows' marks
 BAND = (0x2A, 0x2A, 0x2C)                             # on external power: a faint band behind the bars (the card a step lighter)
 HAIR = 51                                             # the summary's hairlines (#333333)
 GREEN, RED = (0x34, 0xC7, 0x59), (0xFF, 0x14, 0x48)   # charging, 20 % or less on battery
@@ -165,7 +165,7 @@ def bar_edges(on, play, total):
 
 
 def render_summary(on, play, total):
-    """The Since Last Charge card's bitmap (BHC_W x SCARD): the card, the stacked bar (rounded ends) of screen on / playing with the screen off / standby, the marks of the three rows and the hairlines between them. on and play are seconds,
+    """The Since Last Charge card's bitmap (BHC_W x SCARD): the card, the stacked bar (rounded ends) of screen on / playing with the screen off / standby, the marks of the three rows (on the name's line) and the hairlines between them. on and play are seconds,
     total all the seconds on battery (standby is the rest)."""
     im = blank(SCARD, SCARD)
     e1, e2 = bar_edges(on, play, total)
@@ -174,15 +174,14 @@ def render_summary(on, play, total):
             a = cover(x, y, SPAD, SBAR_Y, SBAR_W, SBAR_H, SBAR_H // 2)
             blend(im, x, y, ON_RGB if x - SPAD < e1 else PLAY_RGB if x - SPAD < e2 else STBY_RGB, a)
     for k, rgb in enumerate((ON_RGB, PLAY_RGB, STBY_RGB)):
-        cy = SROW0 + SROW_H * k + SROW_H // 2
-        mark(im, SMARK_X, cy, rgb)
+        mark(im, SMARK_X, SROW0 + SROW_H * k + SMARK_CY, rgb)
         if k: rect(im, SPAD, SROW0 + SROW_H * k, SBAR_W, 1, (HAIR,) * 3)
     return im
 
 
-def hour_text(hour, h24, chart):
-    """A tick's label: the level chart's "18:00" / "6 PM", the activity chart's "18" / "6 PM"."""
-    if h24: return f'{hour:02d}:00' if chart == 'level' else f'{hour:02d}'
+def hour_text(hour, h24):
+    """A tick's label (both charts): "18:00" / "6 PM"."""
+    if h24: return f'{hour:02d}:00'
     return f'{hour % 12 or 12} {"AM" if hour < 12 else "PM"}'
 
 
@@ -200,12 +199,25 @@ def dur_text(secs, tr=None):
     return t.get('%dm', '%d min') % m
 
 
-def caption_text(unplug_clock, level):
-    """The Since Last Charge caption: "Unplugged at 21:25, 100%", without the level when the gauge then is unknown (BH_NONE)."""
-    return f'Unplugged at {unplug_clock}, {level}%' if level <= 100 else f'Unplugged at {unplug_clock}'
+def when_text(then, now, h24, yesterday='yesterday %s'):
+    """The caption's time: then and now are local (year, month, day, hour, minute). The clock on now's day, "yesterday 21:25" the day before (yesterday: the language's text), else "11-14 21:25"."""
+    clock = clock_text(then[3], then[4], h24)
+    gap = (datetime.date(*now[:3]) - datetime.date(*then[:3])).days
+    if gap == 0: return clock
+    if gap == 1: return yesterday % clock
+    return f'{then[1]:02d}-{then[2]:02d} {clock}'
 
 
-def stat_text(d): return f'~{d}%'
+def caption_text(when, level, since_on, tr=None):
+    """The Since Last Charge caption: "Unplugged 21:25, 100%", or "Recording since 14:05, 85%" when the run began with the recording; without the level when the gauge then is unknown (BH_NONE). when is when_text; tr maps the English
+    forms to a language's."""
+    t = tr or {}
+    head = 'Recording since %s' if since_on else 'Unplugged %s'
+    if level <= 100: return t.get(head + ', %s', head + ', %s') % (when, f'{level}%')
+    return t.get(head, head) % when
+
+
+def pct_text(d): return f'~{d}%'
 
 
 def state(b):

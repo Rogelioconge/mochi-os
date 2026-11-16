@@ -194,7 +194,6 @@ ACT_SLEEPSET = 170    # picker row (the Sleep Timer page, opened by Now Playing'
 ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own under the choices, shown only while a timer runs): Time Left, H:MM rounded up to the minute (patch/sleeptimer.c st_left_text); no chevron, no touch
 ACT_BATTHIST = 188     # switch row (Battery History page): Battery History, off by default; records the last 24 hours of battery level and use (patch/batthist.c bh_toggle, /mnt/data/m1plus/battery-history)
 ACT_BHPAGE = 190      # value row (Settings > Battery): Battery History, On or Off as the switch on its page; opens the Battery History page (arg = its page index; patch/batthist.c bh_setting)
-ACT_BHROW = 189       # information row (Battery History page): one of the three On Battery rows, two lines (the duration) and a bold estimated percent (arg 0 Screen On, 1 Playing / Screen Off, 2 Standby); patch/bhpage.c fills them, no touch
 ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page): choose the preferred codec (arg = stock's btcoding 0 .. 7; patch/btpage.c bp_codec_set: the init guard, stock's confirm while a device is connected, then stock's Quality choice)
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
@@ -250,7 +249,6 @@ def row_kind(row):
     if row.action == ACT_PEQ_PRESET: return 'preset'
     if row.action == ACT_PEQ_PREAMP: return 'preamp'
     if row.action in (ACT_PEQ_BAND,): return 'band'
-    if row.action == ACT_BHROW: return 'stat'
     if row.action == ACT_PEQ_LIB: return 'lib'
     if row.action in (ACT_PEQ_DELETE,): return 'delete'
     if row.action in (ACT_PEQ_TRESET, ACT_PEQ_RENAME, ACT_PEQ_TSAVE): return 'plain'
@@ -1093,24 +1091,21 @@ BATTERY_PAGE = Page('m1plus_battery', 'm1plus_battery_page', 'Battery', layout=[
     Note('Applies while the player is on'),
     Row('Battery History', ACT_BHPAGE, BATTHIST_PAGE_INDEX),   # On or Off; opens the Battery History page
 ])
-# Settings > Battery > Battery History (patch/bhpage.c, docs/modules/batthist.md "History page"): the switch and its note, then the Since Last Charge card (only after a charger removal), the two charts and the On Battery rows. Everything under the note is hidden in the asset and shown by the payload for the state (off: none); the closing-up layouter drops hidden items. Names: pod_row0 the switch, pod_sec0..3, pod_note1..2, pod_hist0..2, pod_row1..3.
+# Settings > Battery > Battery History (patch/bhpage.c, docs/modules/batthist.md "History page"): the switch and its note, then the Since Last Charge card (only after a charger removal), and the two charts. The switch's note is two items (pod_note0 while the switch is off, pod_note1 while it is on); everything under them is hidden in the asset and shown by the payload for the state (off: none); the closing-up layouter drops hidden items. Names: pod_row0 the switch, pod_sec0..2, pod_note0..3, pod_hist0..2.
 BATTHIST_PAGE = Page('m1plus_batthist', 'm1plus_batthist_page', 'Battery History', layout=[
     Row('Battery History', ACT_BATTHIST),
     Note('Keeps the last 24 hours of battery level and use. Turning it off deletes them.', lines=2),
+    Note('Turning it off deletes the history.'),
     Hdr('Since Last Charge'),
     HistSummary(),
+    Note('Estimated from the battery gauge.'),
     Hdr('Last 24 Hours'),
     HistChart('level'),
     Hdr('Activity'),
     HistChart('activity'),
-    Hdr('On Battery'),
-    Row('Screen On', ACT_BHROW, 0),
-    Row('Playing, Screen Off', ACT_BHROW, 1),
-    Row('Standby', ACT_BHROW, 2),
-    Note('Estimated from the battery gauge.'),
     Note('Battery history appears after the first 15 minutes.', lines=2),
 ])
-for _it in BATTHIST_PAGE.layout[2:]: _it.start_hidden = True   # from the "Last 24 Hours" header on: hidden in the asset, shown by the payload while the switch is on
+for _it in BATTHIST_PAGE.layout[2:]: _it.start_hidden = True   # from the on-state note on: hidden in the asset, shown by the payload while the switch is on
 CHGLIMIT_PAGE = Page('m1plus_chargelimit', 'm1plus_chargelimit_page', 'Charge Limit', layout=[Row(f'{p}%', ACT_CHGLIMSET, p) for p in CHGLIMIT_VALUES] + [Note('Resumes a little below the limit')])
 
 # Settings > Playback > Continue Playing (patch/nextalbum.c, docs/modules/nextalbum.md): Off or Next Albums, a check on the chosen one; Auto Mix is planned as a third (file value '2').

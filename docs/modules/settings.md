@@ -93,10 +93,9 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   charge beside the battery icon". The status bar reads the payload's cached flag ([battery](battery.md)).
   Then Charge Limit ([charging](charging.md)).
   Then **Battery History**, a value row (On or Off, chevron; `ACT_BHPAGE`) like Charge Limit, opening its own page: the
-  switch (`ACT_BATTHIST`, `bh_toggle`) and, while it is on, the charts ([batthist](batthist.md)
-  "History page": hidden items the payload shows, names `pod_sec0..3`, `pod_note1..2`, `pod_hist0..2`,
-  `pod_row1..3`; the On Battery rows are `ACT_BHROW` (arg 0..2), kind `stat`: a legend mark, two lines and a
-  bold percent, 60 px, no touch).
+  switch (`ACT_BATTHIST`, `bh_toggle`), its note (two items, one per state) and, while it is on, the card and
+  the charts ([batthist](batthist.md) "History page": hidden items the payload shows, names `pod_sec0..2`,
+  `pod_note0..3`, `pod_hist0..2`).
 - **Library.**
   - Update Library (stock's updatemusic page), then **Rebuild Covers** and **Rebuild Artist Photos**
     ([Rebuild rows](#rebuild-rows)).
@@ -161,7 +160,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `artists-rebuild` | Rebuild Artist Photos request | exists while requested; written as `1\n`; removed by Home's pass ([homecover](homecover.md#rebuild-covers), [artists](artists.md)) |
 | `artists-sort`, `genres-sort`, `composers-sort` | Artists / Genres / Composers order | one character per page: `a` Name Z-A; missing/other Name A-Z ([artists](artists.md)) |
 | `battery-charge-limit` | Charge Limit | `0` 80 %, `1` 85 %, `2` 90 %, `3` 95 %; missing/other 100 %, no limit (the default) ([charging](charging.md)) |
-| `battery-history` | Battery History | `1` on; missing/other off (the default); the data file `battery-history.bin` (804 bytes) is deleted when it goes off ([batthist](batthist.md)) |
+| `battery-history` | Battery History | `1` on; missing/other off (the default); the data file `battery-history.bin` (820 bytes) is deleted when it goes off ([batthist](batthist.md)) |
 | `battery-percentage` | Battery Percentage | `1` on; missing/other off (the default) ([battery](battery.md)) |
 | `cassette-theme` | Cassette Theme | `0` Normal, `1` Chrome, `2` Metal, `3` Auto (by the track's quality); missing/other Auto (the default) ([tape](tape.md)) |
 | `covers-rebuild` | Rebuild Covers request | exists while requested; written as `1\n`; removed when Home's cover build completes ([homecover](homecover.md#rebuild-covers)) |

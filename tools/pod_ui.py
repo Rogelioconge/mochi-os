@@ -1976,9 +1976,9 @@ def cards_row(i, row, piece, last, icon=True):
     from mod_icons import CARD_GLYPHS, card_name, CARD_CHEVRON, CARD_CHECK
     kind = pod_pages.row_kind(row)
     swatch = row.action == pod_pages.ACT_ACCENTSET   # the Accent picker's rows show the accent's round swatch where a glyph goes (never tinted: docs/modules/accent.md)
-    has_icon = swatch or (icon and kind not in ('check', 'info', 'preset', 'preamp', 'band', 'lib', 'stat', 'delete', 'plain', 'wvalue') and row.action not in (pod_pages.ACT_CCLIST, pod_pages.ACT_SFOLD, pod_pages.ACT_REGION, pod_pages.ACT_PCDIR, pod_pages.ACT_RGBROW, pod_pages.ACT_LEDFOLLOW, *pod_pages.ASSEP_ACTIONS, pod_pages.ACT_PEQ_PRESETS, pod_pages.ACT_PEQ_TENBAND))   # (the Cache counts, Unsupported Files, the Podcast Region row, LED Light's Theme and Follow Screen rows and the Presets count have no glyph, like the rows around them)
+    has_icon = swatch or (icon and kind not in ('check', 'info', 'preset', 'preamp', 'band', 'lib', 'delete', 'plain', 'wvalue') and row.action not in (pod_pages.ACT_CCLIST, pod_pages.ACT_SFOLD, pod_pages.ACT_REGION, pod_pages.ACT_PCDIR, pod_pages.ACT_RGBROW, pod_pages.ACT_LEDFOLLOW, *pod_pages.ASSEP_ACTIONS, pod_pages.ACT_PEQ_PRESETS, pod_pages.ACT_PEQ_TENBAND))   # (the Cache counts, Unsupported Files, the Podcast Region row, LED Light's Theme and Follow Screen rows and the Presets count have no glyph, like the rows around them)
     h = ST.row_h(row)
-    item = Widget('list_item', 0, 0, ST.LIST_W, h, [('name', f'pod_row{i}'), ('style', 'list_item_style')] + ([('sensitive', 'false')] if kind in ('info', 'preamp', 'stat') and row.action != pod_pages.ACT_SFDEL else []))
+    item = Widget('list_item', 0, 0, ST.LIST_W, h, [('name', f'pod_row{i}'), ('style', 'list_item_style')] + ([('sensitive', 'false')] if kind in ('info', 'preamp') and row.action != pod_pages.ACT_SFDEL else []))
     normal, down = ST.piece_images(piece, h != ST.ROW_H)
     for st in ('normal', 'over', 'pressed', 'focused', 'disable'):
         styled(item, (st,), 'bg_color', '#00000000')
@@ -1992,13 +1992,13 @@ def cards_row(i, row, piece, last, icon=True):
     if has_icon:
         item.children.append(Widget('image', ST.ICON_X, ST.ICON_Y, ST.ICON_PX, ST.ICON_PX, [
             ('name', 'pod_swatch' if swatch else 'pod_icon'), ('image', f'pod_sw{row.arg}' if swatch else card_name(CARD_GLYPHS[row.label])), ('draw_type', 'icon'), ('sensitive', 'false')]))
-    two_lines = kind in ('band', 'lib', 'stat')   # the preset page's band row: the frequency and the gain on the first line, the type and Q (grey) under it; the Presets page's row: the name and a grey line
-    ty, th, sy, sh = (ST.LIB_TITLE_Y, ST.LIB_TITLE_H, ST.LIB_SUB_Y, ST.LIB_SUB_H) if kind in ('lib', 'stat') else (ST.BAND_TITLE_Y, ST.BAND_TITLE_H, ST.BAND_SUB_Y, ST.BAND_SUB_H)
+    two_lines = kind in ('band', 'lib')   # the preset page's band row: the frequency and the gain on the first line, the type and Q (grey) under it; the Presets page's row: the name and a grey line
+    ty, th, sy, sh = (ST.LIB_TITLE_Y, ST.LIB_TITLE_H, ST.LIB_SUB_Y, ST.LIB_SUB_H) if kind == 'lib' else (ST.BAND_TITLE_Y, ST.BAND_TITLE_H, ST.BAND_SUB_Y, ST.BAND_SUB_H)
     item.children.append(Widget('hscroll_label', x, ty if two_lines else 0, w, th if two_lines else h, [
         ('name', f'pod_label{i}'), ('style', 'srlabel_leftwhite21_style'), pod_i18n.text_prop(row.label) if row.label else ('text', ''),('only_parent_focus', 'true'), ('ellipses', 'true'), ('yoyo', 'true'), ('loop', 'true')]))
     if two_lines:
-        for st in ('normal', 'disable', 'focused'): styled(item.children[-1], (st,), 'font_size', str(ST.STAT_TITLE_PX if kind == 'stat' else ST.BAND_TITLE_PX))
-    if kind in ('preamp', 'band', 'stat'): item.children[-1].set('sensitive', 'false')   # (a label takes no touch: the row does, or for the Preamp row nothing does)
+        for st in ('normal', 'disable', 'focused'): styled(item.children[-1], (st,), 'font_size', str(ST.BAND_TITLE_PX))
+    if kind in ('preamp', 'band'): item.children[-1].set('sensitive', 'false')   # (a label takes no touch: the row does, or for the Preamp row nothing does)
     if kind == 'delete':   # the destructive row: its label in the red of the Songs trash (PA_RED)
         for st in ('normal', 'disable', 'focused'): styled(item.children[-1], (st,), 'text_color', PS_SHEET_RED)
     if kind == 'lib':   # the Presets page's row: the grey line under the name, the chevron's room on its right
@@ -2009,23 +2009,6 @@ def cards_row(i, row, piece, last, icon=True):
             styled(sub, (st,), 'text_align_h', 'left')
             styled(sub, (st,), 'text_align_v', 'middle')
         item.children.append(sub)
-    if kind == 'stat':   # Battery History's On Battery row: a legend mark (the colour of its kind in the Since Last Charge bar), the name, the grey duration under it and the bold white estimated percent ("~12%", the payload writes both and sets the face) at the right ink edge; no chevron, no touch
-        mark = Widget('view', ST.CM + ST.PAD, ST.STAT_MARK_Y, ST.STAT_MARK, ST.STAT_MARK, [('name', 'pod_mark'), ('sensitive', 'false')])
-        for st in STATES:
-            styled(mark, (st,), 'bg_color', HIST_KIND_RGB[row.arg])
-            styled(mark, (st,), 'round_radius', str(ST.STAT_MARK_R))
-            styled(mark, (st,), 'border_width', '0')
-        item.children.append(mark)
-        vx, vw = ST.stat_box()
-        val = Widget('hscroll_label', vx, 0, vw, ST.LIB_ROW_H, [('name', f'pod_value{i}'), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
-        sub = Widget('hscroll_label', x, sy, w, sh, [('name', f'pod_sub{i}'), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
-        for st in ('normal', 'disable', 'focused'):
-            for wd, px, al, rgb in ((val, ST.STAT_PX, 'right', INK_RGB), (sub, ST.STAT_SUB_PX, 'left', ST.GREY)):
-                styled(wd, (st,), 'font_size', str(px))
-                styled(wd, (st,), 'text_color', rgb)
-                styled(wd, (st,), 'text_align_h', al)
-                styled(wd, (st,), 'text_align_v', 'middle')
-        item.children += [val, sub]
     if kind == 'band':   # the gain is a value as every value row's (ST.VALUE_PX grey, the full row high so that it is centred like the chevron, ends VALUE_GAP before it); the grey line stops before it
         gain = Widget('hscroll_label', ST.band_right() - ST.BAND_GAIN_W, 0, ST.BAND_GAIN_W, ST.ROW_H, [('name', f'pod_value{i}'), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
         sx, sw = ST.band_sub_box()
@@ -2304,12 +2287,12 @@ def cards_region():
 
 
 HC = {k: OFFSETS[k] for k in ('BHC_LIST_W', 'BHC_W', 'BHC_X', 'BHC_R', 'BHC_PX0', 'BHL_H', 'BHL_CARD', 'BHL_PY0', 'BHL_PH', 'BHL_PITCH', 'BHL_BAR', 'BHA_H', 'BHA_CARD', 'BHA_PY0', 'BHA_PH', 'BHA_PITCH', 'BHA_BAR',
-                                  'BHA_LEGEND_Y', 'BHC_AXIS_X', 'BHC_AXIS_W', 'BHC_TICK_W', 'BHL_TICK_Y', 'BHA_TICK_Y', 'BHS_H', 'BHS_CARD', 'BHS_PAD', 'BHS_CAP_Y', 'BHS_DUR_Y', 'BHS_LEFT_Y', 'BHS_BAR_Y', 'BHS_BAR_H', 'BHS_ROW0_Y', 'BHS_ROW_H', 'BHS_MARK_X', 'BHS_MARK_SIZE', 'BHS_MARK_R', 'BHS_NAME_X')}
+                                  'BHA_LEGEND_Y', 'BHC_AXIS_X', 'BHC_AXIS_W', 'BHC_TICK_W', 'BHL_TICK_Y', 'BHA_TICK_Y', 'BHS_H', 'BHS_CARD', 'BHS_PAD', 'BHS_CAP_Y', 'BHS_DUR_Y', 'BHS_LEFT_Y', 'BHS_BAR_Y', 'BHS_BAR_H', 'BHS_ROW0_Y', 'BHS_ROW_H', 'BHS_MARK_X', 'BHS_MARK_SIZE', 'BHS_MARK_R', 'BHS_NAME_X', 'BHS_MARK_CY', 'BHS_SUB_CY', 'BHS_PCT_CY')}
 assert (HC['BHL_H'], HC['BHA_H'], HC['BHS_H'], HC['BHS_CARD']) == (_ST.HIST_LEVEL_H, _ST.HIST_ACT_H, _ST.HIST_SUMMARY_H, _ST.HIST_SUMMARY_CARD) and HC['BHC_W'] == _ST.CARD_W and HC['BHC_X'] == _ST.CM and HC['BHC_LIST_W'] == _ST.LIST_W
-assert HC['BHS_MARK_R'] == _ST.STAT_MARK_R and HC['BHS_MARK_SIZE'] == _ST.STAT_MARK   # one legend mark: the charts' and the rows'
+assert HC['BHS_MARK_R'] == _ST.STAT_MARK_R and HC['BHS_MARK_SIZE'] == _ST.STAT_MARK   # one legend mark: the charts' and the card's rows'
 assert HC['BHC_PX0'] + 48 * HC['BHL_PITCH'] <= HC['BHC_AXIS_X'] and HC['BHC_PX0'] + 24 * HC['BHA_PITCH'] <= HC['BHC_AXIS_X'] and HC['BHC_AXIS_X'] + HC['BHC_AXIS_W'] <= HC['BHC_W']
-HIST_LABEL_PX, HIST_LEGEND_PX, HIST_DUR_PX = 13, 14, 28   # the card's other sizes are the list rows': ST.NOTE_PX caption, ST.VALUE_PX percent left, ST.STAT_TITLE_PX names and ST.STAT_SUB_PX + 1 durations
-HIST_KIND_RGB = ('#E6E6E6', '#78787C', '#3A3A3C')   # Screen On, Playing / Screen Off and Standby: the stacked bar, the legend marks and the On Battery rows' marks (tools/batthist_model.py ON, PLAY, STBY)
+HIST_LABEL_PX, HIST_LEGEND_PX, HIST_DUR_PX = 13, 14, 28   # the card's other sizes are the list rows': ST.NOTE_PX caption, ST.VALUE_PX percent left, ST.STAT_TITLE_PX names, ST.STAT_SUB_PX + 1 durations and ST.STAT_PX percents
+HIST_NAME_W, HIST_PCT_W = 170, 60   # a row's name and duration boxes (they end 68 px short of the card's right padding) and the percent's box (right aligned, ink at the padding)
 HIST_AXIS_TEXTS = {'level': pod_pages.HIST_AXIS}   # the activity chart's axis ("60 min", "30 min", "0") is the payload's: it needs the language's "min"
 HIST_LEGEND = ('Screen On', 'Playing, Screen Off')   # the activity chart's legend labels
 HIST_KINDS = ('Screen On', 'Playing, Screen Off', 'Standby')   # the Since Last Charge card's three rows
@@ -2347,7 +2330,7 @@ def cards_hist(chart, n):
 
 def cards_summary(n):
     """The Battery History Since Last Charge card (patch/bhpage.c): a transparent insensitive view whose before-paint blit draws the card, the stacked bar, the row marks and hairlines; over it the grey caption pod_hs_cap (when the charger was removed),
-    the bold total pod_hs_dur, the grey percent pod_hs_left (right aligned), and per row k the name pod_hs_n<k> (set in the asset) and the grey duration pod_hs_d<k> (right aligned). The payload writes the texts."""
+    the bold total pod_hs_dur, the grey percent pod_hs_left (right aligned), and per row k the name pod_hs_n<k> (set in the asset), the grey duration pod_hs_d<k> under it and the bold white estimated percent pod_hs_p<k> at the right. The payload writes the texts."""
     import pod_settings as ST
     v = Widget('view', 0, 0, ST.LIST_W, HC['BHS_H'], [('name', f'pod_hist{n}'), ('sensitive', 'false')])
     for st in STATES: styled(v, (st,), 'bg_color', '#00000000')
@@ -2356,9 +2339,10 @@ def cards_summary(n):
     v.children.append(_hist_label('pod_hs_dur', x0, HC['BHS_DUR_Y'], 190, HIST_DUR_PX, 'left', None, INK_RGB, h=36))
     v.children.append(_hist_label('pod_hs_left', x1 - 100, HC['BHS_LEFT_Y'], 100, ST.VALUE_PX, 'right', None, ST.GREY, h=24))
     for k, text in enumerate(HIST_KINDS):
-        cy = HC['BHS_ROW0_Y'] + HC['BHS_ROW_H'] * k + HC['BHS_ROW_H'] // 2
-        v.children.append(_hist_label(f'pod_hs_n{k}', ST.CM + HC['BHS_NAME_X'], cy, 170, ST.STAT_TITLE_PX, 'left', pod_i18n.text_prop(text), INK_RGB, h=26))
-        v.children.append(_hist_label(f'pod_hs_d{k}', x1 - 100, cy, 100, ST.STAT_SUB_PX + 1, 'right', None, ST.GREY, h=24))
+        top = HC['BHS_ROW0_Y'] + HC['BHS_ROW_H'] * k
+        v.children.append(_hist_label(f'pod_hs_n{k}', ST.CM + HC['BHS_NAME_X'], top + HC['BHS_MARK_CY'], HIST_NAME_W, ST.STAT_TITLE_PX, 'left', pod_i18n.text_prop(text), INK_RGB, h=24))
+        v.children.append(_hist_label(f'pod_hs_d{k}', ST.CM + HC['BHS_NAME_X'], top + HC['BHS_SUB_CY'], HIST_NAME_W, ST.STAT_SUB_PX + 1, 'left', None, ST.GREY, h=20))
+        v.children.append(_hist_label(f'pod_hs_p{k}', x1 - HIST_PCT_W, top + HC['BHS_PCT_CY'], HIST_PCT_W, ST.STAT_PX, 'right', None, INK_RGB, h=24))
     return v
 
 

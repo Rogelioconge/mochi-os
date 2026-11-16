@@ -36,7 +36,7 @@ REGION_H = 30               # the 10-Band editor's region line box (pod_regionbo
 GRAPH_H = 170                # the preset page's graph card (patch/offsets.inc PG_H): a view the width of the list, the card (x CM, CARD_W wide, rounded) baked into the bitmap the payload paints
 SEG_H, HSL_H = 58, 150       # the band page's Peak / Low shelf / High shelf control (a 40 px control with 10 px above it and 8 below: patch/offsets.inc BD_SEG_*) and its card of three 50 px slider rows (BD_HSL_*)
 SLIDERS_H = 170              # the 10-Band editor's slider card (patch/offsets.inc TB_H): a view the width of the list, its card (x CM, CARD_W wide, rounded) baked into the bitmap the payload paints
-HIST_LEVEL_H, HIST_ACT_H, HIST_SUMMARY_H, HIST_SUMMARY_CARD = 150, 150, 254, 244   # Battery History's items (patch/offsets.inc BHL_H, BHA_H, BHS_H, BHS_CARD): the level chart, the activity chart with its legend, the Since Last Charge card (its bitmap 214 px and 10 px under it)
+HIST_LEVEL_H, HIST_ACT_H, HIST_SUMMARY_H, HIST_SUMMARY_CARD = 150, 150, 302, 292   # Battery History's items (patch/offsets.inc BHL_H, BHA_H, BHS_H, BHS_CARD): the level chart, the activity chart with its legend, the Since Last Charge card (its bitmap 292 px and 10 px under it)
 LIB_ROW_H = 60               # a Presets page row (a preset file: two lines and a chevron, the mockup's 60 px); its card pieces are the tall pod_cdl_* images
 PREAMP_W = 150               # the preset page's preamp row: the value's box (the longest text, "Auto - 6.0 dB", in 18 px), right aligned at RIGHT
 BAND_TITLE_PX, BAND_SUB_PX = 20, 16   # a two-line row's text sizes: the Podcasts cells' title and grey line (label_ps_ctitle 20, label_ps_cdesc 16); the library rows' 21 / 18 are for 64 px rows
@@ -67,7 +67,7 @@ TOP, END = 'top', 'end'      # the spacers the page starts and ends with (CM and
 
 def row_h(row):
     """A row's height: ROW_H, or LIB_ROW_H for a Presets page row."""
-    return LIB_ROW_H if row.action == pod_pages.ACT_PEQ_LIB or row.action == pod_pages.ACT_BHROW else ROW_H
+    return LIB_ROW_H if row.action == pod_pages.ACT_PEQ_LIB else ROW_H
 
 
 def hero_desc_h(lines):
@@ -167,13 +167,12 @@ def curve_box():
 
 def label_box(kind, has_icon):
     """(x, w) of a row's label, card relative: from TEXT_X (PAD without a glyph) to the accessory, the value's box or the right ink edge."""
-    x = TEXT_X if has_icon else STAT_TEXT_X if kind == 'stat' else CM + PAD
+    x = TEXT_X if has_icon else CM + PAD
     if kind == 'info': return x, info_box()[0] - VALUE_LABEL_GAP - x
     if kind == 'preamp': return x, band_right() - PREAMP_W - VALUE_LABEL_GAP - x
     if kind == 'band': return x, band_right() - BAND_GAIN_W - BAND_GAIN_GAP - x
     if kind == 'preset': return x, accessory('check')[0] - 8 - x
     if kind == 'lib': return x, chevron_left() - 8 - x
-    if kind == 'stat': return x, stat_box()[0] - VALUE_LABEL_GAP - x
     if kind == 'wvalue': return x, wvalue_box()[0] - VALUE_LABEL_GAP - x
     if kind in ('link', 'value'): right = chevron_left() - VALUE_GAP
     elif kind == 'switch': right = accessory('switch')[0] - 8
@@ -189,14 +188,9 @@ def wvalue_box():
     return right - PREAMP_W, PREAMP_W
 
 
-STAT_W, STAT_PX = 60, 17   # Battery History's On Battery rows: the bold white percent's box (right aligned, ink at RIGHT) and its size
-STAT_TITLE_PX, STAT_SUB_PX = 18, 15   # Battery History's kind rows (On Battery and the Since Last Charge card): the name and the grey duration, a step under a two-line row's 20 / 16
-STAT_MARK, STAT_MARK_R, STAT_MARK_Y, STAT_TEXT_X = 10, 4, 14, 42   # the row's legend mark (a 10 px square, radius 4 as the charts' BHS_MARK_R, from CM + PAD, centred on the title's line) and the label's box (the text ink is 2 px in)
-
-
-def stat_box():
-    """(x, w) of a By Activity row's grey percent: it ends at the right ink edge, as an About row's value."""
-    return RIGHT - STAT_W, STAT_W
+STAT_PX = 17   # Battery History's Since Last Charge card: the bold white percent's size
+STAT_TITLE_PX, STAT_SUB_PX = 18, 15   # the card's kind rows: the name and the grey duration, a step under a two-line row's 20 / 16
+STAT_MARK, STAT_MARK_R = 10, 4   # the legend mark (a 10 px square, radius 4 as the charts' BHS_MARK_R)
 
 
 def band_right():

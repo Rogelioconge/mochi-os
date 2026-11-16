@@ -1305,7 +1305,7 @@ class Machine:
             if a0: self.setword(a0, ret)
         elif name == 'localtime':
             import time as _t
-            tm = _t.gmtime(self.u.mem_read(a0, 4) and struct.unpack('<I', bytes(self.u.mem_read(a0, 4)))[0] + self.tz)
+            tm = _t.gmtime(self.u.mem_read(a0, 4) and (lambda t: t + (self.tz(t) if callable(self.tz) else self.tz))(struct.unpack('<I', bytes(self.u.mem_read(a0, 4)))[0]))
             if not self.tm_buf: self.tm_buf = self.alloc(0x40)
             self.u.mem_write(self.tm_buf, struct.pack('<9i', tm.tm_sec, tm.tm_min, tm.tm_hour, tm.tm_mday, tm.tm_mon - 1, tm.tm_year - 1900, (tm.tm_wday + 1) % 7, tm.tm_yday - 1, 0))
             ret = self.tm_buf

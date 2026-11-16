@@ -188,8 +188,6 @@ enum {
     ACT_BTCODECSET =
         184, /* the Bluetooth page's Audio Codec picker's rows (arg = stock's btcoding 0 .. 7; patch/btpage.c) */
     ACT_BATTHIST = 188, /* Battery History page: the switch (patch/batthist.c) */
-    ACT_BHROW =
-        189, /* Battery History page: a By Activity or Since Last Charge row, information only (patch/bhpage.c) */
     ACT_BHPAGE = 190 /* Settings > Battery: Battery History, a value row (On or Off) opening its page */
 };
 

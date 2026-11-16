@@ -3,7 +3,7 @@
 **Sources:** `patch/batthist.c`, `patch/batthist.h`, `patch/battery.c` (the start); the page: [History
 page](#history-page). **Tests:** `test/pod/batthist.py`. **Setting:** Settings > Battery > **Battery History**, a row (On or Off, chevron; `ACT_BHPAGE` 190) opening its own page, whose first card is the switch, **off by
 default**, `/mnt/data/m1plus/battery-history` (`1` on; [settings](settings.md)); note "Keeps the
-last 24 hours of battery level and use. Turning it off deletes them." (`ACT_BATTHIST` 188; `m1plus_batthist`, `BATTHIST_PAGE`).
+last 24 hours of battery level and use. Turning it off deletes them." while it is off and "Turning it off deletes the history." while it is on (`ACT_BATTHIST` 188; `m1plus_batthist`, `BATTHIST_PAGE`).
 
 Records the last 24 hours of battery level and what the player was doing, for the History page
 (below). Nothing is recorded, started or kept while the setting is off.
@@ -75,14 +75,14 @@ nothing is attributed and the bucket gets `BH_F_CHG`; a rise is just a new level
 | 4 | `cov`: known time (sampled or standby seen); `on` and `play` are parts of it, the rest is idle / standby |
 | 5, 6, 7 | `d_on`, `d_play`, `d_idle`: percent the gauge fell, attributed to the screen on / playing / idle and standby |
 
-`/mnt/data/m1plus/battery-history.bin` (`BH_DATA`): `magic "BHS1"`, `version` 3 and `count` 96
+`/mnt/data/m1plus/battery-history.bin` (`BH_DATA`): `magic "BHS1"`, `version` 4 and `count` 96
 (u16 each), `head` (the newest bucket's number), the [since-charge](#since-last-charge) fields
-(`unplug_at`, `unplug_lvl`, `sc_play`, `sc_on`, `sc_total`, u32 each), a checksum, then the ring in slot
-order: **804 bytes, always** (a 36 byte header). Written with `m1_save` (tmp, fsync, rename) when a bucket has just
+(`unplug_at`, `unplug_lvl`, `sc_play`, `sc_on`, `sc_total`, `sc_d_on`, `sc_d_play`, `sc_d_idle`, `since_on`, u32 each), a checksum, then the ring in slot
+order: **820 bytes, always** (a 52 byte header; an older version, such as the 804 byte version 3, is discarded like any bad file, no migration). Written with `m1_save` (tmp, fsync, rename) when a bucket has just
 been opened, so at most every 15 minutes; a power loss costs the open bucket and up to 15 minutes of the
 since-charge counters. Read once at the
 thread's start; magic, version, size, checksum, head not before 2020 (`unplug_at` may be after it: a clock set back keeps the run),
-`unplug_lvl` 0..100 or unknown, `sc_play` + `sc_on` not above `sc_total`, no counters without an `unplug_at`
+`unplug_lvl` 0..100 or unknown, `sc_play` + `sc_on` not above `sc_total`, `since_on` 0 or 1, each `sc_d_*` at most 100, no counters (or `since_on`) without an `unplug_at`
 and every bucket value are checked, otherwise the file is discarded. A write that finishes after
 the setting went off deletes its file again.
 
@@ -93,14 +93,20 @@ a day, so the file header keeps a run that is independent of the ring:
 
 | Field | Meaning |
 |---|---|
-| `unplug_at` | wall time the charger was last removed; 0 = no removal seen yet (nothing counts) |
+| `unplug_at` | wall time the charger was last removed; 0 = no run yet (no removal seen and recording did not start on battery: nothing counts) |
 | `unplug_lvl` | the gauge then (the last reading when that sample did not read it; `BH_NONE` unknown) |
 | `sc_play` | seconds on battery since then with the player playing and the screen off (same precedence as the bucket's state: screen on, then playing, then idle; the three kinds never overlap) |
 | `sc_on` | seconds with the screen on |
 | `sc_total` | all known seconds on battery: awake plus standby, so idle and standby are in it |
+| `sc_d_on`, `sc_d_play`, `sc_d_idle` | percent the gauge fell since `unplug_at`, attributed exactly as the buckets' drops are (screen on / playing with the screen off / idle and standby), each capped at 100 |
+| `since_on` | 0 = the run began when the charger was removed; 1 = it began at the first sample that said Discharging with no run (recording started on battery) |
 
-The external power to battery step (`bh.chg` 1 to 0, in `bh_account`) starts a new run: the three counters go
-to 0 and `unplug_at` / `unplug_lvl` are set (that step's own time is still the charger's). Awake time follows
+The external power to battery step (`bh.chg` 1 to 0, in `bh_account`) starts a new run: the counters (the three times and the three drops) go
+to 0, `since_on` is 0 and `unplug_at` / `unplug_lvl` are set (that step's own time is still the charger's). A baseline (the first sample, a reboot, a clock rebase) with no run and a status text that positively
+says Discharging (not unreadable, not external power) starts one too: `unplug_at` is that sample's wall time,
+`unplug_lvl` its gauge, counters 0, `since_on` 1. So does a later sample that is the first to say Discharging
+while there is no run (the status was unreadable until then): the run begins after that step, with the last gauge
+reading. Every run's start clears the seconds summed for the [drops](#drops), so only the run's own time attributes them. A sample that already has an `unplug_at` leaves the run untouched. Awake time follows
 the sample's state (`playing`, `lit`), the suspended part goes into `sc_total` only. On external power they stand
 still and keep their values. They are saved with the bucket-open write and read back with the ring; a reboot does
 not count the time the player was off, and a reboot on the charger keeps the old run until the next unplug. A clock
@@ -112,17 +118,15 @@ bad file and the setting off clear it (`bh_clear`).
 `int bh_snapshot(struct bh_view *out)` (`patch/batthist.h`): 1 and the view, or 0 with `out`
 zeroed when the setting is off or no bucket is open. The ring is copied under a spin lock (a few
 instructions, no I/O inside; the thread's end reads the setting file under it). The view has the
-96 buckets oldest first (`b[95]` is the open one, `head` its number), per-state totals over buckets that have data and no charging (`t_*` seconds, `d_*`
-percent: the On Battery rows) and `act_on` / `act_play` seconds over every
-bucket with data, charging included (the Activity chart), and the run: `unplug_at`, `unplug_lvl`, `level`
-(the gauge now, the open bucket's) and `sc_play` / `sc_on` / `sc_total`. `bhpage_show`
+96 buckets oldest first (`b[95]` is the open one, `head` its number) and the run: `unplug_at`, `unplug_lvl`, `level`
+(the gauge now, the open bucket's), `since_on`, `sc_play` / `sc_on` / `sc_total` and `sc_d_on` / `sc_d_play` / `sc_d_idle`. `bhpage_show`
 (patch/bhpage.c) is its caller.
 
 ## Cost
 
 Setting off: one cached compare per status bar tick. On: the thread's wakeup every 15 s (two
 `clock_gettime`, one status read, the backlight byte and play word), a gauge read per minute, a
-804-byte write per quarter hour; ring and state about 1 KB of `.scratch`.
+820-byte write per quarter hour; ring and state about 1 KB of `.scratch`.
 
 ## Open device questions
 
@@ -150,15 +154,15 @@ grows in place. It reads `bh_snapshot` each time and never touches the ring.
 
 | State | Shown |
 |---|---|
-| Setting off | nothing |
-| On, no closed bucket with data (`b[0..94]`; the open one does not count) | the note "Battery history appears after the first 15 minutes." alone (no header) |
-| On, data | everything below; the Since Last Charge header and card only with an `unplug_at` |
+| Setting off | the switch's long note |
+| On, no closed bucket with data (`b[0..94]`; the open one does not count) | the switch's short note and the note "Battery history appears after the first 15 minutes." (no header) |
+| On, data | everything below; the Since Last Charge header, card and note only with an `unplug_at` |
 
-Items, in page order (widget names, heights from `tools/pod_settings.py`): the switch `pod_row0` and its note
-`pod_note0`; header "Since Last Charge" (`pod_sec0`) and its card (`pod_hist0`, 254); "Last 24 Hours" (`pod_sec1`)
-and the level chart (`pod_hist1`, 150); "Activity" (`pod_sec2`) and the activity chart with its legend (`pod_hist2`,
-150); "On Battery" (`pod_sec3`), three rows (`pod_row1..3`, `ACT_BHROW` arg 0..2, 60) and the note "Estimated from the
-battery gauge." (`pod_note1`); the empty note (`pod_note2`).
+Items, in page order (widget names, heights from `tools/pod_settings.py`): the switch `pod_row0` and its two notes, the long
+one while the switch is off (`pod_note0`, 2 lines) and "Turning it off deletes the history." while it is on
+(`pod_note1`; `bhpage_show` toggles both); header "Since Last Charge" (`pod_sec0`), its card (`pod_hist0`, 302) and the note
+"Estimated from the battery gauge." (`pod_note2`, shown exactly when the card is); "Last 24 Hours" (`pod_sec1`) and the level chart (`pod_hist1`,
+150); "Activity" (`pod_sec2`) and the activity chart with its legend (`pod_hist2`, 150); the empty note (`pod_note3`).
 
 **Bitmaps, not widgets, for the bars.** Each of the three items is a transparent view the list's width whose
 `EVT_BEFORE_PAINT` blits a 300 px wide RGBA bitmap at x 10 (`peq_blit`, as the preset page's graph,
@@ -170,21 +174,28 @@ plot's top, middle and bottom, the hour ticks, the bars, the charger band and th
 Axis labels, hour labels, legend names, captions, durations and rows are real labels (language and font).
 
 **The three kinds** (Screen On, Playing / Screen Off, Standby) are exclusive everywhere and always the same marks:
-10 px squares with radius 4 (antialiased over the card), light `#E6E6E6`, mid `#78787C`, dark `#3A3A3C`; in the
-activity chart's legend, in the card's rows and, as small `view` widgets with `round_radius` 3, in the On Battery
-rows. Standby is the rest: `sc_total - sc_on - sc_play` (awake idle counts as standby, as in the ring).
+10 px squares with radius 4 (antialiased over the card), light `#E6E6E6`, mid `#78787C`, dark `#58585C`; in the
+activity chart's legend and in the card's rows. Standby is the rest: `sc_total - sc_on - sc_play` (awake idle counts as standby, as in the ring).
 
-**Since Last Charge card** (`BHS_CARD` 244): a grey 15 px caption "Unplugged at 21:25, 100%" (`unplug_at` as 12 / 24 hour
-local time by 24-Hour Time, `unplug_lvl`; ", N%" dropped when it is `BH_NONE`), the total on battery `sc_total` in the
+**Since Last Charge card** (`BHS_CARD` 292, in a 302 px item): a grey 15 px caption, the total on battery `sc_total` in the
 bold face (28 px, `ly_title_face`), right aligned grey 18 px "58% left" (the gauge now, empty when unknown), a stacked bar
 (276 x 10, rounded ends: screen on / playing with the screen off / standby, edges `(276 * s + t / 2) / t` with the
-seconds halved until `t` is under 2^20; all standby with no time) and three rows of 44 px with a mark, the name (20 px white) and the
-duration (18 px grey) right aligned, hairlines between.
+seconds halved until `t` is under 2^20; all standby with no time) and three rows of 60 px (`BHS_ROW_H`) with hairlines between. In a row the
+mark and the name (18 px white) are centred on 20 under the row's top (`BHS_MARK_CY`), the duration (rounded to the minute: `%d h %d min`, `%d h`,
+`%d min`; 16 px grey, left) on 42 (`BHS_SUB_CY`) and, vertically centred on 30 (`BHS_PCT_CY`) at the right padding, the bold white
+"~12%" (17 px, `ly_title_face`): the percent the gauge fell in that kind since `unplug_at` (`sc_d_on`, `sc_d_play`, `sc_d_idle`). The name and
+duration boxes end before the percent's. Order: Screen On, Playing / Screen Off, Standby.
+
+The caption is "Unplugged 21:25, 100%", or "Recording since 14:05, 85%" when `since_on` is 1; ", N%" is dropped when `unplug_lvl` is
+`BH_NONE`. The time is `unplug_at`'s local clock by 24-Hour Time when it is on the local day of the wall clock at `bhpage_show`,
+"yesterday 21:25" (`yesterday %s`) when it was the previous local day (the date 12 hours before the local midnight by the clock, so a DST step does not move it), else the month and day, zero padded, then the clock ("11-14 21:25").
+The local dates are read from `localtime` one at a time (its buffer is shared); the previous day is the date one second before the
+local midnight.
 
 | Chart | Bars | Colours |
 |---|---|---|
-| Level | 48 of two buckets (`b[2j]`, `b[2j+1]`), 5 px apart, 3 wide; height `level` px of 100 (`(level * 100 + 50) / 100`); the later bucket's level, else the earlier's; none without a level or in a gap | grey 216; `#34C759` when either bucket has `BH_F_CHG`; `#FF1448` at 20 % or less (on battery) |
-| Activity | 24 of four buckets, 10 px apart, 8 wide; seconds with the screen on at the bottom (`#E6E6E6`), playing with the screen off above it (`#78787C`); each `(s * 76 + 1800) / 3600` px of 76, the second capped to the room left | charging buckets count (`act_*`) |
+| Level | 48 of two buckets (`b[2j]`, `b[2j+1]`), 5 px apart, 3 wide; height `level` px of 100 (`(level * 100 + 50) / 100`); the later bucket's level, else the earlier's; none without a level or in a gap | grey 165; `#34C759` when either bucket has `BH_F_CHG`; `#FF1448` at 20 % or less (on battery) |
+| Activity | 24 of four buckets, 10 px apart, 8 wide; seconds with the screen on at the bottom (`#E6E6E6`), playing with the screen off above it (`#78787C`); each `(s * 76 + 1800) / 3600` px of 76, the second capped to the room left | charging buckets count |
 
 On the activity chart a bucket with `BH_F_CHG` (and data) has a faint `#2A2A2C` band behind the bars (the level chart's green bars already say it): its 2.5 px slice of the
 plot (bucket i from `BHC_PX0 + 5 i / 2` to `BHC_PX0 + 5 (i + 1) / 2`), the plot's height, not below the axis.
@@ -192,12 +203,8 @@ plot (bucket i from `BHC_PX0 + 5 i / 2` to `BHC_PX0 + 5 (i + 1) / 2`), the plot'
 Axis: level 100% / 50% / 0% (fixed text); activity "60 min" / "30 min" / "0" (`%d min` through the language's table).
 Hour labels: four bucket boundaries (0..95) fall on local multiples of six hours; the zone's offset is read once, from
 `localtime` at the open bucket (UTC quarter hours are quarter hours in every picker zone; a DST change inside the 24
-hours is not followed). Label text is `HH:00` (level) or `HH` (activity) in 24-hour time and `6 PM` in 12-hour time; the
+hours is not followed). Label text (both charts) is `HH:00` in 24-hour time and `6 PM` in 12-hour time; the
 label is centred on the boundary's x (`10 + 12 + 5 * i / 2`) with `widget_move`.
-
-**On Battery rows**: the mark, the title, the duration (rounded to the minute: `%d h %d min`, `%d h`, `%d min`) as the
-grey second line, and at the right the bold white "~12%": the percent the gauge fell in that state (`d_*`, charging
-buckets left out). Order: Screen On, Playing / Screen Off, Standby.
 
 The page does not refresh while it stays open (it is read when it opens, comes back in front, or the switch turns); no
 timer.

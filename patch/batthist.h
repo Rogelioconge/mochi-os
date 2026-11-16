@@ -46,16 +46,16 @@ struct bh_bucket {
 struct bh_view {
     unsigned head; /* the newest bucket's number (wall seconds / BH_SECS) */
     struct bh_bucket b[BH_BUCKETS]; /* oldest first; b[BH_BUCKETS - 1] is the open bucket, head */
-    unsigned t_on, t_play, t_idle; /* seconds on battery (buckets with no charging and data) per state */
-    unsigned d_on, d_play, d_idle; /* percent dropped in those buckets per state */
-    unsigned act_on,
-        act_play; /* seconds of screen on / playing with the screen off over every bucket with data, charging included */
     long
         unplug_at; /* since last charge: wall time the charger was last removed, 0 none seen yet (the counters below are then 0) */
     unsigned unplug_lvl; /* the gauge then, BH_NONE unknown */
+    unsigned
+        since_on; /* 0 the run began when the charger was removed, 1 when recording started on battery (the first sample) */
     unsigned level; /* the gauge now (the open bucket's level), BH_NONE unknown */
     unsigned sc_play, sc_on,
         sc_total; /* seconds on battery since unplug_at: playing with the screen off, screen on, all of it (awake, idle and standby) */
+    unsigned sc_d_on, sc_d_play,
+        sc_d_idle; /* percent the gauge fell since unplug_at, attributed to the screen on / playing with the screen off / idle and standby */
 };
 
 int bh_setting(void); /* Settings > Battery > Battery History: 1 on, 0 off (the default) */

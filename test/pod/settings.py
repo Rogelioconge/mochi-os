@@ -100,7 +100,6 @@ def layout_tests(ctx):
         expect(len(rows) == len(prows) and [c.name for c in rows] == [f'pod_row{i}' for i in range(len(rows))], f'{page.key}: one list_item per row, pod_row0 ..')
         for n, it in enumerate(prows):
             r, kind = rows[n], P.row_kind(it)
-            if kind == 'stat': continue   # Battery History's On Battery rows (60 px, two lines, a bold percent): test/pod/batthist.py
             last = kinds[n] in ('single', 'bot')
             swatch = it.action == P.ACT_ACCENTSET   # the Accent picker's rows: a round swatch where a glyph goes (pod_swatch)
             has_icon = swatch or (kind not in ('check', 'info', 'preset', 'delete', 'plain') and it.action not in (P.ACT_CCLIST, P.ACT_SFOLD, P.ACT_REGION, P.ACT_PCDIR, P.ACT_RGBROW, P.ACT_LEDFOLLOW, *P.ASSEP_ACTIONS, P.ACT_PEQ_PRESETS, P.ACT_PEQ_TENBAND))   # (the ListenBrainz page's rows have no glyph: Token, Account, the red Sign Out and the Auto Upload switch)
