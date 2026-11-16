@@ -227,6 +227,7 @@ touches none of these.
 |---|---|---|
 | `.m1plus/covers/` | Home's cover cache (`r<key>-168.jpg`, empty no-art markers) | [homecover](homecover.md) |
 | `.m1plus/cache-stamp` | cover cache stamp (patch/homecover.c) | [homecover](homecover.md) |
+| `.m1plus/scrobble-uploads` | one line for each upload that sent a request, about 8 KB kept (patch/scrobup.c) | [scrobble](scrobble.md#upload-record) |
 | `.m1plus/artists/` | artist photo cache (`a<key>-44.jpg`, `-168.jpg`, `.pick`) | [artists](artists.md) |
 | `.m1plus/durations` | measured track durations (patch/durations.c) | [album-page](album-page.md#album-length) |
 | `.m1plus/recently-played` | Home's Recently Played albums (patch/recent.c) | [recent](recent.md) |

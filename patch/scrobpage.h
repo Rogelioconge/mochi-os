@@ -23,5 +23,8 @@ void lb_upload_tap(void);
 void lb_opened(void *win, int page);
 void lb_on_front(void);
 
+/* patch/m1plus.c page_refresh: the Scrobbling page's note (its text, and the last upload from .m1plus/scrobble-uploads). */
+void lb_note(void *win);
+
 /* patch/m1plus.c: the pages read their rows again. */
 void pod_lb_refresh(void);

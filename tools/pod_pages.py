@@ -1369,7 +1369,7 @@ SCROBBLING_PAGE = Page('m1plus_scrobbling', 'm1plus_scrobbling_page', 'Scrobblin
     GAP,
     Row('Auto Upload', ACT_LBAUTO),   # the automatic upload, for both services (patch/scrobble.c)
     Row('Upload Scrobbles', ACT_SCROBUP),   # sends the log now, to every service that is set up (patch/scrobpage.c)
-    Note(LB_AUTO_NOTE),
+    Note(LB_AUTO_NOTE, lines=3),   # the text plus the last upload (patch/scrobpage.c lb_note), as a wrapping label
 ])
 
 # Settings > Library > Scrobbling > ListenBrainz (patch/scrobpage.c, docs/modules/scrobble.md "Settings"): one card of one row, Account (Not Set, or the user name the service gave; no tap), and the note under it (the token is set in the card's scrobble.ini, never here;

@@ -29,9 +29,145 @@ static struct {
     int job; /* the job this file started and has not polled the result of: 0 none, else 1 + SCROBUP_UPLOAD / SCROBUP_CHECK / SCROBUP_LFCHECK */
     int done, kind, res, sent, rej,
         auth; /* a result that was polled and is not shown yet (auth: scrobup_auth, the services that refused) */
+    char last[SU_UP_LINE]; /* the upload record's last line, read when the page opens and when a job ended ("" none) */
 } lbs __attribute__((section(".scratch")));
 
 static int lb_tick(const void *timer);
+
+/* Days since 1970-01-01 of a proleptic Gregorian date (Hinnant's days_from_civil). */
+static long lb_days(long y, long m, long d) {
+    long era, yoe, doy;
+    y -= m <= 2;
+    era = (y >= 0 ? y : y - 399) / 400, yoe = y - era * 400;
+    doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+    return era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+}
+
+/* The upload record's last line (patch/scrobup.c su_record), read from the file's end. */
+static void lb_last_load(void) {
+    char buf[SU_UP_LINE + 1];
+    int fd = m1_card_mounted() ? open(SC_UPLOADS, O_RDONLY, 0) : -1, n = 0, i;
+    long size;
+    lbs.last[0] = 0;
+    if (fd < 0) return;
+    size = lseek(fd, 0, 2);
+    if (size > 0 && lseek(fd, size > SU_UP_LINE ? size - SU_UP_LINE : 0, 0) >= 0) n = read(fd, buf, SU_UP_LINE);
+    close(fd);
+    while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
+    for (i = n; i > 0 && buf[i - 1] != '\n'; --i) {
+    }
+    if (n - i <= 0 || n - i >= SU_UP_LINE) return;
+    memcpy(lbs.last, buf + i, (unsigned)(n - i));
+    lbs.last[n - i] = 0;
+}
+
+/* n digits at p as a number, -1 when one is not a digit. */
+static int lb_digits(const char *p, int n) {
+    int v = 0;
+    while (n--) {
+        if (*p < '0' || *p > '9') return -1;
+        v = v * 10 + (*p++ - '0');
+    }
+    return v;
+}
+
+/* The bytes from p to e are the word w. */
+static int lb_is(const char *p, const char *e, const char *w) {
+    while (p < e && *w && *p == *w) ++p, ++w;
+    return p == e && !*w;
+}
+
+/* The page's one note under Auto Upload / Upload Scrobbles: its text and, when a record exists, "Last upload: Today 14:32 · Failed, 3 sent to ListenBrainz" (local time; no time
+ * for a clock that was never set). The record is "2026-11-16T14:32:05Z auto ok listenbrainz=12 lastfm=12 rejected=0". */
+static void lb_note_text(char *out, unsigned n) {
+    static const char *const mon[12] = {"Jan %d", "Feb %d", "Mar %d", "Apr %d", "May %d", "Jun %d",
+                                        "Jul %d", "Aug %d", "Sep %d", "Oct %d", "Nov %d", "Dec %d"};
+    char when[48], part[96], res[8];
+    int y, mo, d, hh, mm, ss, cnt[2] = {-1, -1}, k, w, field = 0;
+    long t, now = time((long *)0);
+    const char *p = lbs.last, *e;
+    const int *q;
+    unsigned o;
+    snprintf(out, n, "%s", TR("Uploads on Wi-Fi while music plays."));
+    if (strlen(p) < 24 || p[4] != '-' || p[7] != '-' || p[10] != 'T' || p[13] != ':' || p[16] != ':' || p[19] != 'Z')
+        return;
+    y = lb_digits(p, 4), mo = lb_digits(p + 5, 2), d = lb_digits(p + 8, 2), hh = lb_digits(p + 11, 2),
+    mm = lb_digits(p + 14, 2), ss = lb_digits(p + 17, 2);
+    if (y < 0 || mo < 0 || mo > 12 || d < 0 || d > 31 || hh < 0 || mm < 0 || ss < 0) return;
+    res[0] = 0;
+    for (p += 20; *p;) { /* the words: mode, result, then name=count */
+        while (*p == ' ') ++p;
+        for (e = p; *e && *e != ' '; ++e) {
+        }
+        if (e > p) {
+            const char *eq = p;
+            while (eq < e && *eq != '=') ++eq;
+            if (field == 1 && e - p < (long)sizeof res) memcpy(res, p, (unsigned)(e - p)), res[e - p] = 0;
+            if (eq < e && e - eq > 1) {
+                k = 0;
+                for (w = 1; eq + w < e && eq[w] >= '0' && eq[w] <= '9'; ++w) k = k * 10 + eq[w] - '0';
+                if (lb_is(p, eq, "listenbrainz")) cnt[0] = k;
+                if (lb_is(p, eq, "lastfm")) cnt[1] = k;
+            }
+            ++field;
+        }
+        p = e;
+    }
+    if (!res[0]) return;
+    when[0] = 0;
+    t = lb_days(y, mo, d) * 86400L + hh * 3600L + mm * 60L + ss;
+    if (y >= 2020 && now >= 1577836800L && (q = localtime(&t))) {
+        int lt[9];
+        long a, b;
+        for (k = 0; k < 9; ++k) lt[k] = q[k]; /* (localtime's one buffer) */
+        a = lb_days(lt[5] + 1900, lt[4] + 1, lt[3]);
+        q = localtime(&now);
+        if (q) {
+            b = lb_days(q[5] + 1900, q[4] + 1, q[3]);
+            if (a == b)
+                snprintf(when, sizeof when, "%s", TR("Today"));
+            else if (a == b - 1)
+                snprintf(when, sizeof when, "%s", TR("Yesterday"));
+            else
+                snprintf(when, sizeof when, TR(mon[lt[4] < 0 || lt[4] > 11 ? 0 : lt[4]]), lt[3]);
+            w = (int)strlen(when);
+            snprintf(when + w, sizeof when - (unsigned)w, " %02d:%02d", lt[2], lt[1]);
+        }
+    }
+    part[0] = 0;
+    if (cnt[0] > 0 && cnt[0] == cnt[1])
+        snprintf(part, sizeof part, TR("%d sent to ListenBrainz and Last.fm"), cnt[0]);
+    else {
+        o = 0;
+        if (cnt[0] > 0) o += (unsigned)snprintf(part + o, sizeof part - o, TR("%d sent to ListenBrainz"), cnt[0]);
+        if (cnt[1] > 0) {
+            if (o) o += (unsigned)snprintf(part + o, sizeof part - o, ", ");
+            snprintf(part + o, sizeof part - o, TR("%d sent to Last.fm"), cnt[1]);
+        }
+    }
+    o = (unsigned)strlen(out);
+    o += (unsigned)snprintf(out + o, n - o, " %s: ", TR("Last upload"));
+    if (when[0]) o += (unsigned)snprintf(out + o, n - o, "%s \xc2\xb7 ", when);
+    if (strcmp(res, "ok")) {
+        const char *w = TR("Card error");
+        if (!strcmp(res, "fail"))
+            w = TR("Failed");
+        else if (!strcmp(res, "auth"))
+            w = TR("Refused");
+        o += (unsigned)snprintf(out + o, n - o, "%s%s", w, part[0] ? ", " : "");
+    } else if (!part[0])
+        snprintf(part, sizeof part, "%s", TR("Nothing sent"));
+    if (o < n) snprintf(out + o, n - o, "%s", part);
+}
+
+/* patch/m1plus.c page_refresh: the Scrobbling page's note (pod_note1_t) from the record read last. */
+void lb_note(void *win) {
+    char t[256];
+    void *w = widget_lookup(win, "pod_note1_t", 1);
+    if (!w) return;
+    lb_note_text(t, sizeof t);
+    widget_set_text_utf8(w, t);
+}
 
 void lb_row_text(char *out, unsigned n) {
     char name[SU_NAME];
@@ -122,6 +258,7 @@ static void lb_show(void) {
         pod_toast(t);
     } else if (lbs.kind == SCROBUP_CHECK)
         lb_check(1);
+    lb_last_load();
     pod_lb_refresh();
 }
 
@@ -142,7 +279,7 @@ static int lb_tick(const void *timer) {
     if (lbs.done)
         lb_show();
     else
-        pod_lb_refresh();
+        lb_last_load(), pod_lb_refresh();
     return RET_OK;
 }
 
@@ -212,6 +349,10 @@ void lb_opened(void *win, int page) {
     char was[SU_NAME], now[SU_NAME], lwas[SU_NAME], lnow[SU_NAME];
     int had, has, bad, job, lst;
     lbs.pages |= 1 << page;
+    lb_last_load();
+    if (!page)
+        lb_note(
+            win); /* the page's first refresh came before this read, and nothing below refreshes it when the account is as it was */
     widget_on(win, EVT_DESTROY, lb_on_destroy, (void *)(long)(1 << page));
     lb_poll();
     had = scrobup_account(was, sizeof was), bad = scrobup_invalid(), job = lbs.job,

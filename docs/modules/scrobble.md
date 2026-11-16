@@ -22,7 +22,9 @@ timers that already watch the playing track. Nothing runs at boot or in the main
    to .scrobbler.log on the card."
 2. **ListenBrainz** and **Last.fm** rows → account pages.
 3. **Auto Upload** switch, off by default (`/mnt/data/m1plus/scrobble-auto`), and **Upload
-   Scrobbles**. Note: "Uploads on Wi-Fi while music plays."
+   Scrobbles**. Note (three wrapping lines, `pod_note1_t`): "Uploads on Wi-Fi while music plays."
+   and, when [the upload record](#upload-record) has a line, " Last upload: Today 14:32 · 12 sent
+   to ListenBrainz and Last.fm"
 
 Both switch files are read once and kept in RAM. Turning logging on starts from the next look at
 the playing track; turning it off forgets the current one. The tag-reader hook never reads the
@@ -178,6 +180,29 @@ USB mode and Wi-Fi are the caller's to check.
 
 Up to `SU_REJ` (128) separate runs of refused listens are tracked per upload; beyond that the
 upload ends as `SCROBUP_FAIL` and the next one continues.
+
+### Upload record
+
+Every upload job that sent at least one request (manual or automatic; result ok, fail, auth or
+disk) appends one line to `/mnt/mmc/.m1plus/scrobble-uploads` from the worker, just before the result is
+published. Uploads that found nothing to send, checks, the kill switch and a missing card are not
+recorded. A failed write changes nothing of the result.
+
+```
+2026-11-16T14:32:05Z auto ok listenbrainz=12 lastfm=12 rejected=0
+```
+
+UTC time (`0000-00-00T00:00:00Z` while the clock is unset), `manual` or `auto`, `ok` / `fail` /
+`auth` / `disk`, then each service that took part with the listens it took (`su_flush` counts a
+listen once every service of the job has answered it), then the listens refused for good. Past
+`SU_UP_MAX` (8 KB) the newest half is kept at a line start (tmp + rename).
+
+The Scrobbling page reads the last line (`lb_last_load`) when it opens and at the end of its timer
+(a job finished while it is up), and writes `lb_note` into the note under Upload Scrobbles: day (Today,
+Yesterday, else month and day, local time) and `hh:mm`, then Failed / Refused / Card error for a
+non-ok result, then "N sent to ListenBrainz and Last.fm" (equal counts), or each service with its
+count, or "Nothing sent". A record with an unset time, or a device clock that is unset, shows no
+day or time. No record or an unreadable line: only the note's own text.
 
 ### Two services, one log
 

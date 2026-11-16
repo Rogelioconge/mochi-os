@@ -347,6 +347,11 @@ line under `[LISTENBRAINZ]` once the token is confirmed; it does not display the
   is left out until you correct the file. Manual upload is still available; during an automatic
   upload it reports **Already uploading**.
 
+The note under **Upload Scrobbles** shows the last upload, for example "Last upload: Today 14:32 ·
+12 sent to ListenBrainz and Last.fm", also for automatic uploads. Every upload that sent something
+is also one line in `scrobble-uploads` in the hidden `.m1plus` folder on the card (a text file; the
+newest lines are kept, about 8 KB).
+
 Sent listens move to `.scrobbler.log.sent`. With two participating services, a listen leaves the
 log only after both have answered; a temporary failure retries both without double-counting. An
 account that refused its credentials is left out of later uploads: listens sent while it is excluded

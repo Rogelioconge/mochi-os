@@ -26,6 +26,8 @@ void scrobble_auto_collect(void);
 /* The log, and the lock every writer of it holds: the UI thread's append of one line (open to close, nothing else), and the upload thread's reads and its one rewrite
  * (patch/scrobup.c). Never held across a network call. */
 #define SC_LOG "/mnt/mmc/.scrobbler.log"
+#define SC_UPLOADS \
+    "/mnt/mmc/.m1plus/scrobble-uploads" /* one line for each upload that sent a request (patch/scrobup.c, docs/modules/scrobble.md "Upload record") */
 #define SC_HEADER "#AUDIOSCROBBLER/1.1\n#TZ/UTC\n#CLIENT/M1+ Music\n"
 void scrobble_lock(void);
 void scrobble_unlock(void);

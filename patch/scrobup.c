@@ -40,6 +40,7 @@
 #define SU_SENT SC_LOG ".sent"
 #define SU_REJECTED SC_LOG ".rejected"
 #define SU_TMP SC_LOG ".tmp"
+#define SU_UP_TMP SC_UPLOADS ".tmp"
 #define SU_LF_URL "https://ws.audioscrobbler.com/2.0/"
 #define SU_INI \
     "/mnt/mmc/scrobble.ini" /* the accounts, on the card only: [LISTENBRAINZ] TOKEN= and USER=, [LASTFM] USER=, PASSWORD=, API_KEY= and API_SECRET= */
@@ -566,6 +567,8 @@ typedef struct {
     unsigned rej[SU_REJ][2],
         nrej; /* the bytes of the refused listens among them: [from, to), in order, runs in a row joined */
     int n, sent, rejected, res;
+    int lbn,
+        lfn; /* the listens each service took (a listen counts when its service answered it taken, and every service of the job has answered it) */
 } su_run_t;
 
 /* k bytes appended to the archive path, opened at its first bytes (*fd, -1 before). */
@@ -712,6 +715,7 @@ static int su_flush(su_run_t *run, unsigned end) {
         unsigned st = run->st[i];
         int last = i + 1 == run->n;
         if (((st | st >> 4) & 15) != (unsigned)su.use) break;
+        run->lbn += (st & SCROBUP_LB) != 0, run->lfn += (st & SCROBUP_LF) != 0;
         if (!su_answer(run, st & 15 ? SCROBUP_OK : SU_REJECT, 1, last ? end : run->end[i], last ? run->h : run->eh[i]))
             return 0;
     }
@@ -721,6 +725,52 @@ static int su_flush(su_run_t *run, unsigned end) {
     }
     run->n = 0, run->rawn = 0;
     return 1;
+}
+
+/* The upload record (docs/modules/scrobble.md "Upload record"): one line appended to SC_UPLOADS, "2026-11-16T14:32:05Z auto ok listenbrainz=12 lastfm=12 rejected=0" (UTC; auto or
+ * manual; ok, fail, auth or disk; each service of the job with the listens it took). Past SU_UP_MAX the newest half is kept (tmp + rename). A failed write is not told to anybody:
+ * the upload's result stands. */
+static void su_record(const su_run_t *run) {
+    static const char *const word[] = {"ok", "fail", "auth", "disk"};
+    char rec[SU_UP_LINE];
+    unsigned now = (unsigned)time((long *)0), n, days, sec, z, era, doe, yoe, doy, mp, y, m, d;
+    int fd;
+    long size;
+    if (home_off() || !m1_card_mounted()) return;
+    if (now < SC_CLOCK_MIN) /* a clock never set: no time (the page shows none) */
+        n = (unsigned)snprintf(rec, sizeof rec, "0000-00-00T00:00:00Z");
+    else {
+        days = now / 86400, sec = now % 86400; /* civil from days (Hinnant) */
+        z = days + 719468, era = z / 146097, doe = z - era * 146097;
+        yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365, doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        mp = (5 * doy + 2) / 153, d = doy - (153 * mp + 2) / 5 + 1, m = mp < 10 ? mp + 3 : mp - 9;
+        y = yoe + era * 400 + (m <= 2);
+        n = (unsigned)snprintf(rec, sizeof rec, "%04d-%02d-%02dT%02d:%02d:%02dZ", (int)y, (int)m, (int)d,
+                               (int)(sec / 3600), (int)(sec / 60 % 60), (int)(sec % 60));
+    }
+    n += (unsigned)snprintf(rec + n, sizeof rec - n, " %s %s", su.owner == SCROBUP_AUTO ? "auto" : "manual",
+                            word[run->res > 0               ? 0
+                                 : run->res == SCROBUP_FAIL ? 1
+                                 : run->res == SCROBUP_AUTH ? 2
+                                                            : 3]);
+    if (su.use & SCROBUP_LB) n += (unsigned)snprintf(rec + n, sizeof rec - n, " listenbrainz=%d", run->lbn);
+    if (su.use & SCROBUP_LF) n += (unsigned)snprintf(rec + n, sizeof rec - n, " lastfm=%d", run->lfn);
+    n += (unsigned)snprintf(rec + n, sizeof rec - n, " rejected=%d\n", run->rejected);
+    if (n >= sizeof rec) return;
+    mkdir("/mnt/mmc/.m1plus", 0755);
+    fd = open(SC_UPLOADS, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0) return;
+    size = m1_write_all(fd, rec, n) ? lseek(fd, 0, 2) : 0;
+    close(fd);
+    if (size > SU_UP_MAX) {
+        unsigned len, cut;
+        char *t = m1_read_file(SC_UPLOADS, 2 * SU_UP_MAX, &len);
+        if (!t) return;
+        for (cut = len / 2; cut < len && t[cut - 1] != '\n'; ++cut) {
+        }
+        if (cut < len) m1_save(SC_UPLOADS, SU_UP_TMP, 0644, t + cut, len - cut);
+        free(t);
+    }
 }
 
 static void *su_worker(void *arg) {
@@ -800,6 +850,7 @@ static void *su_worker(void *arg) {
         free(run.a.p);
     }
     free(run.b.p);
+    if (run.reqs) su_record(&run); /* (an upload that asked a service anything) */
     su.sent = run.sent;
     su.rejected = run.rejected;
     su.res = run.res;

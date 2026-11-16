@@ -290,7 +290,7 @@ def open_tests(ctx):
     for _ in range(3): tick(m)
     event(m, 'm1plus_scrobbling', EVT_FG)
     run(m, PSYMS['pod_lb_refresh'])   # noqa: F821
-    expect(not [c for c in m.log[n:] if c[0] in ('open', 'statfs') and c[1].startswith('/mnt/mmc')] and value(m, R_LB) == 'bob', 'the card is not read from the timer, when the page comes back in front, or by a refresh of the rows')
+    expect(not [c for c in m.log[n:] if c[0] == 'open' and c[1].startswith('/mnt/mmc') and c[1] != SU.UPLOADS] and value(m, R_LB) == 'bob', 'the account file is not read from the timer, when the page comes back in front, or by a refresh of the rows')
     m.opened = open_page(m, P.LB_PAGE)
     expect(value(m, R_ACCT) == 'eve' and value(m, R_LB) == 'eve', 'the next page that opens reads it')
     # a token the service refused is not asked again by a page that opens; a check that fails is tried again by the next one
@@ -695,4 +695,51 @@ def lastfm_tests(ctx):
     expect(start_upload(m) == ['Set up an account first'], 'Upload Scrobbles then: Set up an account first')
 
 
-SECTIONS = [library_tests, front_tests, pages_tests, strings_tests, value_tests, open_tests, upload_tests, owner_tests, auto_tests, lastfm_tests]   # tools/check.py runs each as its own task
+def last_tests(ctx):
+    """The note under Upload Scrobbles: its own text, and the last line of .m1plus/scrobble-uploads (read when the page opens and when a job ends) as "Last upload: ..." in local time."""
+    expect = ctx.expect
+    UP = SU.UPLOADS
+    BASE = P.LB_AUTO_NOTE
+    # (the clock: 2027-01-16 11:46:40 UTC)
+    def note(m): return text(m, 'pod_note1_t')
+    def rec(when='2027-01-16T09:32:05Z', res='ok', lb=12, lf=12, mode='auto', rej=0):
+        return f'{when} {mode} {res}' + (f' listenbrainz={lb}' if lb is not None else '') + (f' lastfm={lf}' if lf is not None else '') + f' rejected={rej}\n'
+    m = library(); expect(note(m) == BASE, f'no record: only the note ({note(m)!r})')
+    expect(P.SCROBBLING_PAGE.layout[-1].lines == 3, 'the note is a wrapping label of three lines')
+    for what, line_, want in (
+            ('today, both services', rec(), 'Today 09:32 \xb7 12 sent to ListenBrainz and Last.fm'),
+            ('yesterday, a failure with some sent', rec('2027-01-15T09:10:00Z', 'fail', 3, None), 'Yesterday 09:10 \xb7 Failed, 3 sent to ListenBrainz'),
+            ('older: the month and day', rec('2026-11-12T23:05:00Z', lb=None, lf=7), 'Nov 12 23:05 \xb7 7 sent to Last.fm'),
+            ('a refusal', rec(res='auth', lb=0, lf=None), 'Today 09:32 \xb7 Refused'),
+            ('a card error', rec(res='disk', lb=2, lf=2), 'Today 09:32 \xb7 Card error, 2 sent to ListenBrainz and Last.fm'),
+            ('two different counts', rec(lb=5, lf=3), 'Today 09:32 \xb7 5 sent to ListenBrainz, 3 sent to Last.fm'),
+            ('nothing taken', rec(lb=0, lf=0), 'Today 09:32 \xb7 Nothing sent'),
+            ('a clock that was never set', rec('0000-00-00T00:00:00Z'), '12 sent to ListenBrainz and Last.fm')):
+        m = machine(); m.fs[UP] = (rec('2026-01-01T00:00:00Z') + line_).encode()
+        m.opened = open_page(m, P.SCROBBLING_PAGE)
+        expect(note(m) == BASE + ' Last upload: ' + want.replace('\xb7', '\u00b7'), f'{what}: {note(m)!r}')
+    m = machine(); m.tz = 5 * 3600 + 1800; m.fs[UP] = rec('2027-01-15T20:00:00Z').encode()
+    m.opened = open_page(m, P.SCROBBLING_PAGE)
+    expect('Today 01:30' in note(m), f'local time: UTC+5:30 turns yesterday evening into today 01:30 ({note(m)!r})')
+    m = machine(); m.wall = 100; m.fs[UP] = rec().encode()
+    m.opened = open_page(m, P.SCROBBLING_PAGE)
+    expect(note(m) == BASE + ' Last upload: 12 sent to ListenBrainz and Last.fm', f'the device clock not set: no day, no time ({note(m)!r})')
+    # an account a check has confirmed already: opening the page asks nothing and changes no row, and the record's line is still shown
+    m = machine(name='rob'); m.fs[UP] = rec().encode()
+    m.opened = open_page(m, P.SCROBBLING_PAGE)
+    expect(not m.site.reqs and note(m) == BASE + ' Last upload: Today 09:32 · 12 sent to ListenBrainz and Last.fm', f'a confirmed account, no check at the open: the line is shown ({note(m)!r})')
+    m.fs[UP] += rec('2027-01-16T10:00:00Z', lb=4, lf=None).encode()
+    event(m, 'm1plus_scrobbling', EVT_DESTROY); m.opened = open_page(m, P.SCROBBLING_PAGE)
+    expect(note(m) == BASE + ' Last upload: Today 10:00 · 4 sent to ListenBrainz', f'opened again after another upload: the new line, not the one read before ({note(m)!r})')
+    for junk in ('garbage\n', '\n', '2027-01-16T09:32:05Z auto\n', 'x' * 300 + '\n'):
+        m = machine(); m.fs[UP] = junk.encode()
+        m.opened = open_page(m, P.SCROBBLING_PAGE)
+        expect(note(m) == BASE, f'a line that is not a record is ignored ({junk[:20]!r})')
+    # after a job: the new line is on the page
+    m = library(name='rob', log=log_text(3))
+    expect(note(m) == BASE, 'before the upload: only the note')
+    start_upload(m); work(m); tick(m)
+    expect(note(m) == BASE + ' Last upload: Today 11:46 \u00b7 3 sent to ListenBrainz', f'a job that ended while the page is up: its line is shown ({note(m)!r})')
+
+
+SECTIONS = [last_tests, library_tests, front_tests, pages_tests, strings_tests, value_tests, open_tests, upload_tests, owner_tests, auto_tests, lastfm_tests]   # tools/check.py runs each as its own task

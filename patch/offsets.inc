@@ -770,6 +770,8 @@
 #define SU_LF_PASS 128       /* the longest Last.fm password, bytes */
 #define SU_LF_KEY 64         /* the longest Last.fm API key or secret (they are 32 hex digits), and the longest session key */
 #define SU_REJ 128           /* runs of refused listens (HTTP 400) one upload remembers; listens refused in a row (whole batches too) are one run, and one more run ends the upload */
+#define SU_UP_MAX 8192       /* the upload record (.m1plus/scrobble-uploads) is cut to its newest half when it grows past this */
+#define SU_UP_LINE 192       /* an upload record line, at most */
 #define SU_INI_MAX 4096      /* the card's scrobble.ini: a longer file is never rewritten (a token typed on the device, a user name and Sign Out are refused), and only the whole lines of its first 4096 bytes are read */
 /* The automatic upload (patch/scrobble.c sa_*): seconds */
 #define SA_EVAL 60            /* the conditions are looked at once a minute at most */

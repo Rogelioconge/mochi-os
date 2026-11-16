@@ -1044,6 +1044,7 @@ static void page_refresh(void *win, const struct pod_page *page) {
     if (page == &POD_PAGES[POD_RGB_THEME_PAGE]) rgb_note(win);
     if (page == &POD_PAGES[POD_BATTHIST_PAGE])
         bhpage_show(win); /* Battery History's charts: shown while the switch is on */
+    if (page == &POD_PAGES[POD_SCROBBLING_PAGE]) lb_note(win); /* the note under Upload Scrobbles: the last upload */
     if (page == &POD_PAGES[POD_PSMAXVOL_PAGE])
         ps_vol_refresh(win, PS_VOL_MAX); /* stock's refresh: the label and the slider from the word */
     if (page == &POD_PAGES[POD_PSBOOTVOL_PAGE])

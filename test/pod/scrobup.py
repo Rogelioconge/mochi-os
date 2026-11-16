@@ -13,6 +13,7 @@ from harness import *   # noqa: F401,F403  (test/patch.py initialises the harnes
 podcasts = sibling('podcasts')
 LOG = '/mnt/mmc/.scrobbler.log'
 SENT, TMP, REJ = LOG + '.sent', LOG + '.tmp', LOG + '.rejected'
+UPLOADS = '/mnt/mmc/.m1plus/scrobble-uploads'   # patch/scrobble.h SC_UPLOADS: one line for each upload that sent a request
 INI = '/mnt/mmc/scrobble.ini'   # patch/scrobup.c SU_INI: the account's only store
 INI_TMP = INI + '.tmp'
 INI_MAX = O['SU_INI_MAX']
@@ -123,7 +124,7 @@ def upload(m, owner=UI):
 
 def log_of(m): return m.fs.get(LOG, b'').decode('utf-8', 'replace') if LOG in m.fs else None
 def sent_of(m): return m.fs.get(SENT, b'').decode('utf-8', 'replace') if SENT in m.fs else None
-def wrote(m): return [c for c in m.log if c[0] in ('write', 'rename', 'unlink') or (c[0] == 'open' and c[2] & 3)]
+def wrote(m): return [c for c in m.log if (c[0] in ('write', 'rename', 'unlink') or (c[0] == 'open' and c[2] & 3)) and not str(c[1]).startswith(UPLOADS)]   # (the upload record is the one file every job may write)
 
 
 def upload_tests(ctx):
@@ -170,7 +171,7 @@ def upload_tests(ctx):
     locks = [c[0] for c in m.log if len(c) == 2 and c[1] == PSYMS['sc_mutex']]
     expect(locks == ['lock', 'unlock'] * (len(locks) // 2) and len(locks) == 4, f'the lock: once for the read of the log, once for the rewrite ({locks})')
     i0, i1 = [i for i, c in enumerate(m.log) if c == ('lock', PSYMS['sc_mutex'])][1], [i for i, c in enumerate(m.log) if c == ('unlock', PSYMS['sc_mutex'])][1]
-    expect(all(i0 < i < i1 for i, c in enumerate(m.log) if c[0] in ('write', 'rename') or (c[0] == 'open' and c[1] in (LOG, SENT, TMP) and i > i0)), 'the archive and the rewrite are inside it')
+    expect(all(i0 < i < i1 for i, c in enumerate(m.log) if (c[0] in ('write', 'rename') and not str(c[1]).startswith(UPLOADS)) or (c[0] == 'open' and c[1] in (LOG, SENT, TMP) and i > i0)), 'the archive and the rewrite are inside it')
     # again: nothing left
     m.log = []; n = len(m.site.reqs)
     expect(upload(m) == (OK, 0) and len(m.site.reqs) == n and not wrote(m), 'an upload right after: nothing to upload, no request, nothing written')
@@ -1388,5 +1389,57 @@ def both_tests(ctx):
     expect(upload(m) == (OK, 6) and not lf_reqs(m) and auth(m) == 0 and lastfm(m)[0] == LF_NONE and [c[1] for c in m.log if c[0] == 'calloc'].count(BODY) == 1, 'with no [LASTFM] section nothing of Last.fm runs')
 
 
-SECTIONS = [upload_tests, skip_tests, nothing_tests, fail_tests, append_tests, disk_tests, start_tests, account_tests, ini_tests, edit_tests, check_tests, exclusive_tests, reject_tests, narrow_tests, owner_tests, kill_tests, files_tests,
+def record_tests(ctx):
+    """The upload record (docs/modules/scrobble.md "Upload record"): one line for each upload that sent a request, whatever its result; none for an upload with nothing to send."""
+    expect = ctx.expect
+    stamp = '2027-01-16T11:46:40Z'   # T0 + 100000
+    rec = lambda m: m.fs[UPLOADS].decode() if UPLOADS in m.fs else None
+    text = HEADER + ''.join(line(i) for i in range(6))
+    m = machine(text)
+    expect(upload(m) == (OK, 6) and rec(m) == f'{stamp} manual ok listenbrainz=6 rejected=0\n', f'a manual upload that took 6 listens ({rec(m)!r})')
+    m.fs[LOG] += line(9).encode()
+    expect(upload(m, AUTO) == (OK, 1) and rec(m).endswith(f'{stamp} auto ok listenbrainz=1 rejected=0\n') and rec(m).count('\n') == 2, f'an automatic one is added as a second line ({rec(m)!r})')
+    n = rec(m)
+    expect(upload(m) == (OK, 0) and rec(m) == n, 'an upload with nothing to send adds no line')
+    for what, log in (('no log', None), ('a header only', HEADER)):
+        m = machine(log)
+        expect(upload(m) == (OK, 0) and rec(m) is None, f'{what}: no record file')
+    for what, ans, word in (('500', {'code': 500}, 'fail'), ('401', {'code': 401}, 'auth')):
+        m = machine(text, answers=[ans])
+        expect(upload(m)[0] in (FAIL, AUTH) and rec(m) == f'{stamp} manual {word} listenbrainz=0 rejected=0\n', f'{what} on the first request: "{word}", 0 taken ({rec(m)!r})')
+    m = machine(HEADER + ''.join(line(i) for i in range(60)), answers=[{}, {'code': 500}])
+    expect(upload(m) == (FAIL, 50) and rec(m) == f'{stamp} manual fail listenbrainz=50 rejected=0\n', f'a failure after one batch counts what was taken ({rec(m)!r})')
+    m = machine(text, answers=judge(bad=[2]))
+    res = upload(m)
+    expect(res == (OK, 5) and rec(m) == f'{stamp} manual ok listenbrainz=5 rejected=1\n', f'a refused listen is counted as rejected ({res}, {rec(m)!r})')
+    m = machine(text); m.fail.add(('rename', LOG))
+    res = upload(m)
+    expect(res[0] == DISK and rec(m).startswith(f'{stamp} manual disk listenbrainz=6'), f'a card error: "disk" ({res}, {rec(m)!r})')
+    m = machine(text, token=None); m.fs.pop(INI, None)
+    expect(start(m) == -1 and rec(m) is None, 'no start, no record')
+    m = machine(text); m.wall = 100
+    expect(upload(m) == (OK, 6) and rec(m) == '0000-00-00T00:00:00Z manual ok listenbrainz=6 rejected=0\n', f'a clock never set: zeros for the time ({rec(m)!r})')
+    m = machine(text); m.fail.add(('write', UPLOADS))
+    expect(upload(m) == (OK, 6) and log_of(m) == HEADER, 'a record that cannot be written changes nothing of the result')
+    m = machine(text); m.present.add(KILL)
+    expect(start(m) == -1 and rec(m) is None, 'kill switch: nothing')
+    # both services
+    m = lf_machine(text, lb=True)
+    expect(upload(m) == (OK, 6) and rec(m) == f'{stamp} manual ok listenbrainz=6 lastfm=6 rejected=0\n', f'two services: each with its count ({rec(m)!r})')
+    m = lf_machine(text, lb=True, svc=Lastfm(lb={'code': 401}))
+    expect(upload(m)[0] == AUTH and rec(m) == f'{stamp} manual auth listenbrainz=0 lastfm=0 rejected=0\n', f'a refusal: both services named, nothing taken ({rec(m)!r})')
+    # bound: past 8 KB the newest half stays, whole lines
+    m = machine(text)
+    old = ''.join(f'2026-01-{i % 28 + 1:02d}T00:00:00Z auto ok listenbrainz=1 rejected=0\n' for i in range(148))
+    m.fs[UPLOADS] = old.encode()
+    expect(len(old) > O['SU_UP_MAX'] - 60 and len(old) < O['SU_UP_MAX'], f'(the start: just under the bound, {len(old)} bytes)')
+    expect(upload(m) == (OK, 6), 'the upload that crosses it')
+    r = rec(m)
+    expect(len(r) < O['SU_UP_MAX'] * 0.6 and r.endswith(f'{stamp} manual ok listenbrainz=6 rejected=0\n') and old.endswith(r[:-len(f"{stamp} manual ok listenbrainz=6 rejected=0" + chr(10))]) and r.count('\n') > 50, f'cut to about half, newest lines, whole lines ({len(r)} bytes)')
+    expect(('rename', UPLOADS + '.tmp', UPLOADS) in m.log and UPLOADS + '.tmp' not in m.fs, 'by tmp and rename')
+    m = machine(text); m.fs[UPLOADS] = old.encode(); m.fail.add(('rename', UPLOADS))
+    expect(upload(m) == (OK, 6) and UPLOADS + '.tmp' not in m.fs, 'a failed trim leaves the result and no temp file')
+
+
+SECTIONS = [record_tests, upload_tests, skip_tests, nothing_tests, fail_tests, append_tests, disk_tests, start_tests, account_tests, ini_tests, edit_tests, check_tests, exclusive_tests, reject_tests, narrow_tests, owner_tests, kill_tests, files_tests,
             lastfm_ini_tests, lastfm_sign_tests, lastfm_session_tests, lastfm_error_tests, lastfm_ignored_tests, both_tests]
