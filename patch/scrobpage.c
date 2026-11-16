@@ -88,7 +88,7 @@ static void lb_note_text(char *out, unsigned n) {
     const char *p = lbs.last, *e;
     const int *q;
     unsigned o;
-    snprintf(out, n, "%s", TR("Uploads on Wi-Fi while music plays."));
+    snprintf(out, n, "%s", TR("Uploads when Wi-Fi is connected."));
     if (strlen(p) < 24 || p[4] != '-' || p[7] != '-' || p[10] != 'T' || p[13] != ':' || p[16] != ':' || p[19] != 'Z')
         return;
     y = lb_digits(p, 4), mo = lb_digits(p + 5, 2), d = lb_digits(p + 8, 2), hh = lb_digits(p + 11, 2),

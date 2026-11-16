@@ -340,12 +340,14 @@ line under `[LISTENBRAINZ]` once the token is confirmed; it does not display the
 - **Manually:** connect to Wi-Fi, ensure the card is not in use by a computer over USB, then tap
   **Upload Scrobbles**. A message reports how many listens were sent. This works even if the
   Scrobbling switch is off, so an existing log can still be uploaded.
-- **Automatically:** turn on **Auto Upload** (off by default). With an account set up and Scrobbling on, the player
-  sends listens in the background while music plays on Wi-Fi, about ten minutes after a new listen
-  is logged. It never turns Wi-Fi on. Only listens logged since startup trigger it; older entries
-  in the log are sent along. A failed upload waits half an hour before retrying. A refused account
-  is left out until you correct the file. Manual upload is still available; during an automatic
-  upload it reports **Already uploading**.
+- **Automatically:** turn on **Auto Upload** (off by default). With an account set up, the player
+  sends the log in the background whenever Wi-Fi is connected and listens wait in it, within about
+  ten seconds, with music playing or not. A listen logged on Wi-Fi goes up right away. Listens
+  logged without a connection, also before the player was last switched off, go up the next time
+  Wi-Fi connects while the screen is on, for example when you wake the player at home. It never
+  turns Wi-Fi on. A failed upload waits five minutes before retrying. A refused account is left
+  out until you correct the file. Manual upload is still available; during an automatic upload it
+  reports **Already uploading**.
 
 The note under **Upload Scrobbles** shows the last upload, for example "Last upload: Today 14:32 ·
 12 sent to ListenBrainz and Last.fm", also for automatic uploads. Every upload that sent something

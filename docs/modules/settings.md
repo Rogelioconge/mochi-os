@@ -190,7 +190,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `radio-recent` | Recent radio stations | an `.m3u` of up to 10 stations, newest first ([radio](radio.md)) |
 | `radio-view` | Radio station lists view | `1` grid; missing/other list ([radio](radio.md)) |
 | `recently-added-view` | Recently Added view | `1` albums grid; missing/other songs ([recent-albums](recent-albums.md)) |
-| `scrobble-auto` | Auto Upload | `1` on; missing/other off (the default; read once, by the first poll after a listen was logged) ([Scrobbling](scrobble.md#automatic-upload)) |
+| `scrobble-auto` | Auto Upload | `1` on; missing/other off (the default; read once, by the first status bar tick) ([Scrobbling](scrobble.md#automatic-upload)) |
 | `scrobbling` | Scrobbling | `1` on; missing/other off (the default; read once by the first poll) ([Scrobbling](scrobble.md)) |
 | `search-history` | Recent searches | up to 5 UTF-8 lines, newest first; malformed = none ([search](search.md)) |
 | `songs-sort-rev` | Songs direction | `a` Title / File Name / Format run Z-A; missing/other A-Z; ignored for Recently Added, whose direction is the stock `sort_flag` 3 / 4 ([songs](songs.md)) |

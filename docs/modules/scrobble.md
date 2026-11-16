@@ -8,11 +8,12 @@ accounts), `patch/scrobpage.c` (Settings pages), `pj_member` / `pj_span` / `pj_n
 
 Listens are appended to `/mnt/mmc/.scrobbler.log` in Rockbox's AudioScrobbler 1.1 format, so any
 `.scrobbler.log` uploader on a computer can send them. The device can also upload them itself to
-ListenBrainz and Last.fm, by hand or automatically while music plays on Wi-Fi. The log rule, line
+ListenBrainz and Last.fm, by hand or automatically whenever Wi-Fi is connected. The log rule, line
 format and upload follow q2-pod; the automatic upload is our own.
 
 No hook of its own: logging uses the tag-reader hook ([payload](payload.md) hook 4) and the page
-timers that already watch the playing track. Nothing runs at boot or in the main loop.
+timers that already watch the playing track; the automatic upload also runs on the status bar's
+tick (hook 8, `bp_capacity`). Nothing runs in the main loop.
 
 ## Settings
 
@@ -22,7 +23,7 @@ timers that already watch the playing track. Nothing runs at boot or in the main
    to .scrobbler.log on the card."
 2. **ListenBrainz** and **Last.fm** rows → account pages.
 3. **Auto Upload** switch, off by default (`/mnt/data/m1plus/scrobble-auto`), and **Upload
-   Scrobbles**. Note (three wrapping lines, `pod_note1_t`): "Uploads on Wi-Fi while music plays."
+   Scrobbles**. Note (three wrapping lines, `pod_note1_t`): "Uploads when Wi-Fi is connected."
    and, when [the upload record](#upload-record) has a line, " Last upload: Today 14:32 · 12 sent
    to ListenBrainz and Last.fm"
 
@@ -67,8 +68,8 @@ Entry points:
 
 - **`scrobble_note(track)`** — the poll, called by the Now Playing, mini bar, Podcasts, iPod,
   Cassette and Vinyl timers (lit and dark). Asks the player at most every `SC_POLL_MS` (500 ms).
-  While Scrobbling is off it returns before asking anything. It is also the only clock of the
-  automatic upload.
+  While Scrobbling is off it returns before asking anything. It is also one of the automatic
+  upload's two clocks.
 - **`scrobble_started(info, path)`** — called from `pc_id3_path` on every fresh tag parse (including
   Memory Playback at boot). Copies the tags and starts the new play; it only reads `time_now_ms`,
   so the boot path never asks the player. The replaced track gets the time since its last look
@@ -242,17 +243,27 @@ demo).
 
 ## Automatic upload
 
-With Auto Upload on, `scrobble_note` drives it (`sa_tick`). With nothing counted and no job, its
-cost is two compares. Listens are counted in RAM; older ones in the log go along with the first
-upload.
+A connection is used as soon as it is seen: Wi-Fi may drop when the screen goes dark, so there is
+no wait for more listens. `sa_tick` has two clocks:
 
-At most every `SA_EVAL` (60 s), in order:
+- `scrobble_note`, the page timers (lit and dark), only while a listen of this boot waits or a
+  job runs;
+- `scrobble_auto_tick`, called by `bp_capacity` on the status bar's tick ([battery](battery.md)):
+  any page, playing or not, and once at every wake before the backlight comes on. Not with the
+  kill switch.
 
-1. the first counted listen is `SA_WAIT` (600 s) old, so a run of tracks gives one upload;
-2. `SA_RETRY` (1800 s) since a failure;
-3. no job is running;
+With Auto Upload off a status bar tick costs one compare (the switch's file is read once); on,
+with nothing waiting, three. Listens logged this boot are counted in RAM. The log earlier boots left is looked
+at once a boot (`sa_old`, one open at the first status bar tick with Wi-Fi connected and a card mounted) and waits as one listen
+when it holds more than its header.
+
+While something waits, at most every `SA_EVAL` (10 s), in order:
+
+1. `SA_RETRY` (300 s) since a failure;
+2. `SA_ACCOUNT` (60 s) since a look that found no usable account;
+3. Wi-Fi is connected (Wi-Fi is never switched on);
 4. USB mode is off;
-5. Wi-Fi is connected (Wi-Fi is never switched on);
+5. no job is running;
 6. only then is `scrobble.ini` read, and a usable service must exist;
 7. `scrobup_start(SCROBUP_AUTO)`; its `-1` counts as a failure (retry after `SA_RETRY`).
 
@@ -263,9 +274,9 @@ reboot, so a service that takes nothing cannot drain the log into `.rejected`; m
 unaffected. No token is not a failure. The automatic upload only reads `scrobble.ini`: it starts no
 check, so it adds no `USER` line.
 
-The result is collected from the poll or from the Settings pages before they use the worker, so a
-finished automatic job never blocks the user's start. Nothing keeps the device awake for it;
-playback does. An upload starts only while a page whose timer calls `scrobble_note` is up.
+The result is collected from either clock or from the Settings pages before they use the worker,
+so a finished automatic job never blocks the user's start. Nothing keeps the device or its Wi-Fi
+awake for it: an upload cut off by standby is a failure like any other.
 
 ## Settings pages
 

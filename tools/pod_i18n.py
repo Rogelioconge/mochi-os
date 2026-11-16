@@ -1985,9 +1985,9 @@ TEXT.update([
     # the Scrobbling page's Auto Upload row (patch/scrobble.c, the automatic upload): the switch and its one-line note
     _t('Auto Upload', '自动上传', '自動上載', '自動送信', '자동 업로드', 'Envoi automatique', 'Auto-Upload', 'Subida automática', 'Invio automatico', 'อัปโหลดอัตโนมัติ',
        'Autowysyłanie', 'Автоотправка', 'Автонадсилання'),
-    _t('Uploads on Wi-Fi while music plays.', '播放音乐时通过 Wi-Fi 上传。', '播放音樂時透過 Wi-Fi 上載。', '再生中に Wi-Fi で送信します。', '음악 재생 중 Wi-Fi로 업로드합니다.', 'Envoi en Wi-Fi pendant la lecture.',
-       'Lädt per WLAN hoch, während Musik läuft.', 'Sube por Wi-Fi mientras suena la música.', 'Carica in Wi-Fi durante la riproduzione.', 'อัปโหลดผ่าน Wi-Fi ขณะเล่นเพลง',
-       'Wysyła przez Wi-Fi podczas odtwarzania.', 'Отправка по Wi-Fi во время музыки.', 'Надсилання через Wi-Fi під час музики.'),
+    _t('Uploads when Wi-Fi is connected.', '连接 Wi-Fi 时上传。', '連接 Wi-Fi 時上載。', 'Wi-Fi 接続時に送信します。', 'Wi-Fi에 연결되면 업로드합니다.', 'Envoi quand le Wi-Fi est connecté.',
+       'Lädt hoch, wenn WLAN verbunden ist.', 'Sube cuando hay conexión Wi-Fi.', 'Carica quando il Wi-Fi è connesso.', 'อัปโหลดเมื่อเชื่อมต่อ Wi-Fi',
+       'Wysyła po połączeniu z Wi-Fi.', 'Отправка при подключении к Wi-Fi.', 'Надсилання при підключенні до Wi-Fi.'),
     # (the note under the Account card: the token lives in scrobble.ini on the card, written on a computer; machine translations, unreviewed)
     _t('Put your token from listenbrainz.org in scrobble.ini on the card.', '将 listenbrainz.org 上的令牌写入存储卡上的 scrobble.ini。',
        '將 listenbrainz.org 上的權杖寫入記憶卡上的 scrobble.ini。', 'listenbrainz.org のトークンをカードの scrobble.ini に書き込んでください。',

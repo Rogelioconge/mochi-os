@@ -143,7 +143,7 @@ def pages_tests(ctx):
         expect([(r.label, r.action, r.arg, P.row_kind(r)) for r in G.rows] == [('Account', P.ACT_INFO, info, 'info')] and [type(x) for x in G.layout] == [P.Row, P.Note]
                and G.layout[1].text == note and G.layout[1].lines == lines and G.wrap_notes() == 1 and ST.pieces(G.layout) == ['single'],
                f'the {G.title} page: one card of one row, Account (no Token row, no Sign Out: the account is the card\'s file), and the wrapping note under it')
-    expect(P.LB_AUTO_NOTE == 'Uploads on Wi-Fi while music plays.' and P.ACT_LBAUTO in P.SWITCH_ACTIONS and P.ACT_SCROBBLE in P.SWITCH_ACTIONS, 'both switches are switch rows')
+    expect(P.LB_AUTO_NOTE == 'Uploads when Wi-Fi is connected.' and P.ACT_LBAUTO in P.SWITCH_ACTIONS and P.ACT_SCROBBLE in P.SWITCH_ACTIONS, 'both switches are switch rows')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Scrobbling', 'ListenBrainz', 'Last.fm', 'Upload Scrobbles', 'Auto Upload')] == ['list-music', '+musicbrainz:filled', '+lastdotfm:filled', 'upload', 'clock'], 'the glyphs: list-music, the MusicBrainz and Last.fm marks (filled, one colour), upload and clock')
     lt = awtk_ui.parse(open(os.path.join(UI, L.key + '.bin'), 'rb').read())
     r_sc = lt.find(f'pod_row{len(L.rows) - 1}')

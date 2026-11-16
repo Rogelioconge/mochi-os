@@ -65,7 +65,7 @@ stock's own behaviour.
 | 5 | library scan folder test, call site `0x5ea6a8`: a directory whose name starts with `.` is neither listed nor walked (so `/mnt/mmc/.m1plus/` audio stays out of Songs); files unaffected | `patch/common.c` `m1_scan_dir` | stock `strcmp`; one first-byte compare, no I/O |
 | 6 | `toolsQueryDbTable` `0x5ee77c` and `toolsQueryDbTableAndSort` `0x5ee9ac` | [songs](songs.md), [albums](albums.md), [podcasts](podcasts.md) | stock SQL (boot); rewrite over 1 KB goes to stock |
 | 7 | `dialog_playmore_dialog_init` `0x479cc4` | [playmore](playmore.md) | stock rows; stock runs first |
-| 8 | status bar battery call, call site `0x5450f8` | [battery](battery.md), [charging](charging.md) | stock value; a cached flag when off |
+| 8 | status bar battery call, call site `0x5450f8` | [battery](battery.md), [charging](charging.md), [scrobble](scrobble.md#automatic-upload) | stock value; a cached flag when off |
 | 9 | `select_timezone` `0x4d6b2c` | [datetime](datetime.md) | stock function (boot) |
 | 10 | `style_get_color` `0x659fcc` | [accent](accent.md) | stock answer; pass-through while the palette is inactive |
 | 11 | `style_get_gradient` `0x659f9c` (leaf, no trampoline) | [accent](accent.md) | the same function in the payload |

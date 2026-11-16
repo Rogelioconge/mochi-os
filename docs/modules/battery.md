@@ -5,7 +5,8 @@
 in `tools/pod_pins.py`. **Tests:** `test/pod/battery.py`. **Preview:**
 `tools/preview/preview_battery.py`, `tools/preview/preview.py`.
 
-The [Charge Limit](charging.md) and [Battery History](batthist.md) run on the same status bar hook,
+The [Charge Limit](charging.md), [Battery History](batthist.md) and the
+[automatic scrobble upload](scrobble.md#automatic-upload) run on the same status bar hook,
 independently of the Battery Percentage setting.
 
 ## One battery

@@ -151,7 +151,7 @@ ACT_CARMODE = 154     # switch row (Settings > Buttons & Power): Car Mode, stock
 ACT_LB = 108       # value row (Settings > Library): ListenBrainz, the account's user name (Not Set, Invalid Token, or nothing until a check); opens the ListenBrainz page (arg = its page index; patch/scrobpage.c lb_row_text)
 ACT_SCROBUP = 109  # action row (Settings > Library): Upload Scrobbles, the card's .scrobbler.log sent to ListenBrainz now (patch/scrobpage.c lb_upload_tap)
 ACT_LF = 113       # value row (Settings > Library): Last.fm, the account's user name (Not Set, Sign-in Failed); opens the Last.fm page (arg = its page index; patch/scrobpage.c lf_row_text)
-ACT_LBAUTO = 112   # switch row (Settings > Library, a card of its own under the Scrobbling card): Auto Upload, off by default; on, the log is uploaded by itself while music plays on Wi-Fi (patch/scrobble.c scrobble_auto_toggle, /mnt/data/m1plus/scrobble-auto)
+ACT_LBAUTO = 112   # switch row (Settings > Library, a card of its own under the Scrobbling card): Auto Upload, off by default; on, the log is uploaded by itself whenever the Wi-Fi is connected (patch/scrobble.c scrobble_auto_toggle, /mnt/data/m1plus/scrobble-auto)
 ACT_PLAYMODE = 129    # value row (Settings > Playback Settings): Play Mode, the mode as shown (List Play, Repeat Track, Shuffle, Repeat All); opens its picker page (arg = the page index; patch/playset.c ps_playmode)
 ACT_PLAYMODESET = 130 # picker row (Play Mode): choose the mode (arg = 0 .. 3 as shown, pod_set_mode; patch/playset.c ps_playmode_set)
 ACT_GAPLESS = 133     # switch row (Playback Settings): Gapless, stock's switch (mclSetGaplessMode, saved as [PLAYSET] GAPLESS; patch/playset.c ps_gapless_toggle)
@@ -1360,7 +1360,7 @@ NDLOGIN_PAGE = Page('m1plus_ndlogin', 'm1plus_ndlogin_page', 'Sign In', kind='nd
 
 # Settings > Library > Scrobbling (patch/scrobble.c, patch/scrobpage.c, docs/modules/scrobble.md "Settings"): three cards: the Scrobbling switch with its note; the ListenBrainz and Last.fm account rows (value rows opening their pages);
 # Auto Upload (switch) and Upload Scrobbles (action) with their note. Nothing is dimmed while Scrobbling is off: a log already on the card can still be uploaded.
-LB_AUTO_NOTE = 'Uploads on Wi-Fi while music plays.'
+LB_AUTO_NOTE = 'Uploads when Wi-Fi is connected.'
 SCROBBLING_PAGE = Page('m1plus_scrobbling', 'm1plus_scrobbling_page', 'Scrobbling', layout=[
     Row('Scrobbling', ACT_SCROBBLE),   # the listens to the card's .scrobbler.log (patch/scrobble.c), off by default
     Note('Saved to .scrobbler.log on the card.'),

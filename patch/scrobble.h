@@ -15,13 +15,14 @@ int scrobble_setting(void);
 int scrobble_toggle(void);
 
 /* The automatic upload (Settings > Library > Scrobbling > Auto Upload, SCROBBLE_AUTO_FILE, off by default): the switch's state and a flip of it, as above. While it is on,
- * scrobble_note starts an upload (patch/scrobup.c, owner SCROBUP_AUTO) once listens logged this boot have waited SA_WAIT, with a token and the Wi-Fi connected, and collects
- * its result; nothing is ever shown.
+ * an upload (patch/scrobup.c, owner SCROBUP_AUTO) starts as soon as a listen waits (one logged this boot, or the log earlier boots left), with an account and the Wi-Fi
+ * connected, and its result is collected; nothing is ever shown. Its clocks are scrobble_note and scrobble_auto_tick, the status bar's tick (bp_capacity, patch/battery.c).
  * scrobble_auto_collect: an automatic upload that is over is polled and its result applied, silently (nothing happens while it runs, or for somebody else's job). The
  * settings pages call it before they look at the worker, so that a job the poll did not collect (the music stopped) does not block the user's upload. */
 int scrobble_auto_setting(void);
 int scrobble_auto_toggle(void);
 void scrobble_auto_collect(void);
+void scrobble_auto_tick(void);
 
 /* The log, and the lock every writer of it holds: the UI thread's append of one line (open to close, nothing else), and the upload thread's reads and its one rewrite
  * (patch/scrobup.c). Never held across a network call. */

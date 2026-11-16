@@ -22,9 +22,9 @@
  * The setting (Settings > Library > Scrobbling, SCROBBLE_FILE: "1" on, anything else or no file OFF, the default) is read once, by the first poll, and kept in RAM; while it
  * is off the poll returns before it asks the player, and the hook (which never reads a file) does nothing until a poll has read it on.
  *
- * The automatic upload (sa_*, docs/modules/scrobble.md "Automatic upload") has no clock but the poll: sc_line counts the listens it writes, and scrobble_note, while any
- * are counted, looks once a minute at most whether an upload (patch/scrobup.c, owner SCROBUP_AUTO) may start, and collects its result. Nothing of it runs at boot, in the
- * main loop or from the tag reader's hook; with nothing counted the poll pays two compares for it.
+ * The automatic upload (sa_*, docs/modules/scrobble.md "Automatic upload") has two clocks, the poll and the status bar's tick (scrobble_auto_tick, from bp_capacity): sc_line
+ * counts the listens it writes, and while any are counted (or the log of earlier boots has not been looked at) a look every SA_EVAL at most starts an upload
+ * (patch/scrobup.c, owner SCROBUP_AUTO) as soon as the Wi-Fi is connected, and collects its result. Nothing of it runs in the main loop or from the tag reader's hook.
  */
 #include "offsets.inc"
 #include "stock.h"
@@ -84,10 +84,12 @@ static struct {
     int stop; /* no more automatic uploads this boot: one had listens refused and none taken */
     int fail; /* the last one failed, or could not start: none before fail_ms + SA_RETRY */
     unsigned
-        pending; /* the listens written since the last automatic upload that went through (those of earlier boots are not counted: they go with the first upload) */
+        pending; /* the listens written since the last automatic upload that went through, plus one for a log earlier boots left (sa_old) */
     unsigned took; /* pending at the job's start */
-    unsigned first_ms; /* time_now_ms of the first of them */
-    unsigned eval_ms, fail_ms, start_ms; /* the last look at the conditions, the last failure, the job's start */
+    int old; /* the log earlier boots left has been looked at (once a boot, at the first look with the Wi-Fi connected and a card mounted) */
+    int none; /* the last look found no usable account: scrobble.ini is not read again before none_ms + SA_ACCOUNT */
+    unsigned eval_ms, fail_ms,
+        none_ms; /* the last look at the conditions, the last failure, the last look that found no account */
 } sau __attribute__((used, section(".scratch"))); /* (used: kept as one object, the tests read it) */
 
 static int sa_on(void) {
@@ -119,37 +121,58 @@ void scrobble_auto_collect(void) {
     sau.job = 0, sau.fail = 0;
     if (!sent && scrobup_rejected() > 0)
         sau.stop = 1; /* the service takes nothing: the log is not drained into .rejected run after run */
-    if (r == SCROBUP_OK) { /* what was logged meanwhile still waits */
+    if (r == SCROBUP_OK) /* what was logged meanwhile still waits */
         sau.pending = sau.pending > sau.took ? sau.pending - sau.took : 0;
-        sau.first_ms = sau.start_ms;
-    } else if (r != SCROBUP_AUTH)
+    else if (r != SCROBUP_AUTH)
         sau.fail = 1, sau.fail_ms = time_now_ms();
 }
 
-/* From the poll, while listens wait or a job runs. Once SA_EVAL at most: Auto Upload on, the first waiting listen SA_WAIT old, SA_RETRY since a failure, no job, no USB
- * mode, the Wi-Fi connected (it is never switched on), a service that is set up and not refused (ListenBrainz or Last.fm). scrobup_start looks at the kill switch and the card. */
+/* The log earlier boots left (listens logged without Wi-Fi, or before a switch-off): one open a boot, and it waits as one listen when it holds more than its header. */
+static void sa_old(void) {
+    int fd;
+    if (!m1_card_mounted())
+        return; /* no card yet: looked for again at the next look, so a card put in later has its log found */
+    sau.old = 1;
+    if (sau.pending) return;
+    fd = open(SC_LOG, O_RDONLY, 0);
+    if (fd < 0) return;
+    if (lseek(fd, 0, 2) > (int)sizeof SC_HEADER - 1) sau.pending = 1;
+    close(fd);
+}
+
+/* The automatic upload's clock: the poll (scrobble_note, lit and dark) and the status bar's tick (scrobble_auto_tick: any page, playing or not, and at once at a wake). With
+ * Auto Upload off the tick costs one compare; on, with nothing waiting and the old log looked at, three (the poll calls only while a listen waits or a job runs). Otherwise once SA_EVAL at most: SA_RETRY since a failure, SA_ACCOUNT since
+ * a look that found no account, the Wi-Fi connected (it is never switched on), no USB mode, no job, a service that is set up and not refused (ListenBrainz or Last.fm). There is no wait for more listens: a
+ * connection seen is used at once, as the Wi-Fi may be gone when the screen is. scrobup_start looks at the kill switch and the card. */
 static void sa_tick(void) {
     unsigned now;
     if (sau.job) {
         scrobble_auto_collect();
         return;
     }
-    if (sau.stop || !sa_on()) return;
+    if (sau.stop || !sa_on() || (!sau.pending && sau.old)) return;
     now = time_now_ms();
     if (now - sau.eval_ms < SA_EVAL * 1000u) return;
     sau.eval_ms = now;
-    if (now - sau.first_ms < SA_WAIT * 1000u || (sau.fail && now - sau.fail_ms < SA_RETRY * 1000u)) return;
-    if (scrobup_busy() || navigator_window_is_exist(SCROBUP_USB_PAGE) || get_wifisignal() <= 0) return;
-    /* the card's scrobble.ini as it is now (it may have been written on a computer since it was last read): one read a look that gets this far, so one a minute at most
-     * and only while there is no usable account (with one the upload starts here). No card is no account */
+    if ((sau.fail && now - sau.fail_ms < SA_RETRY * 1000u) || (sau.none && now - sau.none_ms < SA_ACCOUNT * 1000u))
+        return;
+    if (get_wifisignal() <= 0 || navigator_window_is_exist(SCROBUP_USB_PAGE))
+        return; /* (in USB mode the computer has the card) */
+    if (!sau.old) sa_old();
+    if (!sau.pending || scrobup_busy()) return;
+    /* the card's scrobble.ini as it is now (it may have been written on a computer since it was last read): one read a look that gets this far, so one every SA_ACCOUNT at
+     * most and only while there is no usable account (with one the upload starts here). No card is no account */
     scrobup_forget();
-    if (!scrobup_usable()) return;
-    sau.took = sau.pending, sau.start_ms = now;
+    sau.none = !scrobup_usable(), sau.none_ms = now;
+    if (sau.none) return;
+    sau.took = sau.pending;
     if (scrobup_start(SCROBUP_AUTO) == 1)
         sau.job = 1;
     else
-        sau.fail = 1, sau.fail_ms = now; /* the kill switch, no card, no thread: not every minute */
+        sau.fail = 1, sau.fail_ms = now; /* the kill switch, no card, no thread: not at every look */
 }
+
+void scrobble_auto_tick(void) { sa_tick(); }
 
 /* ---------------------------------------------------------------------------
  * The listens
@@ -215,7 +238,7 @@ static int sc_line(unsigned now_ms) {
     fsync(fd);
     close(fd);
     scrobble_unlock();
-    if (w > 0 && !sau.pending++) sau.first_ms = now_ms; /* the automatic upload's count */
+    if (w > 0) ++sau.pending; /* the automatic upload's count */
     return w > 0 ? 0 : -1;
 }
 
@@ -275,7 +298,7 @@ void scrobble_note(void *t) {
     unsigned key, now;
     int pos = 0, len = 0, cue;
     if (sau.job || sau.pending)
-        sa_tick(); /* the automatic upload: nothing but these two compares while no listen waits */
+        sa_tick(); /* the automatic upload: nothing but these two compares while no listen waits (the log of earlier boots is the status bar tick's to look at) */
     if (!t || !sc_on()) { /* (for a moment between two tracks the player has none) */
         sc.run = 0; /* nothing is playing as far as this look can tell */
         return;

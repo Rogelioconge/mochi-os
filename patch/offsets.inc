@@ -774,9 +774,9 @@
 #define SU_UP_LINE 192       /* an upload record line, at most */
 #define SU_INI_MAX 4096      /* the card's scrobble.ini: a longer file is never rewritten (a token typed on the device, a user name and Sign Out are refused), and only the whole lines of its first 4096 bytes are read */
 /* The automatic upload (patch/scrobble.c sa_*): seconds */
-#define SA_EVAL 60            /* the conditions are looked at once a minute at most */
-#define SA_WAIT 600           /* the oldest listen not uploaded yet must be this old: one upload for a run of tracks, not one a track */
-#define SA_RETRY 1800         /* after an upload that failed (or could not start) the next one waits this long */
+#define SA_EVAL 10            /* the conditions are looked at this often at most: a connection that comes back with the screen is caught while it is lit */
+#define SA_ACCOUNT 60         /* with no usable account the card's scrobble.ini is read again this often at most */
+#define SA_RETRY 300          /* after an upload that failed (or could not start) the next one waits this long */
 
 
 /* ---------------------------------------------------------------------------
