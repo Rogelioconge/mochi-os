@@ -154,7 +154,6 @@ and Reset.
   Index), where podcast searches and show look-ups go; **Podcast Region**. Discover's charts
   always come from Apple. Directory and Region are dimmed while Podcast Discover is off.
 - **Scrobbling**: see Scrobbling under [Extras](#extras).
-- **CD Ripping**, in its own card at the bottom, opens the player's ripping page.
 
 ### Now Playing
 

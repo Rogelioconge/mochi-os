@@ -128,11 +128,11 @@ def pages_tests(ctx):
            and (B.key, B.name, B.title) == ('m1plus_listenbrainz', 'm1plus_listenbrainz_page', 'ListenBrainz') and (F.key, F.name, F.title) == ('m1plus_lastfm', 'm1plus_lastfm_page', 'Last.fm')
            and (S.key, S.name, S.title) == ('m1plus_scrobbling', 'm1plus_scrobbling_page', 'Scrobbling'), 'the Scrobbling, ListenBrainz and Last.fm pages are in the page table under their keys')
     lay = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in L.layout]
-    expect(lay[-4:-2] == ['Podcasts', 'Scrobbling'] and lay[-2] is P.GAP and lay[-1] == 'CD Ripping',
-           f'the Library page ends with a card of two rows, Podcasts and Scrobbling, then CD Ripping in a card of its own ({lay[-4:]})')
-    expect([(r.label, r.action, r.arg, P.row_kind(r)) for r in L.rows[-2:-1]] == [('Scrobbling', P.ACT_SCROBPAGE, P.SCROBBLING_PAGE_INDEX, 'value')] and P.ACT_SCROBPAGE in P.VALUE_ACTIONS and P.VALUE_INIT[P.ACT_SCROBPAGE] == 'Off'
-           and not {P.ACT_SCROBBLE, P.ACT_LB, P.ACT_LF, P.ACT_LBAUTO, P.ACT_SCROBUP} & {r.action for r in L.rows} and len(L.rows) == 12 and ST.pieces(L.layout)[-3:] == ['top', 'bot', 'single'],
-           'a value row (Off at rest) opening the Scrobbling page, the second row of the last card (under Podcasts); no account, upload or switch rows left on the Library page')
+    expect(lay[-2:] == ['Podcasts', 'Scrobbling'],
+           f'the Library page ends with a card of two rows, Podcasts and Scrobbling ({lay[-2:]})')
+    expect([(r.label, r.action, r.arg, P.row_kind(r)) for r in L.rows[-1:]] == [('Scrobbling', P.ACT_SCROBPAGE, P.SCROBBLING_PAGE_INDEX, 'value')] and P.ACT_SCROBPAGE in P.VALUE_ACTIONS and P.VALUE_INIT[P.ACT_SCROBPAGE] == 'Off'
+           and not {P.ACT_SCROBBLE, P.ACT_LB, P.ACT_LF, P.ACT_LBAUTO, P.ACT_SCROBUP} & {r.action for r in L.rows} and len(L.rows) == 11 and ST.pieces(L.layout)[-2:] == ['top', 'bot'],
+           'a value row (Off at rest) opening the Scrobbling page, the last row (under Podcasts); no account, upload or switch rows left on the Library page')
     slay = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in S.layout]
     expect(slay == ['Scrobbling', 'Saved to .scrobbler.log on the card.', 'ListenBrainz', 'Last.fm', P.GAP, 'Auto Upload', 'Upload Scrobbles', P.LB_AUTO_NOTE] and ST.pieces(S.layout) == ['single', 'top', 'bot', 'top', 'bot'],
            f'the Scrobbling page: the switch and its note, the two accounts, Auto Upload and Upload Scrobbles with their note ({slay})')
@@ -146,9 +146,9 @@ def pages_tests(ctx):
     expect(P.LB_AUTO_NOTE == 'Uploads on Wi-Fi while music plays.' and P.ACT_LBAUTO in P.SWITCH_ACTIONS and P.ACT_SCROBBLE in P.SWITCH_ACTIONS, 'both switches are switch rows')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Scrobbling', 'ListenBrainz', 'Last.fm', 'Upload Scrobbles', 'Auto Upload')] == ['list-music', '+musicbrainz:filled', '+lastdotfm:filled', 'upload', 'clock'], 'the glyphs: list-music, the MusicBrainz and Last.fm marks (filled, one colour), upload and clock')
     lt = awtk_ui.parse(open(os.path.join(UI, L.key + '.bin'), 'rb').read())
-    r_sc = lt.find(f'pod_row{len(L.rows) - 2}')
-    expect(r_sc.find('pod_icon').get('image') == 'pod_ci_list_music' and r_sc.find('pod_chevron') is not None and r_sc.find(f'pod_value{len(L.rows) - 2}').get('tr_text') == 'Off'
-           and r_sc.find(f'pod_label{len(L.rows) - 2}').get('tr_text') == 'Scrobbling' and r_sc.find(f'pod_switch{len(L.rows) - 2}') is None,
+    r_sc = lt.find(f'pod_row{len(L.rows) - 1}')
+    expect(r_sc.find('pod_icon').get('image') == 'pod_ci_list_music' and r_sc.find('pod_chevron') is not None and r_sc.find(f'pod_value{len(L.rows) - 1}').get('tr_text') == 'Off'
+           and r_sc.find(f'pod_label{len(L.rows) - 1}').get('tr_text') == 'Scrobbling' and r_sc.find(f'pod_switch{len(L.rows) - 1}') is None,
            'the Library asset: the Scrobbling row has its glyph, a value (Off at rest) and the chevron, no switch')
     st = awtk_ui.parse(open(os.path.join(UI, S.key + '.bin'), 'rb').read())
     r_sw, r_lb, r_lf, r_au, r_up = (st.find(f'pod_row{i}') for i in range(5))
@@ -317,7 +317,7 @@ def open_tests(ctx):
 def library_tests(ctx):
     """The Library page's one Scrobbling row: On or Off as the switch on the Scrobbling page, a tap opens that page, and the value is right when the page is in front again."""
     expect = ctx.expect
-    R = len(P.LIBRARY_PAGE.rows) - 2
+    R = len(P.LIBRARY_PAGE.rows) - 1
     m = machine(name='rob', log=log_text(2))
     m.opened = open_page(m, P.LIBRARY_PAGE)
     expect(value(m, R) == 'Off' and not [c for c in m.opened if c[0] == 'timer_add'] and lbs(m, 'pages') == 0 and not m.site.reqs and getattr(m, 'job', None) is None,

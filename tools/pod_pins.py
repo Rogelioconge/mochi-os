@@ -896,10 +896,10 @@ TFUPDATE_PINS = (   # (address, stock word, what it proves)
     (0x4a6d18, 0x24c67160, 'widget walk: a2 = 0x4a7160 (the delay slot): the row\'s click handler is the one called here'),
 )
 # Settings > General's direct rows (docs/modules/settings.md "General"): the stock pages ACT_STOCK opens (a plain navigator_to of the name, no context; the payload's own table holds the names, these pins
-# prove each name is the one stock's own list or hub uses). The usbset and rippingset pages have no opener in V2.1 other than the page registry (0x4d0c10, 0x4d0464: the init dispatcher by name).
+# prove each name is the one stock's own list or hub uses). The usbset page has no opener in V2.1 other than the page registry (0x4d0c10: the init dispatcher by name).
 STOCKROWS_PINS = (   # (address, stock word, what it proves)
     (0x4b13f0, 0x0320f809, 'the SyncLink hub row (0x4b13d0): jalr navigator_to'), (0x4b13f4, 0x24848ee8, 'its delay slot: a0 = "systemset/synclink_page"'),
-    (0x4d0c10, 0x24a59f14, 'page registry: a1 = "systemset/usbset_page" (strcmp, then systemset_usbset_page_init)'), (0x4d0464, 0x24a59e70, 'page registry: a1 = "systemset/rippingset_page" (strcmp, then systemset_rippingset_page_init)'),
+    (0x4d0c10, 0x24a59f14, 'page registry: a1 = "systemset/usbset_page" (strcmp, then systemset_usbset_page_init)'),
 )
 PLAYLIST_IMPORT, PLAYLIST_EXPORT = 0x53dedc, 0x53dd34
 PLAYLIST_PINS = (   # (address, stock word, what it proves)

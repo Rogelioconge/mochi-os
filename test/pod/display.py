@@ -198,7 +198,7 @@ def settings_tests(ctx):
     expect(el == ['Off', 'Green', 'Blue', 'Dynamic', P.GAP, 'Follow Screen', 'The light is off while the screen is off', 'Theme'], f'LED Light: the choices; Follow Screen in a card of its own with its note under it; Theme in the card after the note, last (hidden, it leaves nothing to move) ({el})')
     expect((P.ACT_LIGHT, P.ACT_LIGHTSET, P.ACT_LED, P.ACT_LEDSET, P.ACT_LEDFOLLOW) == (97, 98, 99, 100, 101) and {P.ACT_LIGHT, P.ACT_LED} <= set(P.VALUE_ACTIONS) and {P.ACT_LIGHTSET, P.ACT_LEDSET} <= set(P.CHECK_ACTIONS)
            and P.ACT_LEDFOLLOW in P.SWITCH_ACTIONS, 'the actions')
-    expect(len(P.STOCK_PAGES) == 5 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
+    expect(len(P.STOCK_PAGES) == 4 and not any(n.split('/')[-1] in ('display_page', 'brightness_page', 'lighttime_page', 'atmosphereled_page', 'screensaver_page') for n, *_ in P.STOCK_PAGES)
            and not [r for r in D.rows if r.action == P.ACT_STOCK] and not any(r.label == 'Lock Screen' for r in P.APPEARANCE_PAGE.rows),
            'no row opens stock\'s Display list or any of its four pages; Lock Screen is on Display only')
     stock_ui = os.path.join(paths.find_stock(), 'rootfs/release/assets/default/raw/ui')

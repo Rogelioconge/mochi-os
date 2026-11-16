@@ -56,7 +56,6 @@ STOCK = {
     # the Audio Codec page's five stock rows (the same brand text in every table; the three LDAC rows are ours)
     'btcode_aptxhd': 'aptX HD', 'btcode_aptx': 'aptX', 'btcode_aac': 'AAC', 'btcode_sbchq': 'SBC HQ', 'btcode_sbc': 'SBC',
     'msg_wifi_open': 'Bluetooth audio may stutter while Wi-Fi is on.',
-    'system_rippingset': 'CD Ripping',   # Settings > Library's CD Ripping row (stock's own title of its page, translated in every table)
     'wifiset_synclink': 'SyncLink',      # ... Network Services' SyncLink (the same word in every table)
     'system_language': 'Language', # Settings > General > Language: the row (stock's own title of its Language page), translated in every table
     # the language list's thirteen rows (Settings > General > Language, patch/language.c): each language's own name, the same text in every table

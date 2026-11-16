@@ -216,16 +216,15 @@ VALUE_INIT.update({ACT_DTZONE: 'GMT+8 Shanghai', ACT_DTDATE: '', ACT_DTTIME: '',
 # The stock pages ACT_STOCK opens: (the name navigator_to takes = ui/<name>.bin, the value the row shows at the right: the payload reads the stock state, patch/m1plus.c VK_*, or None).
 # Each is a plain navigator_to(name) with no context in stock (docs/modules/settings.md "Stock pages"): the Settings list's rows, the Wi-Fi hub's two; Back returns to our page.
 # (The EQ row is ACT_PEQ: our Equalizer page, docs/modules/peq.md; stock's playset/equalizer_page is retired: its one caller opens the 10-Band editor, tools/pod.py EQ_ROW.)
-STOCK_WIFI, STOCK_BLUETOOTH, STOCK_USB, STOCK_RIPPING, STOCK_SYNCLINK = range(5)
+STOCK_WIFI, STOCK_BLUETOOTH, STOCK_USB, STOCK_SYNCLINK = range(4)
 # (navigator path, value shown, window name): the window name is the asset's root widget name, which m1_open_stock restacks an opened window of instead of stacking a second one; None: always a new window.
 # Only a page whose init does nothing that a restack would not redo has one (docs/modules/settings.md "Stock pages"); the two pages of the direct rows (USB Mode, SyncLink) have one (below). Wi-Fi: its init scans (wifi_scan) on every open and the foreground handler only rebuilds the list from the old results.
 # Bluetooth: its background handler stops discovery (btStopSearch) and the foreground handler does not restart it, only init does.
 # Stock's Display list (systemset/display_page) and its four pages are not linked: Settings > Display is our own page (DISPLAY_PAGE); they stay under All System Settings.
-# The direct rows (USB Mode on Playback Settings, CD Ripping on Library, SyncLink on Network Services) are plain navigator_to rows too (STOCKROWS_PINS in tools/pod_pins.py). The pages whose init binds no EVT_WINDOW_TO_FG / TO_BG handler (usbset, synclink:
+# The direct rows (USB Mode on Playback Settings, SyncLink on Network Services) are plain navigator_to rows too (STOCKROWS_PINS in tools/pod_pins.py). The pages whose init binds no EVT_WINDOW_TO_FG / TO_BG handler (usbset, synclink:
 # read off the inits' widget_on calls, only EVT_CLICK) name their window: the top-right Now Playing button leaves such a page in the stack, and a restack of it is a plain bring-to-front, so a second tap does not stack a second window.
-# rippingset's init binds both events (0x12d / 0x12c), so it is opened afresh like Wi-Fi and Bluetooth.
 STOCK_PAGES = (('systemset/wifi_page', 'wifi', None), ('systemset/bluetooth_page', 'bluetooth', None),
-               ('systemset/usbset_page', None, 'usbset_page'), ('systemset/rippingset_page', None, None), ('systemset/synclink_page', None, 'synclink_page'))
+               ('systemset/usbset_page', None, 'usbset_page'), ('systemset/synclink_page', None, 'synclink_page'))
 STOCK_VALUES = ('wifi', 'bluetooth', 'eq')   # the VK_* of patch/m1plus.c, in this order ('eq': the EQ row's value, ACT_PEQ)
 
 # ACT_SHUFFLE arguments (mirror the enum in patch/shuffle.c)
@@ -708,7 +707,7 @@ SETTINGS_PAGE = Page('m1plus_settings', 'm1plus_settings_page', 'Settings', layo
     Row('Developer', ACT_PAGE, DEVELOPER_PAGE_INDEX),
 ])
 
-# Settings > General: two cards: About and Software Update (our own pages), then Date & Time, Keyboards and Language (links to their own pages). USB Mode sits on Playback Settings, CD Ripping on Library,
+# Settings > General: two cards: About and Software Update (our own pages), then Date & Time, Keyboards and Language (links to their own pages). USB Mode sits on Playback Settings,
 # SyncLink on Network Services; the other stock pages (Firmware Update, Regulatory, Format Storage, Reset) stay reachable through All System Settings on the Settings root.
 GENERAL_PAGE = Page('m1plus_general', 'm1plus_general_page', 'General', layout=[
     Row('About', ACT_PAGE, ABOUT_PAGE_INDEX),
@@ -933,8 +932,6 @@ LIBRARY_PAGE = Page('m1plus_library', 'm1plus_library_page', 'Library', layout=[
     Note('In Cover Flow, the volume buttons move between albums.', lines=2),
     Row('Podcasts', ACT_PAGE, PCSET_PAGE_INDEX),   # the last card (after a note): a plain page link (ACT_PAGE), no value
     Row('Scrobbling', ACT_SCROBPAGE, SCROBBLING_PAGE_INDEX),   # On or Off; opens the Scrobbling page
-    GAP,
-    Row('CD Ripping', ACT_STOCK, STOCK_RIPPING),   # a card of its own: stock's rippingset page (always opened afresh); Back returns here
 ])
 # The album page (patch/albumpage.c, docs/modules/album-page.md): an album's tracks under the glass controls; opened by cc_open_album, never from a menu row.
 ALBUM_PAGE = Page('m1plus_album', 'm1plus_album_page', 'Album', kind='album')

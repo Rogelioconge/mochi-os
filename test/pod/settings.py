@@ -283,15 +283,15 @@ def stock_tests(ctx):
         expect([c for c in m.calls if c[0] == 'navigator_to'] == [('navigator_to', name)] and 'navigator_to_with_context' not in m.names() and opened == (['m1plus_wifi'] if label == 'Wi-Fi' else ['m1plus_bluetooth']),
                f'{label}: our page opens first and (here, an asset without its widgets) hands over to one plain navigator_to("{name}"), no context')
     # (the Home dispatcher's ids 16 and 17 are bound to the two rows: tests/pod/menu.py checks the table)
-    expect(len(P.STOCK_PAGES) == 5 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
-           'five stock pages; Settings opens two of them by ACT_STOCK rows (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests), the direct rows three (above)')
+    expect(len(P.STOCK_PAGES) == 4 and all(r.action == P.ACT_STOCK for r in S.rows if r.label in want) and [r.label for r in S.rows if r.action == P.ACT_STOCK] == list(want),
+           'four stock pages; Settings opens two of them by ACT_STOCK rows (Display is our own page, display/settings_tests; Lock Screen > Custom Wallpaper too, lockscreen/setting_tests), the direct rows two (above)')
     expect(not [r for r in P.DEVELOPER_PAGE.rows if r.action in (P.ACT_STOCK, P.ACT_HOME)], 'no Developer row is a stock page or opens stock\'s list (All System Settings is on the Settings root)')
     # The direct rows: each page by the plain navigator_to name read from the stock image at the string stock's own list or hub passes (STOCKROWS_PINS), no context
     G = P.GENERAL_PAGE
     gi = {r.label: i for i, r in enumerate(G.rows)}
-    # (USB Mode, CD Ripping and SyncLink are General's former rows: now on Playback Settings > Output, Library and Network Services; Back returns to the page the row is on)
-    homes = {'USB Mode': P.PSOUTPUT_PAGE, 'CD Ripping': P.LIBRARY_PAGE, 'SyncLink': P.NETSERVICE_PAGE}
-    for label, at in (('USB Mode', 0x749f14), ('CD Ripping', 0x749e70), ('SyncLink', 0x748ee8)):
+    # (USB Mode and SyncLink are General's former rows: now on Playback Settings > Output and Network Services; Back returns to the page the row is on)
+    homes = {'USB Mode': P.PSOUTPUT_PAGE, 'SyncLink': P.NETSERVICE_PAGE}
+    for label, at in (('USB Mode', 0x749f14), ('SyncLink', 0x748ee8)):
         H = homes[label]
         hi = [r.label for r in H.rows].index(label)
         m = settings_page_machine(H); m.calls = []
@@ -340,7 +340,7 @@ def general_tests(ctx):
     expect([(x.label, x.action, x.arg) for x in G.rows] == [('About', P.ACT_PAGE, P.ABOUT_PAGE_INDEX), ('Software Update', P.ACT_UPDATE, 0), ('Date & Time', P.ACT_PAGE, P.DATETIME_PAGE_INDEX),
                                                               ('Keyboards', P.ACT_PAGE, P.KEYBOARDS_PAGE_INDEX), ('Language', P.ACT_LANG, P.LANGUAGE_PAGE_INDEX)]
            and [P.row_kind(x) for x in G.rows] == ['link', 'link', 'link', 'link', 'value'] and G.layout[2] is P.GAP and len(G.layout) == 6
-           and not any(x.label in ('USB Mode', 'CD Ripping', 'SyncLink', 'Firmware Update', 'Regulatory', 'Format Storage', 'Reset', 'All System Settings') for x in G.rows),
+           and not any(x.label in ('USB Mode', 'SyncLink', 'Firmware Update', 'Regulatory', 'Format Storage', 'Reset', 'All System Settings') for x in G.rows),
            'the General page: About, Software Update, a gap, Date & Time, Keyboards, Language (a value row); no stock-page rows, no All System Settings (it is on the Settings root)')
     m = settings_page_machine(G)
     expect(('window_open', G.key) in m.calls, 'the Settings row opens the General page')

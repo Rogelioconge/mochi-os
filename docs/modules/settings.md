@@ -18,7 +18,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Bluetooth | our Bluetooth page | [bluetooth](bluetooth.md) |
 | | Network Services | AirPlay and DLNA switches, SyncLink, Wi-Fi Transfer; stock's page stays under All System Settings | [wifi-transfer](wifi-transfer.md) |
 | | Home Screen | Recent Albums, Daily Mix, Main Menu / Extras, Regenerate Daily Mix | [dailymix](dailymix.md), [menu](menu.md) |
-| | Library | Update Library, Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling, CD Ripping | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
+| | Library | Update Library, Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
 | | Now Playing | Cassette Theme, Lyrics Text Size, Idle Display | [tape](tape.md), [bigcover](bigcover.md) |
 | **Playback** | EQ | our Equalizer page | [peq](peq.md) |
 | | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [nextalbum](nextalbum.md) |
@@ -106,7 +106,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   - **Cover Flow:** Landscape and **Volume Buttons** (`coverflow_volkeys`; two-line note "In Cover Flow,
     the volume buttons move between albums.").
   - Last card: **Podcasts** (link row, no value) and **Scrobbling** (value row On / Off, opens
-    [scrobble](scrobble.md#settings)), then after a gap **CD Ripping** (stock's ripping page).
+    [scrobble](scrobble.md#settings)).
   - The album order is set on the Albums "..." card ([albums](albums.md)), not here.
 - **Library > Podcasts** (`m1plus_podcastsettings`): Podcast Discover switch (on by default; off hides the
   Discover row and the search level), Podcast Directory (Apple Podcasts or Podcast Index) and Podcast
@@ -310,16 +310,15 @@ Settings** (stock's whole list, the fallback to every stock page) is on the Sett
 card above Developer. Firmware Update, Regulatory, Format Storage and Reset are reachable only through it:
 they are rarely used, and Software Update gets the top-level spot next to About.
 
-- **USB Mode, CD Ripping and SyncLink** are direct rows on other pages: USB Mode above USB Volume on
-  Playback Settings, CD Ripping the last row of Library, SyncLink the first row of Network Services'
+- **USB Mode and SyncLink** are direct rows on other pages: USB Mode above USB Volume on
+  Playback Settings, SyncLink the first row of Network Services'
   second card ([wifi-transfer](wifi-transfer.md)).
-- **Labels:** USB Mode, CD Ripping and SyncLink use stock's words.
+- **Labels:** USB Mode and SyncLink use stock's words.
 - **Rows** are `ACT_STOCK` (a plain `navigator_to`, nothing saved):
 
   | Row | Opens |
   |---|---|
   | USB Mode | `systemset/usbset_page` (USB Storage / DAC / Audio) |
-  | CD Ripping | `systemset/rippingset_page` (always opened afresh) |
   | SyncLink | `systemset/synclink_page` |
 
 ## About

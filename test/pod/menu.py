@@ -1239,7 +1239,7 @@ def library_tests(ctx, on_row):
     vk_i = next(i for i, r in enumerate(C.rows) if r.action == P.ACT_VOLKEYS)
     vsw, VK = f'pod_switch{vk_i}', '/mnt/data/m1plus/coverflow-volume-keys'
     sw = f'pod_switch{land_i}'
-    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_HOME), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE), ('CD Ripping', P.ACT_STOCK)]
+    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_HOME), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE)]
            and C.title == 'Library' and C.rows[0].arg == P.HOME_UPDATE and P.row_kind(C.rows[0]) == 'action',
            'the Library page: one card of Update Library (the stock page, no chevron), Rebuild Covers, Rebuild Artist Photos, then the List Navigation switches (Index Rail, Section Headers), Folder Album Cover (a switch) under Folders, Landscape and Volume Buttons (switches, the second with its note) under Cover Flow, and the last card of two rows: Podcasts (a plain page link, no value) and Scrobbling (a value, On or Off)')
 
@@ -1257,7 +1257,7 @@ def library_tests(ctx, on_row):
     expect(('window_open', C.key) in m.calls and all(('widget_on', m.widgets[f'pod_row{i}'], O['EVT_CLICK']) in [c[:3] for c in m.calls] for i in range(len(C.rows))),
            'the Library row opens the page and binds every row')
     pc_i = next(i for i, r in enumerate(C.rows) if r.action == P.ACT_PAGE and r.arg == P.PCSET_PAGE_INDEX)
-    expect(C.rows[pc_i].label == 'Podcasts' and P.row_kind(C.rows[pc_i]) == 'link' and P.PAGES[P.PCSET_PAGE_INDEX] is P.PCSET_PAGE and P.PCSET_PAGE.title == 'Podcasts' and pc_i == len(C.rows) - 3 and C.rows[-1].label == 'CD Ripping' and C.layout[-2] is P.GAP,
+    expect(C.rows[pc_i].label == 'Podcasts' and P.row_kind(C.rows[pc_i]) == 'link' and P.PAGES[P.PCSET_PAGE_INDEX] is P.PCSET_PAGE and P.PCSET_PAGE.title == 'Podcasts' and pc_i == len(C.rows) - 2 and C.rows[-1].label == 'Scrobbling',
            'the Podcasts row is a plain page link just above Scrobbling')
     mp = open_lib(); mp.click(f'pod_row{pc_i}')
     expect(('window_open', P.PCSET_PAGE.key) in mp.calls, 'a tap on the Podcasts row opens the Podcasts page')

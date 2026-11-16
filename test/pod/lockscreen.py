@@ -463,7 +463,7 @@ def setting_tests(ctx):
            'the Player Style picker: Large Cover, Mini Player (checks) and the note')
     expect((P.ACT_LOCKSTYLE, P.ACT_LOCKTIME) == (85, 86) and P.ACT_LOCKSTYLE in P.VALUE_ACTIONS and P.ACT_LOCKTIME in P.SWITCH_ACTIONS and P.VALUE_INIT[P.ACT_LOCKSTYLE] == 'Large Cover', 'Player Style is action 85 (a value row), Show Time 86 (a switch row)')
     IP = P.LOCKINFO_PAGE
-    expect(len(P.STOCK_PAGES) == 5 and not any('screensaverabout' in n for n, *_ in P.STOCK_PAGES) and not hasattr(P, 'STOCK_LOCKINFO') and P.PAGES[P.LOCKINFO_PAGE_INDEX] is IP
+    expect(len(P.STOCK_PAGES) == 4 and not any('screensaverabout' in n for n, *_ in P.STOCK_PAGES) and not hasattr(P, 'STOCK_LOCKINFO') and P.PAGES[P.LOCKINFO_PAGE_INDEX] is IP
            and IP.key == 'm1plus_lockinfo' and IP.title == 'Custom Wallpaper' and IP.kind == 'relnotes' and P.row_kind(L.rows[4]) == 'link',
            'the instructions row is a link (ACT_LOCKINFO 87) to our own Release Notes page (titled like the row); stock\'s screensaverabout_page is no longer a stock row')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Show Time', 'Player Style', 'Custom Wallpaper')] == ['clock', 'square-play', 'info'] and all(mod_icons.card_name(g) in mod_icons.CARD_IMAGES for g in ('clock', 'square-play', 'info')),

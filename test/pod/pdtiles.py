@@ -866,9 +866,9 @@ def stockopen_tests(ctx):
 
     kinds = lambda m: [c for c in m.calls if c[0] in ('navigator_to', 'switch_to', 'to_fg')]
     names = [(path, window) for path, _, window in P.STOCK_PAGES]
-    fresh = {'systemset/bluetooth_page', 'systemset/wifi_page', 'systemset/rippingset_page'}
-    expect(len(names) == 5 and {p for p, w in names if w is None} == fresh and {w for p, w in names if w} == {'usbset_page', 'synclink_page'},
-           'the stock pages a Settings row opens: Bluetooth (its background handler stops discovery and only init restarts it), Wi-Fi (init scans on every open, the foreground handler only rebuilds the list) and CD Ripping (its init binds both window events) are opened afresh each time; the two pages of the USB Mode and SyncLink rows (no window event bound) are restacked')
+    fresh = {'systemset/bluetooth_page', 'systemset/wifi_page'}
+    expect(len(names) == 4 and {p for p, w in names if w is None} == fresh and {w for p, w in names if w} == {'usbset_page', 'synclink_page'},
+           'the stock pages a Settings row opens: Bluetooth (its background handler stops discovery and only init restarts it), Wi-Fi (init scans on every open, the foreground handler only rebuilds the list) are opened afresh each time; the two pages of the USB Mode and SyncLink rows (no window event bound) are restacked')
     for path, window in names + [('systemset/display_page', 'display_page')]:   # (a page that names its window, the last component of its path: stock\'s Display list, which no row of ours opens now, as the model of the restack)
         if window is None: continue
         m = SF([H, PL])
@@ -913,7 +913,7 @@ def stockopen_tests(ctx):
 
     # -- every page: what init does per open (STOCK_LIFE: wifi_scan with Wi-Fi on, btStartSearch with Bluetooth on) has happened again after open, Now Playing button, reopen,
     #    whether through a fresh init or through the foreground handler
-    per_open = {'wifi_page': 'wifi_scan', 'bluetooth_page': 'bt_search', 'rippingset_page': None, 'usbset_page': None, 'synclink_page': None}
+    per_open = {'wifi_page': 'wifi_scan', 'bluetooth_page': 'bt_search', 'usbset_page': None, 'synclink_page': None}
     for path, _, window in P.STOCK_PAGES:
         page = path.split('/')[-1]
         m = SF([H, PL]); m.bt_on = True
