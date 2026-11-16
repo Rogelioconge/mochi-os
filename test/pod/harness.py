@@ -1353,6 +1353,12 @@ class Machine:
             self.calls.append(('curl_easy_cleanup', a0)); self.curl.pop(a0, None)
         elif name == 'pthread_detach':
             self.calls.append(('pthread_detach', a0))
+        elif name == 'clock_gettime':   # patch/batthist.c: clock_ids[1] CLOCK_MONOTONIC, [7] CLOCK_BOOTTIME (seconds; a test sets them, the default is 0 for both); a clock in `fail` errs
+            self.calls.append(('clock_gettime', a0))
+            if ('clock_gettime', a0) in self.fail: ret = -1
+            else: self.u.mem_write(a1, struct.pack('<ii', getattr(self, 'clock_ids', {}).get(a0, 0), 0))
+        elif name == 'mclGetPlayStatus':   # the player's status word: 1 stopped, 2 playing, 3 paused (a test sets play_status)
+            ret = getattr(self, 'play_status', 1)
         elif name == 'sleep':
             self.calls.append(('sleep', a0)); self.wall += a0
             if getattr(self, 'on_sleep', None): self.on_sleep(len([c for c in self.calls if c[0] == 'sleep']))   # a test's way to act while the worker waits (the number of sleeps so far)

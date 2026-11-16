@@ -273,6 +273,21 @@ the next start).
   bar and on the lock screen.
 - **Charge Limit**: stop charging at 80, 85, 90 or 95 % while the player is on, and resume about
   5 % lower. 100 % (the default) is no limit. A switched-off player charges fully.
+- **Battery History** (shows On or Off) opens its own page. Its switch is off by default: it keeps
+  the last 24 hours of battery level and use on the player, and turning it off deletes them. While
+  it is on, the charts appear under the switch (the first 15 minutes show a short note instead):
+  - **Since Last Charge** (first, once the charger has been unplugged with the history on): when it
+    was unplugged and the level then, the total time on battery since (it can be longer than a
+    day), the level now, and a bar split into **Screen On**, **Playing, Screen Off** and
+    **Standby**, with the time of each. The three never overlap; idle time counts as Standby.
+    The counters stand still while the charger is connected.
+  - **Last 24 Hours**: a bar for every half hour: grey, green while charging, red at 20 % or
+    less; no bar where nothing was recorded.
+  - **Activity**: a stacked bar for every hour (screen on in light grey, playing with the screen
+    off in mid grey), with a faint band behind the hours on the charger.
+  - **On Battery**: for Screen On, Playing, Screen Off and Standby, how long and about how much
+    of the battery it used (for example "~12%"), estimated from the battery gauge's whole
+    percents. Time on the charger is left out.
 
 ### Developer
 

@@ -604,6 +604,43 @@ TEXT = dict([
     _t('The exact charge beside the battery icon', '电池图标旁显示精确电量', '電池圖示旁顯示精確電量', 'バッテリーアイコンの横に正確な残量を表示', '배터리 아이콘 옆에 정확한 잔량 표시',
        'La charge exacte à côté de l’icône', 'Der genaue Ladestand neben dem Symbol', 'La carga exacta junto al icono', 'La carica esatta accanto all’icona',
        'ระดับแบตที่แน่นอนข้างไอคอน', 'Dokładny poziom obok ikony', 'Точный заряд рядом со значком', 'Точний заряд поруч зі значком'),
+    # Battery History (patch/batthist.c, docs/modules/batthist.md): Settings > Battery
+    _t('Battery History', '电池记录', '電池記錄', 'バッテリー履歴', '배터리 기록', 'Suivi batterie', 'Akkuverlauf',
+       'Historial batería', 'Storico batteria', 'ประวัติแบตเตอรี่', 'Historia baterii', 'История заряда', 'Історія батареї'),
+    _t('Keeps the last 24 hours of battery level and use. Turning it off deletes them.', '保留最近 24 小时的电量和使用情况。关闭后会删除这些记录。', '保留最近 24 小時的電量和使用情況。關閉後會刪除這些記錄。',
+       '過去24時間のバッテリー残量と使用状況を保存します。オフにすると削除されます。', '최근 24시간의 배터리 잔량과 사용 내역을 보관합니다. 끄면 삭제됩니다.',
+       'Garde 24 h de niveau et d’usage. La désactivation les supprime.', 'Speichert Akkustand und Nutzung der letzten 24 Std. Ausschalten löscht sie.',
+       'Guarda el nivel de batería y el uso de las últimas 24 horas. Al desactivarlo se eliminan.', 'Conserva livello e uso delle ultime 24 ore. Disattivando vengono eliminati.',
+       'เก็บระดับแบตเตอรี่และการใช้งาน 24 ชั่วโมงล่าสุด การปิดจะลบข้อมูลเหล่านี้', 'Zapisuje poziom baterii i użycie z ostatnich 24 godzin. Wyłączenie usuwa te dane.',
+       'Хранит заряд и использование за 24 часа. Выключение удаляет их.', 'Зберігає рівень заряду та використання за останні 24 години. Вимкнення видаляє їх.'),
+    # The Battery History charts (patch/bhpage.c, docs/modules/batthist.md "History page"): headers, the legend, the Since Last Charge card (its caption "Unplugged at 21:25, 100%": the %s are the time and the level; "58% left") and the On Battery rows, and the notes.
+    _t('Last 24 Hours', '过去 24 小时', '過去 24 小時', '過去24時間', '최근 24시간', '24 dernières heures', 'Letzte 24 Stunden',
+       'Últimas 24 horas', 'Ultime 24 ore', '24 ชั่วโมงที่ผ่านมา', 'Ostatnie 24 godziny', 'Последние 24 часа', 'Останні 24 години'),
+    _t('%d h %d min', '%d小时%d分钟', '%d小時%d分鐘', '%d時間%d分', '%d시간 %d분', '%d h %d min', '%d Std. %d Min.', '%d h %d min', '%d h %d min', '%d ชม. %d นาที', '%d godz. %d min', '%d ч %d мин', '%d год %d хв'),
+    _t('%d h', '%d小时', '%d小時', '%d時間', '%d시간', '%d h', '%d Std.', '%d h', '%d h', '%d ชม.', '%d godz.', '%d ч', '%d год'),
+    _t('%d min', '%d分钟', '%d分鐘', '%d分', '%d분', '%d min', '%d Min.', '%d min', '%d min', '%d นาที', '%d min', '%d мин', '%d хв'),
+    _t('Activity', '活动', '活動', 'アクティビティ', '활동', 'Activité', 'Aktivität',
+       'Actividad', 'Attività', 'กิจกรรม', 'Aktywność', 'Активность', 'Активність'),
+    _t('Screen On', '亮屏', '亮屏', '画面オン', '화면 켜짐', 'Écran allumé', 'Bildschirm an',
+       'Pantalla encendida', 'Schermo acceso', 'เปิดหน้าจอ', 'Ekran włączony', 'Экран включён', 'Екран увімкнено'),
+    _t('Playing, Screen Off', '播放，息屏', '播放，熄屏', '再生中・画面オフ', '재생 중, 화면 꺼짐', 'Lecture, écran éteint', 'Läuft, Display aus',
+       'Sonando, pantalla off', 'Audio, schermo off', 'เล่น ปิดหน้าจอ', 'Gra, ekran wył.', 'Играет, экран выкл.', 'Грає, екран вимк.'),
+    _t('Since Last Charge', '自上次充电', '自上次充電', '前回の充電以降', '마지막 충전 이후', 'Depuis la dernière charge', 'Seit letzter Ladung',
+       'Desde la última carga', 'Dall’ultima carica', 'ตั้งแต่ชาร์จล่าสุด', 'Od ostatniego ładowania', 'С последней зарядки', 'Від останньої зарядки'),
+    _t('Standby', '待机', '待機', 'スタンバイ', '대기', 'Veille', 'Standby',
+       'En espera', 'Standby', 'สแตนด์บาย', 'Czuwanie', 'Ожидание', 'Очікування'),
+    _t('Unplugged at %s, %s', '%s 拔下充电器，%s', '%s 拔下充電器，%s', '%sに充電を解除、%s', '%s 충전 해제, %s', 'Débranché à %s, %s', 'Getrennt um %s, %s',
+       'Desconectado a las %s, %s', 'Scollegato alle %s, %s', 'ถอดสายชาร์จเมื่อ %s, %s', 'Odłączono o %s, %s', 'Отключено в %s, %s', 'Відключено о %s, %s'),
+    _t('Unplugged at %s', '%s 拔下充电器', '%s 拔下充電器', '%sに充電を解除', '%s 충전 해제', 'Débranché à %s', 'Getrennt um %s',
+       'Desconectado a las %s', 'Scollegato alle %s', 'ถอดสายชาร์จเมื่อ %s', 'Odłączono o %s', 'Отключено в %s', 'Відключено о %s'),
+    _t('%s left', '剩余 %s', '剩餘 %s', '残り%s', '%s 남음', '%s restant', '%s übrig', '%s restante', '%s rimanente', 'เหลือ %s', 'Zostało %s', 'Осталось %s', 'Залишилось %s'),
+    _t('On Battery', '使用电池', '使用電池', 'バッテリー使用', '배터리 사용', 'Sur batterie', 'Im Akkubetrieb', 'Con batería', 'A batteria', 'ใช้แบตเตอรี่', 'Na baterii', 'От батареи', 'Від батареї'),
+    _t('Estimated from the battery gauge.', '根据电量计估算。', '根據電量計估算。', 'バッテリーゲージからの推定値。', '배터리 게이지로 추정한 값입니다.', 'Estimé d’après la jauge de batterie.', 'Anhand des Akku-Messchips geschätzt.',
+       'Estimado a partir del indicador de batería.', 'Stimato dall’indicatore della batteria.', 'ประมาณจากเกจแบตเตอรี่', 'Szacowane na podstawie wskaźnika baterii.', 'Оценка по датчику заряда.', 'Оцінка за датчиком заряду.'),
+    _t('Battery history appears after the first 15 minutes.', '电池记录将在最初 15 分钟后显示。', '電池記錄將在最初 15 分鐘後顯示。', '最初の15分後にバッテリー履歴が表示されます。',
+       '처음 15분 후에 배터리 기록이 표시됩니다.', 'L’historique apparaît après les 15 premières minutes.', 'Der Akkuverlauf erscheint nach den ersten 15 Minuten.',
+       'El historial aparece tras los primeros 15 minutos.', 'La cronologia appare dopo i primi 15 minuti.', 'ประวัติแบตเตอรี่จะแสดงหลัง 15 นาทีแรก',
+       'Historia baterii pojawi się po pierwszych 15 minutach.', 'История появится через 15 минут.', 'Історія з’явиться через 15 хвилин.'),
     # Continue with Next Album (patch/nextalbum.c, docs/modules/nextalbum.md): Settings > Playback
     _t('Continue Playing', '继续播放', '繼續播放', '続けて再生', '계속 재생', 'Enchaîner', 'Weiterspielen',
        'Continuar', 'Continua', 'เล่นต่อ', 'Kontynuuj', 'Возобновить', 'Відновити'),
@@ -2033,7 +2070,7 @@ def english(key):
 
 
 import pod_pages
-BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.ASSEP_LABELS + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',) + pod_pages.TZ_LABELS + pod_pages.DT_NUMBERS   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button; the time zones' English names and the date pickers' numbers)
+BRANDS = ('M1+ Music', 'Tidal', 'Pod', 'AirPlay', 'DLNA') + pod_pages.GUARD_FILES + (pod_pages.FOLDER_LABEL,) + pod_pages.SETTING_FILES + pod_pages.ASSEP_LABELS + pod_pages.pcregion.NAMES + pod_pages.GRAPH_TEXTS + pod_pages.HIST_AXIS + pod_pages.SLIDER_TEXTS + ('Q',) + tuple(f'{p}%' for p in pod_pages.CHGLIMIT_VALUES) + pod_pages.LIGHTTIME_VALUES[1:] + pod_pages.SHUTDOWN_VALUES[1:] + ('−',) + pod_pages.TZ_LABELS + pod_pages.DT_NUMBERS   # shown as they are, no key (the Settings Files labels are file names; the minus is the loudness pages' - button; the time zones' English names and the date pickers' numbers)
 
 
 def key_for(english):

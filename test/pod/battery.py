@@ -194,8 +194,8 @@ def run(ctx):
     layout = lay(H)
     bp_i = next(i for i, r in enumerate(H.rows) if r.action == P.ACT_BATTPCT)
     expect(H.rows[bp_i].label == 'Battery Percentage' and P.ACT_BATTPCT == 36 and P.ACT_BATTPCT in P.SWITCH_ACTIONS and P.row_kind(H.rows[bp_i]) == 'switch'
-           and layout == ['Row:Battery Percentage', 'Note:The exact charge beside the battery icon', 'Row:Charge Limit', 'Note:Applies while the player is on'] and bp_i == 0,
-           f'the Battery page lists the Battery Percentage switch row and its note, then Charge Limit ({layout})')
+           and layout == ['Row:Battery Percentage', 'Note:The exact charge beside the battery icon', 'Row:Charge Limit', 'Note:Applies while the player is on', 'Row:Battery History'] and bp_i == 0,
+           f'the Battery page lists the Battery Percentage switch row and its note, then Charge Limit and the Battery History row (its page: test/pod/batthist.py) ({layout})')
     expect(not any(r.action == P.ACT_BATTPCT for r in P.HOMESET_PAGE.rows) and 'Hdr:Status Bar' not in lay(P.HOMESET_PAGE) and lay(P.HOMESET_PAGE)[-2:] == ['Row:Regenerate Daily Mix', 'Note:A new mix the next time Home opens'],
            'the Home Screen page has no Status Bar header or Battery Percentage row; Regenerate Daily Mix stays last')
     S = P.SETTINGS_PAGE

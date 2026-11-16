@@ -18,6 +18,7 @@
 #include "home.h"
 #include "battery.h"
 #include "charging.h"
+#include "batthist.h"
 #include "ipod_theme.h"
 #include "radio.h"
 #include "pcregion.h"
@@ -34,7 +35,7 @@ struct sf_file {
     char kind;
 };
 
-/* The order of the page's rows (INFO_SF + index): 4 guard files, the folder, then the 48 setting files from SF_SETTING on. */
+/* The order of the page's rows (INFO_SF + index): 4 guard files, the folder, then the 49 setting files from SF_SETTING on. */
 static const struct sf_file sf_files[] = {
     {START_FILE, K_CHAR},
     {MARKER, K_PRESENT},
@@ -73,6 +74,7 @@ static const struct sf_file sf_files[] = {
     {PCREGION_FILE, K_TEXT},
     {BP_FILE, K_CHAR},
     {CHG_FILE, K_CHAR},
+    {BH_FILE, K_CHAR},
     {SHUFFLE_FILE, K_CHAR},
     {PEQ_STATE, K_PRESENT},
     {NA_FILE, K_CHAR},

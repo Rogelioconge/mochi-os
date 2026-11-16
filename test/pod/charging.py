@@ -217,9 +217,9 @@ def settings_tests(ctx):
     expect(labels[labels.index('Buttons & Power') + 1] == 'Battery' and labels[labels.index('Battery') + 1] == 'All System Settings' and V.rows[labels.index('Battery')].action == P.ACT_PAGE and V.rows[labels.index('Battery')].arg == P.BATTERY_PAGE_INDEX,
            'Settings: Battery after Buttons & Power')
     expect(P.PAGES[P.BATTERY_PAGE_INDEX] is B and P.PAGES[P.CHGLIMIT_PAGE_INDEX] is L and B.title == 'Battery' and L.title == 'Charge Limit'
-           and [(r.label, r.action, r.arg) for r in B.rows] == [('Battery Percentage', P.ACT_BATTPCT, 0), ('Charge Limit', P.ACT_CHGLIM, P.CHGLIMIT_PAGE_INDEX)]
-           and [P.row_kind(r) for r in B.rows] == ['switch', 'value'],
-           'the Battery page: the Battery Percentage switch, then the Charge Limit value row')
+           and [(r.label, r.action, r.arg) for r in B.rows[:3]] == [('Battery Percentage', P.ACT_BATTPCT, 0), ('Charge Limit', P.ACT_CHGLIM, P.CHGLIMIT_PAGE_INDEX), ('Battery History', P.ACT_BHPAGE, P.BATTHIST_PAGE_INDEX)]
+           and [P.row_kind(r) for r in B.rows[:3]] == ['switch', 'value', 'value'] and len(B.rows) == 3,
+           'the Battery page: the Battery Percentage switch, the Charge Limit and Battery History value rows (the History page: test/pod/batthist.py)')
     expect([(r.label, r.action, r.arg) for r in L.rows] == [(f'{p}%', P.ACT_CHGLIMSET, p) for p in (80, 85, 90, 95, 100)] and all(P.row_kind(r) == 'check' for r in L.rows)
            and P.CHGLIMIT_VALUES == tuple(range(DEFS['CHG_MIN'], DEFS['CHG_OFF'] + 1, DEFS['CHG_STEP'])), 'the picker: 80 .. 100 % in 5 % steps, a check each')
     expect((P.ACT_CHGLIM, P.ACT_CHGLIMSET) == (80, 81) and P.ACT_CHGLIM in P.VALUE_ACTIONS and P.ACT_CHGLIMSET in P.CHECK_ACTIONS and 'battery-charge-limit' in P.SETTING_FILES,

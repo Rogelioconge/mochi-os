@@ -283,6 +283,7 @@ def main():
     run('preview_ndserver.py', work, os.path.dirname(os.path.abspath(out)))   # nd-server.png, nd-signin-*.png: the Navidrome Server page and its Sign In page (docs/modules/subsonic.md)
     run('preview_ndroot.py', work, os.path.dirname(os.path.abspath(out)))   # nd-root-*.png: the Subsonic root page (status glyphs, footer, collapse, the Search + "..." capsule and its card)
     run('preview_ndfolders.py', work, os.path.dirname(os.path.abspath(out)))   # nd-folders-*.png: the Subsonic Folders browser (docs/modules/subsonic.md)
+    run('preview_batthist.py', work, os.path.join(os.path.dirname(os.path.abspath(out)), 'batthist.png'))   # batthist.png: Settings > Battery with Battery History off, empty and with a day of data (docs/modules/batthist.md)
     run('preview_split.py', work, os.path.dirname(os.path.abspath(out)))   # split-*.png: Settings > Library > Split Artists (the row, the page off and on; docs/modules/settings.md)
     run('preview_accent.py', work, os.path.dirname(os.path.abspath(out)))   # accent-black.png, accent-graphite.png: the planned Accent + Background picker (a mock-up, not in the firmware)
     with tempfile.TemporaryDirectory() as t:

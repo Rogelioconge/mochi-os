@@ -233,7 +233,7 @@ def draw_row(s, im, d, row, y, values, switches, shown, ink=lambda c: c, img=Non
             d.rectangle((c.x, y + c.y, c.x + c.w - 1, y + c.y), fill=ink(rgb(style(c, 'bg_color'))))
     sub = next((c for c in row.children if c.name.startswith('pod_sub')), None)   # a two line row (the Presets page's files): the name on the first line, the grey line under it
     own = values.get(label.name + '.color') or style(label, 'text_color')   # a label with a colour of its own (the red Sign Out; a page's state may grey it as the payload does)
-    s.text(im, label.x, y + (label.y + label.h / 2 if sub else row.h / 2), s.clip(values.get(label.name + '.text') or s.shown(label), 21, lab_w), 21, ink(rgb(own) if own else (255, 255, 255)))
+    s.text(im, label.x, y + (label.y + label.h / 2 if sub else row.h / 2), s.clip(values.get(label.name + '.text') or s.shown(label), int(style(label, 'font_size', 21)), lab_w), int(style(label, 'font_size', 21)), ink(rgb(own) if own else (255, 255, 255)))
     if sub: s.text(im, sub.x, y + sub.y + sub.h / 2, s.clip(s.shown(sub), int(style(sub, 'font_size', 18)), sub.w), int(style(sub, 'font_size', 18)), ink(rgb(style(sub, 'text_color', '#AAAAAA'))))
 
 

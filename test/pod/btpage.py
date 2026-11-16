@@ -697,8 +697,8 @@ def dev_asset_tests(ctx):
     by = {w.name: w for w in tree.walk() if w.name}
     wby = {w.name: w for w in wtree.walk() if w.name}
     pg = P.BTDEVICE_PAGE
-    expect(P.PAGES[-3] is pg and P.PAGES[-4] is P.BTCODEC_PAGE and pg.kind == 'btdevice' and pg.key == 'm1plus_btdevice' and tree.name == pg.name and P.page_index('m1plus_btdevice') == 117 and len(P.PAGES) == 120,
-           'the page is registered after the Audio Codec picker: index 117 of 120 (the two Playback Settings sub-pages follow)')
+    expect(P.PAGES[-3] is pg and P.PAGES[-4] is P.BTCODEC_PAGE and pg.kind == 'btdevice' and pg.key == 'm1plus_btdevice' and tree.name == pg.name and P.page_index('m1plus_btdevice') == 118 and len(P.PAGES) == 121,
+           'the page is registered after the Audio Codec picker: index 118 of 121 (the two Playback Settings sub-pages follow)')
     expect(by['label_title'].get('tr_text') == 'Bluetooth' and 'btn_return' in by and 'btn_backtoplayer' in by and 'navigationbar_view' in by, 'the navbar is ours: Back, Now Playing and a title the payload replaces by the name')
     geo = lambda w: (w.x, w.y, w.w, w.h)
     sv = by['btdevice_scrollview']
@@ -1003,8 +1003,8 @@ def settings_tests(ctx):
     src = open(os.path.join(ROOT, 'patch', 'm1plus.c')).read()
     expect(re.search(r'row->arg == 1 /\* STOCK_BLUETOOTH \*/ && btpage_open\(\) == 0\)\s*return RET_OK;[^\n]*\n[\s\S]{0,400}?m1_open_stock\(\s*POD_STOCK\[row->arg\]\.name,\s*POD_STOCK\[row->arg\]\.window\)', src),
            'the row opens our page first, and the stock page where it will not open')
-    expect(not any(k.startswith('ACT_') and ('BTPAGE' in k or k == 'ACT_BT') for k in vars(P)) and P.ACT_BTCODECSET == 184 and max(v for k, v in vars(P).items() if k.startswith('ACT_')) == 184
-           and re.search(r'ACT_BTCODECSET =\s*184', src), 'one action id was added: 184, the picker\'s row; the highest in use')
+    expect(not any(k.startswith('ACT_') and ('BTPAGE' in k or k == 'ACT_BT') for k in vars(P)) and P.ACT_BTCODECSET == 184
+           and re.search(r'ACT_BTCODECSET =\s*184', src), 'one action id was added: 184, the picker\'s row')
 
     def row_machine(window=True):
         m = page()

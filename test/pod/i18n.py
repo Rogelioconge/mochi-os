@@ -8,6 +8,7 @@ from awtk_text import Ttf, StbText
 RAW = os.path.join('rootfs', 'release', 'assets', 'default', 'raw')
 SAME_AS_ENGLISH = {'Cover Flow', 'Playlists', 'Playlist', 'Genres', 'Gain', 'Extras', 'Albums', 'Artists', 'Local', 'Name', '%s, %s', 'Band %d', 'Cassette', 'Vinyl'}   # translations that are the English word by design
 SAME_AS_ENGLISH |= {'Crossfeed'}    # the audio term, written the same in the Latin-script languages (the playset docs list it)
+SAME_AS_ENGLISH |= {'Standby'}    # German and Italian write Standby as English does (the Battery History page's On Battery row)
 SAME_AS_ENGLISH |= {'AutoEq'}    # the brand name (the Presets page's section header)
 SAME_AS_ENGLISH |= {'%d minute', '%d minutes'}    # French writes minute(s) as English does
 SAME_AS_ENGLISH |= {'Podcasts', ', %d', 'Normal', 'Chrome', 'Metal', 'Graphite', '5 s', '10 s'}    # Podcasts in French and German

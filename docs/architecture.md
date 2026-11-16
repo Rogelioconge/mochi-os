@@ -110,4 +110,5 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Pull-down](modules/pulldown.md) | Control Center tiles and order |
 | [Charge Limit](modules/charging.md) | Charging pauses at 80-95 % |
 | [Battery art](modules/battery.md) | Battery outline and fill |
+| [Battery History](modules/batthist.md) | Opt-in 24 h recorder of battery level and use, and its own page of charts under Battery |
 | [Screenshot](modules/screenshot.md) | Countdown, capture, import |

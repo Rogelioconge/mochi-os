@@ -5,8 +5,8 @@
 in `tools/pod_pins.py`. **Tests:** `test/pod/battery.py`. **Preview:**
 `tools/preview/preview_battery.py`, `tools/preview/preview.py`.
 
-The [Charge Limit](charging.md) runs on the same status bar hook, independently of the Battery
-Percentage setting.
+The [Charge Limit](charging.md) and [Battery History](batthist.md) run on the same status bar hook,
+independently of the Battery Percentage setting.
 
 ## One battery
 

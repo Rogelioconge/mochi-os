@@ -26,6 +26,7 @@
 #include "home.h"
 #include "battery.h"
 #include "charging.h"
+#include "batthist.h"
 
 static struct {
     int state; /* the setting: 0 not read yet, 1 off, 2 on */
@@ -109,6 +110,7 @@ int bp_capacity(void) {
         if (bp.state == 2) pct = battery_gauge();
     }
     chg_tick(killed, pct); /* the Charge Limit (patch/charging.c), on the same tick */
+    if (!killed) bh_poll(); /* Battery History (patch/batthist.c): starts its recorder thread while the setting is on */
     if (pct < 0 && !bp.shown) return cap; /* off and nothing to hide: stock, no lookups */
     if (pct >= 0) {
         /* stock picks bar_lowpower only for power_capacity <= 0, and only when it reaches that test (not on the charging / full pictures: show_sysbar_face 0x54510c..0x54514c) */

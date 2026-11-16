@@ -186,7 +186,11 @@ enum {
     ACT_DTSET = 164, /* the field pickers' rows (arg = field * 4096 + value) */
     ACT_DTAPPLY = 165, /* Set Date (arg 0) and Set Time (arg 1): stock's set_systime, then back */
     ACT_BTCODECSET =
-        184 /* the Bluetooth page's Audio Codec picker's rows (arg = stock's btcoding 0 .. 7; patch/btpage.c) */
+        184, /* the Bluetooth page's Audio Codec picker's rows (arg = stock's btcoding 0 .. 7; patch/btpage.c) */
+    ACT_BATTHIST = 188, /* Battery History page: the switch (patch/batthist.c) */
+    ACT_BHROW =
+        189, /* Battery History page: a By Activity or Since Last Charge row, information only (patch/bhpage.c) */
+    ACT_BHPAGE = 190 /* Settings > Battery: Battery History, a value row (On or Off) opening its page */
 };
 
 struct pod_row {
@@ -222,8 +226,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 53 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 53, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 54 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 54, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -254,6 +258,7 @@ enum {
     VK_SHUTDOWN,
     VK_LB, /* the Scrobbling page's ListenBrainz row */
     VK_LF, /* ... and its Last.fm row */
+    VK_BATTHIST, /* the Battery page's Battery History row: On or Off, as the switch on its page */
     VK_SCROB, /* the Library page's Scrobbling row: On or Off, as the switch on the Scrobbling page */
     VK_PSMODE, /* the Playback Settings value rows, in the order of entries.h PS_CTL_* (value_text asks ps_value_key) */
     VK_PSMEM,
@@ -303,6 +308,7 @@ static const char HOME_NAMES[18][3] = {"0", "1",  "2",  "3",  "4",  "5",  "6",  
 #include "i18n.h"
 #include "pcregion.h"
 #include "charging.h"
+#include "batthist.h"
 #include "nextalbum.h"
 #include "stereo.h"
 #include "albums.h"
@@ -517,6 +523,7 @@ static const struct pick_def {
      tl_theme_set}, /* the LED Light page's Theme row, and its picker's rows */
     {ACT_LB, VK_LB, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_LF, VK_LF, 0, (int (*)(void))0, (int (*)(int))0},
+    {ACT_BHPAGE, VK_BATTHIST, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_SCROBPAGE, VK_SCROB, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_ASPAGE, VK_ASPLIT, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_PLAYMODE, VK_PSMODE, ACT_PLAYMODESET, ps_playmode, ps_playmode_set},
@@ -724,6 +731,7 @@ static const struct pod_switch {
     {ACT_KB_ZH, kb_zh_setting, kb_zh_toggle},
     {ACT_PCSEARCH, pcsearch_setting, pcsearch_toggle},
     {ACT_BATTPCT, battpct_setting, battpct_toggle},
+    {ACT_BATTHIST, bh_setting, bh_toggle},
     {ACT_AZRAIL, azrail_setting, azrail_toggle},
     {ACT_AZHEAD, azhead_setting, azhead_toggle},
     {ACT_LOCKON, lk_enabled, lk_enabled_toggle},
@@ -785,6 +793,8 @@ static int on_switch(void *ctx, void *e) {
     if (on >= 0) switch_show(s->img, on);
     if (s->sw->action == ACT_DAILY) regen_show();
     if (s->sw->action == ACT_PCSEARCH) pcdir_show();
+    if (s->sw->action == ACT_BATTHIST)
+        pod_page_refresh(POD_BATTHIST_PAGE); /* the charts show and hide with the switch */
     if (s->sw->action == ACT_ASPLIT)
         pod_page_refresh(POD_ASPLIT_PAGE); /* the separators dim and wake with the switch */
     if (s->sw->action == ACT_STANDBY) pod_page_refresh(POD_KEYSPOWER_PAGE); /* turning it on turned Auto-Shutdown off */
@@ -894,6 +904,8 @@ static void value_text(void *label, int kind) {
         dt_field_text(kind - VK_DTF0, buf, sizeof buf);
         widget_set_text_utf8(label, buf);
         return;
+    } else if (kind == VK_BATTHIST) {
+        key = bh_setting() ? "On" : "Off";
     } else if (kind == VK_SCROB) {
         key = scrobble_setting() ? "On" : "Off";
     } else if (kind == VK_ASPLIT) {
@@ -1032,6 +1044,8 @@ static void page_refresh(void *win, const struct pod_page *page) {
     stock_front = (void *)0;
     if (page == &POD_PAGES[POD_DISPLAY_PAGE]) disp_refresh(win); /* the slider follows the pull-down's */
     if (page == &POD_PAGES[POD_RGB_THEME_PAGE]) rgb_note(win);
+    if (page == &POD_PAGES[POD_BATTHIST_PAGE])
+        bhpage_show(win); /* Battery History's charts: shown while the switch is on */
     if (page == &POD_PAGES[POD_PSMAXVOL_PAGE])
         ps_vol_refresh(win, PS_VOL_MAX); /* stock's refresh: the label and the slider from the word */
     if (page == &POD_PAGES[POD_PSBOOTVOL_PAGE])
