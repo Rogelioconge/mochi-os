@@ -96,6 +96,7 @@ Sites without a number:
 | Site | Owner | Fallback |
 |---|---|---|
 | Display page Lock Screen row `0x4a5ca8` (two words, asm stub `pod_lock_site`) | [lockscreen](lockscreen.md) | stock page |
+| `screen_action` backlight calls `0x4e71cc` (on) and `0x4e71fc` (off) (`bp_light_on`, `bp_light_off`) | [battery](battery.md) | stock `toolSetBackLight` |
 | All Playback Settings Equalizer row `0x4a0210` (two words, asm stub `pod_eq_site`) | [peq](peq.md) | stock page |
 | `mclGetPlayMode` display sites (19 call-site words) | [shuffle](shuffle.md) | stock mode |
 | `scroll_view` `on_event_before_children` slot, data word `0x97a330` (empty in stock; runs for touches inside a `scroll_view` only, including the Albums page) | [albums](albums.md) | empty slot |

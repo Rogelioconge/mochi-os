@@ -12,6 +12,8 @@
  * The lock screen (screensaver_page) draws its gauge from the same power_capacity; its label pod_pct_lk is set by the same tick and, at once, by bp_lock at the page's init.
  * In every other case the stock value stays and the labels are hidden (visible and sensitive off). The icon pictures stay stock's (charging, low).
  * The same tick then runs the Charge Limit's check (patch/charging.c chg_tick: the kill switch and, when it was read here, the gauge).
+ * Two more hooks, the call-site words `jalr toolSetBackLight` at 0x4e71cc (on) and 0x4e71fc (off) in screen_action (0x4e71a4), now `jal bp_light_on` / `jal bp_light_off`, repaint the
+ * status bar when the screen wakes (battery.md "The wake repaint"): cost on a wake only (one access, ~34 ms), none while the screen stays lit.
  *
  * The right icon group lays its visible children out right-aligned, so the label (the group's last child but the Screenshot camera, hidden in the asset) makes the icons
  * to its left move aside by its width; the width follows the text (BP_W2 .. BP_W4, measured at build time), and a change of it asks the group to lay out again.
@@ -28,6 +30,7 @@
 static struct {
     int state; /* the setting: 0 not read yet, 1 off, 2 on */
     int shown; /* a label may be showing: the hide path has work to do */
+    int dark; /* the backlight went off (bp_light_off) and has not come on since: the wake repaint is due */
 } bp __attribute__((section(".scratch")));
 
 static int bp_read_setting(void) { return set_read(BP_FILE, 0) == '1'; }
@@ -120,4 +123,24 @@ int bp_capacity(void) {
     bp_label(wm ? widget_lookup(wm, BP_LABEL_LK, 1) : (void *)0, pct, 0);
     bp.shown = pct >= 0;
     return cap;
+}
+
+/* The wake repaint (tools/pod_pins.py LIGHT_ON_SITE / LIGHT_OFF_SITE): screen_action's two toolSetBackLight calls, the one place every path (awake_screen, the power key) turns the backlight
+ * on or off. Off: remember it (bp.dark). On, after an off: before the backlight comes on, on the UI thread, show_sysbar_face(0) (the status bar's own timer call; it runs bp_capacity, so the
+ * battery labels follow), widget_invalidate_force(wm, null) (the whole screen dirty), then the main loop's own pair window_manager_check_and_layout (a label whose width
+ * changed asks its group to lay out again) and window_manager_paint, so the first frame the panel shows is a fresh one. A screen_action(1)
+ * while lit paints nothing. The kill switch present: toolSetBackLight only. */
+int bp_light_on(int level) {
+    if (bp.dark && access(KILL_SD, F_OK) != 0) {
+        void *wm = window_manager();
+        show_sysbar_face(0);
+        if (wm) widget_invalidate_force(wm, (void *)0), window_manager_check_and_layout(wm), window_manager_paint(wm);
+    }
+    bp.dark = 0;
+    return toolSetBackLight(level);
+}
+
+int bp_light_off(int level) {
+    bp.dark = 1;
+    return toolSetBackLight(level);
 }

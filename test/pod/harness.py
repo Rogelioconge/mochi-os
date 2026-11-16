@@ -283,6 +283,7 @@ class Machine:
             if f'pod_lib_{name}' in PSYMS:   # --gc-sections drops the ones it does not call
                 self.handlers[PSYMS[f'pod_lib_{name}']] = name
         self.handlers.pop(pod.FUNCTIONS['widget_to_local'][2])   # stock's own, run for real: the payload and widget_find_target both call it
+        self.handlers.pop(pod.FUNCTIONS['window_manager_check_and_layout'][2])   # stock's own layouter, run for real (the layout tests); test/pod/battery.py traps it again
         self.handlers[HOME_CLICK_RESUME] = 'stock_resume'
         self.handlers[PSYMS['stock_backtoplayer_trampoline']] = 'on_backtoplayer_onclick'   # stock's Now Playing handler, reached through its hook's trampoline
         for sym, nm in (('stock_setmode_trampoline', 'stock_setmode'), ('stock_loadplaylist_trampoline', 'stock_loadplaylist')):   # the Shuffle hooks' way back into stock (patch/shuffle.c)
@@ -1361,6 +1362,8 @@ class Machine:
             self.calls.append(('set_equalizer_value', a0, self.u.mem_read(pod.DATA['EQ_FLAG'][0], 1)[0]))
         elif name == 'ferror':
             ret = 0
+        elif name in ('show_sysbar_face', 'window_manager_check_and_layout', 'window_manager_paint', 'toolSetBackLight'):   # patch/battery.c bp_light_on / bp_light_off: recorded with the argument
+            self.calls.append((name, a0))
         elif name == '__isoc99_sscanf':
             s, fmt = self.read_cstr(a0), self.read_cstr(a1)
             assert fmt == '%lf%n', fmt

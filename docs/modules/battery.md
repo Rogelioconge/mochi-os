@@ -59,6 +59,24 @@ stay stock.
   allocation, timer or thread. The hook first runs when the UI starts, not at boot.
 - **Accuracy** is the AXP2101's own estimate.
 
+## The wake repaint
+
+After a wake the status bar showed the battery value from before the screen went dark for up to a
+second, although the 1 s tick keeps running while dark (a device log: no suspend, the label already
+current). The likely cause: the framebuffer is blanked while dark (`disable_fb`), so what the UI drew
+then never reached the panel, and only the next change repainted it. Two call-site hooks in stock's `screen_action` (`0x4e71a4`, every backlight
+change: the idle timeout, the power key) fix that. The `jalr toolSetBackLight` words at `0x4e71cc`
+(on) and `0x4e71fc` (off) become `jal bp_light_on` / `jal bp_light_off`. Off sets a flag (`bp.dark`)
+and calls `toolSetBackLight`. On, when the flag is set and `/mnt/mmc/m1plus-off` is absent, first runs
+`show_sysbar_face(0)` (the bar's own timer call, so the labels follow), then marks the whole window
+manager dirty (`widget_invalidate_force`), lays it out and paints it as the main loop does
+(`window_manager_check_and_layout`, then `window_manager_paint`; a label whose width changed has asked
+its group to lay out again), clears the flag and
+calls `toolSetBackLight` with the same argument. So the first frame the panel shows is a fresh one.
+**Cost:** about 34 ms on a wake (measured on the device), nothing while the screen stays lit (the
+flag is clear, so a second on paints nothing). With the kill switch present both hooks are a plain
+`toolSetBackLight` call. Tests: `test/pod/battery.py` section 9.
+
 ## BP_LOW
 
 Stock chooses `bar_lowpower` only for `power_capacity <= 0`, re-sets the picture every tick, and

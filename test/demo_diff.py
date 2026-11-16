@@ -103,6 +103,8 @@ def main():
     allow(va_to_off(s, ID3_SITE[0]), ID3_SITE[1], 'tag reader hook')
     allow(va_to_off(s, SCAN_SITE[0]), SCAN_SITE[1], 'library scan hook')
     allow(va_to_off(s, BATTERY_SITE[0]), BATTERY_SITE[1], 'battery percentage hook')
+    allow(va_to_off(s, 0x4e71cc), 4, 'wake repaint hook (screen_action backlight on, patch/battery.c bp_light_on)')
+    allow(va_to_off(s, 0x4e71fc), 4, 'wake repaint hook (screen_action backlight off, patch/battery.c bp_light_off)')
     allow(va_to_off(s, pod.LCL_ASSIGN_SITE), 4, 'library list hand-over (the jalr deque_assign of loadLocalClassList, now jal ll_assign: patch/libload.c, docs/modules/payload.md hook 29)')
     for q in PULLDOWN_OPEN: allow(va_to_off(s, q), 4, 'pull-down settings tile hook')
     allow(va_to_off(s, WIFIHUB_SITE[0]), WIFIHUB_SITE[1], 'Wi-Fi hub row hook')

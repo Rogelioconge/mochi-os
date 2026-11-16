@@ -293,3 +293,32 @@ def run(ctx):
     date_px = int(date.get('style:normal:font_size'))
     date_w = awtk_width(font, worst_case_text(date.get('format'), font), date_px)
     expect(date.x + (date.w + date_w) // 2 + 4 <= lab.x, f'the widest date ({date_w} px, centred) ends at least 4 px before the label ({lab.x})')
+
+    # 9. The backlight hooks: screen_action's two `jalr toolSetBackLight` (0x4e71cc on, 0x4e71fc off) become `jal bp_light_on` / `jal bp_light_off`
+    stock_demo, built = stock_demo_bytes(), built_demo_bytes()
+    word = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+    for s_, name in ((pod.LIGHT_ON_SITE, 'bp_light_on'), (pod.LIGHT_OFF_SITE, 'bp_light_off')):
+        expect(word(stock_demo, s_) == 0x0320f809 and word(built, s_) >> 26 == 3 and (word(built, s_) & 0x3ffffff) << 2 == PSYMS[name],
+               f'the build replaced screen_action\'s `jalr t9` (toolSetBackLight) at {s_:#x} by `jal {name}`')
+    expect((pod.LIGHT_ON_SITE, pod.LIGHT_OFF_SITE) == (0x4e71cc, 0x4e71fc) and all(word(stock_demo, a) == old and (a in (pod.LIGHT_ON_SITE, pod.LIGHT_OFF_SITE) or word(built, a) == old) for a, old, _ in pod.BACKLIGHT_PINS)
+           and word(built, 0x4e71d0) == 0x24840001 and word(built, 0x4e7200) == 0, 'every pinned word of screen_action is stock\'s in the stock demo and unchanged in the build, but the two sites (delay slots intact)')
+    expect(MANIFEST['hook_light_on'] == {'addr': pod.LIGHT_ON_SITE, 'target': PSYMS['bp_light_on']} and MANIFEST['hook_light_off'] == {'addr': pod.LIGHT_OFF_SITE, 'target': PSYMS['bp_light_off']}, 'the manifest records both hooks')
+
+    def lm(kill=False):
+        mm = machine(); mm.wm = mm.alloc(0x80)
+        mm.handlers[pod.FUNCTIONS['window_manager_check_and_layout'][2]] = 'window_manager_check_and_layout'   # trapped and recorded here (the harness runs it for real)
+        if kill: mm.present.add(KILL)
+        return mm
+
+    PAINT = ['access', 'show_sysbar_face', 'widget_invalidate_force', 'window_manager_check_and_layout', 'window_manager_paint', 'toolSetBackLight']
+    m = lm(); m.call(PSYMS['bp_light_on'], 7, count=200000)
+    expect(m.names() == ['toolSetBackLight'] and ('toolSetBackLight', 7) in m.calls, f'on without a prior off (lit already): only toolSetBackLight ({m.names()})')
+    m.call(PSYMS['bp_light_off'], 0, count=200000)
+    expect(m.names() == ['toolSetBackLight'] and ('toolSetBackLight', 0) in m.calls, f'off: only toolSetBackLight ({m.names()})')
+    m.call(PSYMS['bp_light_on'], 5, count=200000)
+    expect(m.names() == PAINT and ('toolSetBackLight', 5) in m.calls and ('show_sysbar_face', 0) in m.calls and ('widget_invalidate_force', m.wm) in m.calls and ('window_manager_check_and_layout', m.wm) in m.calls and ('window_manager_paint', m.wm) in m.calls,
+           f'off then on: the bar refresh and the paint, then toolSetBackLight with the same argument ({m.names()})')
+    m.call(PSYMS['bp_light_on'], 5, count=200000)
+    expect(m.names() == ['toolSetBackLight'], f'a second on paints nothing ({m.names()})')
+    m = lm(kill=True); m.call(PSYMS['bp_light_off'], 0, count=200000); m.call(PSYMS['bp_light_on'], 5, count=200000)
+    expect(m.names() == ['access', 'toolSetBackLight'] and ('toolSetBackLight', 5) in m.calls, f'with the kill switch present no paint ({m.names()})')

@@ -26,3 +26,6 @@
 void bp_lock(
     void *win); /* the lock screen's init: show the percentage in its label at once (setting on, gauge readable) */
 int battery_gauge(void); /* the gauge, 0..100, or -1 (patch/battery.c; the Charge Limit's input too) */
+int bp_light_on(
+    int level); /* the hooks at screen_action's two toolSetBackLight calls (tools/pod.py LIGHT_ON_SITE, LIGHT_OFF_SITE): repaint at once on wake */
+int bp_light_off(int level);

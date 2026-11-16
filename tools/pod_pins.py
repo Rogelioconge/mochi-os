@@ -726,6 +726,18 @@ BATTERY_PINS = (   # (address, stock word, what it proves)
     (0x66d194, 0x8e020008, 'widget_resize: lw v0, 8(s0): widget_t.w'), (0x66d1a0, 0x8e03000c, 'widget_resize: lw v1, 0xc(s0): widget_t.h'),
     (0x66c428, 0x8e040044, 'widget_set_visible: lw a0, 0x44(s0): widget_t.parent, handed to widget_set_need_relayout_children'),
 )
+# Wake repaint (patch/battery.c bp_light_on / bp_light_off, docs/modules/battery.md "The wake repaint"): screen_action (0x4e71a4, every backlight on / off: awake_screen, the power key's handlers) calls toolSetBackLight (0x5e4f10)
+# at 0x4e71cc (on, a0 = brightness + 1 in the delay slot) and 0x4e71fc (off, a0 = 0, nop delay slot). Both `jalr t9` become `jal`; t9 is loaded in the beqz delay slot at 0x4e71c0.
+LIGHT_ON_SITE = 0x4e71cc
+LIGHT_OFF_SITE = 0x4e71fc
+BACKLIGHT_PINS = (
+    (0x4e71a4, 0x3c1c0052, 'screen_action prologue'), (0x4e71a8, 0x279ccd2c, 'screen_action prologue'), (0x4e71ac, 0x0399e021, 'screen_action prologue'),
+    (0x4e71bc, 0x1080000f, 'screen_action: beqz a0 (off)'), (0x4e71c0, 0x8f99a890, 'screen_action: lw t9, GOT toolSetBackLight (delay slot)'),
+    (0x4e71c8, 0x8c440000, 'screen_action: lw a0, (brightness)'), (LIGHT_ON_SITE, 0x0320f809, 'screen_action: jalr toolSetBackLight (on)'), (0x4e71d0, 0x24840001, 'screen_action: addiu a0, a0, 1 (delay slot)'),
+    (0x4e71d8, 0x8fbc0010, 'screen_action: lw gp (reloaded after the on call)'),
+    (LIGHT_OFF_SITE, 0x0320f809, 'screen_action: jalr toolSetBackLight (off)'), (0x4e7200, 0x00000000, 'screen_action: nop (the delay slot)'), (0x4e7204, 0x8fbc0010, 'screen_action: lw gp (reloaded after the off call)'),
+    (0x4e7208, 0x8f99a894, 'screen_action: lw t9, GOT disable_fb'),
+)
 # Line Out pill (patch/lineout.c lo_set_text, docs/modules/payload.md hook 20, docs/modules/lineout.md): while Line Out is on (byte 0xa05aa7) show_sysbar_face (status bar timer) and dropdown_showface
 # (the pull-down's own bar copy and timer) strcpy "LO" instead of the volume number into a buffer (s6) and join the number path at one call, widget_set_text_utf8(label_volume = s7, buffer): `lw t9, GOT` /
 # `move a1, s6` / `jalr t9` / delay slot `move a0, s7`. Each jalr becomes `jal lo_set_text` (the delay slot stays stock's). Both functions set label_volume visible (`jalr widget_set_visible`, a1 = 1, a0 = s7)
