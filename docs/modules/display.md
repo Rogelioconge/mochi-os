@@ -17,7 +17,7 @@ and compares the stored value and the calls with ours.
 
 ## Brightness
 
-A card with the pull-down's control: the small sun, a 200 x 50 slider (the pull-down's track and
+A card with the pull-down's control (the pull-down's own card is laid out by the same code, `pod_ui.bright_control`; [pulldown](pulldown.md)): the small sun, a 200 x 50 slider (the pull-down's track and
 fill, so the fill takes the accent, under our own white capsule thumb `pod_sl_thumb`) and the large
 sun. The slider is named `slider_brightness` (range 0 .. 100) and a hidden `label_brightness` sits
 beside it, because the code behind it is stock's: `disp_opened` calls stock's refresh and binds

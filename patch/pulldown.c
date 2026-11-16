@@ -32,6 +32,8 @@
 #include "home.h"
 #include "common.h"
 #include "entries.h"
+#include "battery.h"
+#include "lineout.h"
 
 #define PD_N 14 /* every tile: the eight stock ones, then ours (ids '8', '9', 'a', 'b', 'c', 'd') */
 #define PD_STOCK 8 /* ids 0-7 are the stock tiles: the default shows them in this order */
@@ -368,6 +370,11 @@ int m1plus_pulldown_init(void *dlg, void *ctx) {
     if (ret == RET_OK && dlg) {
         widget_on(dlg, EVT_WINDOW_CLOSE, pd_on_close, dlg); /* a refused bind leaves stock's behaviour */
         pd_start(dlg);
+        if (access(KILL_SD, F_OK) != 0) {
+            bp_pulldown(
+                dlg); /* the Battery Percentage and the EQ mark of the bar copy at once, before the first paint */
+            lo_bar_refresh(dlg);
+        }
     }
     return ret;
 }

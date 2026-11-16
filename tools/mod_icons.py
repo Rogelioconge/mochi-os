@@ -8,9 +8,9 @@ file mode):
   46 settings icons    40x40, a bare white Lucide glyph (24 px canvas, stroke 2.0 px) centred, no disc; the four
                        stock badges (DAC, DSD output, ReplayGain) redrawn as white text badges in a thin rounded rect
   18 Home icons        66x66 (+ 17 pressed `_down`), white glyph (38 px canvas, stroke 1.75) on the #777777 disc (#555555 pressed)
-  pull-down tiles      50x50, one ring style for every tile (docs/ui.md): #777777 ring + glyph = off,
-                       white disc + dark glyph = on, #444444 = disabled; Lucide glyphs (24 px canvas), custom gain bars,
-                       "PO"/"LO" in Inter (17 px); backlight sun icons 20x20
+  pull-down tiles      56x56 (stock 50), one flat disc style for every tile (docs/modules/pulldown.md): #2C2C2E disc + white glyph = off,
+                       white disc + dark glyph = on, #1E1E1E disc + #555555 glyph = disabled; Lucide glyphs (26 px), custom gain bars,
+                       "PO"/"LO" in Inter (20 px); backlight sun icons 20x20
   status bar           play/pause (filled), volume 0-4, Wi-Fi 0-4 (unlit arcs #666666), Bluetooth,
                        digital out; stroke 1.5 px at 14-16 px, 2 px at 20 px
   list placeholders    6 folder/playlist/artist/genre/composer/album discs, albumcover s/m/info tiles
@@ -211,7 +211,7 @@ def wifi_spinner(i, px=WIFI_SPIN_PX, ss=8):
 # The device page's Headset Volume keys (patch/btpage.c, docs/modules/bluetooth.md "The device page"): a 38 x 34 dark pill with a white minus or plus (16 px), the pressed twin lighter; neutral greys, no accent.
 BT_VOL_PX, BT_VOL_GLYPH, BT_VOL_FILL, BT_VOL_DOWN = (38, 34), 16, (0x3A, 0x3A, 0x3C), (0x55, 0x55, 0x58)
 BT_VOL_IMAGES = ['pod_ic_btvol_dn', 'pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + ['drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -618,6 +618,7 @@ def swatch(i):
     im = Image.new('RGBA', (POD_ICON,) * 2, tuple(rgb) + (0,)); im.putalpha(big.resize((POD_ICON,) * 2, Image.LANCZOS)); return im
 
 
+DROP_GRABBER = ('drop_grabber', 36, 5)   # name, w, h (= GRABBER's pill)
 SLIDER_THUMB = ('pod_sl_thumb', 38, 24, 46, 34)   # the settings slider's thumb (name, the capsule's width and height, the canvas)
 
 
@@ -786,9 +787,9 @@ def generate_all(sizes):
     f[POD_HOME[0]] = on_disc(glyph(POD_HOME_GLYPH, HOME_GLYPH, 'disc'), 66, DISC)
     f[POD_HOME[1]] = on_disc(glyph(POD_HOME_GLYPH, HOME_GLYPH, 'disc'), 66, DISC_DOWN)
     # pull-down tiles: one ring style, off / on / disabled (docs/ui.md)
-    for n, (g, st) in TILES.items(): f[n] = ring_tile(g, st)
-    for n, g in PD_OWN.items(): f[n] = ring_tile(g, 'off')
-    for n, g in PD_OWN_ON.items(): f[n] = ring_tile(g, 'on')
+    for n, (g, st) in TILES.items(): f[n] = disc_tile(g, st)
+    for n, g in PD_OWN.items(): f[n] = disc_tile(g, 'off')
+    for n, g in PD_OWN_ON.items(): f[n] = disc_tile(g, 'on')
     for n in ('drop_lighticon0', 'drop_lighticon1'):
         f[n] = fit(lambda p, g=PULLDOWN[n]: glyph(g, p, 'small'), 20, 20, 20)
     # status bar
@@ -823,6 +824,7 @@ def generate_all(sizes):
     f[CARD_CHECK[0]] = glyph_fit('check', CARD_CHECK[1], CARD_CHECK[1])
     for i, n in enumerate(SWATCHES): f[n] = swatch(i)
     f[SLIDER_THUMB[0]] = slider_thumb()
+    f[DROP_GRABBER[0]] = pil_glyph('drop_grabber', DROP_GRABBER[1:], *NP_TONES['ghost'])   # the pull-down's grabber: Now Playing's pill (GRABBER, the ghost tone) on a canvas of just the pill
     for n, (g, px, rgb) in WIFI_GLYPHS.items(): f[n] = glyph_fit(g, px, px, rgb, 1, 2.0 if px >= 22 else 1.5)
     for n in range(4): f[f'wf_sig{n}'] = wifi_signal(n)
     for i in range(8): f[f'wf_spin{i}'] = wifi_spinner(i); f[f'wf_spinL{i}'] = wifi_spinner(i, WIFI_SPIN_L_PX)
@@ -1403,9 +1405,10 @@ def transport_mask(kind, size):
             _round_poly(d, _tri(ox + i * w * (1 - SKIP_OV), oy, w, h, fwd), r, s)
     return big.resize((cw, ch), Image.BOX)
 
-def g_grabber(d, s, w, h):
-    # the sheet handle: a pill centred in the button's width, y px from its top
-    pw, ph, y = GRABBER
+def g_grabber(d, s, w, h, y=None):
+    # the sheet handle: a pill centred in the button's width, y px from its top (the pull-down's own, drop_grabber, is just the pill: y 0)
+    pw, ph, y0 = GRABBER
+    y = y0 if y is None else y
     d.rounded_rectangle([(w - pw) / 2 * s, y * s, (w + pw) / 2 * s - 1, (y + ph) * s - 1], radius=ph / 2 * s, fill=255)
 
 # The playing row's marker (patch/rows.c rows_track_icon): a 40 x 20 image drawn centred in the 40 px icon widget, the 20 px wave at
@@ -1431,7 +1434,7 @@ def pil_glyph(kind, size, rgb, alpha=255):
     """The solid glyph `kind` (play, pause, next, prev, grabber) on a size (px or (w, h)) canvas, in rgb at alpha."""
     from PIL import Image
     w, h = size if isinstance(size, tuple) else (size, size)
-    shape = {'grabber': g_grabber, 'wave': g_wave}.get(kind)
+    shape = {'grabber': g_grabber, 'drop_grabber': lambda d, s, w, h: g_grabber(d, s, w, h, 0), 'wave': g_wave}.get(kind)
     if kind in ('stop', 'mb_stop'):   # Radio Now Playing's stop: a filled rounded square (the mini bar's, 18 of 32 px, sits lighter than the pause bars' 22 px)
         from PIL import ImageDraw
         ss, a = 8, round(min(w, h) * (0.5 if kind == 'stop' else 0.5625)); big = Image.new('L', (w * ss, h * ss), 0)
@@ -1568,11 +1571,13 @@ def np_images():
             else: out[name] = glyph_fit(g, px, px, rgb, (px - ink) // 2, 1.5 if ink < 22 else None)   # the small mode / queue glyphs keep a 1.5 px stroke
     return out
 
-# ---------------------------------------------------------------- one ring style for every pull-down tile (docs/ui.md)
-RING_OFF, RING_DIS, RING_ON_GLYPH = (0x77,) * 3, (0x44,) * 3, (0x14,) * 3
-TILE_GLYPH, TILE_TEXT = 24, 17      # glyph px (24 grid, stroke 2) and "PO" / "LO" text px inside the 50 px ring
+# ---------------------------------------------------------------- one flat disc style for every pull-down tile (docs/modules/pulldown.md "Look")
+TILE_N = 56                              # the disc's px: the tile widgets are 56 x 56 (tools/mod_pulldown.py TILE_PX) round the stock tiles' centres
+TILE_OFF, TILE_DIS = (0x2C, 0x2C, 0x2E), (0x1E,) * 3          # the off and disabled discs (the on disc is white)
+TILE_GLYPH_ON, TILE_GLYPH_DIS = (0x14,) * 3, (0x55,) * 3     # the glyph on the on disc, on the disabled disc (off: white)
+TILE_GLYPH, TILE_TEXT = 26, 20      # glyph px (24 grid, stroke 2, scaled) and "PO" / "LO" text px inside the disc
 TILE_FONT = os.path.join(ROOT, 'assets', 'fonts', 'Inter-m1plus.ttf')
-# tile image -> (glyph or 'text:XX', state); the stock geometry: 50 x 50, the circle touching the bounds
+# tile image -> (glyph or 'text:XX', state); the disc touches the bounds of the TILE_N x TILE_N image
 TILES = {
     'drop_wifi': ('wifi', 'off'), 'drop_wifiopen': ('wifi', 'on'), 'drop_bt': ('bluetooth', 'off'),
     'drop_btopen': ('bluetooth', 'on'), 'drop_keylock': ('lock', 'off'), 'drop_keylockopen': ('lock', 'on'),
@@ -1585,18 +1590,14 @@ TILES = {
     'drop_po': ('text:PO', 'off'), 'drop_lo': ('text:LO', 'on')}
 TILES_NEW = ['drop_lowgain', 'drop_highgain', 'drop_lowgaindisable', 'drop_highgaindisable', 'drop_po', 'drop_lo']
 
-def ring_tile(g, state, on_style='disc'):
-    """50 x 50 tile: off = grey ring + grey glyph, dis = dark-grey, on = white filled disc + dark glyph
-    ('disc') or white ring + white glyph ('ring', the alternative documented in docs/ui.md)."""
+def disc_tile(g, state):
+    """TILE_N x TILE_N tile, flat: off = #2C2C2E disc + white glyph, dis = #1E1E1E disc + #555555 glyph, on = white disc + #141414 glyph
+    (no ring, no gradient). The on discs are in palette.ACCENT_DISC: an accent recolours them."""
     from PIL import Image, ImageDraw, ImageFont
-    ss, N, sw = 4, 50, 2
-    big = Image.new('L', (N * ss, N * ss), 0); dr = ImageDraw.Draw(big)
-    filled = state == 'on' and on_style == 'disc'
-    if filled: dr.ellipse((0, 0, N * ss - 1, N * ss - 1), fill=255)
-    else:
-        dr.ellipse((0, 0, N * ss - 1, N * ss - 1), fill=255); dr.ellipse((sw * ss, sw * ss, (N - sw) * ss - 1, (N - sw) * ss - 1), fill=0)
-    col = {'off': RING_OFF, 'dis': RING_DIS, 'on': WHITE}[state]
-    gcol = RING_ON_GLYPH if filled else col
+    ss, N = 4, TILE_N
+    big = Image.new('L', (N * ss, N * ss), 0); ImageDraw.Draw(big).ellipse((0, 0, N * ss - 1, N * ss - 1), fill=255)
+    col = {'off': TILE_OFF, 'dis': TILE_DIS, 'on': WHITE}[state]
+    gcol = {'off': WHITE, 'dis': TILE_GLYPH_DIS, 'on': TILE_GLYPH_ON}[state]
     t = Image.new('RGBA', (N, N), col + (0,)); t.putalpha(big.resize((N, N), Image.LANCZOS))
     if g.startswith('text:'):
         f = ImageFont.truetype(TILE_FONT, TILE_TEXT); bb = f.getbbox(g[5:])
@@ -1798,7 +1799,7 @@ def cmd_generate():
     shutil.rmtree(PNG, ignore_errors=True); os.makedirs(PNG)
     for n, im in sorted(files.items()):
         want = sizes.get(n)
-        assert n in pod_names() + np_names() or im.size == want, (n, im.size, want)
+        assert n in pod_names() + np_names() or im.size == ((TILE_N, TILE_N) if n in TILES else want), (n, im.size, want)
         if n in VINYL or n in VU: open(os.path.join(PNG, n + '.png'), 'wb').write(png_pack.pack(im))   # (the Vinyl and VU pictures only: smallest lossless, tools/png_pack.py)
         else: im.save(os.path.join(PNG, n + '.png'), optimize=True)
     print(f'{len(files)} PNGs, {sum(os.path.getsize(os.path.join(PNG, f)) for f in os.listdir(PNG))} bytes -> {PNG}')
@@ -1834,7 +1835,7 @@ def check_assets(stock_dir, work_dir=None):
         sp = os.path.join(stock_dir, n + '.png')
         assert sha256(open(sp, 'rb').read()) == pins[n], f'{n}.png: stock file does not match the pin'
         s, a = read_png(sp), read_png(os.path.join(PNG, n + '.png'))
-        size = s.size
+        size = (TILE_N, TILE_N) if n in TILES else s.size   # (the pull-down tiles are TILE_N px, the stock 50: the widgets grow in tools/mod_pulldown.py)
         assert (a.size, a.mode, a.format) == (size, s.mode, 'PNG') and s.format == 'PNG', f'{n}.png: {a.size} {a.mode} vs {size} {s.mode}'
         if work_dir:
             w = read_png(os.path.join(work_dir, n + '.png'))

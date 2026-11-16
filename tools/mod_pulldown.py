@@ -10,21 +10,26 @@ dropdown_dialog.bin) carries its own copy of the status bar (view_sysbar) and th
   pod_tile_*,    the six tiles of ours (Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA: patch/pulldown.c shows them in the slots the saved file names): an
   pod_cap_*      image and a caption in view_switchs, added hidden and insensitive, the caption a copy of label_playset with the tile's text
   label_*        the eight tile captions (Wi-Fi, Bluetooth, Buttons lock, gain, USB mode, output,
-                 Playback / System Setting), word-wrapped in 57 x 40 boxes  18 -> 16 (normal),
-                                                                            16 -> 14 (disable, focused)
+                 Playback / System Setting): 71 x 32 boxes (stock 57 x 40) 5 px under the disc, top aligned, word-wrapped,
+                 16 px #B0B0B0 (disabled #555555; stock 18 / 16 px white)
+  img_*, label_* the tile images 56 x 56 (stock 50) round the stock centres, rows 100 apart as stock: x 21 / 95 / 169 / 243, y 11 / 111; no card under them, the discs sit on the panel
+  pod_grabber    an image (drop_grabber: Now Playing's 36 x 5 pill, white at alpha 110, baked) at (142, 328) in the dialog, insensitive
+  the dialog     background black at 92 % (PANEL_ALPHA; stock #141414); the status bar copy stays opaque black
 
 pgbar_battery shows no number there (show_text false, stock), the slider and the icons have no text.
-The caption boxes are widened from 57 to 71 px around the same centre (the tiles are 74 px apart, so
-3 px stay between neighbours): "Bluetooth" is 60 px at 16, so in 57 AWTK broke it as "Bluetoot/h" and
-"Playbac/k Setting". Nothing else moves; the boxes keep height and vertical alignment (stock:
-middle, or AWTK's default, which centres too), so the text stays centred. The tool measures what it
+The caption boxes are 71 px wide (stock 57) around the new tile's centre (the tiles are 74 px apart, so
+3 px stay between neighbours): "Bluetooth" is 60 px at 16, so in 57 AWTK broke it as "Bluetoot/h".
+  view_backlight the brightness card: a flat #1C1C1E card, radius 26, 300 x 52 at (10, 265) (stock: a 300 x 50 black pill image at y 266), holding stock's own
+                 widgets by stock's names (image0, image1, slider_backlight) laid out as the Display page's brightness card (pod_ui.bright_control): the
+                 slider's absolute y 266 .. 316 is stock's, only its x (58 .. 258) and look change
+The tool measures what it
 sets with the shared text model (awtk_text.StbText: truncated advances + 1 px per glyph) in the
 tree's own font, so it must run after the font step:
 
   - "100" (the widest volume) must fit label_volume (30 px);
   - "12:59 PM" (the widest clock) must fit bar_dclock;
   - every tile caption in English and Simplified Chinese (strings/en_US.bin, zh_CN.bin, the keys
-    demo sets @0x4743c8..) must wrap into the 40 px box (lines x font size), greedy word wrap as
+    demo sets @0x4743c8..) must wrap into the 32 px box (lines x font size), greedy word wrap as
     AWTK breaks lines, and no Latin word may be broken inside; the other languages are reported
     (several overflow or break words already in stock).
 
@@ -35,13 +40,27 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import statusbar, pod_i18n, awtk_strings
 from modlib import clone_workdir, edit_ui
 from awtk_text import Ttf, awtk_width
+from pod_roles import SURFACE_RGB
 
 RAW = 'rootfs/release/assets/default/raw'
 DIALOG = 'ui/dialog/dropdown_dialog.bin'
 FONT = 'rootfs/release/assets/default/raw/fonts/default.ttf'
 STATES = ('normal', 'disable', 'focused')
-# old -> new inline font sizes
-TILE = {18: 16, 16: 14}
+# old -> new inline font sizes: every caption 16 px (stock 18, disabled and focused 16; main's pull-down uses 16 / 14)
+CAPTION_PX = 16
+TILE = {18: CAPTION_PX, 16: CAPTION_PX}
+CAPTION_RGB, CAPTION_DIS_RGB = '#B0B0B0', '#555555'     # secondary text; a disabled tile's caption
+PANEL_RGB, PANEL_ALPHA = '#000000', 0.92                # the dialog's background: black at this opacity (stock #141414); the cards and discs are opaque
+PANEL_BG = f'{PANEL_RGB}{round(255 * PANEL_ALPHA):02X}'
+CARD_X = 10                                             # the brightness card's x
+TILE_PX = 56                                            # the tile images: stock 50 x 50, grown round the same centres
+COLS_X, ROWS_Y = (21, 95, 169, 243), (11, 111)          # the 56 px tiles' x (stock 24 + 74 k, minus 3) and y in view_switchs (stock rows 14 and 114, 100 apart as now)
+CAP_DX, CAP_DY, CAP_H = -7, TILE_PX + 5, 32             # a caption box from its tile: 71 wide centred on it, 5 px under the disc, two lines of 16 px
+BL_Y, BL_R = 265, 26                                    # the brightness card's y in the dialog (the slider inside keeps stock's screen y 266 .. 316) and radius; it is ROW_H high, CARD_W wide, at CARD_X
+STOCK_BL = ((10, 266, 300, 50), (20, 15, 20, 20), (260, 15, 20, 20), (50, 0, 200, 50))   # stock's view_backlight and its image0, image1, slider_backlight (pinned)
+GRAB = ('pod_grabber', 142, 328, 36, 5, 'drop_grabber')    # the grabber, a child of the dialog: name, x, y, w, h, image (the dialog is 340 high); a baked, antialiased copy of Now Playing's pill (mod_icons DROP_GRABBER)
+IMGS = ('img_wifiswitch', 'img_btswitch', 'img_keylockswitch', 'img_gainswitch', 'img_usbmode', 'img_outputswitch', 'img_playset', 'img_sysset')   # TILES' images, in the same order
+STOCK_X, STOCK_Y = (24, 98, 172, 246), (14, 114)        # where the stock tiles are (pinned)
 TILES = ('label_wifi', 'label_bt', 'label_lock', 'label_gain', 'label_usbmode', 'label_outputway',
          'label_playset', 'label_sysset')
 # the tile captions' string keys (demo @0x4743c8..0x474b70: widget_set_tr_text on the labels above)
@@ -53,7 +72,7 @@ OWN = (('pod_tile_sleep', 'pod_cap_sleep', 'drop_sleep', 'Sleep Timer'), ('pod_t
        ('pod_tile_airplay', 'pod_cap_airplay', 'drop_airplay', 'AirPlay'), ('pod_tile_dlna', 'pod_cap_dlna', 'drop_dlna', 'DLNA'))
 MUST_FIT = ('en_US', 'zh_CN')
 VOLUME_MAX, CLOCK_MAX = '100', '12:59 PM'
-TILE_W, TILE_DX = 71, -7                 # caption box width and x shift (stock 57; the box centre stays)
+TILE_W = 71                              # caption box width (stock 57)
 
 
 def check(ok, msg):
@@ -114,7 +133,7 @@ def resize(w, table, states=STATES):
 
 
 def add_own(root):
-    """Our six tiles in view_switchs after the stock widgets: the image (50 x 50, the stock tile's size, picture of the ring style, clickable) and its caption (a copy of label_playset
+    """Our six tiles in view_switchs after the stock widgets: the image (56 x 56, the stock tiles' new size, picture of the flat disc style, clickable) and its caption (a copy of label_playset
     with the tile's text), at the first slot and its caption offset; hidden and insensitive. A tile not shown stays so; patch/pulldown.c moves, shows and binds the shown ones."""
     from awtk_ui import Widget
     view, img, cap = root.find('view_switchs'), root.find('img_wifiswitch'), root.find('label_playset')
@@ -127,8 +146,43 @@ def add_own(root):
             w.set('visible', 'false'); w.set('sensitive', 'false'); view.children.append(w)
 
 
+NEW = (GRAB[0],)   # the widgets this step adds besides the tiles of ours
+
+
+def add_cards(root):
+    """The grabber (the dialog's last child): an image of the baked pill, insensitive, so a touch reaches the dialog's own drag handlers as before. The panel's colour is set here too: black at PANEL_ALPHA,
+    and the brightness card is restyled."""
+    from awtk_ui import Widget
+    view = root.find('view_switchs')
+    check(view is not None and root.find('view_backlight') in root.children, 'view_switchs / view_backlight missing')
+    check(root.get('style:normal:bg_color') == '#141414', 'the dialog\'s stock background is not #141414')
+    root.set('style:normal:bg_color', PANEL_BG)
+    restyle_backlight(root)
+    name, x, y, w, h, image = GRAB
+    grab = Widget('image', x, y, w, h, [('name', name), ('draw_type', 'default'), ('image', image), ('sensitive', 'false')])
+    root.children.append(grab)
+
+
+def restyle_backlight(root):
+    """view_backlight becomes the brightness card: stock's pill image and corner styles go, the fill is SURFACE_RGB, and the three children (kept by name, with stock's range and value) are laid out
+    by the Display page's own code (pod_ui.bright_control), so the two cannot drift."""
+    import pod_ui, pod_settings as ST
+    bl = root.find('view_backlight')
+    kids = [bl.find(n) for n in ('image0', 'image1', 'slider_backlight')]
+    check(all(kids) and bl.children == kids and kids[2].type == 'slider', 'view_backlight is not stock\'s (image0, image1, slider_backlight)')
+    check(tuple((w.x, w.y, w.w, w.h) for w in [bl] + kids) == STOCK_BL, f'view_backlight\'s stock places are not the pinned ones: {[(w.x, w.y, w.w, w.h) for w in [bl] + kids]}')
+    check(bl.get('style:normal:bg_image') == 'backlight_bg' and kids[2].get('max') in (None, '100'), 'view_backlight: unexpected stock look or slider range')
+    check((CARD_X, ST.CARD_W, ST.ROW_H) == (10, 300, 52) and BL_Y + pod_ui.BRIGHT_SLIDER_Y == STOCK_BL[0][1] and BL_Y + ST.ROW_H + 8 <= GRAB[2], 'the brightness card is not where this step puts it')
+    for key in [k for k, _ in bl.props if k.startswith('style:')]: bl.remove(key)
+    for st in STATES:
+        bl.set(f'style:{st}:bg_color', SURFACE_RGB); bl.set(f'style:{st}:border_width', '0'); bl.set(f'style:{st}:round_radius', str(BL_R))
+    bl.x, bl.y, bl.w, bl.h = CARD_X, BL_Y, ST.CARD_W, ST.ROW_H
+    pod_ui.bright_control(kids[0], kids[2], kids[1], 0)
+
+
 def edit(root, ttf, texts, report):
     shape = [(w.type, w.name, w.x, w.y, w.w, w.h) for w in root.walk()]
+    bright = {w.name for w in root.find('view_backlight').walk()}   # (restyled by restyle_backlight)
     sysbar = root.find('view_sysbar')
     check(sysbar is not None and all(sysbar.find(n) is not None for n in statusbar.NAMES), 'unexpected pull-down layout')
     # the pull-down's copy of the status bar is laid out from the real bar's table (tools/statusbar.py): identical
@@ -141,12 +195,21 @@ def edit(root, ttf, texts, report):
     cpx = int(clock.get('style:normal:font_size')); cw = awtk_width(ttf, CLOCK_MAX, cpx)
     check(cw <= clock.w, f'"{CLOCK_MAX}" needs {cw} px at {cpx}, the clock box is {clock.w}')
     report.append(f'status bar as the real one (statusbar.py): "{VOLUME_MAX}" {need}/{vol.w} px at {px}, "{CLOCK_MAX}" {cw}/{clock.w} px at {cpx}')
-    for name in TILES:
+    want = {}   # name -> (x, y, w, h) of every stock tile image and caption after this step
+    for i, name in enumerate(TILES):
         w = root.find(name); check(w is not None and w.type == 'label', f'{name} missing')
+        img = root.find(IMGS[i]); col, row = i % 4, i // 4
+        check(img is not None and (img.x, img.y, img.w, img.h) == (STOCK_X[col], STOCK_Y[row], 50, 50) and (w.x, w.y, w.h) == (img.x - 3, img.y + 54, 40),
+              f'{name}: the stock tile / caption places are not the pinned ones ({img and (img.x, img.y, img.w, img.h)}, {(w.x, w.y, w.w, w.h)})')
         spx = int(w.get('style:normal:font_size'))
         check(w.w == 57, f'{name}: unexpected caption width {w.w}')
-        w.x += TILE_DX; w.w = TILE_W      # before measuring: fits() reads w.w
+        img.x, img.y, img.w, img.h = COLS_X[col], ROWS_Y[row], TILE_PX, TILE_PX     # the same centres: the disc grows by 3 px each side
+        w.x, w.y, w.w, w.h = img.x + CAP_DX, img.y + CAP_DY, TILE_W, CAP_H          # before measuring: fits() reads w.w and w.h
+        want[img.name], want[w.name] = (img.x, img.y, img.w, img.h), (w.x, w.y, w.w, w.h)
         changed = resize(w, TILE)
+        for st in STATES:   # secondary text, from the top of the box so a one-line and a two-line caption start at the same height
+            w.set(f'style:{st}:text_color', CAPTION_DIS_RGB if st == 'disable' else CAPTION_RGB)
+            w.set(f'style:{st}:text_align_v', 'top')
         tpx = int(w.get('style:normal:font_size'))
         fits = lambda t, px, bw=w.w: len(wrap(ttf, t, px, bw)) * px <= w.h
         for lang in MUST_FIT:
@@ -155,13 +218,16 @@ def edit(root, ttf, texts, report):
                 check(fits(t, tpx), f'{lang} {k} {t!r} does not fit {w.w}x{w.h} at {tpx}: {wrap(ttf, t, tpx, w.w)}')
         if name == TILES[0]:   # the boxes are all the same size: count once
             over = lambda px, bw: sorted(f'{l}:{k}' for l, kv in texts.items() for k, t in kv.items() if not fits(t, px, bw))
-            report.append(f'tile captions over 40 px: {len(over(spx, 57))} at {spx} px x 57 (stock), {len(over(tpx, w.w))} at {tpx} px x {w.w} '
+            report.append(f'tile captions over {w.h} px: {len(over(spx, 57))} at {spx} px x 57 (stock), {len(over(tpx, w.w))} at {tpx} px x {w.w} '
                           f'(none in {"/".join(MUST_FIT)}); still over: {", ".join(over(tpx, w.w))}')
     report.append(f'tiles {changed}')
     add_own(root)
-    after = [(w.type, w.name, w.x, w.y, w.w, w.h) for w in root.walk() if w.name not in (statusbar.LO_WIDGET, statusbar.SYNC_WIDGET, statusbar.EQ_WIDGET) and not w.name.startswith(('pod_tile_', 'pod_cap_'))]   # (the Line Out pill, the sync icon and the EQ mark statusbar.apply adds are the new widgets)
+    add_cards(root)
+    after = [(w.type, w.name, w.x, w.y, w.w, w.h) for w in root.walk() if w.name not in (statusbar.LO_WIDGET, statusbar.SYNC_WIDGET, statusbar.EQ_WIDGET) and not w.name.startswith(('pod_tile_', 'pod_cap_')) and w.name not in NEW]   # (the Line Out pill, the sync icon and the EQ mark statusbar.apply adds are the new widgets)
     bar_names = {w.name for w in sysbar.walk()}
-    moved = [a for a, b in zip(shape, after) if a != b and a[1] not in bar_names and a[1] not in TILES]   # the bar's own widgets and the caption boxes
+    moved = [a for a, b in zip(shape, after) if a != b and a[1] not in bar_names and a[1] not in want and a[1] not in bright]   # the bar's own widgets, the eight tiles and their captions (checked below)
+    now = {w.name: (w.x, w.y, w.w, w.h) for w in root.walk()}
+    check(all(now[n] == g for n, g in want.items()) and len(want) == 16, f'the tiles and captions are not where this step puts them: {[n for n, g in want.items() if now[n] != g]}')
     check(len(shape) == len(after) and not moved, f'widgets moved: {moved}')
 
 

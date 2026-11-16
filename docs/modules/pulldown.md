@@ -15,15 +15,33 @@ dialog's init and one on touch down ([payload](payload.md)).
 
 - The status bar (`view_sysbar`) is laid out from the same table as the real bar
   ([theme](theme.md) "Status bar"), so the two are identical in 12 h and 24 h mode.
-- Tile captions go from 18 to 16 px (disabled and focused 14). The caption boxes are 71 x 40 instead
-  of 57 x 40 (same centre), because `Bluetooth` is 60 px at 16 and AWTK broke it mid-word. The tool
-  refuses a Latin word wider than the box in English or Chinese. A few long captions in other
-  languages still overflow, clipped as in stock.
-- **Tile art:** every tile image is one 50 x 50 ring style, 2 px ring, 24 px glyph. Off is a
-  `#777777` ring and glyph, on is a filled white disc with a `#141414` glyph, disabled is `#444444`.
-  Gain has custom 2- and 5-bar glyphs, Output the text "PO" / "LO" in Inter Medium 17 px. A white
-  disc, not a white ring: a ring is only a brightness step from the grey ring, and the disc is what
-  stock does with its orange fill. With an accent the ON disc is the accent ([accent](accent.md)).
+- **Panel:** the dialog's background is black at 92 % opacity (`mod_pulldown.PANEL_ALPHA`, stock
+  `#141414`), so the page below shows faintly through its own dimming. The status bar copy keeps
+  the real bar's opaque black. Cards and discs are opaque.
+- **Brightness card:** stock's `view_backlight` (its black pill image `backlight_bg` and corner styles
+  removed), a flat `#1C1C1E` card, radius 26, 300 x 52 at x 10 .. 310, y 265 .. 317 (stock 300 x 50 at
+  266). It holds stock's own `image0`, `image1` and `slider_backlight` by name (range, value and
+  handlers are stock's), laid out by `pod_ui.bright_control`, the same code that builds the
+  [Display](display.md) page's brightness card: suns at x 14 and 266 in the card, slider x 48 .. 248
+  (200 wide), 6 px `drop_bg` / `drop_fg` track and fill, the white capsule thumb `pod_sl_thumb`.
+  The slider keeps stock's screen y 266 .. 316 (the card is one px taller at the top and 1 at the
+  bottom); the card sits 21 px under the last caption row and 11 px over the grabber (y 328).
+  `mod_pulldown.restyle_backlight` pins the stock geometry and refuses anything else.
+- **Tile layout:** the tile images are 56 x 56 (stock 50) round the stock centres, columns x 21 / 95
+  / 169 / 243, rows y 11 and 111 in view_switchs (screen 51 and 151; 100 apart as stock). The discs sit
+  directly on the panel, no card under them. The hook reads positions from the widgets, so it did not change.
+- **Captions:** the stock keys and texts, 16 px `#B0B0B0` (disabled `#555555`; stock 18 / 16 px
+  white), 71 x 32 boxes centred on the tile, top aligned, 5 px under the disc, word-wrapped (two
+  lines fit). `Bluetooth` is 60 px at 16, which AWTK broke mid-word in a 57 px box; the 71 px box
+  stays. The tool refuses a Latin word wider than the box, or a caption that does not fit two
+  lines, in English or Chinese. A few long captions in other languages still overflow, clipped as
+  in stock.
+- **Tile art:** every tile image is one flat 56 x 56 disc, 26 px glyph, no ring. Off is a `#2C2C2E`
+  disc with a white glyph, on a white disc with a `#141414` glyph, disabled a `#1E1E1E` disc with a
+  `#555555` glyph. Gain has custom 2- and 5-bar glyphs, Output the text "PO" / "LO" in Inter Medium
+  20 px. With an accent the ON disc is the accent ([accent](accent.md)).
+- **Grabber:** `pod_grabber`, an image widget showing `drop_grabber` (a baked, antialiased 36 x 5 pill) at
+  (142, 328) in the dialog, white at alpha 110 like Now Playing's grabber (`mod_icons.GRABBER`, the `ghost` tone), insensitive.
 
 ## Tiles: hide, show and reorder
 
@@ -60,6 +78,9 @@ dispatcher, the pointer binds and the tile visitor's click bind.
 
 - The stock init runs first and its result is returned. Then the eight tile images and captions are
   looked up; **if any lookup fails nothing changes**.
+- Without the kill switch, after the tiles: `bp_pulldown` fills the bar copy's Battery Percentage label and
+  `lo_bar_refresh` sets its EQ mark (stock's face call has by then set `img_digital`), so both are in the
+  first frame instead of one timer tick later.
 - The file is read. Shown tile k takes the place of stock tile k (positions read from the widgets)
   and its caption keeps its own offset; the other tiles and captions get `visible=false` **and**
   `sensitive=false`. The default file moves nothing. No widget is renamed or deleted.
@@ -107,15 +128,15 @@ Six tiles can take any of the eight slots (hidden by default): four are actions,
 
 Captions are keys of ours in 13 languages; AirPlay and DLNA are brand text. Sleep Timer is too long
 for the row label in ja, fr, pl and ru (it ends in an ellipsis and scrolls when focused) and for the
-caption box in ru; both are accepted. Our other captions fit the 71 x 40 box in every language.
+caption box in ru; both are accepted. Our other captions fit the 71 x 32 box in every language.
 
 - **Widgets are in the asset.** `mod_pulldown.py` adds to `view_switchs` an image (`pod_tile_*`,
-  50 x 50, clickable) and a caption (`pod_cap_*`, a copy of `label_playset`) for each, **hidden and
+  56 x 56, clickable) and a caption (`pod_cap_*`, a copy of `label_playset`) for each, **hidden and
   insensitive**. So the default file, the kill switch or a failed hook leave them invisible, and no
   widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes),
   moves a shown tile with its caption, binds a tap and makes it visible. Stock's tile visitor knows
   tiles by name and ignores ours.
-- Art is the stock ring, off look only for the four actions: an action has no on state because the
+- Art is the flat disc, off look only for the four actions: an action has no on state because the
   dialog closes on the tap.
 - **The page** has fourteen rows (`pod_row0..13`) with glyphs from `POD_ROWS`.
 - **Tap** (`pd_on_tile`, `pd_open_dialog`, payload hook 22). Stock's tiles never open a page from
@@ -163,7 +184,7 @@ Tiles `c` and `d` are **switches** for the two service settings the Network Serv
 - If the byte is now on and Wi-Fi is not connected, the toast "Connect to Wi-Fi first" says why
   nothing starts. The byte is still flipped: it is a stored preference. Turning off never toasts.
 - **Lit look:** when the dialog is built, a shown switch tile gets its picture from the byte. The on
-  pictures are the ring style's on look and are in `ACCENT_DISC`, so with an accent the lit disc is
+  pictures are the disc style's on look and are in `ACCENT_DISC`, so with an accent the lit disc is
   the accent. The picture shows the setting, not whether the service is running yet.
 
 ## Swipe gates and the window stack

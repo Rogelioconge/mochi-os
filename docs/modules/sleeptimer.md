@@ -26,16 +26,20 @@ The title is the stock key `powerm_sleep`. Stock's Spanish text "Temporizador de
 than the navbar title's room, so `pod_i18n.STOCK_FIX` shortens it to "Temporizador" (for every use of
 the key, the Power page's row included). Row texts and the note are our keys.
 
-**Which row is checked** (`st_choice`): Off while the byte is 0; a time only while the byte is on
-and the word equals that time exactly; otherwise no row. The word is the seconds left, so a running
-timer matches its preset only until the first tick, and a time set on stock's page (any minute up
-to 3:59) matches no row. The page reads the state when it opens and on every `EVT_WINDOW_TO_FG`
-(`page_refresh`).
+**Which row is checked** (`st_choice`): Off while the byte is 0. A row picked on our page (`st_set`
+remembers it and the seconds it stored, in `.scratch`) stays checked while `0 < sleep_time <=` the
+last seen word, which it then updates: the word only counts down for the same timer. A higher word
+or 0 forgets the pick (another timer or the end), as do Off and the byte off. Without a pick a row
+is checked only when the word equals its time exactly, else none (a time set on stock's page
+matches no row). A time set on stock's page that is lower than the last seen word cannot be told
+from the countdown and keeps the old check. The page reads the state when it opens and on every
+`EVT_WINDOW_TO_FG` (`page_refresh`).
 
 **Time Left** (`ACT_SLEEPLEFT` 171) is a second card under the note with one information row
 (label, grey value, no chevron, never sensitive). The value is the word as `H:MM` rounded up to the
 next minute (`st_left_text`: 59 s `0:01`, 1380 `0:23`, 5400 `1:30`, 14399 `4:00`; no language). It
-exists because a running timer matches no preset after its first tick.
+shows the time left, which the checked row no longer gives after a first tick or for a time set on
+stock's page.
 
 - `page_refresh` shows the row and its card only while the byte is on and the word is above 0. Else
   it hides them (visible and sensitive off, so the page closes up).

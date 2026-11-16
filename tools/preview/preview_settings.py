@@ -116,23 +116,24 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
     return im
 
 
-def draw_brightness(im, c, y, img, value):
+def draw_brightness(im, c, y, img, value, card=True):
     """The Display page's brightness card (tools/pod_ui.py cards_brightness): the card piece, the two suns and the slider at `value` (0 .. 100): its bar images stretched to the slider's width,
     the fill up to the thumb, the thumb's image centred on the value (approximate: AWTK's slider draws the bar bar_size high in the middle)."""
-    im.alpha_composite(img(c.get('style:normal:bg_image')), (0, y))
+    if card: im.alpha_composite(img(c.get('style:normal:bg_image')), (0, y))   # (card=False: the pull-down's, which draws its own flat card and has the children at its own x)
+    dx = 0 if card else c.x
     for t in c.children:
         if t.type == 'image' and t.get('visible') != 'false':
-            g = img(t.get('image')); im.alpha_composite(g, (t.x + (t.w - g.width) // 2, y + t.y + (t.h - g.height) // 2))
-        elif t.type == 'slider': draw_slider(im, t, y, img, value)
+            g = img(t.get('image')); im.alpha_composite(g, (dx + t.x + (t.w - g.width) // 2, y + t.y + (t.h - g.height) // 2))
+        elif t.type == 'slider': draw_slider(im, t, y, img, value, dx)
 
 
-def draw_slider(im, t, y, img, value):
+def draw_slider(im, t, y, img, value, dx=0):
     """A slider of the pages (the Display page's, the loudness pages'): its bar images stretched to its width, the fill up to the thumb, the thumb's image centred on `value` (0 .. its max)."""
     bar, dot = int(t.get('bar_size')), img(t.get('style:normal:icon'))
     by, travel = y + t.y + (t.h - bar) // 2, t.w - dot.width
-    x = t.x + dot.width // 2 + travel * value // int(t.get('max'))
-    im.alpha_composite(img(t.get('style:normal:bg_image')).resize((t.w, bar)), (t.x, by))
-    if x > t.x: im.alpha_composite(img(t.get('style:normal:fg_image')).resize((x - t.x, bar)), (t.x, by))
+    tx = dx + t.x; x = tx + dot.width // 2 + travel * value // int(t.get('max', '100'))
+    im.alpha_composite(img(t.get('style:normal:bg_image')).resize((t.w, bar)), (tx, by))
+    if x > tx: im.alpha_composite(img(t.get('style:normal:fg_image')).resize((x - tx, bar)), (tx, by))
     im.alpha_composite(dot, (x - dot.width // 2, y + t.y + (t.h - dot.height) // 2))
 
 

@@ -74,6 +74,34 @@ def state_tests(ctx):
     for flag, secs, want in ((0, 0, 0), (0, 1800, 0), (0, 99999, 0), (1, 900, 1), (1, 1800, 2), (1, 2700, 3), (1, 3600, 4), (1, 5400, 5), (1, 7200, 6), (1, 0, 0xffffffff), (1, 899, 0xffffffff), (1, 1, 0xffffffff),
                              (1, 14399, 0xffffffff), (2, 900, 1), (0xff, 7200, 6), (1, -1 & 0xffffffff, 0xffffffff)):
         expect(SM(flag=flag, secs=secs).call(PSYMS['st_choice'], count=200000) == want, f'byte {flag}, word {secs}: row {want if want != 0xffffffff else "none"} checked')
+    # a picked row stays checked while its timer counts down; another timer, the end or Off forgets it
+    C, S = PSYMS['st_choice'], PSYMS['st_set']
+    NONE = 0xffffffff
+    m = SM(flag=0, secs=0); m.call(S, a0=2, count=200000)
+    seq = []
+    for w in (1800, 1799, 1200, 59):
+        m.setword(TIME, w); seq.append(m.call(C, count=200000))
+    expect(seq == [2, 2, 2, 2], f'30 minutes picked, the word counting down: row 2 stays checked ({seq})')
+    m.setword(TIME, 2000)
+    expect(m.call(C, count=200000) == NONE, 'the word raised above the last seen one: another timer, no row')
+    m.setword(TIME, 59)
+    expect(m.call(C, count=200000) == NONE, 'the pick stays forgotten after that')
+    m.setword(TIME, 900)
+    expect(m.call(C, count=200000) == 1, 'without a pick an exact preset still checks its row')
+    m = SM(); m.call(S, a0=3, count=200000); m.setword(TIME, 0)
+    expect(m.call(C, count=200000) == NONE, 'the word at 0 with the byte on: no row, pick forgotten')
+    m.setword(TIME, 2700)
+    expect(m.call(C, count=200000) == 3, 'an exact preset checks its row again')
+    m = SM(); m.call(S, a0=2, count=200000); m.u.mem_write(FLAG, bytes([0]))
+    expect(m.call(C, count=200000) == 0, 'the byte off: Off checked')
+    m.u.mem_write(FLAG, bytes([1])); m.setword(TIME, 1000)
+    expect(m.call(C, count=200000) == NONE, 'a time set elsewhere after Off, not a preset: no row')
+    m = SM(); m.call(S, a0=2, count=200000); m.call(S, a0=0, count=200000)
+    expect(m.call(C, count=200000) == 0, 'Off picked: Off checked')
+    m.u.mem_write(FLAG, bytes([1])); m.setword(TIME, 1000)
+    expect(m.call(C, count=200000) == NONE, 'Off forgets the pick')
+    m = SM(); m.call(S, a0=2, count=200000); m.call(S, a0=5, count=200000); m.setword(TIME, 5000)
+    expect(m.call(C, count=200000) == 5, 'a second pick replaces the first')
     # every row from every state: the final state is stock's, and nothing is saved or re-armed (stock's handlers do neither)
     for flag, secs in STATES:
         for v in range(7):

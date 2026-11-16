@@ -1,4 +1,4 @@
-/* M1+ Music Sleep Timer page (docs/modules/sleeptimer.md): the state behind our page's check rows.
+/* M1+ Music Sleep Timer page (docs/modules/sleeptimer.md): the state behind our page's check rows. A row picked on our page stays checked while its timer counts down (the pick is remembered in .scratch).
  *
  * The state is stock's own, the two words systemset/powermanager_page's view_sleep keeps: the byte sleepflag (the switch) and the word sleep_time, the seconds left. Stock's Power page stays reachable under
  * All System Settings and reads the same two words. Nothing of ours is saved: stock saves nothing either (no config key; the timer is gone at the next boot). The setters store what stock's handlers store, in
@@ -17,11 +17,28 @@
 
 static const int st_secs[SLEEP_N] = {0, 900, 1800, 2700, 3600, 5400, 7200}; /* what each row leaves in the word */
 
-/* The row to check: 0 Off while stock's byte is 0; a time while the byte is on and the word is exactly that time; else -1 (the word counts down once a tick, so a running timer is a preset only until its
- * first tick, and a time set on stock's page is any number of minutes up to 3:59). */
+/* The row picked on our page and the word as last seen (zero-initialised .scratch): the word counts down, so the picked row stays checked while the word only goes down; 0: none remembered. */
+static struct {
+    int row;
+    int last;
+} st_pick __attribute__((section(".scratch")));
+
+/* The row to check: 0 Off while stock's byte is 0. A row picked on our page stays checked while 0 < the word <= the last seen word (the same timer counting down); a word above it or 0 is another timer (set on
+ * stock's Power page) or the end, and the pick is forgotten. Without a pick: a time while the word is exactly that time, else -1. A time set on stock's page that is lower than the last seen word cannot be told
+ * from the countdown and keeps the old check. */
 int st_choice(void) {
     int i, t = sleep_time;
-    if (!sleep_flag) return 0;
+    if (!sleep_flag) {
+        st_pick.row = 0;
+        return 0;
+    }
+    if (st_pick.row) {
+        if (t > 0 && t <= st_pick.last) {
+            st_pick.last = t;
+            return st_pick.row;
+        }
+        st_pick.row = 0;
+    }
     for (i = 1; i < SLEEP_N; i++)
         if (t == st_secs[i]) return i;
     return -1;
@@ -32,6 +49,7 @@ int st_choice(void) {
 int st_set(int v) {
     if (v < 0 || v >= SLEEP_N) return -1;
     if (v == 0) {
+        st_pick.row = 0;
         if (!sleep_flag) return 0;
         sleep_flag = 0;
         sleep_time = 0;
@@ -42,6 +60,8 @@ int st_set(int v) {
         sleep_time = 0;
     }
     sleep_time = st_secs[v];
+    st_pick.row = v;
+    st_pick.last = st_secs[v];
     return 0;
 }
 

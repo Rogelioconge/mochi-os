@@ -26,7 +26,7 @@ from awtk_ui import RAW
 def run(script, *args):
     subprocess.run([sys.executable, '-I', os.path.join(HERE, script), *args], check=True, stdout=subprocess.DEVNULL)
 
-def controls(s, work, bg=(0x14, 0x14, 0x14, 255), ink=lambda c: c):
+def controls(s, work, bg=(0, 0, 0, 255), ink=lambda c: c):
     """The pull-down laid out from the tree's ui/dialog/dropdown_dialog.bin (tile images in a sample state,
     captions word-wrapped with mod_pulldown's model), then the toggle and slider images at 1:1."""
     import awtk_ui, mod_pulldown as MP
@@ -41,16 +41,17 @@ def controls(s, work, bg=(0x14, 0x14, 0x14, 255), ink=lambda c: c):
              'img_usbmode': ('drop_usbaudio', 'label_usbmode', 'usbmode_audio'), 'img_outputswitch': ('drop_po', 'label_outputway', 'sset_outputway'),
              'img_playset': ('drop_playset', 'label_playset', 'playset'), 'img_sysset': ('drop_sysset', 'label_sysset', 'sysset')}
     sw = root.find('view_switchs')
+    grab = root.find('pod_grabber')   # (the panel itself is black at 92 %, drawn here as black; the discs sit on it)
     for name, (img, label, key) in tiles.items():
         w, lb = root.find(name), root.find(label)
         im.alpha_composite(s.img(img), (w.x, sw.y + w.y))
         px = int(lb.get('style:normal:font_size'))
-        for i, line in enumerate(MP.wrap(ttf, en[key], px, lb.w)):
-            s.text(im, lb.x + lb.w / 2, sw.y + lb.y + lb.h / 2 + (i - (len(MP.wrap(ttf, en[key], px, lb.w)) - 1) / 2) * px, line, px, anchor='m')
-    bl = root.find('view_backlight'); sl = root.find('slider_backlight'); y = bl.y + 22
-    im.alpha_composite(s.img('drop_lighticon0'), (bl.x + 20, y - 10)); im.alpha_composite(s.img('drop_lighticon1'), (bl.x + 260, y - 10))
-    im.alpha_composite(s.img('drop_bg'), (bl.x + sl.x, y - 3)); im.alpha_composite(s.img('drop_fg').crop((0, 0, 120, 6)), (bl.x + sl.x, y - 3))
-    im.alpha_composite(s.img('drop_dot'), (bl.x + sl.x + 120 - 8, y - 16))
+        for i, line in enumerate(MP.wrap(ttf, en[key], px, lb.w)):   # top aligned
+            s.text(im, lb.x + lb.w / 2, sw.y + lb.y + (i + 0.5) * px, line, px, ink((0xB0, 0xB0, 0xB0)), anchor='m')
+    im.alpha_composite(s.img(grab.get('image')), (grab.x, grab.y))
+    bl = root.find('view_backlight')   # the brightness card (flat, radius 26) with the stock widgets in it, the slider at 60 %
+    ImageDraw.Draw(im).rounded_rectangle((bl.x, bl.y, bl.x + bl.w - 1, bl.y + bl.h - 1), int(bl.get('style:normal:round_radius')), fill=ink((0x1C, 0x1C, 0x1E)))
+    PS.draw_brightness(im, bl, bl.y, s.img, 60, card=False)
     y = 340 + 18
     # toggles: on / off / the two-state words
     x = 14

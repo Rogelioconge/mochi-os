@@ -112,4 +112,6 @@ Stock's lock page draws its gauge from the same `power_capacity`, so its fill an
 follow the percentage. Its label `pod_pct_lk` (`tools/mod_lockscreen.py`: a child of `view_timeinfo`,
 so Show Time off hides it with the gauge; a fixed 32 px box, right-aligned) is set by the same tick
 and by `bp_lock` at the page's init (`patch/lockscreen.c`, not with the kill switch), so the number
-is there in the first frame. With the setting off or a bad gauge the label stays hidden.
+is there in the first frame. The pull-down's `pod_pct_dd` is set the same way by `bp_pulldown` at the
+dialog's init (`patch/pulldown.c`, not with the kill switch). With the setting off or a bad gauge the
+label stays hidden.

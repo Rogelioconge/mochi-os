@@ -6,6 +6,7 @@ and the tiles' clicks are bound by stock code, which the hook never touches); th
 import os, random, struct
 from unicorn import UC_HOOK_MEM_WRITE
 import palette
+import cdefs
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 
 FILE, TMP = '/mnt/data/m1plus/pulldown-tiles', '/mnt/data/m1plus/pulldown-tiles.tmp'
@@ -100,10 +101,25 @@ def hook_tests(ctx):
     # -- 1. the assets: the eight tiles on the stock grid, the captions at one offset from their tile --------------------
     g = geometry()
     slots = [g[n][:2] for n in IMG]
-    expect(slots[:N] == [(24, 14), (98, 14), (172, 14), (246, 14), (24, 114), (98, 114), (172, 114), (246, 114)]
-           and all(g[n][2:] == (50, 50) for n in IMG), 'the tiles are 50 x 50 on the stock grid of four columns, 74 px apart, rows at y 14 and 114')
+    expect(slots[:N] == [(21, 11), (95, 11), (169, 11), (243, 11), (21, 111), (95, 111), (169, 111), (243, 111)]
+           and all(g[n][2:] == (56, 56) for n in IMG), 'the tiles are 56 x 56 round the stock centres: four columns 74 px apart (x 21 ..), rows at y 11 and 111 (stock 50 x 50, rows 14 and 114)')
     offs = {(g[LAB[t]][0] - g[IMG[t]][0], g[LAB[t]][1] - g[IMG[t]][1]) for t in range(NT)}
-    expect(offs == {(-10, 54)} and all(g[n][2:] == (71, 40) for n in LAB), f'every caption is 71 x 40 at the same offset from its tile ({offs})')
+    expect(offs == {(-7, 61)} and all(g[n][2:] == (71, 32) for n in LAB), f'every caption is 71 x 32, centred 5 px under its tile\'s disc, at the same offset ({offs})')
+    cards = awtk_ui.parse(open(os.path.join(WORK, UI), 'rb').read()); v = cards.find('view_switchs'); grab = cards.find('pod_grabber')
+    expect(cards.find('pod_card') is None and not [c for c in v.children if c.name.startswith('pod_card')], 'no card under the tiles: the discs sit on the panel')
+    expect(cards.children[-1] is grab and (grab.x, grab.y, grab.w, grab.h) == (142, 328, 36, 5) and grab.get('sensitive') == 'false' and grab.type == 'image' and grab.get('image') == 'drop_grabber' and grab.get('style:normal:bg_color') is None, 'the grabber is the dialog\'s last child, an image of the baked pill (drop_grabber, 36 x 5) at the bottom centre, insensitive')
+    bl = cards.find('view_backlight')
+    expect((bl.x, bl.y, bl.w, bl.h) == (10, 265, 300, 52) and cards.get('style:normal:bg_color') == '#000000EB' and (cards.w, cards.h) == (320, 340) and 40 + max(g[LAB[t]][1] + g[LAB[t]][3] for t in range(NT)) <= bl.y - 20 and bl.y + bl.h + 8 <= grab.y,
+           'the panel is black at 92 % (#000000EB), 340 high; the brightness card is 300 x 52 at y 265 .. 317 with room above (the last caption row ends 20 px or more over it) and below (the grabber at 328)')
+    sl, lo, hi = bl.find('slider_backlight'), bl.find('image0'), bl.find('image1')
+    expect(bl.children == [lo, hi, sl] and all(bl.get(f'style:{st}:bg_color') == '#1C1C1E' and bl.get(f'style:{st}:round_radius') == '26' and bl.get(f'style:{st}:bg_image') is None for st in ('normal', 'disable', 'focused'))
+           and bl.get('style:normal:border_width') == '0', 'view_backlight is the brightness card: flat #1C1C1E, radius 26, no pill image')
+    expect((lo.x, lo.y, lo.w, lo.h) == (14, 16, 20, 20) and (hi.x, hi.y, hi.w, hi.h) == (266, 16, 20, 20) and (sl.x, sl.y, sl.w, sl.h) == (48, 1, 200, 50) and bl.y + sl.y == 266 and bl.y + sl.y + sl.h == 316
+           and sl.get('bar_size') == '6' and sl.get('max') is None and sl.get('value') == '60' and {v for k, v in sl.props if k.endswith(':icon')} == {'pod_sl_thumb'}
+           and sl.get('style:normal:bg_image') == 'drop_bg' and sl.get('style:normal:fg_image') == 'drop_fg',
+           'the stock slider (name, value, no range of its own) keeps its screen y 266 .. 316 and is laid out as the Display page\'s: suns at x 14 and 266, slider x 48 .. 248 in the card, 6 px track and fill, the capsule thumb')
+    expect(all(cards.find(n).get(f'style:{st}:font_size') == '16' and cards.find(n).get(f'style:{st}:text_color') == ('#555555' if st == 'disable' else '#B0B0B0') and cards.find(n).get(f'style:{st}:text_align_v') == 'top' for n in LAB[:8] for st in ('normal', 'disable', 'focused')),
+           'every stock caption is 16 px #B0B0B0 (disabled #555555), top aligned')
 
     # -- 2. the stock layout: no file, a bad file, the default, a missing widget, a failed stock init ------
     default = list(range(N))
@@ -139,8 +155,36 @@ def hook_tests(ctx):
            and all(c[2] == 0 for c in m.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive')),
            'every tile not listed is hidden, ours too (a listed hidden id adds nothing)')
     lookups = {c[1] for c in m.calls if c[0] == 'widget_lookup'}
-    expect(lookups == set(IMG + LAB) and not any(c[0] in ('widget_destroy_children', 'widget_set_prop_str', 'widget_set_text_utf8', 'widget_set_tr_text') for c in m.calls),
+    expect(lookups - {'view_bar_left'} == set(IMG + LAB) and not any(c[0] in ('widget_destroy_children', 'widget_set_prop_str', 'widget_set_text_utf8', 'widget_set_tr_text') for c in m.calls),
            'only the twenty-eight tiles and captions are looked up; nothing is renamed, destroyed or re-labelled')
+
+    # -- 3b. the bar copy at the dialog's init: the Battery Percentage and the EQ mark are there in the first frame, not one timer tick later ---------
+    bp, lo = (cdefs.defines(os.path.join(ROOT, 'patch', f), strings=True) for f in ('battery.h', 'lineout.h'))
+
+    def bar_machine(pct=b'87\n', eq=1, digital=0, kill=False):
+        m = PD(); m.fs[bp['BP_FILE']] = b'1\n'; m.fs[bp['BP_GAUGE']] = pct
+        m.lbl = m.widget(bp['BP_LABEL_DD']); m.props[(m.lbl, 'visible')] = 0
+        for k, v in ((bp['BP_W_W'], 32), (bp['BP_W_H'], 30), (bp['BP_W_PARENT'], 0x31000000)): m.setword(m.lbl + k, v)
+        m.left = m.widget(lo['LO_GROUP']); m.eq = m.widget(lo['EQ_IND']); m.props[(m.eq, 'visible')] = 0
+        m.dig = m.widget(lo['EQ_DIGITAL']); m.props[(m.dig, 'visible')] = digital   # what stock's face call left of the glyph
+        m.u.mem_write(pod.DATA['EQ_FLAG'][0], bytes([eq]))
+        if kill: m.present.add('/mnt/mmc/m1plus-off')
+        m.open()
+        return m
+
+    shown = lambda m, h: [c[2] for c in m.calls if c[0] == 'widget_set_visible' and c[1] == h]
+    m = bar_machine()
+    expect([c[2] for c in m.calls if c[0] == 'widget_set_text_utf8' and c[1] == m.lbl] == ['87%'] and shown(m, m.lbl) == [1] and shown(m, m.eq) == [1],
+           'the init shows the Battery Percentage and the EQ mark at once (Equalizer on, the digital-out glyph hidden by stock\'s face)')
+    m = bar_machine(digital=1)
+    expect(shown(m, m.eq) == [] and shown(m, m.lbl) == [1], 'the digital-out glyph still shows: the mark stays hidden, the percentage is there')
+    m = bar_machine(eq=0)
+    expect(shown(m, m.eq) == [] and shown(m, m.lbl) == [1], 'Equalizer off: no mark')
+    m = bar_machine(pct=b'x')
+    expect(shown(m, m.lbl) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'], 'a bad gauge: the label stays hidden')
+    m = bar_machine(kill=True)
+    expect(shown(m, m.lbl) == [] and shown(m, m.eq) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'] and 'view_bar_left' not in {c[1] for c in m.calls if c[0] == 'widget_lookup'},
+           'kill switch: nothing of this happens')
 
     # -- 4. the parser: the payload against the Python model on random files --------------------------------------------
     rnd = random.Random(11)
@@ -682,10 +726,10 @@ def own_tests(ctx):
     for img, cap, pic, key, _ in OWN:
         wi, wc = tree.find(img), tree.find(cap)
         same = [p for p in ref.props if p[0] != 'name'] == [p for p in wc.props if p[0] not in ('name', 'tr_text', 'text', 'visible', 'sensitive')]
-        expect(wi in view.children and wc in view.children and (wi.w, wi.h) == (50, 50) and wi.get('image') == pic and wi.get('clickable') == 'true' and (wi.get('visible'), wi.get('sensitive')) == ('false', 'false')
-               and (wc.w, wc.h) == (71, 40) and (wc.x - wi.x, wc.y - wi.y) == (-10, 54) and (wc.get('visible'), wc.get('sensitive')) == ('false', 'false') and wc.get('tr_text') == pod_i18n.key_for(key) and same,
-               f'{img}: a hidden, insensitive 50 x 50 clickable image of {pic} and a caption {key!r} (71 x 40, -10 / +54, the style of the stock captions) in view_switchs')
-        expect(asset_image(pic).size == (50, 50), f'{pic}.png is a 50 x 50 ring image')
+        expect(wi in view.children and wc in view.children and (wi.w, wi.h) == (56, 56) and wi.get('image') == pic and wi.get('clickable') == 'true' and (wi.get('visible'), wi.get('sensitive')) == ('false', 'false')
+               and (wc.w, wc.h) == (71, 32) and (wc.x - wi.x, wc.y - wi.y) == (-7, 61) and (wc.get('visible'), wc.get('sensitive')) == ('false', 'false') and wc.get('tr_text') == pod_i18n.key_for(key) and same,
+               f'{img}: a hidden, insensitive 56 x 56 clickable image of {pic} and a caption {key!r} (71 x 32, -7 / +61, the style of the stock captions) in view_switchs')
+        expect(asset_image(pic).size == (56, 56), f'{pic}.png is a 56 x 56 disc image')
     expect({pod_i18n.key_for(t) for t in ('Sleep Timer', 'Settings', 'Equalizer', 'Power Off')} == {'powerm_sleep', 'Settings', 'Equalizer', 'Power Off'}, 'the captions are keys of ours (Sleep Timer: the stock powerm_sleep): translated in every language')
 
     # -- the slots: a shown tile of ours takes its slot with its caption, is visible, sensitive and bound; the others of ours stay hidden
@@ -789,13 +833,13 @@ def own_tests(ctx):
            and pod_pages.PULLDOWN_TILES[12:] == ('AirPlay', 'DLNA') and pod_pages.PULLDOWN_CHARS[12:] == 'cd', 'the switches and setting bytes are stock\'s (0x5076a8 / 0xa05abd, 0x507674 / 0xa05abe); ids c and d are AirPlay and DLNA')
     for img, cap, off, on, label, tid, flag, fn in SW:
         wi, wc = tree.find(img), tree.find(cap)
-        expect(wi in view.children and wc in view.children and (wi.w, wi.h) == (50, 50) and wi.get('image') == off and wi.get('clickable') == 'true' and (wi.get('visible'), wi.get('sensitive')) == ('false', 'false')
-               and (wc.w, wc.h) == (71, 40) and (wc.x - wi.x, wc.y - wi.y) == (-10, 54) and wc.get('text') == label and wc.get('tr_text') is None and (wc.get('visible'), wc.get('sensitive')) == ('false', 'false'),
-               f'{img}: a hidden, insensitive 50 x 50 clickable image of {off} and a caption {label!r} (a brand: the same text in every language) in view_switchs')
-        expect(asset_image(off).size == (50, 50) and asset_image(on).size == (50, 50) and on in palette.ACCENT_DISC and off not in palette.ACCENT_DISC,
-               f'{off}.png and {on}.png are 50 x 50 ring images; the lit one takes the accent disc like the stock lit tiles')
+        expect(wi in view.children and wc in view.children and (wi.w, wi.h) == (56, 56) and wi.get('image') == off and wi.get('clickable') == 'true' and (wi.get('visible'), wi.get('sensitive')) == ('false', 'false')
+               and (wc.w, wc.h) == (71, 32) and (wc.x - wi.x, wc.y - wi.y) == (-7, 61) and wc.get('text') == label and wc.get('tr_text') is None and (wc.get('visible'), wc.get('sensitive')) == ('false', 'false'),
+               f'{img}: a hidden, insensitive 56 x 56 clickable image of {off} and a caption {label!r} (a brand: the same text in every language) in view_switchs')
+        expect(asset_image(off).size == (56, 56) and asset_image(on).size == (56, 56) and on in palette.ACCENT_DISC and off not in palette.ACCENT_DISC,
+               f'{off}.png and {on}.png are 56 x 56 disc images; the lit one takes the accent disc like the stock lit tiles')
         a = asset_image(on).convert('RGBA'); b = asset_image(off).convert('RGBA')
-        expect(a.getpixel((25, 4))[:3] == (255, 255, 255) and a.getpixel((25, 4))[3] > 200 and b.getpixel((25, 4))[3] < 60 and b.getpixel((25, 1))[:3] == (0x77,) * 3, f'{on}: a filled white disc (the ring only in {off}, grey #777777)')
+        expect(a.getpixel((28, 4))[:3] == (255, 255, 255) and a.getpixel((28, 4))[3] == 255 and b.getpixel((28, 4))[:3] == (0x2C, 0x2C, 0x2E) and b.getpixel((28, 4))[3] == 255 and b.getpixel((0, 0))[3] == 0, f'{on}: a flat white disc, {off} a flat #2C2C2E disc (no ring)')
         addr = pod.DATA[flag][0]
         for byte in (0, 1):
             m = PT([H]); m.u.mem_write(addr, bytes([byte])); m.swipe(P.PULLDOWN_CHARS[tid].encode() + b'\n')

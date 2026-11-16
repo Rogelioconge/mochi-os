@@ -9,7 +9,7 @@
  * /sys/class/power_supply/battery/capacity reads a plain integer 0..100, stores that percentage in power_capacity (so the fill, the charging picture's fill and the
  * pull-down's bar use the real level, charging included) and shows "N%" in the label pod_pct that sits left of the outline (its twin pod_pct_dd in the pull-down's bar).
  * At BP_LOW (5) percent or less on battery (and when stock's own bucket is 0) the stored value is 0, which is how stock's own test shows the red bar_lowpower (battery.md "BP_LOW").
- * The lock screen (screensaver_page) draws its gauge from the same power_capacity; its label pod_pct_lk is set by the same tick and, at once, by bp_lock at the page's init.
+ * The lock screen (screensaver_page) draws its gauge from the same power_capacity; its label pod_pct_lk is set by the same tick and, at once, by bp_lock at the page's init. The pull-down's label pod_pct_dd is set at once the same way, by bp_pulldown at its init.
  * In every other case the stock value stays and the labels are hidden (visible and sensitive off). The icon pictures stay stock's (charging, low).
  * The same tick then runs the Charge Limit's check (patch/charging.c chg_tick: the kill switch and, when it was read here, the gauge).
  * Two more hooks, the call-site words `jalr toolSetBackLight` at 0x4e71cc (on) and 0x4e71fc (off) in screen_action (0x4e71a4), now `jal bp_light_on` / `jal bp_light_off`, repaint the
@@ -91,15 +91,21 @@ static void bp_label(void *w, int pct, int fit) {
     widget_set_visible(w, 1, 0);
 }
 
-/* The lock screen's label, at the page's init (patch/lockscreen.c, after stock's init and only without the kill switch): the percentage at once, where the status bar's tick would show it
- * up to a second later. The label is hidden in the asset, so with the setting off or an unreadable gauge nothing is touched. Its box is fixed (the widest text, right-aligned). */
-void bp_lock(void *win) {
+/* A page's label at its init (after stock's init and only without the kill switch): the percentage at once, where the status bar's tick would show it up to a second later. The label is hidden in
+ * the asset, so with the setting off or an unreadable gauge nothing is touched. */
+static void bp_init_label(void *win, const char *name, int fit) {
     int pct;
     if (bp.state == 0) bp.state = bp_read_setting() ? 2 : 1;
     if (bp.state != 2 || (pct = battery_gauge()) < 0) return;
-    bp_label(widget_lookup(win, BP_LABEL_LK, 1), pct, 0);
+    bp_label(widget_lookup(win, name, 1), pct, fit);
     bp.shown = 1;
 }
+
+/* The lock screen's label (patch/lockscreen.c). Its box is fixed (the widest text, right-aligned). */
+void bp_lock(void *win) { bp_init_label(win, BP_LABEL_LK, 0); }
+
+/* The pull-down's label (patch/pulldown.c m1plus_pulldown_init): fitted like the status bar's. */
+void bp_pulldown(void *dlg) { bp_init_label(dlg, BP_LABEL_DD, 1); }
 
 /* The hook (tools/pod.py BATTERY_SITE): stock's get_battery_capacity, then the real percentage when asked for. Returns what stock's function returned, or the percentage. */
 int bp_capacity(void) {

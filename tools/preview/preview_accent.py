@@ -124,7 +124,7 @@ def songs_screen(s, pal):
 
 
 def controls_screen(s, pal):
-    """Keyboards' card (a switch on, one off), the Cassette Theme picker's rows (the check) and a slider row (the pull-down's drop_bg / drop_fg / drop_dot art)."""
+    """Keyboards' card (a switch on, one off), the Cassette Theme picker's rows (the check) and a slider row (the pull-down's drop_bg / drop_fg / pod_sl_thumb art)."""
     kb = PS.draw_page(s, 'm1plus_keyboards', pal=pal)
     ao = PS.draw_page(s, 'm1plus_tapetheme', pal=pal, state={'shown': {'pod_check0'}})
     im = Image.new('RGBA', (W, H), pal.base + (255,))
@@ -137,7 +137,7 @@ def controls_screen(s, pal):
     ty = y + 26 - 3
     im.alpha_composite(pal.image(s, 'drop_lighticon0'), (20, y + 16)); im.alpha_composite(pal.image(s, 'drop_lighticon1'), (270, y + 16))
     bg = pal.image(s, 'drop_bg').crop((0, 0, 200, 6)); fg = pal.image(s, 'drop_fg').crop((0, 0, 120, 6))
-    im.alpha_composite(bg, (60, ty)); im.alpha_composite(fg, (60, ty)); im.alpha_composite(pal.image(s, 'drop_dot'), (60 + 120 - 8, y + 26 - 16))
+    im.alpha_composite(bg, (60, ty)); im.alpha_composite(fg, (60, ty)); im.alpha_composite(pal.image(s, 'pod_sl_thumb'), (60 + 120 - 23, y + 26 - 17))
     return im
 
 
@@ -189,7 +189,7 @@ class PalSide:
 
 def pulldown_screen(s, work, pal):
     import preview
-    im = preview.controls(PalSide(s, pal), work, bg=pal.ink((0x14, 0x14, 0x14)) + (255,), ink=pal.ink)
+    im = preview.controls(PalSide(s, pal), work, bg=pal.ink((0, 0, 0)) + (255,), ink=pal.ink)
     return im.crop((0, 0, W, H)) if im.height >= H else im
 
 

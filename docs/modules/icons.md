@@ -57,7 +57,7 @@ pause, skip, lock); `ellipsis` is always filled.
 | Folders, Playlists, CD | 24 bare glyphs (40x40) | 16 audio formats share `file-music`; SD, USB; New / Import / Export; CD track dialog (`guitar`, microphone, calendar) |
 | list placeholders | 6 glyphs (40x40), 3 "no cover" tiles (60/90/100) | the tile colour with a muted glyph at 0.52 of the tile |
 | artist photo placeholder | `pod_ic_ar_art` (96 px, Lucide `mic-vocal` #8C8C8C, stroke 2, transparent; `ARTIST_ART`) | not a tile: `patch/artistphoto.c` `ap_placeholder` draws the #333333 circle (40 px on the Artists rows, 160 px on the artist page) and this glyph on it at 0.52 of the diameter; accent-neutral (`ACCENT_GLYPH_NOT`) |
-| pull-down | 17 (50x50, 20x20 suns) | one ring style ([pulldown](pulldown.md)); "PO" / "LO" 17 px Inter |
+| pull-down | 17 (56x56, 20x20 suns) | one flat disc style ([pulldown](pulldown.md)); "PO" / "LO" 20 px Inter |
 | status bar | 15 | white, unlit Wi-Fi arcs `#666666`; 1.5 px at 14-16 px, 2 px at 20 |
 | Now Playing | `np_*` (21) | solid PIL transport shapes (`transport_mask`); star and More on a translucent disc (`nowplaying.md`) |
 | screensaver transport | `play1`, `pause1` (+ `_down`, 36x36) | solid transport shapes (`transport_mask('ss_play' / 'ss_pause')`, play corners `SS_PLAY_R` 0.16) on a translucent disc |

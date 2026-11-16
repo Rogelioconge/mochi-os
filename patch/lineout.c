@@ -29,7 +29,7 @@ static void lo_sync(void *parent, int kill) {
 }
 
 /* The EQ mark (docs/modules/lineout.md "EQ mark"): pod_eq in the bar's left group, shown while the Equalizer switch is on (stock's equalizer_flag, the byte the Equalizer page and the per-output EQ keep) and the kill
- * switch is absent. Hidden while stock's digital-out glyph shows: with both, the group would run into the clock. Stock sets that glyph later in the same tick, so the mark follows it one tick late.
+ * switch is absent. Hidden while stock's digital-out glyph shows: with both, the group would run into the clock. Stock sets that glyph later in the same tick, so on the timer path the mark follows it one tick late; a window's init covers its first paint (lo_bar_refresh).
  * Set only when it changes. A bar without the widget is left alone. */
 static void lo_eq(void *parent, int kill) {
     void *ind = widget_lookup(parent, EQ_IND, 0), *dig;
@@ -38,6 +38,13 @@ static void lo_eq(void *parent, int kill) {
     on = !kill && *(volatile unsigned char *)EQ_FLAG != 0;
     if (on && (dig = widget_lookup(parent, EQ_DIGITAL, 0)) != 0 && widget_get_visible(dig)) on = 0;
     if (!widget_get_visible(ind) != !on) m1_show(ind, on);
+}
+
+/* The pull-down's init (patch/pulldown.c, after stock's init, whose face call has set the digital-out glyph, and only without the kill switch): the EQ mark at once, where its first
+ * face tick would come 500 ms later. Only the mark: the pill and the per-output EQ are the timer's. A window without the bar is left alone. */
+void lo_bar_refresh(void *win) {
+    void *left = widget_lookup(win, LO_GROUP, 1);
+    if (left) lo_eq(left, 0);
 }
 
 /* The hooks (tools/pod.py LINEOUT_SITES): stock's widget_set_text_utf8(label, text), then the pill swap. */

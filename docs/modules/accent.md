@@ -106,7 +106,7 @@ change. `tools/palette_audit.py WORKDIR` lists the tinted names.
 | FILL | slider and progress fills, `pod_check`, `np_row_playing` | each pixel goes from its colour to the accent by how light its red is (51 to 238): the grey track stays and edges blend |
 | SWITCH | `sset_on` | the `#EEEEEC` track becomes the accent, the `#141414` knob white |
 | PRESS | `pod_cd_*_down` (pressed settings card) | `mix(#1C1C1E, accent, 22 %)` |
-| DISC | the pull-down's ON tiles | `#141414` stays, white becomes the accent, by lightness; off (`#777777`) and disabled (`#444444`) tiles are untouched |
+| DISC | the pull-down's ON tiles | `#141414` stays, white becomes the accent, by lightness; off (`#2C2C2E`) and disabled (`#1E1E1E`) tiles are untouched |
 | GLYPH | row glyphs (below) | every colour becomes the accent, alpha kept |
 | TILE | the four Podcasts Library tiles | the disc rule with `#1C1C1E` as the fixed end: white becomes the accent, the square stays exactly |
 | SHUFDOWN | the Shuffle disc's pressed image | the disc becomes `mix(rest, accent, 22 %)`, the glyph stays |

@@ -2150,7 +2150,22 @@ assert BD['BD_SEG_ITEM_H'] == _ST.SEG_H and BD['BD_HSL_H'] == _ST.HSL_H == BD['B
 BD_LABEL_PX, BD_SEG_PX = 18, 14
 
 
-BRIGHT_SUN, BRIGHT_SLIDER_W = 20, 200   # the pull-down's suns (drop_lighticon0 / 1) and its slider's width (dialog/dropdown_dialog slider_backlight)
+BRIGHT_SUN, BRIGHT_SLIDER_W, BRIGHT_SLIDER_H, BRIGHT_SLIDER_Y = 20, 200, 50, 1   # the suns (drop_lighticon0 / 1), the slider's width and height (stock's, dialog/dropdown_dialog slider_backlight) and its y in a ROW_H card
+
+
+def bright_control(lo, slider, hi, dx):
+    """The brightness control's one look, shared by the Display page's card (cards_brightness, dx = ST.CM) and the pull-down's card (tools/mod_pulldown.py, dx = 0; its widgets are stock's, kept by name):
+    the widgets placed in a card ST.CARD_W x ST.ROW_H whose left edge is at dx (small sun in the glyph column, the slider from the label column, the large sun at the right padding), the slider's 6 px track
+    and fill (drop_bg, drop_fg) under our white capsule thumb (pod_sl_thumb). Name, range, value and handlers are the caller's."""
+    import pod_settings as ST
+    y = (ST.ROW_H - BRIGHT_SUN) // 2
+    lo.x, lo.y, hi.x, hi.y = dx + ST.PAD, y, dx + ST.CARD_W - ST.PAD - BRIGHT_SUN, y
+    slider.x, slider.y, slider.w, slider.h = dx + ST.TEXT_X - ST.CM, BRIGHT_SLIDER_Y, BRIGHT_SLIDER_W, BRIGHT_SLIDER_H
+    for k, val in (('slide_with_bar', 'true'), ('bar_size', '6'), ('dragger_size', '50'), ('dragger_adapt_to_icon', 'true')): slider.set(k, val)
+    for st in ('normal', 'pressed', 'over', 'disable', 'focused'):
+        styled(slider, (st,), 'bg_color', '#00000000'); styled(slider, (st,), 'fg_color', '#00000000')
+        styled(slider, (st,), 'icon', 'pod_sl_thumb'); styled(slider, (st,), 'bg_image', 'drop_bg'); styled(slider, (st,), 'fg_image', 'drop_fg')
+    styled(slider, ('normal',), 'round_radius', '6')
 
 
 def cards_brightness():
@@ -2164,15 +2179,11 @@ def cards_brightness():
         styled(v, (st,), 'bg_color', '#00000000')
         styled(v, (st,), 'bg_image', ST.piece_images('single')[0])
         styled(v, (st,), 'bg_image_draw_type', 'default')
-    y = (ST.ROW_H - BRIGHT_SUN) // 2
-    v.children.append(Widget('image', ST.CM + ST.PAD, y, BRIGHT_SUN, BRIGHT_SUN, [('name', 'pod_bright_lo'), ('image', 'drop_lighticon0'), ('draw_type', 'default'), ('sensitive', 'false')]))
-    s = Widget('slider', ST.TEXT_X, 1, BRIGHT_SLIDER_W, 50, [('name', 'slider_brightness'), ('max', '100'), ('step', '1'), ('slide_with_bar', 'true'), ('bar_size', '6'), ('dragger_size', '50'), ('dragger_adapt_to_icon', 'true'), ('value', '0')])
-    for st in ('normal', 'pressed', 'over', 'disable', 'focused'):
-        styled(s, (st,), 'bg_color', '#00000000'); styled(s, (st,), 'fg_color', '#00000000')
-        styled(s, (st,), 'icon', 'pod_sl_thumb'); styled(s, (st,), 'bg_image', 'drop_bg'); styled(s, (st,), 'fg_image', 'drop_fg')
-    styled(s, ('normal',), 'round_radius', '6')
-    v.children.append(s)
-    v.children.append(Widget('image', ST.CM + ST.CARD_W - ST.PAD - BRIGHT_SUN, y, BRIGHT_SUN, BRIGHT_SUN, [('name', 'pod_bright_hi'), ('image', 'drop_lighticon1'), ('draw_type', 'default'), ('sensitive', 'false')]))
+    lo = Widget('image', 0, 0, BRIGHT_SUN, BRIGHT_SUN, [('name', 'pod_bright_lo'), ('image', 'drop_lighticon0'), ('draw_type', 'default'), ('sensitive', 'false')])
+    s = Widget('slider', 0, 0, BRIGHT_SLIDER_W, BRIGHT_SLIDER_H, [('name', 'slider_brightness'), ('max', '100'), ('step', '1'), ('value', '0')])
+    hi = Widget('image', 0, 0, BRIGHT_SUN, BRIGHT_SUN, [('name', 'pod_bright_hi'), ('image', 'drop_lighticon1'), ('draw_type', 'default'), ('sensitive', 'false')])
+    bright_control(lo, s, hi, ST.CM)
+    v.children += [lo, s, hi]
     lab = Widget('label', 0, 0, 1, 1, [('name', 'label_brightness'), ('text', ''), ('visible', 'false'), ('sensitive', 'false')])
     for st in STATES: styled(lab, (st,), 'text_color', '#FFFFFF')   # (never shown; the contrast scan reads every label)
     v.children.append(lab)
