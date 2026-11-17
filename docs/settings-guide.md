@@ -139,8 +139,12 @@ Open **Settings → Playback → EQ** for the [equalizer](equalizer-guide.md), o
   row beside it; see [Software update](#software-update).
 - **Date & Time**: Set Automatically syncs over Wi-Fi. Time Zone can always be changed; Date and
   Time can be set while automatic time is off. **24-Hour Time** changes the clock display.
-- **Keyboards**: English is always on. Chinese (Pinyin) adds a language key and candidates above
-  the keys: swipe sideways, or press space to select the first. Tidal Search uses this keyboard too;
+- **Keyboards**: English is always on. French (AZERTY) adds an AZERTY letter layout. On the English
+  and French letters, hold a key such as e, a, c, u, i, o, y or n for half a second to get its accents:
+  slide to one and lift to type it. Chinese
+  (Pinyin) adds candidates above the keys: swipe sideways, or press space to select the first. With
+  more than one on, a language key next to 123 cycles English, French and Chinese. Wi-Fi
+  passwords always use English. Tidal Search uses this keyboard too;
   Search hides it and a tap on the search bar brings it back.
 - **Language** lists the 13 languages in their own writing. A choice switches the player and returns
   to Home.

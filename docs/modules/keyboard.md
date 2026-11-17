@@ -8,8 +8,8 @@
 
 Our own on-screen keyboard, built from stock AWTK widgets. It replaces stock's T9 popup
 (`ui/user_keyboard.bin`, laid out 640 px wide in a 320 px popup) wherever we use it, and types
-Chinese when Settings > General > Keyboards > Chinese (Pinyin) is on. No hook, no new import, no
-thread; one timer only while the delete key is held.
+French (AZERTY) and Chinese when Settings > General > Keyboards > French (AZERTY) or Chinese (Pinyin) is on. No hook, no new import, no
+thread; one timer only while the delete key or an accent key is held.
 
 ## Layout
 
@@ -58,23 +58,69 @@ area effectively fills the 3 px gaps, the 8 px gaps between rows and the pad mar
 
 ## Keyboards setting and the language key
 
-Two switch rows in Settings > General > Keyboards: English (always on) and Chinese (Pinyin)
-(`/mnt/data/m1plus/keyboard-pinyin`, default off; [settings](settings.md)).
+Three switch rows in Settings > General > Keyboards, in iOS order: English (always on), French
+(AZERTY) (`/mnt/data/m1plus/keyboard-french`) and Chinese (Pinyin) (`keyboard-pinyin`); each file
+`1` = on, default off ([settings](settings.md)).
 
-- **Off:** exactly the keyboard above. No language key, space 163 px, the dictionary and engine
-  never touched.
-- **On:** row four is `123 / ABC` (74), the language key `kb_lang` (40), space (120), Search. The key
-  is on every page and shows the layer a tap goes to (`中` on English, `EN` on Chinese; not
-  translated). If `gpinyin.dat` is missing, or the engine will not open when the key is tapped, the
-  key goes away and English stays.
-- The layer the last keyboard ended on is remembered for the session (`kb_memo`); turning the setting
-  off forgets it.
+- **Only English:** exactly the keyboard above. No language key, space 163 px, the dictionary and
+  engine never touched.
+- **More than one on:** row four is `123 / ABC` (74), the language key `kb_lang` (40), space (120),
+  Search. The key is on every page. A tap cycles the layers that are on in the order EN, FR, 中, EN
+  and shows the layer the next tap goes to (`FR`, `中`, `EN`; not translated). Tapping it on the 123
+  or #+= page also returns to the new layer's letters. If `gpinyin.dat` is missing the Chinese layer
+  is not offered; if the engine will not open when its turn comes, the layer leaves the cycle for
+  that keyboard and the tap goes on to the next one (the key goes away when one layer is left).
+- The layer the last keyboard ended on is remembered for the session (`kb_memo`). A remembered layer
+  that is off or will not open starts English instead (and memo says English); turning a
+  keyboard's setting off forgets it if it was the memo.
+- A `KB_PASSWORD` field is English only whatever is on or remembered.
 
-## Layers and the Chinese layer
+## Layers
 
 A layer is a `struct kb_layer` of functions (`enter`, `leave`, `compose`, `backspace`, `flush`,
-`pending`, `reset`, and the `tag` the key shows). English has none. The page tables, field, pop-up,
+`pending`, `reset`, and the `tag` the key shows). English and French have none: letters type as they
+are, with the same shift and capitals rules. The page tables, field, pop-up,
 gap rule and delete repeat are shared, so another composer would plug in as a table entry.
+
+**French (AZERTY)** has its own letter pages (`azertyuiop` / `qsdfghjklm` / `wxcvbn`, uppercase
+likewise; 10 + 10 + 6 keys in the same 26 widgets, shift and delete on row three), the 123 and #+=
+pages unchanged. The letter tables are per layer (`KB_LETTERS` in `patch/keyboard.c`, `FR_ROWS` in
+`tools/pod_keyboard.py`); the char key geometry is re-placed when the letter layout changes (`kb.geo`).
+
+### Long-press accents
+
+On the English and French letter pages (lower and upper case; not the Chinese layer, not 123 / #+=),
+holding a char key that has accents for 500 ms (`KB_ACC_MS`) replaces its balloon with a strip of
+variants above the key; a quick tap is unchanged.
+
+- **Table** (`KB_ACCENTS`, `ACCENTS` in `tools/pod_keyboard.py`; one for both layers, French-first as
+  iOS French): e `éèêë`, a `àâæáäãå`, c `ç`, u `ùûüú`, i `îïìí`, o `ôœöòóõø`, y `ÿ`, n `ñ`. The upper
+  page uses the capitals (`ÉÈÊË`, `Œ`, `Ÿ`...). Every glyph has ink in the shipped font.
+- **Strip** (`kb_acc`, `#6E6E73`, radius 10, 44 px high, 4 px padding, 28 px cells, 8 px over the key):
+  a left-half key grows it right from the key's left edge, a right-half key grows it left from the
+  key's right edge with the slots reversed so the first variant stays nearest the key; clamped 1 px
+  inside the screen (`acc_rect`). The highlight `kb_acc_h` is a `#3A3A3C` pill; variants are the
+  pool `kb_a0`..`kb_a6` (24 px white). All are insensitive for life, part of `keyboard_pad_widgets()`
+  (after `kb_pop`, so byte for byte equal in every host); only visibility, text and position change.
+- **Selection:** the first variant starts highlighted; a finger move picks the slot under its x
+  (`acc_pick`, clamped to the ends). Lifting types the highlighted variant (UTF-8, whole or not at
+  all against the byte limit); abort, background or destroy types nothing. A shifted capital is used
+  up like any letter.
+- **Event order:** stock's `widget_dispatch` (0x66cec8) runs the widget's own `on_event` before the
+  handlers bound with `widget_on`, and a button's `on_event` (0x6224ec) emits `EVT_CLICK` for a pointer
+  up, so a key's **click arrives before its `EVT_POINTER_UP` handler**. Showing the strip sets `nclick`,
+  so the click types nothing in either order and only the lift commits (once, `acc_on` is cleared
+  by it); `kb_press` clears the flag on the next touch. A quick tap never shows the strip and types
+  once.
+- **Touch routing:** the key gets the timer through `kb_press`, so a touch the pad resolved by the gap
+  rule gets it too. Moves and the lift are handled whichever of the key and the pad hears them
+  (idempotent). A key grabs its touch itself (a button's pointer down calls `widget_grab`, 0x6225ec), so
+  its moves and lift come wherever the finger goes. The pad does not: a gap touch on a key with
+  accents calls `widget_grab(win, pad)` (`kb.grab`), released by `kb_ungrab` on the gap's lift or abort,
+  the background and destroy, so a drag above the pad still reaches it. The timer is `kb.timer` (shared with delete's repeat: one key is held at a time),
+  armed on down and stopped by `kb_unpop`.
+
+### The Chinese layer
 
 The Chinese layer has the English pages with these differences: lowercase only and **no shift** (the
 pinyin separator `'` takes its place), and punctuation on 123 / #+= stays ASCII. The engine opens
@@ -224,6 +270,6 @@ the page. Used by `se_read_hanzi` ([search](search.md)).
 
 ## Limits
 
-- No caps lock, no number-row variant (rejected), no accents, no fullwidth punctuation on the Chinese layer, no Korean or Japanese
+- No caps lock, no number-row variant (rejected), no accents on the Chinese layer or the symbol pages, no fullwidth punctuation on the Chinese layer, no Korean or Japanese
   layers.
 - Stock's T9 popups in other stock windows are unchanged.

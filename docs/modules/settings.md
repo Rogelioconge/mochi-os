@@ -29,7 +29,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Battery | Battery Percentage, Charge Limit, Battery History | [battery](battery.md), [charging](charging.md) |
 | General | Software Update | our page `m1plus_update` (link row, glyph `download`) | [update](update.md) |
 | | Date & Time | Set Automatically, Time Zone (43 zones), Date and Time, 24-Hour Time | [datetime](datetime.md) |
-| | Keyboards | two switch rows | [Keyboards](#keyboards) |
+| | Keyboards | three switch rows | [Keyboards](#keyboards) |
 | | Language | value row (the language's own name), our picker | [language](language.md) |
 | | About | our page | [About](#about) |
 | (last card) | All System Settings | stock's list (its Theme row is removed), the fallback to every stock page, incl. Firmware Update, Regulatory, Format Storage and Reset | [theme](theme.md) |
@@ -171,6 +171,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `home-menu` | Main Menu / Extras | item ids in order, optional `-` then the hidden ids; invalid = defaults ([menu](menu.md)) |
 | `home-recent-albums` | Recent Albums | `0` off; missing/other on |
 | `keyboard-pinyin` | Chinese (Pinyin) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |
+| `keyboard-french` | French (AZERTY) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |
 | `library-artist-split` | Split Artists | `0` or missing: off (the default); `1`: on with the default separators (`;` `/` `&` `feat.`); `m<decimal>`: on with that `M1_SPLIT_*` mask (bit k = the k-th separator of the page; `m0`: on, splits nothing); `o<decimal>`: off, keeping that mask (the page writes `m<mask>` and `o<mask>`, so the separators survive an off / on); anything else off ([artists](artists.md) "Split index") |
 | `lockscreen-layout` | Lock Screen > Player Style | `1` Mini Player; missing/other Large Cover (the default); applies the next time the lock screen opens ([lockscreen](lockscreen.md)) |
 | `nowplaying-idle` | Idle Display | `1` Cassette, `2` Vinyl, `3` Lyrics; missing/other Album Cover (Off is stock's Cover mode byte) ([bigcover](bigcover.md) "Idle view") |
@@ -348,9 +349,10 @@ the build tag. Stock's page stays under All System Settings.
 ## Keyboards
 
 Settings > General > Keyboards lists the keyboards the on-screen keyboard offers ([keyboard](keyboard.md))
-as two switch rows. **English** is always on: dimmed to 60 % and no tap. **Chinese (Pinyin)** is a normal
-switch (`ACT_KB_ZH`), saved atomically in `keyboard-pinyin` (off by default, read each time the keyboard
-opens). With it on the keyboard has a language key and a pinyin layer; turning it off also forgets the
+as three switch rows. **English** is always on: dimmed to 60 % and no tap. **French (AZERTY)**
+(`ACT_KB_FR`, `keyboard-french`) and **Chinese (Pinyin)** (`ACT_KB_ZH`, `keyboard-pinyin`) are normal
+switches, saved atomically (off by default, read each time the keyboard opens). With one on the
+keyboard has a language key (and with Chinese a pinyin layer); turning one off also forgets it as the
 layer the keyboard ended on.
 
 ## Settings Files

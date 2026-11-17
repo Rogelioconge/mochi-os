@@ -43,6 +43,7 @@ CHL_Y, CHL_H = 4, 28                         # the pressed item's highlight
 SEP_Y, SEP_H = 8, 20                         # the divider between the pinyin and the candidates
 DRAG = 6                                     # px a finger must move before a press on the strip is a scroll
 LANG_TAGS = ('中', 'EN')                     # the language key's label: the layer a tap goes to (Chinese from English, English from Chinese)
+FR_TAG = 'FR'                                # ... and the French layer's (the cycle is EN -> FR -> 中 -> EN over the layers that are on)
 
 # The search field (window coordinates): a rounded #1C1C1E bar under the navbar.
 FIELD_X, FIELD_Y, FIELD_W, FIELD_H, FIELD_R = 10, 58, 300, 36, 10
@@ -58,8 +59,13 @@ ROWS = {
     '123': ('1234567890', '-/:;()$&@"', ".,?!'"),
     '#+=': ('[]{}#%^*+=', '_\\|~<>€£¥`', ".,?!'"),
 }
+# The French layer's letter pages (AZERTY): the same 26 char key widgets (10 + 10 + 6), shift and delete as in English. Per-layer letter tables: one entry here and one in patch/keyboard.c KB_LETTERS.
+FR_ROWS = {
+    'abc': ('azertyuiop', 'qsdfghjklm', 'wxcvbn'),
+    'ABC': ('AZERTYUIOP', 'QSDFGHJKLM', 'WXCVBN'),
+}
 # What the keys read: characters and the page switches, the same in every language (not translated: test/pod/i18n.py lets these literals through).
-LABELS = frozenset(c for rows in ROWS.values() for row in rows for c in row) | {'#+=', '123', 'ABC'} | set(LANG_TAGS)   # (the Chinese layer's pinyin separator ' is in the 123 page's row already)
+LABELS = frozenset(c for rows in ROWS.values() for row in rows for c in row) | {'#+=', '123', 'ABC'} | set(LANG_TAGS) | {FR_TAG}   # (the Chinese layer's pinyin separator ' is in the 123 page's row already)
 
 
 def row_x(n, w):
@@ -70,13 +76,13 @@ def row_x(n, w):
 def row_y(i): return KB_PAD + i * KB_PITCH
 
 
-def layout(page, lang=False, zh=False):
+def layout(page, lang=False, zh=False, fr=False):
     """Pad-relative geometry of a page: {'keys': [(label, x, y, w)...] in char key widget order, 'fn': {name: (x, y, w)} for the function keys shown}.
     Function keys: shift (kb_shift or, while on, kb_shifton) on the letter pages, sym (#+= / 123) on the other two, del, mode (123 / ABC), space, go (Search).
     lang: the language key (kb_lang) sits right of 123 and space is that much narrower (more than one keyboard enabled). zh: the Chinese layer's letter page has no shift (no capitals are
-    typed) and the pinyin separator ' (kb_sym) in its place."""
+    typed) and the pinyin separator ' (kb_sym) in its place. fr: the French layer's AZERTY letter pages (shift as in English)."""
     keys = []
-    for r, row in enumerate(ROWS[page]):
+    for r, row in enumerate(FR_ROWS[page] if fr and page in FR_ROWS else ROWS[page]):
         w = KB_NUM_KW if r == 2 and page in ('123', '#+=') else KB_KW
         x0 = row_x(len(row), w)
         keys += [(c, x0 + i * (w + KB_GAP), row_y(r), w) for i, c in enumerate(row)]
@@ -113,3 +119,36 @@ def pop_rect(x, y, w, pad_y):
     by = top - KB_POP_GAP - KB_POP_H
     sy = by + KB_POP_H - KB_STEM_UP
     return bx, by, x, sy, w, top + KB_KH - sy
+
+
+# Long-press accents (English and French letter pages): holding a char key for ACC_MS replaces the balloon with a strip of variants above the key; sliding picks one, lifting types it. French-first order (as iOS French).
+# One table for both layers; the uppercase pages use the capitals. patch/keyboard.c KB_ACCENTS repeats it (test/pod/keyboard.py compares).
+ACCENTS = {'e': 'éèêë', 'a': 'àâæáäãå', 'c': 'ç', 'u': 'ùûüú', 'i': 'îïìí', 'o': 'ôœöòóõø', 'y': 'ÿ', 'n': 'ñ'}
+ACC_MS = 500                                   # how long a key is held before the strip shows
+ACC_CELL, ACC_H, ACC_PAD, ACC_R, ACC_GAP, ACC_PX = 28, 44, 4, 10, 8, 24   # a variant's cell width, the strip's height, its padding, corner radius, the gap over the key, the font
+ACC_HL_R = 6                                   # the highlighted variant's pill
+ACC_MAX = 7                                    # variant label widgets (kb_a0 ..): the longest list (a: 7, o: 7)
+KB_ACC_HL = '#3A3A3C'                          # the highlighted variant: a darker pill in the pop-up grey, the text stays white
+
+
+def accents(c):
+    """The variants of the letter c (any case), or '' for a key without; capitals for a capital."""
+    v = ACCENTS.get(c.lower(), '')
+    return v.upper() if c.isupper() else v
+
+
+def acc_rect(x, w, y, n):
+    """(strip x, y, w, h, reversed) in window coordinates for n variants over the key at pad-relative (x, y, w): left-aligned with the key (growing right) for keys in the left half of the screen, otherwise
+    right-aligned (growing left, the variants in reverse slot order so the first stays nearest the key, as iOS does); kept 1 px inside the screen."""
+    sw = n * ACC_CELL + 2 * ACC_PAD
+    rev = x + w // 2 >= SCREEN_W // 2
+    sx = x + w + ACC_PAD - sw if rev else x - ACC_PAD
+    sx = min(max(sx, 1), SCREEN_W - 1 - sw)
+    return sx, WIN_H - KB_H + y - ACC_GAP - ACC_H, sw, ACC_H, rev
+
+
+def acc_pick(rect, n, fx):
+    """The variant index a finger at window x fx selects on the strip rect (acc_rect's): the slot under it (clamped to the ends), reversed on a reversed strip."""
+    sx, _, _, _, rev = rect
+    slot = min(max((fx - sx - ACC_PAD) // ACC_CELL, 0), n - 1)
+    return n - 1 - slot if rev else slot

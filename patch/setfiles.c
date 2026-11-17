@@ -35,7 +35,7 @@ struct sf_file {
     char kind;
 };
 
-/* The order of the page's rows (INFO_SF + index): 4 guard files, the folder, then the 49 setting files from SF_SETTING on. */
+/* The order of the page's rows (INFO_SF + index): 4 guard files, the folder, then the 50 setting files from SF_SETTING on. */
 static const struct sf_file sf_files[] = {
     {START_FILE, K_CHAR},
     {MARKER, K_PRESENT},
@@ -70,6 +70,7 @@ static const struct sf_file sf_files[] = {
     {MENU_FILE, K_MENU},
     {PULLDOWN_FILE, K_MENU},
     {KBZH_FILE, K_CHAR},
+    {KBFR_FILE, K_CHAR},
     {PCSEARCH_FILE, K_CHAR},
     {PCREGION_FILE, K_TEXT},
     {BP_FILE, K_CHAR},

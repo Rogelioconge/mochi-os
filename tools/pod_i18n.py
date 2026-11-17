@@ -1224,6 +1224,8 @@ TEXT = dict([
        'Teclados', 'Tastiere', 'แป้นพิมพ์', 'Klawiatury', 'Клавиатуры', 'Клавіатури'),
     _t('English', '英语', '英語', '英語', '영어', 'Anglais', 'Englisch',
        'Inglés', 'Inglese', 'อังกฤษ', 'Angielski', 'Английский', 'Англійська'),
+    _t('French (AZERTY)', '法语 (AZERTY)', '法語 (AZERTY)', 'フランス語(AZERTY)', '프랑스어(AZERTY)', 'Français (AZERTY)', 'Franz. (AZERTY)',
+       'Francés (AZERTY)', 'Francese (AZERTY)', 'ฝรั่งเศส (AZERTY)', 'Francuski (AZERTY)', 'Франц. (AZERTY)', 'Франц. (AZERTY)'),
     _t('Chinese (Pinyin)', '中文拼音', '中文拼音', '中国語（ピンイン）', '중국어(병음)', 'Chinois (pinyin)', 'Chinesisch (Pinyin)',
        'Chino (pinyin)', 'Cinese (pinyin)', 'จีน (พินอิน)', 'Chiński (pinyin)', 'Пиньинь (кит.)', 'Китайська (піньїнь)'),
     # The on-screen keyboard (patch/keyboard.c; the Developer row, the page's title and the keys' labels)

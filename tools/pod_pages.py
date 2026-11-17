@@ -59,6 +59,7 @@ ACT_SUBSONIC = 93 # the Navidrome root page (patch/ndroot.c)
 ACT_SEARCH = 35   # open the library search page (patch/search.c search_open; the stock search_page where ours will not open), the Search item of the menu and Extras
 ACT_KB_EN = 27  # switch row (Settings > General > Keyboards): English, always on and not switchable (the row's switch is shown on and the row is dimmed)
 ACT_KB_ZH = 28  # switch row (Settings > General > Keyboards): Chinese (Pinyin), off by default; on gives the on-screen keyboard a language key and the pinyin layer (patch/keyboard.c kb_zh_toggle)
+ACT_KB_FR = 191  # switch row (Settings > General > Keyboards): French (AZERTY), off by default; on gives the keyboard a French layer (patch/keyboard.c kb_fr_toggle)
 ACT_CTHEME = 24  # value row: the Cassette Mode theme, Normal, Chrome, Metal or Auto; opens its picker page (arg = the page index); the payload shows the saved theme (patch/tape.c tape_theme)
 ACT_STOCK = 29   # open a stock page by name (arg = index in STOCK_PAGES; patch/m1plus.c navigator_to, no context); some show a value of the stock state at the right
 ACT_THEMESET = 31  # picker row (Cassette Theme): choose the theme (arg 0 Normal, 1 Chrome, 2 Metal, 3 Auto); a check shows on the chosen row (patch/tape.c tape_theme_set)
@@ -197,7 +198,7 @@ ACT_BHPAGE = 190      # value row (Settings > Battery): Battery History, On or O
 ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page): choose the preferred codec (arg = stock's btcoding 0 .. 7; patch/btpage.c bp_codec_set: the init guard, stock's confirm while a device is connected, then stock's Quality choice)
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
-SWITCH_ACTIONS = (ACT_ASPLIT,) + ASSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO, ACT_BATTHIST)
+SWITCH_ACTIONS = (ACT_ASPLIT,) + ASSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_FR, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO, ACT_BATTHIST)
 SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA)
 NO_CHEVRON_ACTIONS = (ACT_PLAYER, ACT_SHUFFLE, ACT_REGEN)   # rows that play or act in place (a switch or a value row has none either)
 VALUE_ACTIONS = (ACT_ASPAGE, ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_BHPAGE, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
@@ -735,7 +736,7 @@ ABOUT_PAGE = Page('m1plus_about', 'm1plus_about_page', 'About', layout=[
 # Settings > Developer > Cache (patch/homecover.c, docs/modules/homecover.md "Cache page"): the Covers card holds the cache folder's counts (INFO_CC_*: homecover_stat reads each, an ellipsis until counted), the build's Status and Clear Cover Cache;
 # the Track Durations card holds Measured Tracks (INFO_DUR: dur_stat, patch/durations.c) and Clear Track Durations.
 INFO_CC_ALBUMS, INFO_CC_COVERS, INFO_CC_NOART, INFO_CC_MISSING, INFO_CC_OLD, INFO_CC_SIZE, INFO_CC_STATUS = range(8, 15)   # (patch/m1plus.c INFO_CC = 8 + the index homecover_stat takes)
-INFO_DUR = INFO_CC_STATUS + 56  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
+INFO_DUR = INFO_CC_STATUS + 57  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
 INFO_APHOTOS, INFO_ANONE = INFO_DUR + 1, INFO_DUR + 2   # patch/m1plus.c: the Artist Photos card's counts (homecover_stat 7, 8)
 INFO_LBACCT = INFO_DUR + 3   # patch/m1plus.c: the ListenBrainz page's Account row (patch/scrobpage.c lb_account_text)
 INFO_LFACCT = INFO_DUR + 4   # ... and the Last.fm page's
@@ -766,7 +767,7 @@ COVLIST = Page('m1plus_covlist', 'm1plus_covlist_page', 'Missing Covers', kind='
 # Settings > Developer > Tools > Settings Files (patch/setfiles.c, docs/modules/settings.md "Settings Files"): the payload's own files as read when the page opens. The labels are the file names (identifiers, not translated).
 # Only the setting files (ACT_SFDEL) are tappable, while present: a tap deletes the file after a confirm. The guard files and the folder stay ACT_INFO (never deleted).
 SETTING_FILES = ('albums-view', 'albums-sort', 'artists-sort', 'genres-sort', 'composers-sort', 'songs-sort-rev', 'folders-sort', 'playlists-sort', 'playlists-view', 'recently-added-view', 'coverflow-landscape', 'coverflow-volume-keys', 'cassette-theme', 'vinyl-record', 'vinyl-base', 'nowplaying-idle', 'nowplaying-lyrics-size', 'pod-appearance',
-                 'appearance-accent', 'appearance-background', 'lockscreen-layout', 'appearance-index-rail', 'appearance-headers', 'home-recent-albums', 'home-daily-mix', 'home-menu', 'pulldown-tiles', 'keyboard-pinyin', 'podcast-online-search', 'podcast-region',
+                 'appearance-accent', 'appearance-background', 'lockscreen-layout', 'appearance-index-rail', 'appearance-headers', 'home-recent-albums', 'home-daily-mix', 'home-menu', 'pulldown-tiles', 'keyboard-pinyin', 'keyboard-french', 'podcast-online-search', 'podcast-region',
                  'battery-percentage', 'battery-charge-limit', 'battery-history', 'playback-shuffle', 'playback-eq', 'playback-next-album', 'scrobbling', 'scrobble-auto', 'search-history', 'radio-view', 'radio-recent', 'covers-rebuild', 'artists-rebuild', 'wifi-networks', 'podcast-directory', 'led-dynamic', 'playback-mono', 'playback-crossfeed', 'library-artist-split')
 GUARD_FILES = ('m1plus-start', 'm1plus-run', 'm1plus-bad', 'm1plus-off')
 # The files older builds left behind (patch/setfiles.c sf_retired, the same order; each with its .tmp sibling). Unsupported Files counts and lists them and
@@ -777,7 +778,7 @@ RETIRED_FILES = ('/mnt/data/m1plus-albums', '/mnt/data/m1plus-playlists', '/mnt/
                  '/mnt/data/m1plus-battpct', '/mnt/data/m1plus-pod-theme', '/mnt/data/m1plus-mix', '/mnt/data/m1plus-mix.art', '/mnt/data/m1plus/recently-played')
 FOLDER_LABEL = 'm1plus/'
 INFO_SF = INFO_CC_STATUS + 1   # patch/m1plus.c INFO_SF = INFO_CC + 7; row k reads setfiles_stat(k): 4 guard files, the folder, the settings
-INFO_SFOLD = INFO_SF + 54      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
+INFO_SFOLD = INFO_SF + 55      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
 assert len(GUARD_FILES) + 1 + len(SETTING_FILES) <= INFO_SFOLD - INFO_SF, 'the Settings Files rows reach INFO_SFOLD: raise it here and in patch/m1plus.c'
 assert INFO_DUR == INFO_SFOLD + 1, 'INFO_DUR must follow INFO_SFOLD (patch/m1plus.c)'
 FILES_PAGE_INDEX = page_index('m1plus_files')
@@ -1230,10 +1231,11 @@ NEXTALBUM_PAGE = Page('m1plus_nextalbum', 'm1plus_nextalbum_page', 'Continue Pla
 # The keyboard page (patch/keyboard.c, docs/modules/keyboard.md): the navbar, a search field and our own QWERTY pad; opened by keyboard_open (the Developer row, later podcast search), no menu row.
 KEYBOARD = Page('m1plus_keyboard', 'm1plus_keyboard_page', 'Keyboard', kind='keyboard')
 
-# Settings > General > Keyboards (iOS style): the keyboards the on-screen keyboard offers. English is always on (its switch is shown on and cannot be turned off); Chinese (Pinyin) is off by default.
-# With it on, the keyboard page has a language key and a pinyin layer with a candidate strip (docs/modules/keyboard.md). The choice is saved in /mnt/data/m1plus/keyboard-pinyin (patch/keyboard.c).
+# Settings > General > Keyboards (iOS style): the keyboards the on-screen keyboard offers. English is always on (its switch is shown on and cannot be turned off); French (AZERTY) and Chinese (Pinyin) are off by default, in iOS order.
+# With one on, the keyboard page has a language key (and with Chinese a pinyin layer with a candidate strip, docs/modules/keyboard.md). The choices are saved in /mnt/data/m1plus/keyboard-french and keyboard-pinyin (patch/keyboard.c).
 KEYBOARDS_PAGE = Page('m1plus_keyboards', 'm1plus_keyboards_page', 'Keyboards', layout=[
     Row('English', ACT_KB_EN),
+    Row('French (AZERTY)', ACT_KB_FR),
     Row('Chinese (Pinyin)', ACT_KB_ZH),
 ])
 

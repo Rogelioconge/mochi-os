@@ -49,22 +49,22 @@ class Page:
     def px(self, n, key='font_size'): return int(self.root.find(n).get(f'style:normal:{key}'))
 
 
-def keys_of(pg, page, lang=False, zh=False, go=None):
+def keys_of(pg, page, lang=False, zh=False, go=None, fr=False, tag=None):
     """[(name, label, x, y, w, kind)] in window coordinates for a page: char keys k0.., then the function keys that show (lang: the language key; zh: the Chinese layer's letter page)."""
-    lay = PK.layout(page, lang=lang, zh=zh)
+    lay = PK.layout(page, lang=lang, zh=zh, fr=fr)
     up = page == 'ABC'
     out = [(f'kb_k{i}', c, x, y + pg.pad.y, w, 'key') for i, (c, x, y, w) in enumerate(lay['keys'])]
     names = {'shift': ('kb_shifton' if up else 'kb_shift', 'on' if up else 'fn'), 'sym': ('kb_sym', 'fn'), 'del': ('kb_del', 'fn'), 'mode': ('kb_mode', 'fn'), 'lang': ('kb_lang', 'fn'), 'space': ('kb_space', 'key'), 'go': ('kb_go', 'fn')}
-    label = {'sym': "'" if zh and page == 'abc' else '#+=' if page == '123' else '123', 'lang': PK.LANG_TAGS[1 if zh else 0], 'mode': 'ABC' if page in ('123', '#+=') else '123', 'space': pg.s.shown(pg.root.find('kb_space')), 'go': go[0] if go else pg.s.shown(pg.root.find('kb_go'))}
+    label = {'sym': "'" if zh and page == 'abc' else '#+=' if page == '123' else '123', 'lang': tag or PK.LANG_TAGS[1 if zh else 0], 'mode': 'ABC' if page in ('123', '#+=') else '123', 'space': pg.s.shown(pg.root.find('kb_space')), 'go': go[0] if go else pg.s.shown(pg.root.find('kb_go'))}
     for role, (x, y, w) in lay['fn'].items():
         n, kind = names[role]
         out.append((n, label.get(role, ''), x, y + pg.pad.y, w, kind))
     return out
 
 
-def keyboard(pg, im, page, held=None, lang=False, zh=False, go=None):
+def keyboard(pg, im, page, held=None, lang=False, zh=False, go=None, fr=False, tag=None, acc=None):
     s = pg.s
-    keys = keys_of(pg, page, lang, zh, go)
+    keys = keys_of(pg, page, lang, zh, go, fr, tag)
     top = BAR + pg.pad.y
     def paint(d, k):
         d.rectangle(k(0, top, W, H), fill=pg.fill('kb_pad') + (255,))
@@ -82,7 +82,20 @@ def keyboard(pg, im, page, held=None, lang=False, zh=False, go=None):
             px = int(node.get('style:normal:font_size'))
             ink = rgb(PK.KB_DIM if go and go[1] and name == 'kb_go' else node.get('style:normal:text_color'))   # (go = (label, dimmed): the password page's Join)
             s.text(im, x + w / 2, cy - (1 if len(lab) == 1 and lab.islower() else 0), lab, px, ink, 'm')
-    if held:   # the key pop-up: the stem over the key, the balloon above it with the letter large
+    if held and acc is not None:   # the long-press accent strip in place of the balloon: variants in slot order (reversed on a right-side key), the selected one on a darker pill
+        name, lab, x, y, w, _ = next(kk for kk in keys if kk[1] == held and kk[0].startswith('kb_k'))
+        v = PK.accents(held); n = len(v)
+        ax, ay, aw, ah, rev = PK.acc_rect(x, w, y - pg.pad.y, n)
+        bar, hl, a0 = pg.root.find('kb_acc'), pg.root.find('kb_acc_h'), pg.root.find('kb_a0')
+        slot = n - 1 - acc if rev else acc
+        def strip_paint(d, k):
+            d.rounded_rectangle(k(ax, BAR + ay, ax + aw, BAR + ay + ah), radius=int(bar.get('style:normal:round_radius')) * SS, fill=rgb(bar.get('style:normal:bg_color')) + (255,))
+            hx = ax + PK.ACC_PAD + slot * PK.ACC_CELL
+            d.rounded_rectangle(k(hx, BAR + ay + PK.ACC_PAD, hx + PK.ACC_CELL, BAR + ay + ah - PK.ACC_PAD), radius=int(hl.get('style:normal:round_radius')) * SS, fill=rgb(hl.get('style:normal:bg_color')) + (255,))
+        im.alpha_composite(layer(strip_paint))
+        for i in range(n):
+            s.text(im, ax + PK.ACC_PAD + i * PK.ACC_CELL + PK.ACC_CELL / 2, BAR + ay + ah / 2, v[n - 1 - i] if rev else v[i], int(a0.get('style:normal:font_size')), WHITE, 'm')
+    elif held:   # the key pop-up: the stem over the key, the balloon above it with the letter large
         name, lab, x, y, w, _ = next(kk for kk in keys if kk[1] == held and kk[0].startswith('kb_k'))
         bx, by, sx, sy, sw, sh = PK.pop_rect(x, y - pg.pad.y, w, pg.pad.y)
         stem, pop, glyph = pg.root.find('kb_stem'), pg.root.find('kb_pop'), pg.root.find('kb_pop_l')
@@ -134,7 +147,7 @@ def strip_bar(s, pg, im, pinyin, cands, hot=None, sx=0):
     im.alpha_composite(tmp)
 
 
-def screen(s, pg, text, page=None, held=None, hint='Shows, e.g. All-In', title='Search', lang=False, zh=False, strip=None):
+def screen(s, pg, text, page=None, held=None, hint='Shows, e.g. All-In', title='Search', lang=False, zh=False, strip=None, fr=False, tag=None, acc=None):
     """Status bar, the navbar (Back chevron, title), the field and, when page is given, the pad (lang: with the language key, zh: the Chinese layer; strip: (pinyin, candidates) above the pad)."""
     im = Image.new('RGBA', (W, H), (0, 0, 0, 255))
     PI.status_bar(s, im)
@@ -159,7 +172,7 @@ def screen(s, pg, text, page=None, held=None, hint='Shows, e.g. All-In', title='
     if page:
         car = pg.root.find('kb_caret')
         ImageDraw.Draw(im).rectangle((cx, BAR + f.y + car.y, cx + car.w - 1, BAR + f.y + car.y + car.h - 1), fill=rgb(car.get('style:normal:bg_color')))
-        keyboard(pg, im, page, held, lang, zh)
+        keyboard(pg, im, page, held, lang, zh, fr=fr, tag=tag, acc=acc)
         if strip: strip_bar(s, pg, im, *strip)
     return im
 
@@ -321,9 +334,9 @@ def stock_t9(s, pg, text):
     return im
 
 
-def keyboards_page(s, zh):
-    """Settings > General > Keyboards: English (always on, the row dimmed to 60 % by the payload), Chinese (Pinyin) a switch."""
-    im = PS.draw_page(s, 'm1plus_keyboards', state={'switches': {'pod_switch0': True, 'pod_switch1': zh}}).convert('RGBA')
+def keyboards_page(s, fr, zh):
+    """Settings > General > Keyboards: English (always on, the row dimmed to 60 % by the payload), French (AZERTY) and Chinese (Pinyin) switches."""
+    im = PS.draw_page(s, 'm1plus_keyboards', state={'switches': {'pod_switch0': True, 'pod_switch1': fr, 'pod_switch2': zh}}).convert('RGBA')
     row = im.crop((10, 60, 310, 60 + 52))
     dim = Image.blend(Image.new('RGBA', row.size, (0, 0, 0, 255)), row, 153 / 255)
     im.paste(dim, (10, 60))
@@ -349,6 +362,12 @@ def main():
               ('A long text: its end', screen(s, pg, long_text, 'abc')),
               ('After Search', results_page(s, pg, 'all in')),
               ('Chinese on: English layer with the language key', screen(s, pg, '', 'ABC', lang=True)),
+              ('French on: English layer, the key reads FR', screen(s, pg, '', 'ABC', lang=True, tag=PK.FR_TAG)),
+              ('French layer: AZERTY capitals', screen(s, pg, '', 'ABC', lang=True, fr=True, tag='EN')),
+              ('French layer: typing, "e" held', screen(s, pg, 'bonjour', 'abc', held='e', lang=True, fr=True, tag='EN')),
+              ('French layer: "e" held 500 ms, second variant under the finger', screen(s, pg, 'bonjour', 'abc', held='e', lang=True, fr=True, tag='EN', acc=1)),
+              ('English capital "O" held: seven variants grow left', screen(s, pg, '', 'ABC', held='O', lang=True, tag=PK.FR_TAG, acc=2)),
+              ('French layer: "a" held at the left edge', screen(s, pg, 'bonjour', 'abc', held='a', lang=True, fr=True, tag='EN', acc=0)),
               ('Chinese layer: typing nihao (a candidate held)', screen(s, pg, '', 'abc', lang=True, zh=True, strip=('ni hao', nihao, 2))),
               ('Space took the first: what follows it', screen(s, pg, '你好', 'abc', lang=True, zh=True, strip=('', after_nihao))),
               ('woxihuantingboke, the first word taken', screen(s, pg, '我', 'abc', lang=True, zh=True, strip=('xi huan ting bo ke', rest))),
@@ -365,8 +384,8 @@ def main():
               ('Join Wi-Fi Network: None', other_page(s, pg, 'Hidden net', sec='None', page='abc')),
               ('Security picker (the check follows)', PS.draw_wifisec(s)),
               ('Settings', PS.draw_page(s, 'm1plus_settings').convert('RGBA')),
-              ('Settings > General > Keyboards, Chinese off', keyboards_page(s, False)),
-              ('Settings > General > Keyboards, Chinese on', keyboards_page(s, True))]
+              ('Settings > General > Keyboards, all off', keyboards_page(s, False, False)),
+              ('Settings > General > Keyboards, French and Chinese on', keyboards_page(s, True, True))]
     pad, lab = 12, 20
     sheet = Image.new('RGB', (len(panels) * (W + pad) + pad, H + lab + 2 * pad), (0x2A, 0x2A, 0x2A)); d = ImageDraw.Draw(sheet)
     for i, (title, im) in enumerate(panels):

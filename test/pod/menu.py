@@ -897,51 +897,62 @@ def header_asset_tests(ctx, tree, what):
 
 
 def keyboards_tests(ctx, on_row, rows_s):
-    """Settings > General > Keyboards (m1plus_keyboards): English always on and not switchable, Chinese (Pinyin) a switch saved in /mnt/data/m1plus/keyboard-pinyin, off by default."""
+    """Settings > General > Keyboards (m1plus_keyboards): English always on and not switchable, French (AZERTY) and Chinese (Pinyin) switches saved in /mnt/data/m1plus/keyboard-french and keyboard-pinyin, off by default."""
     expect, P = ctx.expect, pod_pages
     K = P.KEYBOARDS_PAGE
     FILE = '/mnt/data/m1plus/keyboard-pinyin'
     kb_i = next(i for i, r in enumerate(P.GENERAL_PAGE.rows) if r.action == P.ACT_PAGE and r.arg == P.KEYBOARDS_PAGE_INDEX)
     rows_s = PSYMS[f'pod_rows_{P.GENERAL_PAGE_INDEX}']
-    expect([(r.label, r.action) for r in K.rows] == [('English', P.ACT_KB_EN), ('Chinese (Pinyin)', P.ACT_KB_ZH)] and K.title == 'Keyboards' and K.key == 'm1plus_keyboards'
-           and P.ACT_KB_EN in P.SWITCH_ACTIONS and P.ACT_KB_ZH in P.SWITCH_ACTIONS and P.PAGES[P.KEYBOARDS_PAGE_INDEX] is K and P.GENERAL_PAGE.rows[kb_i].label == 'Keyboards',
-           'Settings has a Keyboards row (after Cassette Mode); its page has two switch rows: English and Chinese (Pinyin)')
+    expect([(r.label, r.action) for r in K.rows] == [('English', P.ACT_KB_EN), ('French (AZERTY)', P.ACT_KB_FR), ('Chinese (Pinyin)', P.ACT_KB_ZH)] and K.title == 'Keyboards' and K.key == 'm1plus_keyboards'
+           and P.ACT_KB_EN in P.SWITCH_ACTIONS and P.ACT_KB_FR in P.SWITCH_ACTIONS and P.ACT_KB_ZH in P.SWITCH_ACTIONS and P.PAGES[P.KEYBOARDS_PAGE_INDEX] is K and P.GENERAL_PAGE.rows[kb_i].label == 'Keyboards',
+           'Settings has a Keyboards row (after Cassette Mode); its page has three switch rows: English, French (AZERTY) and Chinese (Pinyin)')
     tree = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui/m1plus_keyboards.bin'), 'rb').read())
-    expect(all(tree.find(f'pod_row{i}') is not None and tree.find(f'pod_switch{i}') is not None for i in range(2)) and not [w for w in tree.walk() if w.name.startswith('pod_value')],
-           'the asset has the two rows, each with a switch image, no value label')
+    expect(all(tree.find(f'pod_row{i}') is not None and tree.find(f'pod_switch{i}') is not None for i in range(3)) and not [w for w in tree.walk() if w.name.startswith('pod_value')],
+           'the asset has the three rows, each with a switch image, no value label')
 
-    def open_kb(saved=None):
+    def open_kb(saved=None, fr=None):
         m = Machine()
         m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(
-            ['btn_return', 'btn_backtoplayer'] + [f'pod_row{i}' for i in range(len(P.SETTINGS_PAGE.rows))] + ['pod_switch0', 'pod_switch1'])}
+            ['btn_return', 'btn_backtoplayer'] + [f'pod_row{i}' for i in range(len(P.SETTINGS_PAGE.rows))] + ['pod_switch0', 'pod_switch1', 'pod_switch2'])}
         if saved is not None: m.fs[FILE] = saved
+        if fr is not None: m.fs['/mnt/data/m1plus/keyboard-french'] = fr
         m.call(on_row, a0=rows_s + 12 * kb_i, count=3000000)
         return m
 
     def images(m, i): return [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets[f'pod_switch{i}']]
 
     m = open_kb()
-    expect(('window_open', K.key) in m.calls and images(m, 0) == ['sset_on'] and images(m, 1) == ['sset_off'], 'the row opens the page: English shows on, Chinese (Pinyin) off with nothing saved')
+    expect(('window_open', K.key) in m.calls and images(m, 0) == ['sset_on'] and images(m, 1) == ['sset_off'] and images(m, 2) == ['sset_off'], 'the row opens the page: English shows on, French (AZERTY) and Chinese (Pinyin) off with nothing saved')
     expect(('widget_set_opacity', m.widgets['pod_row0'], 153) in m.calls and ('widget_set_sensitive', m.widgets['pod_row0'], 0) in m.calls
-           and (m.widgets['pod_row0'], O['EVT_CLICK']) not in m.bound and (m.widgets['pod_row1'], O['EVT_CLICK']) in m.bound,
-           'English is dimmed and takes no tap (nothing is bound on it); the Chinese row is bound')
+           and (m.widgets['pod_row0'], O['EVT_CLICK']) not in m.bound and (m.widgets['pod_row1'], O['EVT_CLICK']) in m.bound and (m.widgets['pod_row2'], O['EVT_CLICK']) in m.bound,
+           'English is dimmed and takes no tap (nothing is bound on it); the French and Chinese rows are bound')
     expect(FILE not in m.fs, 'English has nothing to save: no file')
     for data, on in ((b'1\n', 1), (b'1', 1), (b'0\n', 0), (b'', 0), (b'x', 0), (b'11', 0), (b'1x', 0), (b'\n1', 0)):
-        got = images(open_kb(data), 1)
+        got = images(open_kb(data), 2)
         expect(got == [('sset_on' if on else 'sset_off')], f'saved {data!r}: the Chinese switch opens {"on" if on else "off"} (exactly "1" or "1\\n" is on, anything else off)')
     m = open_kb()
-    m.click('pod_row1')
-    expect(m.fs.get(FILE) == b'1\n' and FILE + '.tmp' not in m.fs and ('rename', FILE + '.tmp', FILE) in m.calls and ('fsync', '/mnt/data/m1plus') in m.calls and images(m, 1)[-1] == 'sset_on',
+    m.click('pod_row2')
+    expect(m.fs.get(FILE) == b'1\n' and FILE + '.tmp' not in m.fs and ('rename', FILE + '.tmp', FILE) in m.calls and ('fsync', '/mnt/data/m1plus') in m.calls and images(m, 2)[-1] == 'sset_on',
            'a tap turns Chinese (Pinyin) on: written atomically, the switch on')
     expect(m.call(PSYMS['kb_zh_setting']) == 1, 'kb_zh_setting reads it')
-    m.click('pod_row1')
-    expect(m.fs.get(FILE) == b'0\n' and images(m, 1)[-1] == 'sset_off' and m.call(PSYMS['kb_zh_setting']) == 0, 'and off again')
+    m.click('pod_row2')
+    expect(m.fs.get(FILE) == b'0\n' and images(m, 2)[-1] == 'sset_off' and m.call(PSYMS['kb_zh_setting']) == 0, 'and off again')
     m = open_kb(b'1\n'); m.fail.add(('write', FILE + '.tmp'))
-    m.click('pod_row1')
-    expect(m.fs.get(FILE) == b'1\n' and FILE + '.tmp' not in m.fs and images(m, 1) == [] and m.call(PSYMS['kb_zh_setting']) == 1, 'a failed write changes neither the file nor the switch')
+    m.click('pod_row2')
+    expect(m.fs.get(FILE) == b'1\n' and FILE + '.tmp' not in m.fs and images(m, 2) == [] and m.call(PSYMS['kb_zh_setting']) == 1, 'a failed write changes neither the file nor the switch')
     expect(m.call(PSYMS['kb_zh_setting']) == 1 and Machine().call(PSYMS['kb_zh_setting']) == 0, 'no file: off')
+    FR = '/mnt/data/m1plus/keyboard-french'
+    for data, on in ((b'1\n', 1), (b'1', 1), (b'0\n', 0), (b'', 0), (b'x', 0), (b'11', 0)):
+        m = open_kb(fr=data)
+        expect(images(m, 1) == [('sset_on' if on else 'sset_off')], f'saved {data!r}: the French switch opens {"on" if on else "off"}')
+    m = open_kb()
+    m.click('pod_row1')
+    expect(m.fs.get(FR) == b'1\n' and FR + '.tmp' not in m.fs and ('rename', FR + '.tmp', FR) in m.calls and images(m, 1)[-1] == 'sset_on' and m.call(PSYMS['kb_fr_setting']) == 1 and FILE not in m.fs,
+           'a tap turns French (AZERTY) on: written atomically into keyboard-french, the switch on, Chinese untouched')
+    m.click('pod_row1')
+    expect(m.fs.get(FR) == b'0\n' and images(m, 1)[-1] == 'sset_off' and m.call(PSYMS['kb_fr_setting']) == 0, 'and off again')
     for loc in pod_i18n.LOCALES:
-        expect(all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in ('Keyboards', 'English', 'Chinese (Pinyin)')), f'the three strings have a text in {loc}')
+        expect(all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in ('Keyboards', 'English', 'French (AZERTY)', 'Chinese (Pinyin)')), f'the four strings have a text in {loc}')
 
 
 def open_podcasts(m, on_row, count=3000000):

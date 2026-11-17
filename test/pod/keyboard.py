@@ -106,18 +106,24 @@ def ptr(m, name, kind, x=0, y=0, t=1000):
     run_evt(m, name, PTR[kind], e)
 
 
+def lift(m, name, x=0, y=0, t=1000):
+    """The finger lifts on the key it is on: the click first, then the up (the real order)."""
+    run_evt(m, name, O['EVT_CLICK']); ptr(m, name, 'up', x, y, t)
+
+
 def centre(m, name):
     x, y, w, h = geo(m, name)
     return x + w // 2, WIN_Y + PAD_Y + y + h // 2
 
 
 def press(m, name, t=1000):
-    """A tap on a key: down, up, then the click AWTK follows them with; every call's records, in order."""
+    """A tap on a key: down, then the click, then the up (a button's own on_event emits the click before the handlers bound for the up: stock widget_dispatch 0x66cec8 calls vt->on_event
+    first, button on_event 0x6224ec); every call's records, in order."""
     x, y = centre(m, name)
     out = []
     ptr(m, name, 'down', x, y, t); out += m.calls
-    ptr(m, name, 'up', x, y, t + 80); out += m.calls
     run_evt(m, name, O['EVT_CLICK']); out += m.calls
+    ptr(m, name, 'up', x, y, t + 80); out += m.calls
     m.calls = out
     return out
 
@@ -134,9 +140,9 @@ def caret_x(m): return geo(m, 'kb_caret')[0]
 def calls_of(m, name, *args): return [c for c in m.calls if c[0] == name and c[1:1 + len(args)] == args]
 
 
-def layout_ok(m, page, lang=False, zh=False):
+def layout_ok(m, page, lang=False, zh=False, fr=False):
     """Every char key and function key of the machine against pod_keyboard.layout(page): geometry, text, visibility."""
-    lay = PK.layout(page, lang=lang, zh=zh)
+    lay = PK.layout(page, lang=lang, zh=zh, fr=fr)
     bad = []
     for i in range(PK.KB_KEYS):
         name = f'kb_k{i}'
@@ -190,7 +196,11 @@ def base_tests(ctx):
     expect((pop.w, pop.h) == (46, 50) and pop.get('style:normal:bg_color') == '#6E6E73' and pop.get('style:normal:round_radius') == '10' and stem.get('style:normal:bg_color') == '#6E6E73'
            and pop_l.get('style:normal:font_size') == '34' and pop_l.get('style:normal:text_color') == '#FFFFFF', 'the pop-up: a #6E6E73 balloon, 46 x 50, radius 10, the letter at 34 px')
     expect(all(node(n).get('sensitive') == 'false' for n in ('kb_stem', 'kb_pop', 'kb_pop_l', 'kb_text', 'kb_hint', 'kb_caret', 'kb_mag')) and node('kb_field').get('sensitive') == 'true', 'the pop-up and the field\'s decorations take no touches (the field itself stays sensitive: the clear button inside it needs it)')
-    expect([c.name for c in t.children][-2:] == ['kb_stem', 'kb_pop'] and t.children[-1].children[0].name == 'kb_pop_l', 'the pop-up is last: over the pad (and not clipped by it)')
+    expect([c.name for c in t.children][-3:] == ['kb_stem', 'kb_pop', 'kb_acc'] and t.children[-2].children[0].name == 'kb_pop_l', 'the pop-up and the accent strip are last: over the pad (and not clipped by it)')
+    acc = node('kb_acc')
+    expect([c.name for c in acc.children] == ['kb_acc_h'] + [f'kb_a{i}' for i in range(PK.ACC_MAX)] and all(c.get('sensitive') == 'false' for c in [acc] + acc.children) and acc.get('visible') == 'false'
+           and acc.get('style:normal:bg_color') == '#6E6E73' and node('kb_acc_h').get('style:normal:bg_color') == '#3A3A3C' and node('kb_a0').get('style:normal:text_color') == '#FFFFFF' and node('kb_a0').get('style:normal:font_size') == '24',
+           'the accent strip: a hidden insensitive #6E6E73 bar with a highlight pill and seven white labels, all insensitive')
     fld = node('kb_field')
     expect((fld.x, fld.y, fld.w, fld.h) == (10, 58, 300, 36) and fld.get('style:normal:bg_color') == '#1C1C1E' and fld.get('style:normal:round_radius') == '10', 'the field: a rounded #1C1C1E bar, 300 x 36')
     expect(node('kb_text').get('style:normal:font_size') == '18' and node('kb_text').get('style:normal:text_color') == '#FFFFFF' and node('kb_hint').get('style:normal:text_color') == '#8E8E93' and node('kb_caret').get('style:normal:bg_color') == '#FFFFFF'
@@ -623,7 +633,7 @@ def asset_tests(ctx):
     expect(chl.get('style:normal:bg_color') == '#4A4A4E' and chl.get('style:normal:round_radius') == '5' and (chl.y, chl.h) == (DEFS['KB_CHL_Y'], DEFS['KB_CHL_H']) == (4, 28) and DEFS['KB_SEP_Y'] == 8 and DEFS['KB_SEP_H'] == 20,
            'the pressed item\'s highlight is a rounded #4A4A4E bar, 28 px high')
     order = [c.name for c in t.children]
-    expect(order.index('kb_strip') > order.index('kb_pad') and order[-2:] == ['kb_stem', 'kb_pop'] and order.index('kb_strip') == len(order) - 3, 'the strip comes after the pad and before the pop-up, so the balloons of the top row paint over it')
+    expect(order.index('kb_strip') > order.index('kb_pad') and order[-3:] == ['kb_stem', 'kb_pop', 'kb_acc'] and order.index('kb_strip') == len(order) - 4, 'the strip comes after the pad and before the pop-up, so the balloons of the top row paint over it')
     expect(DEFS['KB_LANG_W'] == PK.KB_LANG_W == 40 and DEFS['KB_CAND_PAD'] == PK.CAND_PAD == 12 and DEFS['KB_CAND_MIN'] == PK.CAND_MIN == 36 and DEFS['KB_CAND_MAXW'] == PK.CAND_MAXW == 230 and DEFS['KB_DRAG'] == PK.DRAG == 6
            and PK.CAND_MIN * (PK.POOL - 2) >= 320, 'keyboard.h and pod_keyboard.py agree; twelve item widgets are enough for the narrowest items across 320 px')
     expect(all(c.get('text') == '' or c.get('text') is None for c in items + [py]), 'the label and items start empty')
@@ -1357,4 +1367,334 @@ def refocus_tests(ctx):
     expect(b'abc' not in bytes(m.u.mem_read(PSYMS['kb'], 0x1400)), 'detach wipes it')
 
 
-SECTIONS = [base_tests, name_tests, password_tests, refocus_tests, gap_tests, asset_tests, setting_tests, zh_tests, zh_search_tests, zh_limit_tests, strip_tests, hit_tests, lang_gap_tests]   # tools/check.py runs each as its own task
+KBFR = '/mnt/data/m1plus/keyboard-french'
+
+
+def fr_machine(fr=True, zh=False, dictionary=True):
+    """The keyboard's machine with the French keyboard on (Settings > General > Keyboards > French (AZERTY)), and Chinese (Pinyin) too when zh."""
+    m = zh_machine(setting=zh, dictionary=dictionary)
+    if fr: m.fs[KBFR] = b'1\n'
+    return m
+
+
+def reopen(m):
+    m.call(*m.bound[(m.window, DESTROY)][:1], a0=m.bound[(m.window, DESTROY)][1], count=4000000)
+    assert kopen(m) == 0
+
+
+def french_tests(ctx):
+    """The French (AZERTY) layer: its letter pages, the language key cycling EN -> FR -> 中 -> EN over the keyboards that are on, the remembered layer, password fields."""
+    expect = ctx.expect
+    expect(PK.FR_ROWS['abc'] == ('azertyuiop', 'qsdfghjklm', 'wxcvbn') and PK.FR_ROWS['ABC'] == tuple(r.upper() for r in PK.FR_ROWS['abc']) and sorted(''.join(PK.FR_ROWS['abc'])) == sorted('abcdefghijklmnopqrstuvwxyz'),
+           'the model: AZERTY, 10 + 10 + 6 keys, every letter once')
+    lay = PK.layout('abc', lang=True, fr=True)
+    expect([c for c, *_ in lay['keys']] == list('azertyuiopqsdfghjklmwxcvbn') and [x for _, x, y, _ in lay['keys'] if y == 94] == [PK.row_x(6, 29) + 32 * i for i in range(6)]
+           and lay['fn'] == PK.layout('abc', lang=True)['fn'] and PK.layout('123', lang=True, fr=True) == PK.layout('123', lang=True), 'layout(fr=True): the AZERTY keys, the function keys and the symbol pages as English')
+
+    # 1. French only on: the key appears, EN -> FR -> EN
+    m = fr_machine(); kopen(m)
+    x, y, w = lay['fn']['lang']
+    expect(shown(m, 'kb_lang') == (1, 1) and geo(m, 'kb_lang') == (x, y, w, 36) and said(m, 'kb_lang') == 'FR' and geo(m, 'kb_space')[:3] == lay['fn']['space'] and not layout_ok(m, 'ABC', lang=True),
+           'French on: the language key (row-four geometry of two keyboards) reads FR on the English layer')
+    expect(not [c for c in m.calls if c[0] in ('im_open_decoder', 'access')], 'French needs no dictionary and no engine')
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == 'EN' and keys(m)[:10] == list('AZERTYUIOP') and not layout_ok(m, 'ABC', lang=True, fr=True) and shown(m, 'kb_shifton') == (1, 1) and shown(m, 'kb_sym') == (0, 0),
+           'the French layer: AZERTY capitals for an empty field, shift on, the key reads EN')
+    typ(m, 'A')
+    expect(field(m) == 'A' and keys(m)[:10] == list('azertyuiop') and not layout_ok(m, 'abc', lang=True, fr=True) and shown(m, 'kb_shift') == (1, 1), 'a capital, then lowercase AZERTY (shift as in English)')
+    typ(m, 'z'); press(m, 'kb_shift'); typ(m, 'Q')
+    expect(field(m) == 'AzQ' and keys(m)[0] == 'a', 'letters type as they are; shift is one-shot')
+    press(m, 'kb_del'); press(m, 'kb_del'); press(m, 'kb_del')
+    expect(field(m) == '' and shown(m, 'kb_shifton') == (1, 1) and keys(m)[0] == 'A', 'an emptied field turns shift on again')
+    press(m, 'kb_mode'); press(m, 'kb_mode')
+    expect(keys(m)[0] == 'A' and said(m, 'kb_lang') == 'EN', '123 and back keeps the French letters')
+    typ(m, 'M'); press(m, 'kb_mode')
+    expect(keys(m)[:10] == list('1234567890') and said(m, 'kb_lang') == 'EN' and shown(m, 'kb_lang') == (1, 1), 'the 123 page is the English one, the key stays')
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == 'FR' and keys(m)[:10] == list('qwertyuiop') and not layout_ok(m, 'abc', lang=True), 'the key on the 123 page switches layer and shows its letters (English now, the key reads FR)')
+    expect(not [c for c in m.calls if c[0] in ('im_open_decoder', 'access')], 'no engine through all of it')
+
+    # 2. All three on: EN -> FR -> 中 -> EN
+    m = fr_machine(zh=True); kopen(m)
+    expect(said(m, 'kb_lang') == 'FR' and shown(m, 'kb_lang') == (1, 1), 'EN: the key reads FR')
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == '中' and keys(m)[0] == 'A' and m.word(PY.ENGINE_PTR) == 0, 'FR: the key reads 中, the engine is not open')
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == 'EN' and keys(m)[0] == 'q' and shown(m, 'kb_shift') == (0, 0) and said(m, 'kb_sym') == "'" and m.engine()[1] == 1 and not layout_ok(m, 'abc', lang=True, zh=True), '中: Chinese letters, no shift, the key reads EN, the engine open')
+    typ(m, 'nihao')
+    expect(said(m, 'kb_c0') == '你好', 'pinyin composes')
+    press(m, 'kb_lang')
+    expect(field(m) == '你好' and said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'q' and shown(m, 'kb_shift') == (1, 1) and not strip_on(m), 'EN again (pending pinyin committed first), the key reads FR')
+    press(m, 'kb_lang'); typ(m, 'a')
+    expect(said(m, 'kb_lang') == '中' and field(m) == '你好a' and keys(m)[0] == 'a', 'a French letter types as it is (no composition)')
+    press(m, 'kb_lang'); press(m, 'kb_lang'); press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == '中' and keys(m)[0] == 'a', 'three taps are a full turn')
+
+    # 3. Chinese and French on but no dictionary: EN <-> FR only
+    m = fr_machine(zh=True, dictionary=False); kopen(m)
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == 'EN' and keys(m)[0] == 'A', 'no dictionary: the Chinese layer is not offered, FR')
+    press(m, 'kb_lang')
+    expect(said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'Q' and m.word(PY.ENGINE_PTR) == 0, 'and EN again')
+
+    # 4. The Chinese engine fails to open when tapped: it is dropped, the others keep cycling
+    m = keyboard_machine(); m.fs[KBZH] = b'1\n'; m.fs[KBFR] = b'1\n'; m.present.add(PY.SYS_PATH); m.py_open_ok = False
+    kopen(m)
+    names_ = [c[0] for k in range(2) for c in press(m, 'kb_lang')]
+    expect(names_.count('im_open_decoder') == 1 and said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'Q' and shown(m, 'kb_lang') == (1, 1) and geo(m, 'kb_space')[0] == 122 and m.word(PY.ENGINE_PTR) == 0,
+           'FR -> 中 fails: the engine closed, the cycle goes on to English, the key stays (it reads FR)')
+    names_ = [c[0] for k in range(2) for c in press(m, 'kb_lang')]
+    expect(said(m, 'kb_lang') == 'FR' and 'im_open_decoder' not in names_, 'and Chinese is not tried again')
+    m = keyboard_machine(); m.fs[KBZH] = b'1\n'; m.fs[KBFR] = b'1\n'; m.present.add(PY.SYS_PATH); m.py_open_ok = False
+    m.setword(PSYMS['kb_memo'], 1)
+    kopen(m)
+    expect(said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'Q' and shown(m, 'kb_lang') == (1, 1) and m.word(PSYMS['kb_memo']) == 0, 'a remembered Chinese layer that will not open: English, the French key still there')
+
+    # 5. The remembered layer; a setting turned off meanwhile
+    m = fr_machine(); kopen(m); press(m, 'kb_lang'); reopen(m)
+    expect(said(m, 'kb_lang') == 'EN' and keys(m)[0] == 'A' and not layout_ok(m, 'ABC', lang=True, fr=True), 'the next keyboard starts on the French layer the last one ended on')
+    m.fs[KBFR] = b'0\n'; reopen(m)
+    expect(shown(m, 'kb_lang') == (0, 0) and keys(m)[0] == 'Q' and geo(m, 'kb_space')[0] == 79 and m.word(PSYMS['kb_memo']) == 0, 'French turned off meanwhile: English, no key, memo not left on French')
+    m.fs[KBFR] = b'1\n'; reopen(m)
+    expect(said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'Q', 'turned on again: English first')
+    m = fr_machine(zh=True); kopen(m); press(m, 'kb_lang'); press(m, 'kb_lang'); reopen(m)
+    expect(said(m, 'kb_lang') == 'EN' and keys(m)[0] == 'q' and m.engine()[1] == 1, 'the Chinese layer is remembered too')
+    m.fs[KBZH] = b'0\n'; reopen(m)
+    expect(said(m, 'kb_lang') == 'FR' and keys(m)[0] == 'Q' and m.word(PSYMS['kb_memo']) == 0, 'Chinese off meanwhile (French on): English, the key now goes to FR')
+    m = fr_machine(zh=True); kopen(m); press(m, 'kb_lang')
+    m.call(*m.bound[(m.window, DESTROY)][:1], a0=m.bound[(m.window, DESTROY)][1], count=4000000)
+    expect(m.call(PSYMS['kb_fr_setting']) == 1 and m.call(PSYMS['kb_fr_toggle'], count=4000000) == 0 and m.fs[KBFR] == b'0\n' and m.word(PSYMS['kb_memo']) == 0, 'kb_fr_toggle turns it off (saved) and forgets a French layer')
+    expect(m.call(PSYMS['kb_fr_toggle'], count=4000000) == 1 and m.fs[KBFR] == b'1\n', 'and on again')
+    m.setword(PSYMS['kb_memo'], 1)
+    m.call(PSYMS['kb_fr_toggle'], count=4000000); m.call(PSYMS['kb_fr_toggle'], count=4000000)
+    expect(m.word(PSYMS['kb_memo']) == 1, 'turning French off or on leaves a Chinese memo alone')
+    m.call(PSYMS['kb_zh_toggle'], count=4000000)
+    expect(m.word(PSYMS['kb_memo']) == 0, 'turning Chinese off forgets it')
+    m = keyboard_machine()
+    for data in (b'0\n', b'', b'x', b'\n1', b'1x', b'11'):
+        m.fs[KBFR] = data; m.call(PSYMS['kb_fr_setting'])
+        expect(m.call(PSYMS['kb_fr_setting']) == 0, f'the file {data!r}: off')
+
+    # 6. A password field is English only, whatever is on or remembered
+    m = fr_machine(zh=True); m.setword(PSYMS['kb_memo'], 2)
+    expect(attach(m, DEFS['KB_PASSWORD']) == 0 and shown(m, 'kb_lang') == (0, 0) and keys(m)[0] == 'q' and geo(m, 'kb_space')[2] == 163 and not [c for c in m.calls if c[0] in ('im_open_decoder', 'access')],
+           'KB_PASSWORD with French remembered: English, no language key')
+    refocus(m, 'N', 156, 0, '')
+    expect(said(m, 'kb_lang') == '中' and keys(m)[0] == 'A' and shown(m, 'kb_lang') == (1, 1), 'the plain field after it: the remembered French layer is back, the key reads 中')
+
+    # 7. The touch model with French (a gap goes to the nearest AZERTY key)
+    m = fr_machine(); kopen(m); press(m, 'kb_lang')   # (an empty field: delete acts on touch down, so the capitals page stays)
+    by_handle = {h: n for n, h in m.widgets.items()}
+    lay = PK.layout('ABC', lang=True, fr=True)
+    fn_widget = {'shift': 'kb_shifton', 'sym': 'kb_sym', 'del': 'kb_del', 'mode': 'kb_mode', 'lang': 'kb_lang', 'space': 'kb_space', 'go': 'kb_go'}
+    bad, t = [], 40000
+    for y in sorted(set(range(0, 180, 9)) | {131, 137, 138, 175}):
+        for x in sorted(set(range(0, 320, 11)) | {2, 41, 42, 43, 78, 79, 80, 118, 119, 120, 121, 122, 123, 240, 241, 242, 243, 244, 245}):
+            t += 1
+            ptr(m, 'kb_pad', 'down', x, WIN_Y + PAD_Y + y, t)
+            pressed = [by_handle.get(c[1]) for c in m.calls if c[0] == 'widget_set_state' and c[2] == 'pressed']
+            kind, ident, d2 = PK.nearest_key(lay, x, y)
+            name = f'kb_k{ident}' if kind == 'char' else fn_widget[ident]
+            if pressed != ([name] if d2 > 0 else []): bad.append((x, y, pressed, name))
+            ptr(m, 'kb_pad', 'abort', x, WIN_Y + PAD_Y + y, t)
+    expect(not bad, f'with the language key every point of the French page presses the key the model picks ({bad[:2]})')
+
+
+def key_at(m, c): return keys(m).index(c)
+
+
+def acc_timers(m): return [c for c in m.calls if c[0] == 'timer_add' and c[2] == DEFS['KB_ACC_MS']]
+
+
+def acc_up(m): return shown(m, 'kb_acc') == (1, 0)
+
+
+def acc_labels(m, n): return [said(m, f'kb_a{i}') for i in range(n)]
+
+
+def hold(m, c, via='key', gap=False, t=1000):
+    """Put a finger down on the char key c (its own touch, or the pad's for a touch in the gap just right of it) and let the 500 ms timer fire; returns (screen x, y of the finger, the widget that
+    got the down)."""
+    i = key_at(m, c); name = f'kb_k{i}'
+    x, y = centre(m, name)
+    if gap:
+        kx, ky, kw, _ = geo(m, name); x = kx + kw + 1; name = 'kb_pad'
+    ptr(m, name, 'down', x, y, t)
+    fns = [c_[1] for c_ in acc_timers(m)]
+    assert fns, f'no accent timer for {c}'
+    m.acc_fn = fns[-1]
+    m.call(fns[-1], a0=0, count=4000000)
+    return x, y, name
+
+
+def slot_x(rect, slot): return rect[0] + PK.ACC_PAD + slot * PK.ACC_CELL + PK.ACC_CELL // 2
+
+
+def accent_tests(ctx):
+    """Long-press accents (English and French letter pages): the strip over the key after 500 ms, sliding picks a variant, lifting types it; the model in tools/pod_keyboard.py."""
+    expect = ctx.expect
+    expect(PK.ACC_MS == DEFS['KB_ACC_MS'] and (PK.ACC_CELL, PK.ACC_H, PK.ACC_PAD, PK.ACC_GAP, PK.ACC_MAX) == tuple(DEFS[k] for k in ('KB_ACC_CELL', 'KB_ACC_H', 'KB_ACC_PAD', 'KB_ACC_GAP', 'KB_ACC_MAX')), 'the constants agree')
+    expect(PK.ACCENTS == {'e': 'éèêë', 'a': 'àâæáäãå', 'c': 'ç', 'u': 'ùûüú', 'i': 'îïìí', 'o': 'ôœöòóõø', 'y': 'ÿ', 'n': 'ñ'} and PK.accents('E') == 'ÉÈÊË' and PK.accents('w') == '' and PK.accents('Y') == 'Ÿ' and PK.accents('O') == 'ÔŒÖÒÓÕØ',
+           'the table, French first, capitals for a capital')
+    src = open(os.path.join(ROOT, 'patch', 'keyboard.c'), encoding='utf-8').read()
+    expect(all(f'{{\'{c}\', "{v}", "{v.upper()}"}}' in src.replace('\n', ' ') or f'"{v}", "{v.upper()}"' in src for c, v in PK.ACCENTS.items()), 'patch/keyboard.c has the same table')
+    r = PK.acc_rect(290, 29, 6, 4)
+    expect(r[0] + r[2] <= 319 and r[0] >= 1 and PK.acc_rect(2, 29, 6, 7)[0] == 1 and PK.acc_rect(2, 29, 6, 7)[4] is False and PK.acc_rect(290, 29, 6, 7)[4] is True and PK.acc_rect(290, 29, 6, 7)[0] + 204 == 319,
+           'the model clamps a strip inside the screen (left key grows right, right key grows left)')
+    r = PK.acc_rect(66, 29, 6, 4)
+    expect([PK.acc_pick(r, 4, x) for x in (0, 66, 93, 94, 121, 122, 149, 150, 400)] == [0, 0, 0, 1, 1, 2, 2, 3, 3] and PK.acc_pick(PK.acc_rect(258, 29, 6, 4), 4, 5000) == 0 and PK.acc_pick(PK.acc_rect(258, 29, 6, 4), 4, -50) == 3, 'the finger picks the slot under it, reversed on a right-side strip')
+
+    # 1. Hold e, lift without moving: the first variant
+    m = opened(initial='x'); ex = PK.layout('abc')['keys'][key_at(m, 'e')]
+    x, y = centre(m, f'kb_k{key_at(m, "e")}')
+    ptr(m, f'kb_k{key_at(m, "e")}', 'down', x, y)
+    expect(acc_timers(m) and not acc_up(m) and shown(m, 'kb_pop')[0] == 1, 'a key with accents arms the 500 ms timer and shows the balloon at once')
+    fn = acc_timers(m)[0][1]; m.call(fn, a0=0, count=4000000)
+    rect = PK.acc_rect(ex[1], ex[3], ex[2], 4)
+    expect(acc_up(m) and shown(m, 'kb_pop')[0] == 0 and shown(m, 'kb_stem')[0] == 0 and geo(m, 'kb_acc') == rect[:4] and acc_labels(m, 4) == list('éèêë') and [shown(m, f'kb_a{i}')[0] for i in range(7)] == [1] * 4 + [0] * 3
+           and geo(m, 'kb_acc_h')[0] == PK.ACC_PAD and shown(m, 'kb_acc_h') == (1, 0) and all(shown(m, f'kb_a{i}')[1] == 0 for i in range(7)), f'the strip replaces the balloon: four variants, the first highlighted, all insensitive {geo(m, "kb_acc")} {rect}')
+    lift(m, f'kb_k{key_at(m, "e")}', x, y, 1700)
+    expect(field(m) == 'xé' and not acc_up(m) and shown(m, 'kb_pop')[0] == 0, f'lifting without a move types é, and the click after it types nothing more ({field(m)})')
+    expect(field(m) == 'xé' and not acc_up(m) and shown(m, 'kb_acc') == (0, 0), 'the strip is gone')
+    ptr(m, 'kb_k0', 'down', *centre(m, 'kb_k0'), 3000); lift(m, 'kb_k0', *centre(m, 'kb_k0'), 3050)
+    expect(field(m) == 'xéq', f'the next tap is a normal tap ({field(m)})')
+
+    # 2. Slide to the second variant, then lift: è
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'
+    x, y, _ = hold(m, 'e')
+    ptr(m, name, 'move', slot_x(rect, 1), y, 1600)
+    expect(geo(m, 'kb_acc_h')[0] == PK.ACC_PAD + PK.ACC_CELL, 'sliding right moves the highlight to the second variant')
+    ptr(m, name, 'move', slot_x(rect, 3), y, 1620); ptr(m, name, 'move', slot_x(rect, 1), y, 1640)
+    lift(m, name, slot_x(rect, 1), y, 1700)
+    expect(field(m) == 'xè' and not acc_up(m), f'lifting types the highlighted variant, è ({field(m)})')
+    m = opened(initial='x'); x, y, _ = hold(m, 'e')
+    ptr(m, name, 'move', 0, y, 1600); ptr(m, name, 'move', 5000, y, 1610)
+    expect(geo(m, 'kb_acc_h')[0] == PK.ACC_PAD + 3 * PK.ACC_CELL, 'sliding past the end holds the last variant')
+    ptr(m, name, 'up', 5000, y, 1700)
+    expect(field(m) == 'xë', f'a lift far off the strip types the nearest end ({field(m)})')
+
+    # 3. A quick tap is unchanged; so is a tap on a key without accents
+    m = opened(initial='x'); press(m, f'kb_k{key_at(m, "e")}')
+    expect(field(m) == 'xe' and not acc_up(m) and calls_of(m, 'timer_remove'), 'a quick tap types e and takes the timer away')
+    m = opened(initial='x'); ptr(m, f'kb_k{key_at(m, "w")}', 'down', *centre(m, f'kb_k{key_at(m, "w")}'))
+    expect(not acc_timers(m), 'a key without accents arms no timer')
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    fn = m.acc_fn
+    lift(m, name, x, y, 1700); m.calls = []
+    expect(m.call(fn, a0=0, count=4000000) == 0 and not acc_up(m) and field(m) == 'xé', 'a tick that arrives after the lift does nothing')
+    m = opened(initial='x'); ptr(m, name, 'down', x, y, 100); fn = acc_timers(m)[0][1]; lift(m, name, x, y, 180); m.call(fn, a0=0, count=4000000)
+    expect(field(m) == 'xe' and not acc_up(m), 'a quick tap whose timer tick arrives late shows no strip')
+
+    # 4. Capitals: É on the upper page, then shift is off
+    m = opened(); name = f'kb_k{key_at(m, "E")}'
+    expect(keys(m)[0] == 'Q', 'an empty field starts on capitals')
+    x, y, _ = hold(m, 'E')
+    expect(acc_up(m) and acc_labels(m, 4) == list('ÉÈÊË'), 'capital variants on the upper page')
+    lift(m, name, x, y, 1700)
+    expect(field(m) == 'É' and keys(m)[0] == 'q' and shown(m, 'kb_shift') == (1, 1), 'the accented capital counts as the letter: shift is off after it')
+    m = opened(); x, y, _ = hold(m, 'O')
+    expect(acc_labels(m, 7) == list('ÔŒÖÒÓÕØ')[::-1], 'o: seven capitals (a right-side strip lists them reversed, the first nearest the key)')
+    m = opened(initial='a'); press(m, 'kb_shift'); x, y, _ = hold(m, 'A')
+    expect(acc_labels(m, 7) == list('ÀÂÆÁÄÃÅ'), 'a: shift pressed by hand, capitals')
+
+    # 5. Abort and background type nothing
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    ptr(m, name, 'move', slot_x(rect, 2), y, 1600); ptr(m, name, 'abort', x, y, 1700)
+    expect(field(m) == 'x' and not acc_up(m) and shown(m, 'kb_pop')[0] == 0, 'abort types nothing and the strip goes')
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    m.call(m.bound[(m.window, TO_BG)][0], a0=m.bound[(m.window, TO_BG)][1], count=4000000)
+    expect(not acc_up(m), 'the page going to the background lets the strip go')
+    ptr(m, name, 'up', x, y, 1700)
+    expect(field(m) == 'x', 'and the lift after it types nothing')
+    m = opened(initial='x'); x, y, _ = hold(m, 'e'); fn_d = m.bound[(m.window, DESTROY)]
+    m.call(fn_d[0], a0=fn_d[1], count=4000000)
+    expect(m.call(m.acc_fn, a0=0, count=4000000) == 0, 'destroy with the strip up is safe (a late tick does nothing)')
+
+    # 6. Byte limit
+    m = opened(initial='x' * 62); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    lift(m, name, x, y, 1700)
+    expect(raw_text(m) == 'x' * 62, 'a variant that does not fit (2 bytes in 1) is not typed')
+    m = opened(initial='x' * 61); x, y, _ = hold(m, 'e'); ptr(m, name, 'up', x, y, 1700)
+    expect(raw_text(m) == 'x' * 61 + 'é', 'one that does fit is typed')
+    press(m, 'kb_del')
+    expect(raw_text(m) == 'x' * 61, 'delete removes the whole accented character')
+
+    # 7. Gap rule: a touch the pad resolves to the key gets the strip too; moves and the lift can come on the pad
+    m = opened(initial='x'); x, y, nm = hold(m, 'e', gap=True)
+    expect(nm == 'kb_pad' and acc_up(m) and acc_labels(m, 4) == list('éèêë'), 'a touch in the gap right of e shows the strip')
+    ptr(m, 'kb_pad', 'move', slot_x(rect, 2), y, 1600); ptr(m, 'kb_pad', 'up', slot_x(rect, 2), y, 1700)
+    expect(field(m) == 'xê' and not acc_up(m) and ('widget_set_state', m.widgets[f'kb_k{key_at(m, "e")}'], 'normal') in m.calls, f'moves and the lift on the pad pick ê ({field(m)})')
+    m = opened(initial='x'); x, y, nm = hold(m, 'e', gap=True)
+    ptr(m, 'kb_pad', 'abort', x, y, 1700)
+    expect(field(m) == 'x' and not acc_up(m), 'an aborted gap touch types nothing')
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    ptr(m, 'kb_pad', 'move', slot_x(rect, 1), y, 1600); ptr(m, 'kb_pad', 'up', slot_x(rect, 1), y, 1700); ptr(m, name, 'up', slot_x(rect, 1), y, 1700)
+    expect(field(m) == 'xè', f'a key touch whose moves and lift the pad hears too types once ({field(m)})')
+
+    # 7b. Real event order (click, then up) and the capture of a gap-started gesture
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    run_evt(m, name, O['EVT_CLICK'])
+    expect(field(m) == 'x' and acc_up(m), f'with the strip up the click types nothing, the strip stays for the lift ({field(m)})')
+    ptr(m, name, 'up', x, y, 1700)
+    expect(field(m) == 'xé' and not acc_up(m), f'the lift types the variant once: é, not eé ({field(m)})')
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y = centre(m, name)
+    ptr(m, name, 'down', x, y, 100); lift(m, name, x, y, 180)
+    expect(field(m) == 'xe', f'a quick tap in the real order types e once ({field(m)})')
+    m = opened(initial='x'); name = f'kb_k{key_at(m, "e")}'; x, y, _ = hold(m, 'e')
+    ptr(m, name, 'up', x, y, 1700); run_evt(m, name, O['EVT_CLICK'])
+    expect(field(m) == 'xé', f'an up before the click types é once too ({field(m)})')
+    m = opened(initial='x'); kx, ky, kw, _ = geo(m, f'kb_k{key_at(m, "e")}'); x, y = centre(m, f'kb_k{key_at(m, "e")}')
+    ptr(m, 'kb_pad', 'down', kx + kw + 1, y, 1000)
+    expect(('widget_grab', m.window, m.widgets['kb_pad']) in m.calls, 'a gap touch on a key with accents grabs the touch at the pad (moves and the lift come wherever the finger goes)')
+    m.call(acc_timers(m)[-1][1], a0=0, count=4000000)
+    ptr(m, 'kb_pad', 'move', slot_x(rect, 2), -40, 1600); ptr(m, 'kb_pad', 'up', slot_x(rect, 2), -40, 1700)
+    expect(field(m) == 'xê' and not acc_up(m) and ('widget_ungrab', m.window, m.widgets['kb_pad']) in m.calls, f'a lift above the pad types the variant, hides the strip and lets go ({field(m)})')
+    m = opened(initial='x'); x, y, nm = hold(m, 'e', gap=True); ptr(m, 'kb_pad', 'move', slot_x(rect, 2), -40, 1600); ptr(m, 'kb_pad', 'abort', 0, -40, 1700)
+    expect(field(m) == 'x' and not acc_up(m) and ('widget_ungrab', m.window, m.widgets['kb_pad']) in m.calls, 'an abort outside the pad types nothing, hides the strip and lets go')
+    m = opened(initial='x'); x, y, nm = hold(m, 'e', gap=True); m.calls = []
+    m.call(m.bound[(m.window, TO_BG)][0], a0=m.bound[(m.window, TO_BG)][1], count=4000000)
+    expect(not acc_up(m) and ('widget_ungrab', m.window, m.widgets['kb_pad']) in m.calls, 'the page going to the background lets go of the grab')
+    m = opened(initial='x'); x, y, nm = hold(m, 'e', gap=True); m.calls = []; fn_d = m.bound[(m.window, DESTROY)]
+    m.call(fn_d[0], a0=fn_d[1], count=4000000)
+    expect(('widget_ungrab', m.window, m.widgets['kb_pad']) in m.calls, 'destroy lets go of the grab')
+    m = opened(initial='x'); kx, ky, kw, _ = geo(m, f'kb_k{key_at(m, "w")}'); wx, wy = centre(m, f'kb_k{key_at(m, "w")}')
+    ptr(m, 'kb_pad', 'down', kx + kw + 1, wy, 1000)
+    expect(not [c for c in m.calls if c[0] == 'widget_grab'], 'a gap touch on a key without accents takes no grab')
+
+    # 8. Not on the symbol pages, not on the Chinese layer; a password field takes them
+    m = opened(initial='x'); press(m, 'kb_mode'); c = [k for k in keys(m)]
+    ptr(m, 'kb_k0', 'down', *centre(m, 'kb_k0'))
+    expect(not acc_timers(m), 'no accents on the 123 page')
+    m = zh_opened(initial='x'); press(m, 'kb_lang'); ptr(m, f'kb_k{key_at(m, "e")}', 'down', *centre(m, f'kb_k{key_at(m, "e")}'))
+    expect(said(m, 'kb_lang') == 'EN' and not acc_timers(m) and not acc_up(m), 'no accents on the Chinese layer')
+    m = keyboard_machine(); kopen(m, flags=8)
+    x, y, _ = hold(m, 'e'); ptr(m, f'kb_k{key_at(m, "e")}', 'up', x, y, 1700)
+    expect(raw_text(m) == 'é', 'a password field takes the strip')
+
+    # 9. Every accent key on every letter page of English and French: the strip is inside the screen, matches the model, and a finger at each slot picks that variant
+    for fr in (False, True):
+        for page_shift in (False, True):
+            m = fr_machine(fr=True) if fr else keyboard_machine()
+            kopen(m, initial='x')
+            if fr: press(m, 'kb_lang')
+            if page_shift: press(m, 'kb_shift')
+            lay = PK.layout('ABC' if page_shift else 'abc', lang=fr, fr=fr)['keys']
+            for c, kx, ky, kw in lay:
+                v = PK.accents(c)
+                if not v: continue
+                name = f'kb_k{key_at(m, c)}'
+                x, y, _ = hold(m, c)
+                rect = PK.acc_rect(kx, kw, ky, len(v))
+                expect(acc_up(m), f'{c}: strip up')
+                expect(geo(m, 'kb_acc') == rect[:4] and rect[0] >= 1 and rect[0] + rect[2] <= 319, f'{"FR" if fr else "EN"} {c}: the strip {geo(m, "kb_acc")} is the model\'s {rect[:4]} and inside the screen')
+                labs = acc_labels(m, len(v))
+                expect(labs == (list(v)[::-1] if rect[4] else list(v)), f'{c}: slot order {labs}')
+                for k in range(len(v)):
+                    fx = slot_x(rect, k) if not rect[4] else slot_x(rect, len(v) - 1 - k)
+                    ptr(m, name, 'move', fx, y, 2000 + k)
+                    expect(geo(m, 'kb_acc_h')[0] == PK.ACC_PAD + PK.ACC_CELL * ((len(v) - 1 - k) if rect[4] else k), f'{c}: a finger over variant {k}')
+                    expect(PK.acc_pick(rect, len(v), fx) == k, f'{c}: model pick {k}')
+                ptr(m, name, 'abort', x, y, 3000)
+
+
+SECTIONS = [base_tests, name_tests, password_tests, refocus_tests, gap_tests, asset_tests, setting_tests, zh_tests, zh_search_tests, zh_limit_tests, strip_tests, hit_tests, lang_gap_tests, french_tests, accent_tests]   # tools/check.py runs each as its own task

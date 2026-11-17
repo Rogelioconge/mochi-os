@@ -84,6 +84,12 @@ int keyboard_open(const char *title, const char *placeholder, const char *initia
 #define KB_POP_H 50
 #define KB_POP_GAP 10 /* above the key */
 #define KB_STEM_UP 12 /* the stem rises to this far under the balloon's bottom edge */
+#define KB_ACC_MS 500 /* a char key held this long shows its accent strip */
+#define KB_ACC_CELL 28 /* the strip: a variant's width, its height, its padding, the gap over the key */
+#define KB_ACC_H 44
+#define KB_ACC_PAD 4
+#define KB_ACC_GAP 8
+#define KB_ACC_MAX 7 /* variant labels (the longest list) */
 #define KB_TEXT_X 30 /* the field's text and caret start (field coordinates) */
 #define KB_TEXT_W 228 /* the room for the text */
 #define KB_CARET_Y 7

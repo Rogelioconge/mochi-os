@@ -2666,7 +2666,15 @@ def keyboard_pad_widgets():
     glyph.set('sensitive', 'false')
     styled(glyph, ('normal',), 'text_align_v', 'middle')
     pop.children.append(glyph)
-    return [pad, strip, stem, pop]
+    # The long-press accent strip (English and French letter pages): a rounded #6E6E73 bar over the key, a highlight pill behind the selected variant and a pool of ACC_MAX labels the payload fills and
+    # moves; all insensitive for life, only visibility, text and position change (as the balloon).
+    acc = hidden(kb_view('kb_acc', 0, 0, 2 * PK.ACC_PAD + PK.ACC_MAX * PK.ACC_CELL, PK.ACC_H, PK.KB_POP, PK.ACC_R))
+    acch = hidden(kb_view('kb_acc_h', PK.ACC_PAD, PK.ACC_PAD, PK.ACC_CELL, PK.ACC_H - 2 * PK.ACC_PAD, PK.KB_ACC_HL, PK.ACC_HL_R))
+    accl = [hidden(label(f'kb_a{i}', PK.ACC_PAD + i * PK.ACC_CELL, 0, PK.ACC_CELL, PK.ACC_H, '', PK.ACC_PX, PK.KB_INK, 'center')) for i in range(PK.ACC_MAX)]
+    for lab in accl:
+        styled(lab, ('normal',), 'text_align_v', 'middle')
+    acc.children = [acch] + accl
+    return [pad, strip, stem, pop, acc]
 
 
 def build_keyboard_page(page):

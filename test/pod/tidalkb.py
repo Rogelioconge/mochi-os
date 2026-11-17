@@ -182,7 +182,7 @@ def asset_tests(ctx):
     stock = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', rel), 'rb').read())
     by = {w.name: w for w in built.walk() if w.name}
     bar = by['listitem_ssid']
-    expect([c.name for c in built.children] == ['navigationbar_view', 'listitem_ssid', 'view', 'tab_control', 'kb_pad', 'kb_strip', 'kb_stem', 'kb_pop'] and [c.name for c in bar.children] == ['search_edit', 'kb_field'],
+    expect([c.name for c in built.children] == ['navigationbar_view', 'listitem_ssid', 'view', 'tab_control', 'kb_pad', 'kb_strip', 'kb_stem', 'kb_pop', 'kb_acc'] and [c.name for c in bar.children] == ['search_edit', 'kb_field'],
            f'the window keeps the stock widgets and ends with the pad, the strip and the pop-up; the bar holds the edit then our field ({[c.name for c in built.children]})')
     # taking our widgets out gives the stock page byte for byte
     bar.children = [c for c in bar.children if c.name != 'kb_field']
@@ -426,7 +426,7 @@ def destroy_tests(ctx):
     m.fire(EVT_DESTROY, PAGE)
     expect(('timer_remove', 0x777) in m.calls and not busy(m), 'the page\'s destroy removes the poll and detaches the keyboard')
     m.log = []; m.calls = []
-    tick(m); tap(m)   # (the mocked timer list keeps the removed timer: a stale callback must do nothing)
+    tick(m, 8); tap(m)   # (the mocked timer list keeps removed timers, the poll and a held key's accent timer: every stale callback must do nothing)
     expect(not m.timers and not kb_calls(m) and not t9(m) and not busy(m), 'after the destroy a stale timer and a tap do nothing')
     # the next Tidal search page takes the keyboard again (text and state start fresh)
     m = page(); bind(m); KB.typ(m, 'Ab'); m.fire(EVT_DESTROY, PAGE)

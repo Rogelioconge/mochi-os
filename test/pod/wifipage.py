@@ -1046,7 +1046,7 @@ def pass_tests(ctx):
            'the eye starts as eye-off (the password is hidden); the error line starts hidden')
     expect(by['kb_go'].get('style:disable:text_color') == PK.KB_DIM and by['kb_go'].get('style:normal:text_color') == PK.KB_INK and by['kb_go'].get('tr_text') == pod_i18n.key_for('Search'), 'the action key has a dim style for the disable state')
     names = [c.name for c in tree.children]
-    expect(names.index('kb_pad') > names.index('kb_field') and names[-4:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop'], 'the pad, strip and pop-up end the page, as on the keyboard page')
+    expect(names.index('kb_pad') > names.index('kb_field') and names[-5:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop', 'kb_acc'], 'the pad, strip and pop-up end the page, as on the keyboard page')
     cols = [v for w in tree.walk() for k, v in w.props if isinstance(v, str) and re.fullmatch(r'#[0-9a-fA-F]{6,8}', v) and 'color' in k]
     neutral = lambda c: (lambda r, g, b: max(r, g, b) - min(r, g, b) <= 12)(*(int(c.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)))
     expect(all(neutral(c) for c in cols), 'no accent colour')
@@ -1224,7 +1224,7 @@ def other_tests(ctx):
     expect(by['wo_sec_v'].get('style:normal:text_align_h') == 'right' and by['wo_sec_v'].x + by['wo_sec_v'].w == sx + sw and by['wo_chev'].get('image') == 'pod_chev' and by['wo_chev'].x == ST.accessory('chevron')[0],
            'the Security value is right aligned in the Settings value box, the chevron the Settings one')
     names = [c.name for c in tree.children]
-    expect(names.index('kb_field') > max(names.index(n) for n in ('wo_hit_name', 'wo_hit_sec', 'wo_hit_pass')) and names[-4:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop'], 'the field is over the row buttons (its clear button takes its own taps); the pad ends the page')
+    expect(names.index('kb_field') > max(names.index(n) for n in ('wo_hit_name', 'wo_hit_sec', 'wo_hit_pass')) and names[-5:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop', 'kb_acc'], 'the field is over the row buttons (its clear button takes its own taps); the pad ends the page')
     cols = [v for w in tree.walk() for k, v in w.props if isinstance(v, str) and re.fullmatch(r'#[0-9a-fA-F]{6,8}', v) and 'color' in k]
     neutral = lambda c: (lambda r, g, b: max(r, g, b) - min(r, g, b) <= 12)(*(int(c.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)))
     expect(all(neutral(c) for c in cols), 'no accent colour')

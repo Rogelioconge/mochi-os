@@ -120,6 +120,9 @@
 #define KBZH_FILE \
     "/mnt/data/m1plus/keyboard-pinyin" /* the on-screen keyboard's Chinese (Pinyin) layer: "1" = on, anything else or missing = off (Settings > General > Keyboards; patch/keyboard.c) */
 #define KBZH_TMP "/mnt/data/m1plus/keyboard-pinyin.tmp"
+#define KBFR_FILE \
+    "/mnt/data/m1plus/keyboard-french" /* the French (AZERTY) layer: "1" = on, anything else or missing = off (Settings > General > Keyboards; patch/keyboard.c) */
+#define KBFR_TMP "/mnt/data/m1plus/keyboard-french.tmp"
 #define PCSEARCH_FILE \
     "/mnt/data/m1plus/podcast-online-search" /* Podcast Discover: "0" = off, anything else or missing = on (Settings > Library > Podcasts; patch/podcasts.c) */
 #define PCSEARCH_TMP "/mnt/data/m1plus/podcast-online-search.tmp"
@@ -298,6 +301,8 @@ extern int dailymix_can_regen(
 extern int recent_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int kb_zh_setting(
     void); /* patch/keyboard.c: Settings > General > Keyboards > Chinese (Pinyin): 1 on, 0 off (the default) */
+extern int kb_fr_setting(void); /* ... > French (AZERTY): 1 on, 0 off (the default) */
+extern int kb_fr_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int kb_zh_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int pcsearch_setting(
     void); /* patch/podcasts.c: Settings > Library > Podcasts > Podcast Discover: 1 on (the default), 0 off */

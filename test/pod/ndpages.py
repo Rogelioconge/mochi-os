@@ -293,7 +293,7 @@ def server_login_asset(ctx):
            and all(by[n].get('visible') == 'false' and by[n].get('sensitive') == 'false' for n in ('nl_spin', 'nl_busy', 'nl_err')), 'under the card one 20 px line: the spinner and "Connecting...", or the grey error text; all start hidden')
     ends = {n: by[n].y + by[n].h for n in ('nl_card', 'nl_eye', 'nl_hit2', 'nl_err', 'nl_busy', 'kb_field')}
     names = [c.name for c in tree.children]
-    expect(all(v <= PK.STRIP_Y for v in ends.values()) and by['kb_strip'].y == PK.STRIP_Y and names.index('kb_field') > names.index('nl_hit2') and names[-4:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop'],
+    expect(all(v <= PK.STRIP_Y for v in ends.values()) and by['kb_strip'].y == PK.STRIP_Y and names.index('kb_field') > names.index('nl_hit2') and names[-5:] == ['kb_pad', 'kb_strip', 'kb_stem', 'kb_pop', 'kb_acc'],
            f'everything ends above the candidate strip (y {PK.STRIP_Y}): {ends}; the field is over the row buttons, the pad ends the page')
     cols = [v for w in tree.walk() for k, v in w.props if isinstance(v, str) and re.fullmatch(r'#[0-9a-fA-F]{6,8}', v) and 'color' in k]
     neutral = lambda c: (lambda r, g, b: max(r, g, b) - min(r, g, b) <= 12)(*(int(c.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)))

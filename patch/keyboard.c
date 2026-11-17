@@ -4,7 +4,7 @@
  * Stock's T9 popup (ui/user_keyboard.bin) is laid out 640 px wide in a 320 px popup; this is a page of ordinary AWTK buttons instead: 26 char keys the payload
  * moves, relabels and hides per page (lowercase, uppercase, 123 and #+=), the function keys, a search field (a grey hint, the text, a caret and a clear button) and
  * the key pop-up. The geometry is tools/pod_keyboard.py's (the asset is the lowercase page) and patch/keyboard.h's. Everything is an event handler of the page's
- * own widgets: no hook, no timer except the delete key's repeat (armed only while that key is held), nothing at boot, in the main loop or at paint.
+ * own widgets: no hook, no timer except the delete key's repeat and the accent key's 500 ms (armed only while a key is held), nothing at boot, in the main loop or at paint.
  *
  * Typing: a char key inserts its label when the finger lifts on it (a click); while it is down a balloon with the letter stands above it (the pop-up: two insensitive
  * views, a stem over the key and a balloon over it). Shift is one-shot: the field starts on the uppercase page when it is empty, the first letter goes back to
@@ -33,7 +33,12 @@
     _ZN10ime_pinyin12MatrixSearch12get_predictsEPKtPA8_tj /* get_predicts(this, history, out[][8], n): what follows */
 
 enum { P_LOWER = 0, P_UPPER = 1, P_NUM = 2, P_SYM = 3 };
-enum { L_EN = 0, L_ZH = 1 };
+enum {
+    L_EN = 0,
+    L_ZH = 1,
+    L_FR = 2,
+    L_N = 3
+}; /* layer ids (kb_memo); the cycle order of the language key is EN, FR, ZH (kb_start) */
 enum { S_NONE = 0, S_PINYIN = 1, S_PRED = 2 }; /* what the candidate strip shows */
 enum {
     K_DEL = 100,
@@ -55,9 +60,18 @@ enum {
 #define KB_NRECT \
     (KB_KEYS + 7) /* the rectangles a touch is measured against: char keys, shift / sym, del, mode, lang, space, go */
 
-static const char *const KB_ROWS[4][3] = {
+/* The letter pages (lowercase, uppercase) of each layer, three rows over the 26 char key widgets; a layer with its own letters has its own table here. The Chinese layer types lowercase only. */
+static const char *const KB_QWERTY[2][3] = {
     {"qwertyuiop", "asdfghjkl", "zxcvbnm"},
     {"QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"},
+};
+static const char *const KB_AZERTY[2][3] = {
+    {"azertyuiop", "qsdfghjklm", "wxcvbn"},
+    {"AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"},
+};
+static const char *const (*const KB_LETTERS[L_N])[3] = {KB_QWERTY, KB_QWERTY, KB_AZERTY}; /* by layer id */
+/* The 123 and #+= pages, the same on every layer. */
+static const char *const KB_SYMS[2][3] = {
     {"1234567890", "-/:;()$&@\"", ".,?!'"},
     {"[]{}#%^*+=", "_\\|~<>€£¥`", ".,?!'"},
 };
@@ -81,7 +95,14 @@ static struct {
     void *key[KB_KEYS];
     void *shift, *shifton, *sym, *del, *mode, *space, *go, *lang;
     void *strip, *py, *sep, *cands, *chl, *item[KB_POOL];
-    int page, geo, popped, held, hold, finished, seen_n, seen_x, seen_y, gap, layers, layer, nkeys;
+    void *acc, *acch, *accl[KB_ACC_MAX]; /* the accent strip, its highlight, its variant labels */
+    int page, geo /* 0 QWERTY letters (the asset), 1 symbols, 2 AZERTY letters: what the char keys are placed for */,
+        apress /* the char key (+ 1) held that has accents */, acc_on /* the strip is up */, an /* its variants */,
+        asel /* the highlighted one */, arev /* the strip grows left: slots in reverse order */, ax /* its x */,
+        nclick /* the strip was up in this touch: its click (before the lift, or after it) is not a tap */,
+        grab /* the pad holds a gap touch's grab */, popped, held, hold, finished, seen_n, seen_x, seen_y, gap, layers,
+        layer, nkeys;
+    unsigned char order[L_N]; /* the layers that are on, in the language key's cycle; layers of them */
     unsigned timer, len, flags, seen_t;
     kb_done_fn done;
     kb_cancel_fn cancel;
@@ -94,6 +115,7 @@ static struct {
         cy; /* embedded in another page (keyboard_attach); the pad is hidden; the field's text x, text room and caret y */
     short kx[KB_KEYS], ky[KB_KEYS], kw[KB_KEYS];
     char lab[KB_KEYS][4];
+    char avar[KB_ACC_MAX][5]; /* the variants shown (UTF-8) */
     char buf[KB_MAX_LONG + 1];
     unsigned max; /* the limit of this keyboard's text: KB_MAX, or KB_MAX_LONG with KB_LONG */
 } kb __attribute__((section(".scratch")));
@@ -223,7 +245,7 @@ static int kb_letters(
 
 /* A new text: the shift rule (an empty field starts a capital, English only) then the field. */
 static void kb_changed(void) {
-    if (kb.len == 0 && kb.page == P_LOWER && kb.layer == L_EN && !(kb.flags & KB_PASSWORD)) kb_page(P_UPPER);
+    if (kb.len == 0 && kb.page == P_LOWER && kb.layer != L_ZH && !(kb.flags & KB_PASSWORD)) kb_page(P_UPPER);
     kb_refresh();
 }
 
@@ -254,10 +276,11 @@ static void kb_delete_char(void) {
 
 /* ---- the pages ---- */
 static void kb_page(int page) {
-    int letters = page <= P_UPPER, geo = letters ? 0 : 1, r, k = 0, zh_page = kb.layer == L_ZH && page == P_LOWER;
+    int letters = page <= P_UPPER, geo = letters ? (kb.layer == L_FR ? 2 : 0) : 1, r, k = 0,
+        zh_page = kb.layer == L_ZH && page == P_LOWER;
     kb.page = page;
     for (r = 0; r < 3; ++r) {
-        const char *row = KB_ROWS[page][r];
+        const char *row = letters ? KB_LETTERS[kb.layer][page][r] : KB_SYMS[page - P_NUM][r];
         unsigned i, n = 0, l;
         int w = (r == 2 && !letters) ? KB_NUM_KW : KB_KW, x;
         for (i = 0; row[i]; i += kb_clen(row + i)) n++;
@@ -302,13 +325,23 @@ static void kb_bottom(void) {
     m1_show(kb.lang, lang);
 }
 
+static int kb_next(int layer) { /* the layer after `layer` in the cycle of the layers that are on */
+    int i;
+    for (i = 0; i < kb.layers; ++i)
+        if (kb.order[i] == layer) return kb.order[(i + 1) % kb.layers];
+    return kb.order[0];
+}
+
 static void kb_lang_label(void) { /* the layer a tap goes to */
-    if (kb.lang) widget_set_text_utf8(kb.lang, kb_layer_of(kb.layer == L_EN ? L_ZH : L_EN)->tag);
+    if (kb.lang) widget_set_text_utf8(kb.lang, kb_layer_of(kb_next(kb.layer))->tag);
 }
 
 /* ---- the pop-up ---- */
 static void kb_unpop(void) {
     if (!kb.popped) return;
+    if (kb.acc_on) widget_set_visible(kb.acc, 0, 0);
+    kb.acc_on = kb.apress = 0;
+    m1_timer_stop(&kb.timer); /* (a char key's accent timer; delete's has no pop-up) */
     widget_set_visible(kb.stem, 0, 0);
     widget_set_visible(kb.pop, 0, 0);
     kb.popped = 0;
@@ -327,6 +360,85 @@ static void kb_pop(
     widget_set_visible(kb.stem, 1, 0);
     widget_set_visible(kb.pop, 1, 0);
     kb.popped = i + 1;
+}
+
+/* ---- long-press accents (English and French letter pages): the variants of a letter, lower and upper case; tools/pod_keyboard.py ACCENTS ---- */
+static const struct {
+    char c;
+    const char *lo, *up;
+} KB_ACCENTS[] = {
+    {'e', "éèêë", "ÉÈÊË"}, {'a', "àâæáäãå", "ÀÂÆÁÄÃÅ"}, {'c', "ç", "Ç"}, {'u', "ùûüú", "ÙÛÜÚ"},
+    {'i', "îïìí", "ÎÏÌÍ"}, {'o', "ôœöòóõø", "ÔŒÖÒÓÕØ"}, {'y', "ÿ", "Ÿ"}, {'n', "ñ", "Ñ"},
+};
+
+static const char *kb_variants(int id) { /* the list for char key id on this page, or NULL */
+    unsigned i;
+    char c = kb.lab[id][0];
+    if (kb.page > P_UPPER || kb.layer == L_ZH) return (const char *)0;
+    for (i = 0; i < sizeof KB_ACCENTS / sizeof KB_ACCENTS[0]; ++i)
+        if (KB_ACCENTS[i].c == (c | 0x20) && kb.lab[id][1] == 0)
+            return kb.page == P_UPPER ? KB_ACCENTS[i].up : KB_ACCENTS[i].lo;
+    return (const char *)0;
+}
+
+static void kb_acc_select(int sel) {
+    int slot = kb.arev ? kb.an - 1 - sel : sel;
+    kb.asel = sel;
+    widget_move(kb.acch, KB_ACC_PAD + slot * KB_ACC_CELL, KB_ACC_PAD);
+}
+
+static void kb_acc_show(void) { /* the strip in place of the balloon (tools/pod_keyboard.py acc_rect) */
+    int id = kb.apress - 1, i, n = 0, sw, sx;
+    const char *v = kb_variants(id);
+    if (!v) return;
+    while (*v && n < KB_ACC_MAX) {
+        unsigned l = kb_clen(v), j;
+        for (j = 0; j < l; ++j) kb.avar[n][j] = v[j];
+        kb.avar[n++][l] = 0;
+        v += l;
+    }
+    kb.an = n;
+    sw = n * KB_ACC_CELL + 2 * KB_ACC_PAD;
+    kb.arev = kb.kx[id] + kb.kw[id] / 2 >= KB_W / 2;
+    sx = kb.arev ? kb.kx[id] + kb.kw[id] + KB_ACC_PAD - sw : kb.kx[id] - KB_ACC_PAD;
+    if (sx > KB_W - 1 - sw) sx = KB_W - 1 - sw;
+    if (sx < 1) sx = 1;
+    kb.ax = sx;
+    widget_move(kb.acc, sx, KB_TOP + kb.ky[id] - KB_ACC_GAP - KB_ACC_H);
+    widget_resize(kb.acc, sw, KB_ACC_H);
+    for (i = 0; i < KB_ACC_MAX; ++i) {
+        if (i < n) {
+            widget_set_text_utf8(kb.accl[i], kb.avar[kb.arev ? n - 1 - i : i]);
+            widget_move(kb.accl[i], KB_ACC_PAD + i * KB_ACC_CELL, 0);
+        }
+        widget_set_visible(kb.accl[i], i < n, 0);
+    }
+    kb_acc_select(0);
+    widget_set_visible(kb.acch, 1, 0);
+    widget_set_visible(kb.stem, 0, 0);
+    widget_set_visible(kb.pop, 0, 0);
+    widget_set_visible(kb.acc, 1, 0);
+    kb.acc_on = 1;
+    kb.nclick = 1;
+}
+
+static int kb_accent(const void *timer) { /* the key has been held: its accents */
+    (void)timer;
+    kb.timer = 0;
+    if (kb.win && !kb.finished && kb.apress && !kb.acc_on) kb_acc_show();
+    return RET_OK;
+}
+
+static void kb_acc_move(void *e) { /* the finger slides: the variant under it (x only) */
+    int pt[2], t, slot;
+    if (!kb.acc_on || !e) return;
+    pt[0] = *(int *)((char *)e + PE_X);
+    pt[1] = *(int *)((char *)e + PE_Y);
+    widget_to_local(kb.pad, pt);
+    t = pt[0] - kb.ax - KB_ACC_PAD;
+    slot = t < 0 ? 0 : t / KB_ACC_CELL;
+    if (slot > kb.an - 1) slot = kb.an - 1;
+    kb_acc_select(kb.arev ? kb.an - 1 - slot : slot);
 }
 
 /* ====================================================================================================================================
@@ -713,10 +825,12 @@ static int zh_on_strip(void *ctx, void *e) {
     return RET_OK;
 }
 
-static const struct kb_layer KB_LAYERS[2] = {
+static const struct kb_layer KB_LAYERS[L_N] = {
     {"EN", (int (*)(void))0, (void (*)(void))0, (int (*)(int))0, (int (*)(void))0, (void (*)(void))0, (int (*)(void))0,
      (void (*)(void))0},
     {"中", zh_enter, zh_leave, zh_compose, zh_backspace, zh_flush, zh_pending, zh_reset},
+    {"FR", (int (*)(void))0, (void (*)(void))0, (int (*)(int))0, (int (*)(void))0, (void (*)(void))0, (int (*)(void))0,
+     (void (*)(void))0}, /* French types as it is: no composer */
 };
 
 static const struct kb_layer *kb_layer_of(int layer) { return &KB_LAYERS[layer]; }
@@ -727,7 +841,18 @@ int kb_zh_setting(void) { return set_read(KBZH_FILE, 0) == '1'; }
 int kb_zh_toggle(void) {
     int next = !kb_zh_setting();
     if (home_set_digit(KBZH_FILE, KBZH_TMP, next, 1) < 0) return -1;
-    if (!next) kb_memo = L_EN; /* off: the next time it is turned on the keyboard starts on English again */
+    if (!next && kb_memo == L_ZH)
+        kb_memo = L_EN; /* off: the next time it is turned on the keyboard starts on English again */
+    return next;
+}
+
+/* Settings > General > Keyboards > French (AZERTY): the same file shape. */
+int kb_fr_setting(void) { return set_read(KBFR_FILE, 0) == '1'; }
+
+int kb_fr_toggle(void) {
+    int next = !kb_fr_setting();
+    if (home_set_digit(KBFR_FILE, KBFR_TMP, next, 1) < 0) return -1;
+    if (!next && kb_memo == L_FR) kb_memo = L_EN;
     return next;
 }
 
@@ -743,15 +868,25 @@ static void kb_layer_set(int layer) {
     kb_refresh();
 }
 
-static void kb_lang_tap(void) { /* the language key: the other layer; the Chinese one is opened the first time */
-    int to = kb.layer == L_EN ? L_ZH : L_EN;
-    const struct kb_layer *l = kb_layer_of(to);
-    if (l->enter && l->enter() != 0) { /* no engine: the key goes away, English stays */
-        kb.layers = 1;
-        kb_bottom();
+static void kb_drop(int layer) { /* a layer that will not open leaves the cycle */
+    int i, n = 0;
+    for (i = 0; i < kb.layers; ++i)
+        if (kb.order[i] != layer) kb.order[n++] = kb.order[i];
+    kb.layers = n;
+}
+
+static void kb_lang_tap(void) { /* the language key: the next layer; the Chinese one is opened the first time */
+    while (kb.layers > 1) {
+        int to = kb_next(kb.layer);
+        const struct kb_layer *l = kb_layer_of(to);
+        if (l->enter && l->enter() != 0) { /* no engine: that layer is dropped, the cycle goes on */
+            kb_drop(to);
+            continue;
+        }
+        kb_layer_set(to);
         return;
     }
-    kb_layer_set(to);
+    kb_bottom(); /* one layer left: the key goes away */
 }
 
 /* ---- delete's repeat ---- */
@@ -819,15 +954,30 @@ static int kb_on_back(void *ctx, void *e) {
     return RET_OK;
 }
 
+static void kb_type(const char *s) { /* a letter (or an accented one) into the field; a capital is used up */
+    zh_hide();
+    kb_insert(s);
+    if (kb.page == P_UPPER) kb_page(P_LOWER);
+    kb_refresh();
+}
+
+static int kb_acc_commit(
+    void) { /* the finger lifts with the accent strip up: the highlighted variant is typed; 1 when it was up */
+    int sel = kb.asel;
+    if (!kb.acc_on) return 0;
+    kb_type(kb.avar[sel]);
+    kb_unpop();
+    return 1;
+}
+
 static void kb_click(int id) {
     const struct kb_layer *l = kb_layer_of(kb.layer);
     if (!kb.win || kb.finished) return;
+    if (id < KB_KEYS && kb.nclick)
+        return; /* a touch that showed the strip types only what the lift picks (kb_press clears the flag) */
     if (id < KB_KEYS) {
         if (l->compose && kb.page == P_LOWER && l->compose(kb.lab[id][0])) return;
-        zh_hide();
-        kb_insert(kb.lab[id]);
-        if (kb.page == P_UPPER) kb_page(P_LOWER);
-        kb_refresh();
+        kb_type(kb.lab[id]);
     } else if (id == K_SHIFT || id == K_SHIFTON) {
         kb_page(kb.page == P_LOWER ? P_UPPER : P_LOWER);
     } else if (id == K_SYM) {
@@ -885,7 +1035,14 @@ static void kb_down(void *e, int from_pad);
 /* A key goes down (its own touch, or the pad's for a touch that fell between the keys): the pop-up, delete's first deletion and its repeat. */
 static void kb_press(int id) {
     kb_unpop();
-    if (id < KB_KEYS) kb_pop(id);
+    kb.nclick = 0;
+    if (id < KB_KEYS) {
+        kb_pop(id);
+        if (kb_variants(id)) {
+            kb.apress = id + 1;
+            kb.timer = timer_add(kb_accent, (void *)0, KB_ACC_MS);
+        }
+    }
     if (id == K_DEL) {
         kb_stop();
         kb.held = 1, kb.hold = 0;
@@ -910,8 +1067,12 @@ static int kb_on_touch(void *ctx, void *e) {
             kb.gap = 0;
         }
         kb_press(id);
-    } else
+    } else if (type == EVT_POINTER_MOVE) {
+        kb_acc_move(e);
+    } else {
+        if (type == EVT_POINTER_UP) kb_acc_commit();
         kb_release(id);
+    }
     return RET_OK;
 }
 
@@ -919,7 +1080,7 @@ static int kb_on_touch(void *ctx, void *e) {
 static int kb_rects(int *id, int *x, int *y, int *w) {
     int n = 0, i, sx = kb.layers > 1 ? KB_LANG_X + KB_LANG_W + KB_GAP : KB_LANG_X;
     for (i = 0; i < kb.nkeys; ++i) id[n] = i, x[n] = kb.kx[i], y[n] = kb.ky[i], w[n++] = kb.kw[i];
-    id[n] = kb.page == P_UPPER ? K_SHIFTON : kb.page == P_LOWER && kb.layer == L_EN ? K_SHIFT : K_SYM;
+    id[n] = kb.page == P_UPPER ? K_SHIFTON : kb.page == P_LOWER && kb.layer != L_ZH ? K_SHIFT : K_SYM;
     x[n] = KB_EDGE, y[n] = KB_ROW2_Y, w[n++] = KB_FN_W;
     id[n] = K_DEL, x[n] = KB_RIGHT, y[n] = KB_ROW2_Y, w[n++] = KB_FN_W;
     id[n] = K_MODE, x[n] = KB_EDGE, y[n] = KB_ROW3_Y, w[n++] = KB_MODE_W;
@@ -968,14 +1129,27 @@ static void kb_down(void *e, int from_pad) {
         kb.gap = id[best] + 1;
         if (kb_widget(id[best]) && !(id[best] == K_GO && kb.go_off)) widget_set_state(kb_widget(id[best]), "pressed");
         kb_press(id[best]);
+        if (kb.apress &&
+            !kb.grab) { /* (the pad is no button: without the grab the moves and the lift stop at its edge, and the strip is above it) */
+            kb.grab = 1;
+            widget_grab(kb.win, kb.pad);
+        }
     }
+}
+
+static void kb_ungrab(void) {
+    if (!kb.grab) return;
+    kb.grab = 0;
+    widget_ungrab(kb.win, kb.pad);
 }
 
 static void kb_gap_end(int click) { /* the finger left a touch that was resolved to a key */
     int id = kb.gap - 1;
     if (!kb.gap) return;
     kb.gap = 0;
+    kb_ungrab();
     if (kb_widget(id) && !(id == K_GO && kb.go_off)) widget_set_state(kb_widget(id), "normal");
+    if (click && kb_acc_commit()) click = 0;
     kb_release(id);
     if (click && id != K_DEL) kb_click(id);
 }
@@ -989,6 +1163,8 @@ static int kb_on_pad(
     if (!kb.win || kb.finished) return RET_OK;
     if (type == EVT_POINTER_DOWN)
         kb_down(e, 1);
+    else if (type == EVT_POINTER_MOVE)
+        kb_acc_move(e);
     else if (type == EVT_POINTER_UP)
         kb_gap_end(1);
     else if (type == EVT_POINTER_ABORT)
@@ -1000,6 +1176,7 @@ static int kb_on_bg(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     kb_gap_end(0);
+    kb_ungrab();
     kb_unpop();
     kb_stop();
     return RET_OK;
@@ -1010,6 +1187,7 @@ static int kb_on_destroy(void *ctx, void *e) {
     (void)e;
     if (ctx != kb.win) return RET_OK;
     cancel = kb.finished ? (kb_cancel_fn)0 : kb.cancel; /* the hardware Back key, or a page replaced: that is Cancel */
+    kb_ungrab();
     kb_stop();
     zh_leave(); /* the engine's megabyte goes back with the page */
     memset(&zh, 0, sizeof zh);
@@ -1024,6 +1202,7 @@ static void *kb_find(const char *name) { return widget_lookup(kb.win, name, 1); 
 static int kb_bind(void *w, int id) {
     if (!w) return 0;
     return widget_on(w, EVT_CLICK, kb_on_click, (void *)(long)id) &&
+           widget_on(w, EVT_POINTER_MOVE, kb_on_touch, (void *)(long)id) &&
            widget_on(w, EVT_POINTER_DOWN, kb_on_touch, (void *)(long)id) &&
            widget_on(w, EVT_POINTER_UP, kb_on_touch, (void *)(long)id) &&
            widget_on(w, EVT_POINTER_ABORT, kb_on_touch, (void *)(long)id);
@@ -1044,19 +1223,19 @@ static void kb_load(const char *initial) {
 
 /* The layers, the bottom row and the first page for the field's flags and text, then the field drawn (the tail of kb_init, also of keyboard_refocus). */
 static void kb_start(void) {
+    int want = (kb.flags & KB_PASSWORD) ? L_EN : kb_memo, i, have = 0;
+    kb.order[0] = L_EN;
     kb.layers = 1;
-    if (!(kb.flags & KB_PASSWORD) &&
-        kb_zh_setting()) { /* (a password field: English only) a second keyboard: the language key; the layer the last keyboard ended on comes back (a layer that will not open is dropped) */
-        kb.layers = 2;
-        if (kb_memo == L_ZH) {
-            if (KB_LAYERS[L_ZH].enter() == 0)
-                kb.layer = L_ZH;
-            else
-                kb.layers = 1, kb_memo = L_EN;
-        } else if (access(PINYIN_DICT, 0) != 0) {
-            kb.layers = 1;
-        }
+    if (!(kb.flags &
+          KB_PASSWORD)) { /* (a password field: English only) more keyboards: the language key cycles EN, FR, 中 over the ones that are on */
+        if (kb_fr_setting()) kb.order[kb.layers++] = L_FR;
+        if (kb_zh_setting() && (want == L_ZH ? KB_LAYERS[L_ZH].enter() == 0 : access(PINYIN_DICT, 0) == 0))
+            kb.order[kb.layers++] =
+                L_ZH; /* (the remembered Chinese layer opens the engine now; one that will not open is dropped) */
+        for (i = 0; i < kb.layers; ++i) have |= kb.order[i] == want;
+        if (!have) want = kb_memo = L_EN; /* the remembered layer is off now or will not open */
     }
+    kb.layer = want;
     kb_bottom();
     kb_lang_label();
     kb_page(kb_letters());
@@ -1090,13 +1269,20 @@ static int kb_init(const char *placeholder, const char *initial, int embedded) {
     kb.sep = kb_find("kb_sep");
     kb.cands = kb_find("kb_cands");
     kb.chl = kb_find("kb_chl");
+    kb.acc = kb_find("kb_acc");
+    kb.acch = kb_find("kb_acc_h");
     ok = (embedded || kb.title) && kb.pad && kb.text && kb.hint && kb.caret && kb.clear && kb.stem && kb.pop &&
          kb.pop_l && kb.shift && kb.shifton && kb.sym && kb.del && kb.mode && kb.space && kb.go && kb.lang &&
-         kb.strip && kb.py && kb.sep && kb.cands && kb.chl;
+         kb.strip && kb.py && kb.sep && kb.cands && kb.chl && kb.acc && kb.acch;
     for (i = 0; i < KB_KEYS; ++i) {
         snprintf(name, sizeof name, "kb_k%d", i);
         kb.key[i] = kb_find(name);
         ok = ok && kb.key[i];
+    }
+    for (i = 0; i < KB_ACC_MAX; ++i) {
+        snprintf(name, sizeof name, "kb_a%d", i);
+        kb.accl[i] = kb_find(name);
+        ok = ok && kb.accl[i];
     }
     for (i = 0; i < KB_POOL; ++i) {
         snprintf(name, sizeof name, "kb_c%d", i);
@@ -1119,6 +1305,7 @@ static int kb_init(const char *placeholder, const char *initial, int embedded) {
     kb_bind(kb.go, K_GO);
     widget_on(kb.clear, EVT_CLICK, kb_on_clear, (void *)0);
     widget_on(kb.pad, EVT_POINTER_DOWN, kb_on_pad, (void *)0);
+    widget_on(kb.pad, EVT_POINTER_MOVE, kb_on_pad, (void *)0);
     widget_on(kb.pad, EVT_POINTER_UP, kb_on_pad, (void *)0);
     widget_on(kb.pad, EVT_POINTER_ABORT, kb_on_pad, (void *)0);
     widget_on(kb.cands, EVT_POINTER_DOWN, zh_on_strip, (void *)0);
