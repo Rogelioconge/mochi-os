@@ -195,6 +195,10 @@ present, downloads appear first under **In Progress**.
 - Tap a download row to pause it, keeping the partial file; tap again to resume.
 - Its **…** menu offers **Pause**, **Resume** or **Retry**, depending on its state.
 - **Cancel Download** stops it and deletes the partial file **without asking**.
+- To free space, tap **…** at the top right, then **Delete Played Episodes**. After you confirm,
+  every downloaded episode you have finished is deleted, except the one playing. The episodes stay
+  in their shows and can be downloaded again. This option appears once the list has loaded and at
+  least one downloaded episode is played.
 
 Downloads continue while you search, refresh, browse Discover, look up covers or check for an update.
 
