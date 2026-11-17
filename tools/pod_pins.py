@@ -723,6 +723,10 @@ BATTERY_PINS = (   # (address, stock word, what it proves)
     (0x545158, 0x1c40008b,'show_sysbar_face: bgtz v0: power_capacity > 0 is bar_power, else bar_lowpower'),
     (0x4e6dd8, 0x3c1c0052, 'get_battery_capacity prologue'), (0x4e6ddc, 0x279cd0f8, 'get_battery_capacity prologue'), (0x4e6de0, 0x0399e021, 'get_battery_capacity prologue'),
     (0x4e6e88, 0x8f90a9dc, 'get_battery_capacity: lw s0, GOT power_capacity (the global it leaves)'),
+    # External power (patch/power.c, docs/modules/charging.md "External power"): usb_detect (0x4d6f30) reads PD17 through toolsGpioGetValue and returns 1 for level 0; the payload repeats that read
+    (0x4d6f30, 0x3c1c0053, 'usb_detect prologue'), (0x4d6f34, 0x279ccfa0, 'usb_detect prologue'), (0x4d6f38, 0x0399e021, 'usb_detect prologue'),
+    (0x4d6f40, 0x8f848020, 'usb_detect: lw a0, GOT page 0x750000'), (0x4d6f44, 0x8f99b368, 'usb_detect: lw t9, GOT toolsGpioGetValue'),
+    (0x4d6f54, 0x2484a8ec, 'usb_detect: addiu a0, a0, -0x5714 (delay slot): a0 = "PD17" at 0x74a8ec'), (0x4d6f5c, 0x2c420001, 'usb_detect: sltiu v0, v0, 1: level 0 is external power'),
     (0x66d194, 0x8e020008, 'widget_resize: lw v0, 8(s0): widget_t.w'), (0x66d1a0, 0x8e03000c, 'widget_resize: lw v1, 0xc(s0): widget_t.h'),
     (0x66c428, 0x8e040044, 'widget_set_visible: lw a0, 0x44(s0): widget_t.parent, handed to widget_set_need_relayout_children'),
 )
@@ -1361,3 +1365,9 @@ BLUETOOTH_RUNS = (   # (first address, what the words prove, the stock words fro
       0xac620000,)),
 )
 BLUETOOTH_PINS = tuple((a + 4 * i, w, what) for a, what, ws in BLUETOOTH_RUNS for i, w in enumerate(ws)) + tuple((0x97ca08 + 4 * i, p, f'codec table: the key of codec {i}') for i, p in enumerate((0x74a590, 0x74a5a0, 0x74a5b0, 0x74a5c0, 0x74a5d0, 0x74a5dc, 0x74a5e8, 0x74a5f8)))
+
+# libhardware2's GPIO wrapper that stock's toolsGpioGetValue (0x5e5cac) calls and patch/power.c repeats: gpio_open (open("/dev/gpio", O_RDWR)) and gpio_get_value (ioctl(fd, 0x2000477a, name)); the text is mapped at its file offsets
+GPIO_LIB = 'usr/lib/libhardware2.so'
+GPIO_OPEN, GPIO_GET = 0x556c, 0x57bc
+GPIO_LIB_WORDS = ((0x5580, 0x24050002, 'gpio_open: addiu a1, zero, 2 (O_RDWR)'), (0x57d4, 0x3c052000, 'gpio_get_value: lui a1, 0x2000'), (0x57e8, 0x24a5477a, 'gpio_get_value: addiu a1, a1, 0x477a (delay slot)'))
+GPIO_NAME_ADDR = 0x74a8ec   # demo: the "PD17" string usb_detect passes (BATTERY_PINS)

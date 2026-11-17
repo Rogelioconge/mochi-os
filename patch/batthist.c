@@ -2,9 +2,9 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * Opt-in: Settings > Battery > Battery History (BH_FILE, off by default). While it is on one detached thread (bh_main) wakes every BH_PERIOD seconds and takes a sample:
+ * Opt-in: Settings > Battery > Battery History (BH_FILE, off by default). While it is on one detached thread (bh_main) wakes every BH_PERIOD seconds (waiting in 1 s steps, and early when the History page asks: bh_request) and takes a sample:
  * the wall clock, CLOCK_MONOTONIC and CLOCK_BOOTTIME, the backlight byte (m1_screen_lit), stock's play state (mclGetPlayStatus == MB_PLAYING: a plain load of the word
- * the lock screen and the VU page read) and the power_supply status text; every BH_GAUGE seconds, and at once after a standby, also the AXP2101 gauge (battery_gauge). The thread
+ * the lock screen and the VU page read) and external power (patch/power.c pwr_external: the status text, the online files, the raw PD17 level; any source saying external counts); every BH_GAUGE seconds, and at once after a standby, also the AXP2101 gauge (battery_gauge). The thread
  * is not the status bar's tick on purpose: show_sysbar_face returns early in stock's standby (with the screen merely dark it keeps ticking, as the wake probe's logs show). The thread is started by
  * bh_poll (called from bp_capacity, patch/battery.c, with the kill switch absent: a cached compare per tick while the setting is off, no hook of its own) and by the switch.
  * It ends when the setting file says off (Reset All Settings deletes it too), after deleting the data.
@@ -40,6 +40,7 @@
 #include "home.h"
 #include "common.h"
 #include "battery.h"
+#include "power.h"
 #include "batthist.h"
 
 #define BH_MAGIC 0x31534842 /* "BHS1" */
@@ -69,6 +70,8 @@ static struct {
     int retry; /* ticks to wait before another try to make the thread */
     int loaded; /* the file was read (or there was none) */
     int dirty; /* a bucket was opened: the file wants writing */
+    volatile int want; /* the History page asks for a sample now (bh_request): the thread's wait ends early */
+    volatile unsigned seq; /* samples taken (bumped under the lock): the page redraws when it moved */
     struct bh_bucket b[BH_BUCKETS];
     unsigned head; /* 0: the ring is empty */
     long
@@ -263,16 +266,8 @@ static void bh_account(long wall, long mono, long boot, int lit, int playing, in
     bh.have = 1, bh.lwall = wall, bh.lmono = mono, bh.lboot = boot;
 }
 
-/* The power_supply status text: 1 external power (Charging, Full, Not charging), 0 Discharging, -1 anything else or unreadable. */
-static int bh_status(void) {
-    char b[16];
-    int fd = open(BH_STATUS, O_RDONLY, 0), n;
-    if (fd < 0) return -1;
-    n = read(fd, b, sizeof b - 1);
-    close(fd);
-    if (n < 1) return -1;
-    return b[0] == 'D' ? 0 : b[0] == 'C' || b[0] == 'F' || b[0] == 'N' ? 1 : -1;
-}
+/* External power (patch/power.c pwr_external: the status text, the online files and the raw PD17 level, any one saying external wins): 1 external, 0 battery, -1 unknown (the last state stays). */
+static int bh_status(void) { return pwr_external(); }
 
 static unsigned bh_sum(const struct bh_file *f) {
     const unsigned char *p = (const unsigned char *)f->b;
@@ -344,7 +339,7 @@ static void bh_save(void) {
     if (bh.state != 2) unlink(BH_DATA);
 }
 
-/* One sample (the thread's loop calls it every BH_PERIOD seconds; the test calls it directly). */
+/* One sample (the thread's loop calls it every BH_PERIOD seconds, or sooner after bh_request; the test calls it directly). */
 void bh_sample(void) {
     struct {
         int sec, nsec;
@@ -362,6 +357,7 @@ void bh_sample(void) {
         g = battery_gauge();
     bh_lock();
     bh_account(wall, m.sec, boot, lit, playing, chg, g);
+    bh.seq++;
     bh_unlock();
     bh_save();
 }
@@ -371,8 +367,11 @@ void *bh_main(void *arg) {
     for (;;) {
         if (!bh.loaded) bh_load();
         while (bh_setting()) {
+            int i;
+            bh.want = 0; /* (before the sample: a request that comes during it samples again) */
             bh_sample();
-            sleep(BH_PERIOD);
+            /* BH_PERIOD in 1 s steps: sleep does not count a kernel suspend, so a long wait would end late after a wake; a request from the page ends it at the next step */
+            for (i = 0; i < BH_PERIOD && !bh.want; i++) sleep(1);
         }
         /* the setting is off (the switch, or its file was deleted): nothing of ours stays. A switch turned on again meanwhile is seen under the lock that also ends the thread
          * (bh_start looks at `run` under it), so the recorder never ends with the setting on. */
@@ -435,6 +434,12 @@ int bh_toggle(void) {
     return 0;
 }
 
+/* The History page asks the thread for a sample now (the page opened or came back to front); the page itself never samples. */
+void bh_request(void) { bh.want = 1; }
+
+/* The number of samples taken: the page's timer redraws when it changed. */
+unsigned bh_seq(void) { return bh.seq; }
+
 int bh_snapshot(struct bh_view *out) {
     unsigned i;
     memset(out, 0, sizeof *out);
@@ -448,7 +453,7 @@ int bh_snapshot(struct bh_view *out) {
     out->unplug_at = bh.unplug_at, out->unplug_lvl = bh.unplug_lvl, out->level = bh_slot(bh.head)->level;
     out->sc_play = bh.sc_play, out->sc_on = bh.sc_on, out->sc_total = bh.sc_total;
     out->sc_d_on = bh.sc_d_on, out->sc_d_play = bh.sc_d_play, out->sc_d_idle = bh.sc_d_idle,
-    out->since_on = bh.since_on;
+    out->since_on = bh.since_on, out->chg = bh.chg != 0;
     bh_unlock();
     return 1;
 }

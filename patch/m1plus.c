@@ -1180,6 +1180,8 @@ static int on_page_fg(void *ctx, void *e) {
     if (pod_fg[i]) page_refresh(pod_fg[i], &POD_PAGES[i]);
     if (i == POD_SCROBBLING_PAGE || i == POD_LB_PAGE || i == POD_LF_PAGE)
         lb_on_front(); /* the scrobble.ini watch (patch/scrobpage.c) */
+    if (i == POD_BATTHIST_PAGE)
+        bhpage_front(); /* a fresh sample, and the page's refresh timer again (patch/bhpage.c) */
     if (i == POD_SLEEPTIMER_PAGE) st_front(); /* the page's refresh timer runs again (patch/sleeptimer.c) */
     if (i == POD_WIFITRANSFER_PAGE)
         wt_front(); /* the file server again after the player was in front (patch/netservice.c) */
@@ -1191,6 +1193,7 @@ static int on_page_gone(void *ctx, void *e) {
     int k;
     (void)e;
     pod_fg[i] = (void *)0;
+    if (i == POD_BATTHIST_PAGE) bhpage_gone(); /* its refresh timer goes with the window */
     if (i == POD_SLEEPTIMER_PAGE) st_gone(); /* its refresh timer goes with the window */
     for (k = 0; k < POD_PAGES[i].count; k++)
         if (POD_PAGES[i].rows[k].action == ACT_PCDIR)
@@ -1268,6 +1271,9 @@ static int open_page(int index, int as_home) {
         wt_opened(win); /* stock's page init: the player stops, the file server starts (patch/netservice.c) */
     if (index == POD_SLEEPTIMER_PAGE && refresh)
         st_opened(win, index); /* Time Left follows the countdown while the page is in front (patch/sleeptimer.c) */
+    if (index == POD_BATTHIST_PAGE && refresh)
+        bhpage_opened(win,
+                      index); /* the History charts follow the recorder while the page is in front (patch/bhpage.c) */
     if (index == POD_CACHE_PAGE)
         homecover_cache_open(win, index); /* counts the cache folder in steps while the page is open */
     if (index == POD_MENU_PAGE) {

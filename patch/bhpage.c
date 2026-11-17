@@ -5,7 +5,7 @@
  * The Battery History page (tools/pod_pages.py BATTHIST_PAGE) carries the switch's two notes (the long one while the switch is off, a short one while it is on) and the History items after them: the Since Last Charge header, card and its note, the "Last 24 Hours" header and level chart, the Activity header and chart, and an empty
  * note. All but the long note start hidden in the asset; bhpage_show (called by m1plus.c page_refresh: as the page opens, each time it is back in front and when the switch is turned) shows the ones that belong to the
  * state: switch off, the long note; on with no closed bucket yet, the short note and the empty note; otherwise the short note and everything (the Since Last Charge header, card and note only with an unplug_at, else they stay hidden). The list_view layouter skips hidden items, so the page
- * closes up and grows in place.
+ * closes up and grows in place. The page asks the recorder for a sample as it opens and each time it is back in front (bh_request) and redraws when one lands (a 1 s timer comparing bh_seq, while in front).
  *
  * The card and the charts are bitmaps painted into a view the width of the list (the preset page's graph card: patch/peqpage.c, peq_blit): the card (#1C1C1E, rounded), the stacked bar of the card (screen on / playing with the screen off /
  * standby since the charger was removed), the dotted gridlines and the bars, from bh_snapshot; tools/batthist_model.py is the model test/pod/batthist.py compares them with. The chart bars have rounded tops (radius BHL_BAR / 2, BHA_BAR_R) and flat bottoms. The level chart has 48 bars of two buckets (the later level; grey,
@@ -23,6 +23,7 @@
 #include "peqpage.h"
 #include "lyrics.h"
 #include "batthist.h"
+#include "home.h"
 
 #define BHP_CARD_GREY 28
 #define BHP_GRID 48 /* the dotted gridlines */
@@ -319,13 +320,19 @@ static void bhp_when(char *out, unsigned size, long t, long now) {
         snprintf(out, size, "%02d-%02d %s", (int)(dt / 100 % 100), (int)(dt % 100), clock);
 }
 
-/* The Since Last Charge card's texts: "Unplugged 21:25, 100%" (or "Recording since 14:05, 85%" when the run began with the recording; without the level when it is unknown), the total on battery in bold, "58% left", and the three kinds' durations and percents (standby is the rest of the total). */
+/* The Since Last Charge card's texts: "Unplugged 21:25, 100%" (or "Recording since 14:05, 85%" when the run began with the recording; without the level when it is unknown; "Charging, 72%" while on external power, the rest being the frozen last run), the total on battery in bold, "58% left", and the three kinds' durations and percents (standby is the rest of the total). */
 static void bhp_since(const struct bh_view *v, long now) {
     char line[96], when[40], lvl[8], dur[24];
     unsigned rest = v->sc_total > v->sc_on + v->sc_play ? v->sc_total - v->sc_on - v->sc_play : 0;
     bhp_when(when, sizeof when, v->unplug_at, now);
     snprintf(lvl, sizeof lvl, "%u%%", v->unplug_lvl);
-    if (v->unplug_lvl <= 100)
+    if (v->chg) {
+        snprintf(lvl, sizeof lvl, "%u%%", v->level);
+        if (v->level <= 100)
+            dur_subst(line, sizeof line, TR("Charging, %s"), 0, lvl, (const char *)0);
+        else
+            snprintf(line, sizeof line, "%s", TR("Charging"));
+    } else if (v->unplug_lvl <= 100)
         dur_subst(line, sizeof line, v->since_on ? TR("Recording since %s, %s") : TR("Unplugged %s, %s"), 0, when, lvl);
     else
         dur_subst(line, sizeof line, v->since_on ? TR("Recording since %s") : TR("Unplugged %s"), 0, when,
@@ -395,6 +402,53 @@ bad: /* an asset that is not ours: the items stay hidden */
     return 0;
 }
 
+/* The page's own refresh timer (modelled on patch/sleeptimer.c): added when the window opens, removed in the background and with the window. Every BHP_MS it compares the recorder's sample count with the one
+ * last drawn and redraws only when a sample landed (the one asked for on open / back in front, then one per BH_PERIOD). The page never samples and the worker never touches a widget. */
+#define BHP_MS 1000
+static struct {
+    void *win;
+    int page;
+    unsigned timer, seq;
+} bht __attribute__((section(".scratch")));
+
+static int bhp_tick(const void *timer) {
+    (void)timer;
+    if (!bht.win) return RET_OK;
+    if (bh_seq() != bht.seq) pod_page_refresh(bht.page); /* bhpage_show takes the new count */
+    return RET_REPEAT;
+}
+
+static void bhp_stop(void) { m1_timer_stop(&bht.timer); }
+
+void bhpage_gone(void) {
+    bhp_stop();
+    bht.win = (void *)0;
+}
+
+void bhpage_front(void) {
+    if (!bht.win) return;
+    bh_request(); /* a fresh sample for what the page shows */
+    if (!bht.timer) bht.timer = timer_add(bhp_tick, (void *)0, BHP_MS);
+}
+
+static int bhp_on_background(void *ctx, void *e) {
+    (void)e;
+    if (ctx == bht.win) bhp_stop();
+    return RET_OK;
+}
+
+void bhpage_opened(void *win, int page) {
+    bhp_stop();
+    bht.win = win;
+    bht.page = page;
+    if (!widget_on(win, EVT_WINDOW_TO_BG, bhp_on_background, win)) {
+        bht.win = (void *)0; /* no timer: the page still follows each return to the front */
+        return;
+    }
+    bh_request();
+    bht.timer = timer_add(bhp_tick, (void *)0, BHP_MS);
+}
+
 /* The state the page's items show: 0 off, 1 on with no closed bucket yet, 2 data; fills the bitmaps and the texts in that last case. */
 void bhpage_show(void *win) {
     struct bh_view v;
@@ -405,6 +459,7 @@ void bhpage_show(void *win) {
         {0, 1, 0, 0, 0, 0, 0, 0, 0, 1}, /* on, nothing complete yet: the short note and the empty note */
         {0, 1, 1, 1, 1, 1, 1, 1, 1,
          0}}; /* the data (the Since Last Charge header, card and note only with an unplug_at) */
+    bht.seq = bh_seq(); /* (before the snapshot: a sample that lands meanwhile shows at the next tick) */
     if (!bhp_init(win)) return;
     if (bh_setting() && bh_snapshot(&v)) {
         mode = 1;

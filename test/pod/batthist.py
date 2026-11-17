@@ -15,7 +15,7 @@ GAP, CHG = DEFS['BH_F_GAP'], DEFS['BH_F_CHG']
 NONE = DEFS['BH_NONE']
 HDR = 52
 FILE_SIZE = HDR + 8 * N         # magic, version, count, head, unplug_at, unplug_lvl, sc_play, sc_on, sc_total, sc_d_on, sc_d_play, sc_d_idle, since_on, sum, the ring
-VIEW_SIZE = 4 + 8 * N + 10 * 4
+VIEW_SIZE = 4 + 8 * N + 11 * 4
 T0 = 1800000000                 # a quarter hour edge: T0 // 900 = 2000000
 assert T0 % SECS == 0
 
@@ -58,11 +58,11 @@ def view(m):
     buf = m.alloc(VIEW_SIZE)
     r = m.call(PSYMS['bh_snapshot'], a0=buf, count=2000000)
     raw = bytes(m.u.mem_read(buf, VIEW_SIZE))
-    head, b, *rest = struct.unpack('<I%dsi9I' % (8 * N), raw)
+    head, b, *rest = struct.unpack('<I%dsi10I' % (8 * N), raw)
     if not r:
         assert raw == bytes(VIEW_SIZE), 'a refused snapshot leaves the view zeroed'
         return None
-    keys = ('unplug_at', 'unplug_lvl', 'since_on', 'level', 'sc_play', 'sc_on', 'sc_total', 'sc_d_on', 'sc_d_play', 'sc_d_idle')
+    keys = ('unplug_at', 'unplug_lvl', 'since_on', 'chg', 'level', 'sc_play', 'sc_on', 'sc_total', 'sc_d_on', 'sc_d_play', 'sc_d_idle')
     bk = [struct.unpack_from('8B', b, 8 * i) for i in range(N)]
     live = [k for k in bk if not k[1] & GAP and not k[1] & CHG]   # the buckets' own totals (what the ring attributes): with data, off the charger
     tot = dict(t_on=sum(k[2] * 8 for k in live), t_idle=sum(max(0, k[4] - k[2] - k[3]) * 8 for k in live), d_on=sum(k[5] for k in live), d_play=sum(k[6] for k in live), d_idle=sum(k[7] for k in live),
@@ -450,17 +450,34 @@ def switch_tests(ctx):
     seen = []
 
     def on_sleep(k):
-        m.wall += 15; m.clock_ids[1] += 15; m.clock_ids[7] += 15
+        m.wall += 1; m.clock_ids[1] += 1; m.clock_ids[7] += 1
         seen.append(k)
-        if k == 3: m.fs[FILE] = b'0\n'
+        if k == 45: m.fs[FILE] = b'0\n'
     m.on_sleep = on_sleep
     m.call(PSYMS['bh_main'], count=20000000)
     sleeps = [c for c in m.calls if c[0] == 'sleep']
-    expect(sleeps == [('sleep', 15)] * 3 and m.names().count('clock_gettime') == 6, f'the thread slept 15 s three times and took a sample before each ({len(sleeps)} sleeps, {m.names().count("clock_gettime")} clock reads)')
+    expect(sleeps == [('sleep', 1)] * 45 and m.names().count('clock_gettime') == 6, f'the thread waited 15 s in 1 s steps three times and took a sample before each ({len(sleeps)} sleeps, {m.names().count("clock_gettime")} clock reads)')
     expect(DATA not in m.fs and DTMP not in m.fs and view(m) is None, 'the setting went off: the thread ended, the data is gone, no view')
     m.calls = []
     m.call(PSYMS['bh_poll'], count=200000)
     expect('pthread_create' not in m.names(), 'and nothing starts it again while the setting is off')
+    # a request from the History page ends the wait at the next step: the sample comes early
+    m = BM(); m.fs[FILE] = b'1\n'; m.fs[GAUGE] = b'80\n'; m.fs[STATUS] = b'Discharging\n'; m.wall = T0 + 60; m.clock_ids = {1: 1000, 7: 1000}; m.screen(True); m.play_status = 1
+    m.call(PSYMS['bh_poll'], count=200000)
+    probe = BM(); b0 = bytes(probe.u.mem_read(PSYMS['bh'], 0x60)); probe.call(PSYMS['bh_request'], count=200000)
+    flag = [i for i, (x, y) in enumerate(zip(b0, probe.u.mem_read(PSYMS['bh'], 0x60))) if x != y][0]   # (the request flag's byte in bh, found by running bh_request)
+
+    def on_sleep3(k):
+        m.wall += 1; m.clock_ids[1] += 1; m.clock_ids[7] += 1
+        if k == 4: m.u.mem_write(PSYMS['bh'] + flag, b'\1\0\0\0')
+        if k == 19: m.fs[FILE] = b'0\n'
+    m.on_sleep = on_sleep3
+    m.call(PSYMS['bh_main'], count=20000000)
+    sleeps = [c for c in m.calls if c[0] == 'sleep']
+    expect(len(sleeps) == 19 and m.names().count('clock_gettime') == 4, f'a request after 4 s: the wait ends at once, the next sample is taken early (4 s, not 15) and a full wait follows ({len(sleeps)} sleeps, {m.names().count("clock_gettime") // 2} samples before the end)')
+    # the sample count the page's timer follows: one per sample
+    m = machine(); n0 = m.call(PSYMS['bh_seq'], count=200000); step(m, 0); step(m, 15)
+    expect(m.call(PSYMS['bh_seq'], count=200000) == n0 + 2, 'bh_seq counts the samples')
     # Reset All Settings deletes the setting file without the switch: the thread ends the same way
     m = BM(); m.fs[FILE] = b'1\n'; m.fs[GAUGE] = b'80\n'; m.fs[STATUS] = b'Discharging\n'; m.wall = T0 + 60; m.clock_ids = {1: 1000, 7: 1000}; m.screen(True); m.play_status = 1
     m.call(PSYMS['bh_poll'], count=200000)
@@ -490,7 +507,7 @@ def settings_tests(ctx):
     expect([x.text for x in H.layout[2:] if isinstance(x, P.Hdr)] == ['Since Last Charge', 'Last 24 Hours', 'Activity'] and H.layout[5].text == 'Estimated from the battery gauge.', 'the section headers and the gauge note under the card')
     import pod_i18n
     for loc in pod_i18n.LOCALES:
-        expect(all(pod_i18n.TEXT[k][loc] for k in ('Battery History', H.layout[1].text, 'Since Last Charge', 'Unplugged %s, %s', 'Unplugged %s', 'Recording since %s, %s', 'Recording since %s', 'yesterday %s', '%s left', 'Last 24 Hours', 'Activity', 'Screen On', 'Playing, Screen Off', 'Standby',
+        expect(all(pod_i18n.TEXT[k][loc] for k in ('Battery History', H.layout[1].text, 'Since Last Charge', 'Unplugged %s, %s', 'Unplugged %s', 'Recording since %s, %s', 'Recording since %s', 'Charging, %s', 'Charging', 'yesterday %s', '%s left', 'Last 24 Hours', 'Activity', 'Screen On', 'Playing, Screen Off', 'Standby',
                                                   '%d h %d min', '%d h', '%d min', H.layout[2].text, H.layout[5].text, H.layout[-1].text)), f'the page texts have a translation in {loc}')
     expect(not any(k in pod_i18n.TEXT for k in ('Last charged to %s', 'By Activity', 'Total on Battery', '%s an hour', 'On Battery', 'Unplugged at %s, %s', 'Unplugged at %s')), 'the strings of the old page are gone')
 
@@ -896,6 +913,39 @@ def texts_tests(ctx):
     expect(not over, f'the caption (276 px) and the one-line notes fit in all 13 languages at {ST.NOTE_PX} px ({over})')
 
 
+def timer_tests(ctx):
+    """The page's refresh timer (modelled on the Sleep Timer page's): added when the window opens, a request for a sample, a redraw only when a sample landed, stopped in the background and with the window."""
+    expect = ctx.expect
+    m = machine(); m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([1]))
+    for n in NAMES: m.widget(n)
+    m.win = m.alloc(0x80); m.window = m.win
+    step(m, 0); step(m, 900); step(m, 900, lit=True)
+    m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000)
+    m.setword(PSYMS['pod_fg'] + 4 * pod_pages.BATTHIST_PAGE_INDEX, m.win)   # the page is the foreground window of its index (page_refresh's pod_fg)
+    before = bytes(m.u.mem_read(PSYMS['bh'], 0x60))
+    m.calls = []; m.call(PSYMS['bhpage_opened'], a0=m.win, a1=pod_pages.BATTHIST_PAGE_INDEX, count=400000)
+    after = bytes(m.u.mem_read(PSYMS['bh'], 0x60))
+    tick = [t for t in m.timers if t[1] == 1000]
+    expect(len(tick) == 1 and ('timer_add', tick[0][0], 1000) in m.calls and before != after, f'opened: one 1 s timer, and a sample asked for ({m.timers})')
+    m.calls = []; m.call(tick[0][0], a0=0, count=3000000)
+    expect('widget_set_visible' not in m.names(), 'a tick with no new sample redraws nothing')
+    step(m, 60, lit=True)
+    m.calls = []; again = m.call(tick[0][0], a0=0, count=4000000)
+    expect('widget_set_visible' in m.names() and again != 0, 'a tick after a new sample redraws, and asks to repeat')
+    m.calls = []; m.call(tick[0][0], a0=0, count=3000000)
+    expect('widget_set_visible' not in m.names(), 'and the next tick, with no further sample, does not')
+    m.calls = []; m.fire(O['EVT_WINDOW_TO_BG'])
+    expect(m.names().count('timer_remove') == 1 and 'timer_add' not in m.names(), 'in the background the timer is removed')
+    m.calls = []; m.call(PSYMS['bhpage_front'], count=400000)
+    added = m.names().count('timer_add')
+    m.calls = []; m.call(PSYMS['bhpage_front'], count=400000)
+    expect(added == 1 and 'timer_add' not in m.names(), f'back in front it is added once, a second event adds none ({added})')
+    m.calls = []; m.call(PSYMS['bhpage_gone'], count=400000)
+    expect(m.names().count('timer_remove') == 1, 'with the window it is removed')
+    m.calls = []; m.call(PSYMS['bhpage_front'], count=400000)
+    expect('timer_add' not in m.names(), 'a page that is gone adds no timer')
+
+
 def visibility_tests(ctx):
     """The items are there only while the switch is on; the switch's two notes; the empty state; the switch updates the page in place."""
     expect = ctx.expect
@@ -919,6 +969,15 @@ def visibility_tests(ctx):
     m.shown_calls = []; m.calls = []
     m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000); m.shown_calls = list(m.calls)
     expect(texts(m, 'pod_hs_cap') and texts(m, 'pod_hs_cap')[0].startswith('Recording since ') and texts(m, 'pod_hs_cap')[0].endswith(', 80%'), f'the caption says Recording since ({texts(m, "pod_hs_cap")})')
+    # on the charger the caption says Charging with the gauge now; the card is otherwise the frozen last run; unplugged, the old caption
+    step(m, 15, status=b'Charging\n')
+    m.shown_calls = []; m.calls = []
+    m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000); m.shown_calls = list(m.calls)
+    expect(texts(m, 'pod_hs_cap') == ['Charging, 80%'] == [HM.charging_text(80)] and SC <= shown(m), f'on the charger: "Charging, 80%" and the card stays ({texts(m, "pod_hs_cap")})')
+    step(m, 15, status=b'Discharging\n')
+    m.shown_calls = []; m.calls = []
+    m.call(PSYMS['bhpage_show'], a0=m.win, count=4000000); m.shown_calls = list(m.calls)
+    expect(texts(m, 'pod_hs_cap') and texts(m, 'pod_hs_cap')[0].startswith('Unplugged '), f'unplugged again: the old caption ({texts(m, "pod_hs_cap")})')
     # recording that starts on the charger, or with an unreadable status: no run, no card until the charger is removed
     for name, status in (('on the charger', b'Charging\n'), ('with an unreadable status', b'Weird\n')):
         m = machine(status=status); m.u.mem_write(pod.DATA['TIME_24H'][0], bytes([1]))
@@ -980,4 +1039,4 @@ def visibility_tests(ctx):
     expect(set(sens.values()) == {'false'}, 'the History charts never take a touch')
 
 
-SECTIONS = [constants_tests, sample_tests, attribution_tests, ring_tests, gap_tests, corrupt_tests, switch_tests, sc_tests, settings_tests, history_tests, texts_tests, visibility_tests]
+SECTIONS = [constants_tests, sample_tests, attribution_tests, ring_tests, gap_tests, corrupt_tests, switch_tests, sc_tests, settings_tests, history_tests, texts_tests, timer_tests, visibility_tests]

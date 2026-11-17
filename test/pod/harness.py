@@ -1107,7 +1107,7 @@ class Machine:
             self.u.mem_write(a, s.encode('latin-1') + b'\0'); ret = a   # (read_cstr shows bytes as latin-1 characters)
         elif name == 'snprintf':
             fmt = self.read_cstr(a2)
-            args = [a3] + [stack(i) for i in range(0, 10)]
+            args = [a3] + [stack(i) for i in range(0, 20)]
             out, ai = '', 0
             i = 0
             while i < len(fmt):
@@ -1193,7 +1193,11 @@ class Machine:
         # ---- Screenshot: the frame buffer. self.fb = {'var': 40 words, 'fix': 17 words, 'mem': bytes} (None: no /dev/fb0)
         elif name == 'ioctl':
             self.calls.append(('ioctl', self.fds[a0][0] if a0 in self.fds else '?', a1))
-            if not self.fb or a0 not in self.fds or self.fds[a0][0] != '/dev/fb0' or ('ioctl', a1) in self.fail: ret = -1
+            if a0 in self.fds and self.fds[a0][0] == '/dev/gpio':   # patch/power.c: the pin level (m.gpio = {'PD17': 0 / 1}; a missing pin or ('ioctl', 0x2000477a) in fail errs with EIO)
+                level = self.gpio.get(self.read_cstr(a2)) if a1 == 0x2000477a else None
+                if level is None or ('ioctl', a1) in self.fail: ret = -1; self.set_errno(5)
+                else: ret = level
+            elif not self.fb or a0 not in self.fds or self.fds[a0][0] != '/dev/fb0' or ('ioctl', a1) in self.fail: ret = -1
             elif a1 in (0x4600, 0x4602):
                 words = self.fb['var' if a1 == 0x4600 else 'fix']
                 self.u.mem_write(a2, struct.pack(f'<{len(words)}I', *words))
@@ -1456,6 +1460,7 @@ class Machine:
     def rect(self, w, x, y, cw, ch):
         for k, v in (('x', x), ('y', y), ('w', cw), ('h', ch)): self.props[(w, k)] = v
 
+    gpio = {}                 # patch/power.c: the levels /dev/gpio's ioctl answers with, by pin name
     fb = None                 # Screenshot: the frame buffer /dev/fb0 answers with (see the ioctl / mmap mocks)
     db = {}                   # __xstat: path -> [mtime, nsec, size]
     card_mounted = True       # statfs tells the card's mount point from its parent

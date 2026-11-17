@@ -1,6 +1,6 @@
 # Battery History
 
-**Sources:** `patch/batthist.c`, `patch/batthist.h`, `patch/battery.c` (the start); the page: [History
+**Sources:** `patch/batthist.c`, `patch/batthist.h`, `patch/power.c` (external power), `patch/battery.c` (the start); the page: [History
 page](#history-page). **Tests:** `test/pod/batthist.py`. **Setting:** Settings > Battery > **Battery History**, a row (On or Off, chevron; `ACT_BHPAGE` 190) opening its own page, whose first card is the switch, **off by
 default**, `/mnt/data/m1plus/battery-history` (`1` on; [settings](settings.md)); note "Keeps the
 last 24 hours of battery level and use. Turning it off deletes them." while it is off and "Turning it off deletes the history." while it is on (`ACT_BATTHIST` 188; `m1plus_batthist`, `BATTHIST_PAGE`).
@@ -19,7 +19,14 @@ starts it too. The thread ends when the setting file says off (the switch, or Re
 deleting it), after clearing the ring and unlinking the data; a switch turned on again meanwhile
 is seen under the lock that ends the thread.
 
-Every `BH_PERIOD` (15) s `bh_sample` reads:
+The thread waits `BH_PERIOD` (15) s between samples in 1 s `sleep` steps: `sleep` does not count a kernel
+suspend, so one long sleep would end up to 15 s late after a wake. `bh_request()` (the History page, never a
+sampler of its own) sets a flag the wait checks at each step: the next sample is taken within a second
+instead of at the end of the period, and the wait starts over after it. `bh_sample` bumps a sample counter
+(`bh_seq()`, under the lock) that the page's timer follows. There is one sampler: the UI thread never
+calls `bh_sample`.
+
+Every sample (`bh_sample`) reads:
 
 | Input | Source |
 |---|---|
@@ -27,13 +34,13 @@ Every `BH_PERIOD` (15) s `bh_sample` reads:
 | `CLOCK_MONOTONIC` (1), `CLOCK_BOOTTIME` (7) | `clock_gettime`; without BOOTTIME it stands in for it (a long step is then a clock jump, never standby) |
 | Screen | `m1_screen_lit()`, the backlight byte `0x97cae4` |
 | Playing | `mclGetPlayStatus() == 2`: `lw v0, 0xa0abe4` (pinned in `tools/pod_pins.py`, `0x5d3654`), a plain word load, also read by the lock screen, VU page and tracklamp; radio's status is reconciled into it ([radio](radio.md)) |
-| External power | `/sys/class/power_supply/battery/status` (`BH_STATUS`): `Charging`, `Full`, `Not charging` = external power, `Discharging` = battery, anything else keeps the last answer |
+| External power | `pwr_external()` ([charging](charging.md#external-power), `patch/power.c`): `battery/status` (`Charging`, `Full`, `Not charging` = external, `Discharging` = battery), `usb` / `ac` `online`, and the raw PD17 level; any source saying external wins, no answer at all (`Unknown` status and nothing else) keeps the last one |
 | Gauge | `battery_gauge()` (`/sys/class/power_supply/battery/capacity`), every `BH_GAUGE` (60) s of BOOTTIME and at once after a standby |
 
-External power comes from sysfs, not the `POWER_EXT` word (`0xa059f8`): that word is only updated
-by `get_battery_capacity` on the status bar tick, which may not run in standby, and the status text
-is the kernel's own answer. `Not charging` counts, so the Charge Limit's hold stays "on the
-charger".
+External power is not the `POWER_EXT` word (`0xa059f8`): that word is only updated by
+`get_battery_capacity` on the status bar tick, which does not run in standby. The shared reading
+looks at every source, so an `Unknown` status text with another source saying external is still a
+charge. `Not charging` counts, so the Charge Limit's hold stays "on the charger".
 
 ### Time
 
@@ -120,11 +127,11 @@ zeroed when the setting is off or no bucket is open. The ring is copied under a 
 instructions, no I/O inside; the thread's end reads the setting file under it). The view has the
 96 buckets oldest first (`b[95]` is the open one, `head` its number) and the run: `unplug_at`, `unplug_lvl`, `level`
 (the gauge now, the open bucket's), `since_on`, `sc_play` / `sc_on` / `sc_total` and `sc_d_on` / `sc_d_play` / `sc_d_idle`. `bhpage_show`
-(patch/bhpage.c) is its caller.
+(patch/bhpage.c) is its caller. `unsigned bh_seq(void)` is the number of samples taken (a plain read).
 
 ## Cost
 
-Setting off: one cached compare per status bar tick. On: the thread's wakeup every 15 s (two
+Setting off: one cached compare per status bar tick. On: the thread's wakeup every 15 s, in 1 s sleep steps (two
 `clock_gettime`, one status read, the backlight byte and play word), a gauge read per minute, a
 820-byte write per quarter hour; ring and state about 1 KB of `.scratch`.
 
@@ -133,7 +140,10 @@ Setting off: one cached compare per status bar tick. On: the thread's wakeup eve
 - Does the kernel suspend with the screen off, and does `CLOCK_BOOTTIME` run ahead of
   `CLOCK_MONOTONIC` there (the standby gap detection depends on it)? Without a difference, standby
   looks like idle awake time, which is still attributed to idle.
-- The exact text of `battery/status` while the Charge Limit holds (`Not charging` is assumed).
+- Seen on the device (2026-11-17, a diagnostic log since removed): on a plug in every source follows at once
+  (`battery/status` `Charging`, `usb/online` and `ac/online` 1, PD17 low, `POWER_EXT` 1), and
+  `battery/status` stays `Charging` while the Charge Limit holds. Over 1 h 40 min plugged in with the
+  screen off, `CLOCK_BOOTTIME` and `CLOCK_MONOTONIC` stayed equal (no kernel suspend on external power).
 - Whether a sleeping thread keeps the device from deep standby (it should not hold a wake lock;
   `sleep` is a plain nanosleep).
 - The gauge's steps (whole percent) against a 1 % an hour idle drain: the estimates need a few hours
@@ -143,7 +153,7 @@ Setting off: one cached compare per status bar tick. On: the thread's wakeup eve
 
 **Sources:** `patch/bhpage.c`, `tools/batthist_model.py` (the Python model), `tools/pod_ui.py`
 `cards_hist` / `cards_summary`, `tools/preview/preview_batthist.py`. **Tests:** `test/pod/batthist.py`
-(`sc_tests`, `history_tests`, `texts_tests`, `visibility_tests`).
+(`sc_tests`, `history_tests`, `texts_tests`, `timer_tests`, `visibility_tests`).
 
 The page is `BATTHIST_PAGE` (`tools/pod_pages.py`), opened by the Battery page's Battery History row (a value row
 like Charge Limit: `row_value` writes On or Off, and the Battery page refreshes as it comes back in front), after
@@ -151,6 +161,13 @@ the switch's note. The items are in the asset (hidden and insensitive) and `bhpa
 to the state; it runs from `page_refresh` (patch/m1plus.c: the page opening, back in front) and from the switch's
 click (`pod_page_refresh(POD_BATTHIST_PAGE)`). The list_view layouter skips hidden items, so the page closes up and
 grows in place. It reads `bh_snapshot` each time and never touches the ring.
+
+The page keeps itself current like the Sleep Timer page ([sleeptimer](sleeptimer.md)): `bhpage_opened`
+(from `open_page`, `patch/m1plus.c`) and `bhpage_front` (the window's foreground event) call `bh_request`, so the
+recorder takes a fresh sample for what is on screen, and a 1 s timer (`BHP_MS`, added on open, removed in the
+background by `EVT_WINDOW_TO_BG` and with the window by `bhpage_gone`) compares `bh_seq` with the count of the
+last draw and calls `pod_page_refresh` only when a sample landed: so right after the requested sample, then at most
+every 15 s. No widget is touched from the recorder thread. Tests: `timer_tests`, `switch_tests`.
 
 | State | Shown |
 |---|---|
@@ -186,7 +203,8 @@ mark and the name (18 px white) are centred on 20 under the row's top (`BHS_MARK
 "~12%" (17 px, `ly_title_face`): the percent the gauge fell in that kind since `unplug_at` (`sc_d_on`, `sc_d_play`, `sc_d_idle`). The name and
 duration boxes end before the percent's. Order: Screen On, Playing / Screen Off, Standby.
 
-The caption is "Unplugged 21:25, 100%", or "Recording since 14:05, 85%" when `since_on` is 1; ", N%" is dropped when `unplug_lvl` is
+While the last sample says external power (`bh_view.chg`) the caption is "Charging, 72%" (the gauge now; "Charging" when it is
+`BH_NONE`) and the rest of the card stays as the frozen last run. Otherwise the caption is "Unplugged 21:25, 100%", or "Recording since 14:05, 85%" when `since_on` is 1; ", N%" is dropped when `unplug_lvl` is
 `BH_NONE`. The time is `unplug_at`'s local clock by 24-Hour Time when it is on the local day of the wall clock at `bhpage_show`,
 "yesterday 21:25" (`yesterday %s`) when it was the previous local day (the date 12 hours before the local midnight by the clock, so a DST step does not move it), else the month and day, zero padded, then the clock ("11-14 21:25").
 The local dates are read from `localtime` one at a time (its buffer is shared); the previous day is the date one second before the

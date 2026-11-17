@@ -7,7 +7,8 @@ in `tools/pod_pins.py`. **Tests:** `test/pod/battery.py`. **Preview:**
 
 The [Charge Limit](charging.md), [Battery History](batthist.md) and the
 [automatic scrobble upload](scrobble.md#automatic-upload) run on the same status bar hook,
-independently of the Battery Percentage setting.
+independently of the Battery Percentage setting. The Charge Limit also has a worker thread of its
+own, which covers the screen off and stock's standby.
 
 ## One battery
 

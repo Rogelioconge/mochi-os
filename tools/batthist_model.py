@@ -218,6 +218,13 @@ def when_text(then, now, h24, yesterday='yesterday %s'):
     return f'{then[1]:02d}-{then[2]:02d} {clock}'
 
 
+def charging_text(level, tr=None):
+    """The caption while on external power: "Charging, 72%", or "Charging" when the gauge is unknown (BH_NONE)."""
+    t = tr or {}
+    if level <= 100: return t.get('Charging, %s', 'Charging, %s') % f'{level}%'
+    return t.get('Charging', 'Charging')
+
+
 def caption_text(when, level, since_on, tr=None):
     """The Since Last Charge caption: "Unplugged 21:25, 100%", or "Recording since 14:05, 85%" when the run began with the recording; without the level when the gauge then is unknown (BH_NONE). when is when_text; tr maps the English
     forms to a language's."""

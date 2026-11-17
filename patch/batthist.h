@@ -51,6 +51,7 @@ struct bh_view {
     unsigned unplug_lvl; /* the gauge then, BH_NONE unknown */
     unsigned
         since_on; /* 0 the run began when the charger was removed, 1 when recording started on battery (the first sample) */
+    unsigned chg; /* 1 on external power at the last sample (the card's caption then says Charging) */
     unsigned level; /* the gauge now (the open bucket's level), BH_NONE unknown */
     unsigned sc_play, sc_on,
         sc_total; /* seconds on battery since unplug_at: playing with the screen off, screen on, all of it (awake, idle and standby) */
@@ -58,6 +59,10 @@ struct bh_view {
         sc_d_idle; /* percent the gauge fell since unplug_at, attributed to the screen on / playing with the screen off / idle and standby */
 };
 
+void bhpage_opened(void *win,
+                   int page); /* patch/bhpage.c: the page's window is up: asks for a sample, starts the refresh timer */
+void bhpage_front(void); /* back in front: a sample is asked for and the timer runs again */
+void bhpage_gone(void); /* the window is destroyed: the timer goes */
 int bh_setting(void); /* Settings > Battery > Battery History: 1 on, 0 off (the default) */
 int bh_toggle(void); /* flip it: the new state, or -1; off stops the recorder and deletes the data */
 void bh_poll(
@@ -66,6 +71,9 @@ void bh_poll(
 void bh_load(void);
 void bh_sample(void);
 void *bh_main(void *arg);
+void bh_request(
+    void); /* the History page wants a fresh sample: the thread takes one at its next 1 s step (never on the UI thread) */
+unsigned bh_seq(void); /* samples taken so far (a plain read, no lock) */
 int bh_snapshot(
     struct bh_view *
         out); /* 1 and the view when the setting is on and a bucket is open, else 0 (out zeroed); safe from the UI thread */

@@ -45,7 +45,7 @@ LD = os.path.join(LLD, 'ld.lld')
 
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'artsplit.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'recent.c', 'dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
-           'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'vupage.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'charging.c', 'batthist.c', 'bhpage.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c', 'ndfolders.c',
+           'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'vupage.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'power.c', 'charging.c', 'batthist.c', 'bhpage.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c', 'ndfolders.c',
            'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'btset.c', 'btpage.c']
 
 # LibriVox (patch/bknet.c, patch/bkdl.c): kept by the linker until the Audiobooks pages that call them exist; the Book level's download row (phase 3b) takes the rest; test/pod/bkdl.py calls these
@@ -969,6 +969,28 @@ def check_libcstl_bytes(data):
     check(syms.get('deque_swap') == CSTL_SWAP and sha(data[CSTL_SWAP:CSTL_SWAP + CSTL_SWAP_LEN]) == CSTL_SWAP_SHA, 'libcstl: deque_swap moved or differs from the pin (the deque_t layout ll_swap repeats)')
 
 
+def check_gpio_lib_bytes(data):
+    """The pins on the bytes of libhardware2 (the tests hand it a doctored copy): gpio_open / gpio_get_value and the words that give the open flags and the ioctl request."""
+    elf = ELFFile(io.BytesIO(data))
+    syms = {s.name: s['st_value'] for s in elf.get_section_by_name('.dynsym').iter_symbols() if s.name}
+    check((syms.get('gpio_open'), syms.get('gpio_get_value')) == (GPIO_OPEN, GPIO_GET), 'libhardware2: gpio_open / gpio_get_value moved')
+    load = next(s for s in elf.iter_segments() if s['p_type'] == 'PT_LOAD')
+    check(load['p_vaddr'] == load['p_offset'] == 0 and load['p_filesz'] > GPIO_GET + 0x40, 'libhardware2: the first segment is not the text at its file offsets')
+    for at, word, what in GPIO_LIB_WORDS:
+        check(struct.unpack_from('<I', data, at)[0] == word, f'libhardware2: {what} differs from the pin')
+    check(b'/dev/gpio\0' in data, 'libhardware2: /dev/gpio is gone')
+
+
+def check_gpio_lib(demo_path):
+    """The GPIO read of External power (patch/power.c): libhardware2's words and demo's "PD17" string are the pinned ones."""
+    root = pathlib.Path(demo_path).parents[2]
+    lib = root / GPIO_LIB
+    check(lib.is_file(), f'{GPIO_LIB} is missing')
+    check_gpio_lib_bytes(lib.read_bytes())
+    image = pathlib.Path(demo_path).read_bytes()
+    check(image[fileoff(image, GPIO_NAME_ADDR):][:5] == b'PD17\0', 'demo: the "PD17" string usb_detect passes moved')
+
+
 def check_lcl_tables(image):
     """loadLocalClassList's two jump tables are the pinned cases (LCL_TABLES): the proof of which classes end at the show list."""
     for at, cases in LCL_TABLES:
@@ -997,6 +1019,7 @@ def gen_stock_h(out, demo_path):
     syms = dynsym(demo_path)
     slots = got_slots(demo_path, LIBC)
     image_end = check_libcstl(demo_path)
+    check_gpio_lib(demo_path)
     h = ['/* Generated by tools/pod.py from demo .dynsym; do not edit. */', '#pragma once']
     for name, (ret, args, addr) in FUNCTIONS.items():
         check(syms.get(name) == addr, f'{name}: address {syms.get(name)} != pinned {addr:#x}')

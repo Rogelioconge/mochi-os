@@ -1,6 +1,6 @@
 # Charge Limit
 
-**Sources:** `patch/charging.c`, `patch/charging.h`, `patch/battery.c`. **Tests:** `test/pod/charging.py`.
+**Sources:** `patch/charging.c`, `patch/charging.h`, `patch/power.c`, `patch/power.h`, `patch/battery.c`. **Tests:** `test/pod/charging.py`, `test/pod/power.py`.
 
 Settings > **Battery** (with Battery Percentage, first on the page) > **Charge Limit** pauses charging at 80, 85, 90 or 95 %
 while the player runs; 100 % (the default) is no limit. Charging resumes 5 points lower.
@@ -9,12 +9,25 @@ percentage are in [battery](battery.md).
 
 ## Behaviour
 
-`chg_tick` runs on the status bar's 1 s tick: the Battery Percentage hook `bp_capacity`
-(`patch/battery.c`, [payload](payload.md) hook 8) calls it after stock's `get_battery_capacity`,
-with the kill switch result and the gauge when Battery Percentage already read it. No timer
-or hook of its own. With no limit and no hold it is a cached compare. Otherwise a check runs at
-most every `CHG_PERIOD` (5) seconds of `time()`; a clock that went back checks at once, and a new
-limit checks at the next tick.
+Two callers run the same check (`chg_step`), serialised by a spin lock:
+
+- `chg_tick` on the status bar's 1 s tick: the Battery Percentage hook `bp_capacity`
+  (`patch/battery.c`, [payload](payload.md) hook 8) calls it after stock's `get_battery_capacity`,
+  with the kill switch result and the gauge when Battery Percentage already read it. It only
+  try-locks, so a tick is skipped while the worker checks. A check runs at most every
+  `CHG_PERIOD` (5) seconds of `time()`; a clock that went back checks at once, and a new limit
+  checks at the next tick.
+- `chg_main`, one detached worker thread: a check every `CHG_PERIOD` seconds with `sleep`. It covers the screen off and stock's
+  standby (userspace still runs; `show_sysbar_face` does not tick), independently of the Battery History setting. `chg_tick` and `chg_set` start it
+  (once; a failed `pthread_create` is retried after 30 ticks) while a limit under 100 is set; it
+  ends when the limit is 100 or the kill switch is there. The worker holds (`0`) and forgets a
+  hold that stock's DAC mode owns, but never writes `1`: every release is `chg_tick`'s, on the UI
+  thread that also runs stock's DAC toggle and USB page, so the ownership test and the `1` cannot
+  straddle the user's change. With the screen off a release waits for the next tick. The worker's
+  checks never move the tick's `CHG_PERIOD` deadline, and a release it leaves to the tick makes the
+  next tick check at once, so the worker cannot postpone a release.
+
+With no limit and no hold nothing runs: a cached compare, no thread.
 
 A check reads the AXP2101 gauge (`/sys/class/power_supply/battery/capacity`, `battery_gauge`;
 stock's `power_capacity` is a voltage bucket) and writes the driver's charging request
@@ -22,7 +35,7 @@ stock's `power_capacity` is a voltage bucket) and writes the driver's charging r
 
 | State | Action |
 |---|---|
-| External power (`POWER_EXT` `0xa059f8` = 1), not held, gauge >= limit | write `0`: our hold |
+| External power (see below), not held, gauge >= limit | write `0`: our hold |
 | Held, gauge <= limit - 5 | write `1`: release |
 | Held, in between | read the switch; anything but `0` (stock enabled charging: the USB page's exit `0x545988`, the DAC toggle) writes `0` again |
 | Stock's USB DAC mode with charging off (`POWER_USBSTATE` 2, `POWER_FLAG` 1, `usbdac_chargeflag` 0: the same test as `show_sysbar_face`'s picture) | nothing written; a hold is forgotten (stock wrote `0` and its exit writes `1`) |
@@ -40,10 +53,32 @@ anything else or missing is 100 % ([settings](settings.md)). `chg_limit` caches 
 player is on") and the picker `m1plus_chargelimit` (`ACT_CHGLIMSET` 81, arg = the limit,
 note "Resumes a little below the limit"); the Settings row is Lucide `battery-full`.
 
-Not covered: `show_sysbar_face` returns early while `standby_mode` (`0xa059e0`) is 2 or the
-bar is missing, so no check runs then (a hold stays, a release waits); external power
-normally keeps `to_poweroptions` (`0x4ce5a8`) from that standby. Whether the timer keeps running
-with the screen off (`screen_action` `0x4e71a4`) is a device question.
+Not covered: a real kernel suspend. No userspace runs then, so a limit crossed meanwhile is held
+only after the wake (a hold stays, a release waits). `show_sysbar_face` returns early while
+`standby_mode` (`0xa059e0`) is 2, which the worker's holds do not depend on (its releases wait for the screen); external power normally keeps
+`to_poweroptions` (`0x4ce5a8`) from that standby.
+
+## External power
+
+`pwr_external` (`patch/power.c`, `patch/power.h`) is the one reading shared by the
+Charge Limit and [Battery History](batthist.md). It looks at every source; **any source saying
+external wins**, else any saying battery, else unknown (-1):
+
+| Source | External | Battery |
+|---|---|---|
+| `battery/status` (`PWR_STATUS`) | `Charging`, `Full`, `Not charging` | `Discharging` (`Unknown`, empty, unreadable: no answer) |
+| `/sys/class/power_supply/usb/online`, `.../ac/online` (fixed paths; the stock kernel registers a `battery` supply only, so they may not exist) | `1` | `0` |
+| PD17 raw level | ioctl returns 0 | ioctl returns 1 (a failed ioctl or a device that does not open: no answer) |
+
+The PD17 read repeats stock's `usb_detect` (`0x4d6f30`, which `get_battery_capacity` calls to refresh
+`POWER_EXT`): `open("/dev/gpio", O_RDWR)`, `ioctl(fd, 0x2000477a, "PD17")`, `close`, as libhardware2's
+`gpio_open` (`0x556c`) and `gpio_get_value` (`0x57bc`) do; a read of an input line, nothing written,
+without stock's `toolsGpioGetValue` mutex (it only serialises stock's own callers). `BATTERY_PINS`
+pins the `usb_detect` words and the build (`check_gpio_lib` in `tools/pod.py`) pins libhardware2's
+symbols and words and the `"PD17"` string.
+
+The Charge Limit counts external power when `POWER_EXT` is 1 **or** `pwr_external` is 1. Stock's
+`get_battery_capacity` is never called from a worker.
 
 ## Interfaces
 

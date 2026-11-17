@@ -174,14 +174,16 @@ automatic power options and ignores USB connections.
 
 **Battery Percentage** shows the exact charge in the status bar and on the lock screen; it is off
 by default. **Charge Limit** stops charging at 80, 85, 90 or 95% while the player is on and resumes
-about 5% lower. At 100% there is no limit; a switched-off player charges fully.
+about 5% lower, also with the screen off (after a pause, charging resumes once the screen is next
+on). At 100% there is no limit; a switched-off player charges fully.
 
 **Battery History** opens its own page. Its switch is off by default; enabling it records the last
 24 hours of battery level and activity, and turning it off deletes the history. Once recording:
 
 - **Since Last Charge** shows the unplugged time and level (or when recording began on battery),
   current level and time on battery. Its bar estimates time and battery used for Screen On,
-  Playing with Screen Off and Standby. The counters stop while charging.
+  Playing with Screen Off and Standby. While charging the card shows "Charging" with the level and
+  the counters stop.
 - **Last 24 Hours** shows half-hour battery level bars, green while charging and red at 20% or less.
   Missing data leaves a gap.
 - **Activity** shows screen-on and screen-off playing time by hour, with charging hours marked.
