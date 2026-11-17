@@ -329,6 +329,53 @@ def run(ctx):
     m, h = elapsed(); m.call(PSYMS['np_on_destroy'], a0=WIN, a1=0); m.pt = (40, 200, 1); m.calls = []; m.tick()
     expect(not eset(m), 'after the page is gone a stray tick writes nothing')
 
+    # the track position: label_index shows "5/10" between the times, behind the Track Position setting (off by default), written by our tick from mclGetPlayPos and the queue size
+    NPPOS = '/mnt/data/m1plus/nowplaying-position'
+    def tpos(on, n=10, pos=4):
+        m = NowMachine(); m.page(); m.src(0); m.pt = (30, 200, 1); m.widget('label_index')
+        if on is not None: m.fs[NPPOS] = on
+        m.play([m.record(title=f't{i}', rid=i + 1) for i in range(n)], pos); m.init(); return m
+    ixset = lambda m: [c[2] for c in m.calls if c[0] == 'widget_set_text_utf8' and c[1] == m.widgets['label_index']]
+    m = tpos(None); m.tick()
+    expect(not ixset(m) and m.visible('label_index') is None, 'Track Position off (no file): label_index is never written or shown')
+    m = tpos(b'0\n'); m.tick(); expect(not ixset(m) and m.visible('label_index') is None, 'a file with 0: off')
+    m = tpos(b'1\n')
+    expect(ixset(m) == ['5/10'] and m.visible('label_index') == 1, f'on: "5/10" is shown at once ({ixset(m)})')
+    m.calls = []; m.tick(); m.tick(); expect(not ixset(m), 'an unchanged position is not written again')
+    m.play([m.record(title=f't{i}', rid=i + 1) for i in range(11)], 4); m.calls = []; m.tick()
+    expect(ixset(m) == ['5/11'], f'a track added to the queue shows on the next tick ({ixset(m)})')
+    m.play([m.record(title=f't{i}', rid=i + 1) for i in range(11)], 5); m.calls = []; m.tick()
+    expect(ixset(m) == ['6/11'], f'the next track: 6/11 ({ixset(m)})')
+    m.play([m.record(rid=1)], 0); m.calls = []; m.tick()
+    expect(m.visible('label_index') == 0 and not ixset(m), 'a queue of one hides it')
+    m.play([m.record(rid=1), m.record(rid=2)], 1); m.calls = []; m.tick()
+    expect(ixset(m) == ['2/2'] and m.visible('label_index') == 1, 'two tracks show 2/2 again')
+    m.play([m.record(rid=1), m.record(rid=2)], 2); m.calls = []; m.tick()
+    expect(m.visible('label_index') == 0, 'a position past the queue hides it')
+    m.play([m.record(rid=1), m.record(rid=2)], -1); m.calls = []; m.tick()
+    expect(m.visible('label_index') == 0, 'no position hides it')
+    m.play([], 0); m.calls = []; m.tick(); expect(m.visible('label_index') == 0, 'an empty queue hides it')
+    big = [m.record(rid=1)] * 65537
+    m.play(big[:65535], 4); m.calls = []; m.tick()
+    expect(ixset(m) == ['5/65535'] and m.visible('label_index') == 1, f'a large queue: 5/65535 ({ixset(m)})')
+    m.play(big, 4); m.calls = []; m.tick()
+    expect(ixset(m) == ['5/65537'] and m.visible('label_index') == 1, f'no size limit: 5/65537 stays shown ({ixset(m)})')
+    m = tpos(b'1\n'); m.fs[NPPOS] = b'0\n'; m.calls = []; m.tick()
+    expect(m.visible('label_index') == 1, 'the setting is read when the page starts or comes back, not on every tick')
+    m.call(PSYMS['np_on_foreground'], a0=WIN, a1=0, count=6000000)
+    expect(m.visible('label_index') == 0, 'back in front with the setting off: hidden')
+    m.fs[NPPOS] = b'1\n'; m.call(PSYMS['np_on_foreground'], a0=WIN, a1=0, count=6000000)
+    expect(m.visible('label_index') == 1 and ixset(m)[-1] == '5/10', 'and on again when it is switched on')
+    N = pod_pages.NPSET_PAGE
+    expect([(r.label, r.action) for r in N.rows][-1] == ('Track Position', pod_pages.ACT_NPPOS) and pod_pages.ACT_NPPOS == 192 and pod_pages.ACT_NPPOS in pod_pages.SWITCH_ACTIONS and pod_pages.row_kind(N.rows[-1]) == 'switch' and 'nowplaying-position' in pod_pages.SETTING_FILES and NPPOS.rsplit('/', 1)[1] == 'nowplaying-position',
+           'Settings > Now Playing ends with the Track Position switch (192), saved in nowplaying-position and listed on Settings Files')
+    m = NowMachine(); m.page()
+    expect(m.call(PSYMS['np_pos_setting']) == 0 and m.call(PSYMS['np_pos_toggle'], count=4000000) == 1 and m.fs[NPPOS] == b'1\n' and m.call(PSYMS['np_pos_setting']) == 1
+           and m.call(PSYMS['np_pos_toggle'], count=4000000) == 0 and m.fs[NPPOS] == b'0\n', 'the switch: off by default; a toggle saves 1 atomically, then 0')
+    m = NowMachine(); m.page(); m.src(0); m.pt = (30, 200, 1); m.fs[NPPOS] = b'1\n'
+    m.play([m.record(rid=1), m.record(rid=2)], 0); m.init()
+    expect('label_index' not in m.widgets and m.visible('np_remaining') == 1, 'a page without label_index: nothing is written, the rest works')
+
     # ------------------------------------------------------------------ the info page (np_header, np_quality, np_row)
     from awtk_text import Ttf, StbText
     import pod_i18n
@@ -1122,8 +1169,10 @@ def run(ctx):
     expect(f('view_buttons').y == 392 and f('view_buttons').y + f('view_buttons').h == 450, 'the transport row is 392..450')
     expect(all(f(n).get('visible') == 'false' for n in ('np_remaining', 'np_elapsed')) and all(f(n).get('sensitive') == 'false' for n in ('np_remaining', 'np_elapsed', 'label_playlen', 'label_playtime', 'img_np_tint')),
            'np_remaining and np_elapsed start hidden; the labels and the gradient are insensitive')
-    for n in ('label_index', 'img_hr'):
-        expect(rect(n)[2:] == (0, 0) and f(n).get('visible') == 'false' and f(n).get('sensitive') == 'false', f'{n} is kept, hidden and insensitive at 0x0')
+    expect(rect('img_hr')[2:] == (0, 0) and f('img_hr').get('visible') == 'false' and f('img_hr').get('sensitive') == 'false', 'img_hr is kept, hidden and insensitive at 0x0')
+    expect(rect('label_index') == (28 + mn.TIMES_W, mn.TIMES_Y, 320 - 2 * (28 + mn.TIMES_W), mn.TIMES_H) and f('label_index').get('visible') == 'false' and f('label_index').get('sensitive') == 'false'
+           and all(f('label_index').get(f'style:{s}:font_size') == '14' and f('label_index').get(f'style:{s}:text_align_h') == 'center' for s in ('normal', 'disable', 'focused')),
+           'label_index (the track position) is centred between the two times, 14 px, invisible and insensitive until the payload shows it')
     expect(f('label_album') in f('np_i_scroll').children and 'label_album' not in [c.name for c in f('view').children], 'the album line is on the info page, not under the art')
     expect(f('label_info') in f('np_i_scroll').children, 'the quality line is on the info page, not between the times')
     expect(f('img_np_tint') is ui.find('view_local').children[0] and rect('img_np_tint') == (0, 0, 320, 450), 'the gradient is the first child of view_local, window sized')

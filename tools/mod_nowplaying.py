@@ -10,14 +10,15 @@
  305   Title                  (star)(...)   20 px white; star and More 44 px targets on 32 px translucent discs
  329   Artist                              18 px #AAAAAA
  348   ================---------------        6 px rounded progress bar (ink 360..366) in the stock 30 px seek target
- 379   1:23                        -3:42    14 px #AAAAAA (digits 382..391); the right one is the remaining time (patch/nowplaying.c)
+ 379   1:23          5/10         -3:42    14 px #AAAAAA (digits 382..391); the right one is the remaining time, the middle one the optional track position (patch/nowplaying.c)
  392   [mode] [<<]   [ || ]   [>>]  [queue]   58 px transport row in the five stock slots (glyphs 407..435)
  450
 
 The window is the cover's colour, darkened (patch/nowplaying.c writes bg_color per track; the asset's is the neutral
 tone), under a static black gradient (np_tint.png, alpha 0.15 at the top to 0.92 at the bottom) that is the
-first child of view_local. The album line, the "3/12" index and the quality line are not on the art page: label_album
-stays on the info page, label_index is hidden at 0x0 like img_hr, label_info stays on the info page.
+first child of view_local. The album line and the quality line are not on the art page: label_album and label_info stay on
+the info page. label_index ("3/12") is the track position centred in the times row, between the two 72 px time labels,
+invisible and insensitive until the payload's Track Position setting shows it; img_hr is hidden at 0x0.
 
 What demo drives here, by name (disasm.py xref, docs/ui.md): scrlabel_title, scrlabel_artist, img_playcover,
 label_index ("%d/%d"), label_info, label_album/genre/year/size/location ("%s:%s"), label_playtime, label_playlen,
@@ -456,7 +457,7 @@ def apply_ui(root):
 
     # ---- the grabber is Back; the index, the Hi-Res tag and the album line are not on the art page
     ret = find(root, 'btn_return'); move(ret, *RETURN); img_button(ret, 'np_grabber', 'np_grabber_down')
-    hide(find(root, 'label_index')); hide(find(root, 'img_hr'))
+    hide(find(root, 'img_hr'))
     fav = find(root, 'btn_fav'); move(fav, FAV_X, BTN_Y, BTN, BTN); fav.set('style:pressed:icon', 'np_unfav_down')
     more = find(root, 'btn_more'); move(more, MORE_X, BTN_Y, BTN, BTN); img_button(more, 'np_more', 'np_more_down')
 
@@ -528,6 +529,9 @@ def apply_ui(root):
     el = awtk_ui.Widget('label', pt.x, pt.y, pt.w, pt.h, [('name', 'np_elapsed'), ('visible', 'false')])
     text_style(el, TIMES_PX, GREY, 'left')
     svv.children += [rem, el]
+    idx = find(root, 'label_index'); parent_of(root, idx).children.remove(idx)   # the track position: centred between the times, shown by the payload only
+    move(idx, M + TIMES_W, TIMES_Y, W - 2 * (M + TIMES_W), TIMES_H); text_style(idx, TIMES_PX, GREY, 'center')
+    idx.set('visible', 'false'); idx.set('sensitive', 'false'); svv.children.append(idx)
     for w in (pt, pl, rem, el): w.set('sensitive', 'false')   # decoration; patch/nowplaying.c swaps the stock times and ours
     dots = find(root, 'slide_indicator'); move(dots, *DOTS)
     dots.set('size', str(DOTS[3])); dots.set('spacing', '10')
@@ -609,8 +613,8 @@ def check_touch(root):
         x, y, w, h = rects[n]; t = hit(root, (0, 0, W, H), x + w // 2, y + h // 2)
         assert inside(t, find(root, n)), f'touch at the centre of {n} lands on {t.name or t.type}'
         assert w >= 44 and h >= 30 and (n == 'slider_play' or h >= 44), f'{n}: touch target {w}x{h} too small'
-    for n in ('img_hr', 'label_index'):
-        hr = find(root, n); assert hr.w == 0 and hr.h == 0 and hr.get('sensitive') == 'false' and hr.get('visible') == 'false', f'{n} must stay out of the way'
+    hr = find(root, 'img_hr'); assert hr.w == 0 and hr.h == 0 and hr.get('sensitive') == 'false' and hr.get('visible') == 'false', 'img_hr must stay out of the way'
+    li = find(root, 'label_index'); assert (li.x, li.y, li.w, li.h) == (M + TIMES_W, TIMES_Y, W - 2 * (M + TIMES_W), TIMES_H) and li.get('sensitive') == 'false' and li.get('visible') == 'false', 'label_index sits between the times, invisible and insensitive'
     for x, y in ((W // 2, ART_Y + ART // 2), (ART_X + 8, ART_Y + ART - 8), (M + 20, TITLE_Y + TITLE_H // 2), (M + 20, ARTIST_Y + ARTIST_H // 2)):
         t = hit(root, (0, 0, W, H), x, y)
         assert inside(t, sv), f'touch at ({x},{y}) on the cover page lands on {t.name or t.type}, not the slide_view'

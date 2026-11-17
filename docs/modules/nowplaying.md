@@ -32,6 +32,8 @@ has 12 px corners. Existing widget names are kept.
 - Info page: `np_scrim.png`, 320 x 324 at y 8, alpha 128 in the centre, 36-row linear edges.
 - Lyrics page: `np_scrim_lyrics.png`, 320 x 332 at y 0, alpha 68, 44-row smoothstep edges.
 - Decorative images and time labels are insensitive.
+- `label_index` (stock's `%d/%d` queue position) sits centred between the two 72 px time labels, 14 px grey,
+  invisible and insensitive; only the payload shows it, see "Track position".
 - Mode and queue glyphs are `#C8C8C8` (repeat-off `#6E6E6E`).
 - The stock `slider_play` keeps its 30 px seek target and 6 px track (30% white track,
   `#FFFFFFEB` fill, radius 4).
@@ -41,6 +43,14 @@ has 12 px corners. Existing widget names are kept.
 - Favourite is a filled or outline star. While a podcast plays it is a saved/unsaved bookmark.
   While a server track plays it is the server's favourite ([subsonic](subsonic.md)); stock's
   `manage_myfav` never writes the stream record.
+
+## Track position
+
+Settings > Now Playing > Track Position (`nowplaying-position`, `1` on, default off; read when the page starts and
+each time it returns to the front). Stock writes `label_index` only on a track change; with the setting on, every
+tick (`np_index`) writes `%d/%d` from `mclGetPlayPos() + 1` and the play queue size, only when the text changed,
+so Play Next, Add to Queue and Clear show at once. The label is hidden when the setting is off, the queue holds
+fewer than two tracks, or the position is outside it. A page without `label_index` is left alone.
 
 ## Cover tone and corners
 

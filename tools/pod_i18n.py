@@ -205,6 +205,14 @@ TEXT = dict([
        'Vinilo', 'Vinile', 'แผ่นเสียง', 'Winyl', 'Винил', 'Вініл'),
     _t('Shown after 10 seconds on Now Playing.', '在正在播放界面停留10秒后显示。', '在正在播放畫面停留10秒後顯示。', '再生画面で10秒後に表示されます。', '지금 재생 화면에서 10초 후 표시됩니다.', "Affichée après 10 s sur Lecture en cours.", 'Nach 10 Sekunden auf „Jetzt läuft“.',
        'Se muestra tras 10 s en Reproduciendo.', 'Mostrata dopo 10 secondi in Riproduzione.', 'แสดงหลัง 10 วินาทีในหน้ากำลังเล่น', 'Pokazywane po 10 s na ekranie odtwarzania.', 'Через 10 с на экране «Сейчас играет».', 'Через 10 секунд на екрані «Зараз грає».'),
+    # Settings > Now Playing > Track Position (patch/nowplaying.c, docs/modules/nowplaying.md); machine translations, unreviewed
+    _t('Track Position', '曲目位置', '曲目位置', 'トラック位置', '트랙 위치', 'Position du titre', 'Titelposition',
+       'Posición de pista', 'Posizione brano', 'ลำดับเพลง', 'Pozycja utworu', 'Номер трека', 'Номер треку'),
+    _t('Shows the queue position, such as 5/10, between the times.', '在时间之间显示队列位置，例如 5/10。', '在時間之間顯示佇列位置，例如 5/10。',
+       '時間の間にキューの位置（例：5/10）を表示します。', '시간 사이에 대기열 위치(예: 5/10)를 표시합니다.',
+       'Affiche la position dans la file, par exemple 5/10, entre les temps.', 'Zeigt die Position in der Warteschlange, z. B. 5/10, zwischen den Zeiten.',
+       'Muestra la posición en la cola, como 5/10, entre los tiempos.', 'Mostra la posizione in coda, ad esempio 5/10, tra i tempi.',
+       'แสดงลำดับในคิว เช่น 5/10 ระหว่างเวลา', 'Pokazuje pozycję w kolejce, np. 5/10, między czasami.', 'Показывает место в очереди, например 5/10, между временем.', 'Показує місце в черзі, наприклад 5/10, між часом.'),
     # Settings > Now Playing > Lyrics Text Size (patch/lyrics.c, docs/modules/lyrics.md "Text size"); machine translations, unreviewed
     _t('Lyrics Text Size', '歌词字号', '歌詞字級', '歌詞の文字サイズ', '가사 글자 크기', 'Taille du texte', 'Songtext-Größe',
        'Tamaño texto', 'Dimensione testo', 'ขนาดเนื้อเพลง', 'Rozmiar tekstu', 'Текст песен', 'Текст пісень'),

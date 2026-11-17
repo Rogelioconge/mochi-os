@@ -189,7 +189,8 @@ enum {
         184, /* the Bluetooth page's Audio Codec picker's rows (arg = stock's btcoding 0 .. 7; patch/btpage.c) */
     ACT_BATTHIST = 188, /* Battery History page: the switch (patch/batthist.c) */
     ACT_BHPAGE = 190, /* Settings > Battery: Battery History, a value row (On or Off) opening its page */
-    ACT_KB_FR = 191 /* Settings > General > Keyboards: French (AZERTY), a switch (patch/keyboard.c) */
+    ACT_KB_FR = 191, /* Settings > General > Keyboards: French (AZERTY), a switch (patch/keyboard.c) */
+    ACT_NPPOS = 192 /* Settings > Now Playing: Track Position, a switch (patch/nowplaying.c) */
 };
 
 struct pod_row {
@@ -225,8 +226,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 55 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 55, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 56 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 56, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -732,6 +733,7 @@ static const struct pod_switch {
     {ACT_PCSEARCH, pcsearch_setting, pcsearch_toggle},
     {ACT_BATTPCT, battpct_setting, battpct_toggle},
     {ACT_BATTHIST, bh_setting, bh_toggle},
+    {ACT_NPPOS, np_pos_setting, np_pos_toggle},
     {ACT_AZRAIL, azrail_setting, azrail_toggle},
     {ACT_AZHEAD, azhead_setting, azhead_toggle},
     {ACT_LOCKON, lk_enabled, lk_enabled_toggle},

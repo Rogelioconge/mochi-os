@@ -64,6 +64,9 @@
 #define LYRSIZE_FILE \
     "/mnt/data/m1plus/nowplaying-lyrics-size" /* the lyrics page's text size: "0" Small (22 px), "1" Medium (26), "2" Large (30; also a missing or invalid file); docs/modules/lyrics.md "Text size" */
 #define LYRSIZE_TMP "/mnt/data/m1plus/nowplaying-lyrics-size.tmp"
+#define NPPOS_FILE \
+    "/mnt/data/m1plus/nowplaying-position" /* "1" = Now Playing shows the queue position (5/10) between the times, anything else or missing off (the default); docs/modules/nowplaying.md */
+#define NPPOS_TMP "/mnt/data/m1plus/nowplaying-position.tmp"
 #define VINYLREC_FILE \
     "/mnt/data/m1plus/vinyl-record" /* Vinyl Mode's record colour: "1" Cover (with an optional newline), anything else or missing = Black (the default) */
 #define VINYLREC_TMP "/mnt/data/m1plus/vinyl-record.tmp"
@@ -301,6 +304,9 @@ extern int dailymix_can_regen(
 extern int recent_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int kb_zh_setting(
     void); /* patch/keyboard.c: Settings > General > Keyboards > Chinese (Pinyin): 1 on, 0 off (the default) */
+extern int
+np_pos_setting(void); /* Settings > Now Playing > Track Position: 1 on, 0 off (the default) (patch/nowplaying.c) */
+extern int np_pos_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int kb_fr_setting(void); /* ... > French (AZERTY): 1 on, 0 off (the default) */
 extern int kb_fr_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int kb_zh_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */

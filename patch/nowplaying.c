@@ -92,6 +92,10 @@ static struct {
     int shown; /* the seconds np_remaining shows, -1 none */
     int eshown; /* the seconds np_elapsed shows, -1 none */
     int own; /* 1: our times are the visible labels, 0: stock's are */
+    void *idx; /* label_index, the track position between the times (hidden in the asset) */
+    int idxon; /* the Track Position setting as read when the page started or came back */
+    int idxpos; /* what idx shows: the position (0-based), 0 while hidden */
+    unsigned idxn; /* and the queue size, 0 hidden */
     int fg; /* 1 from the page's start and EVT_WINDOW_TO_FOREGROUND, 0 after EVT_WINDOW_TO_BACKGROUND */
     int barok; /* 1: both window events are registered, so the status bar may be tinted (else it never is) */
     int bar; /* 1: the status bar's bg_color is ours (np_bar_color) and must go back to black */
@@ -461,6 +465,29 @@ static void np_time(void) {
         np.eshown = pos;
     }
     np_label(1);
+}
+
+/* Settings > Now Playing > Track Position (NPPOS_FILE): "5/10" in the middle of the times row. Stock writes label_index ("%d/%d", the position + 1 and the queue size) only on a
+ * track change; ours writes the same text on every tick, so a queue edit shows at once. Shown only with the setting on and a queue of two or more with the position inside it. */
+int np_pos_setting(void) { return set_read(NPPOS_FILE, 0) == '1'; }
+int np_pos_toggle(void) { return home_set_digit(NPPOS_FILE, NPPOS_TMP, !np_pos_setting(), 1); }
+
+static void np_index(void) {
+    int pos = mclGetPlayPos();
+    void *q = *(void **)PLAY_QUEUE;
+    unsigned n = q ? deque_size(q) : 0;
+    char text[24];
+    if (!np.idx) return;
+    if (!np.idxon || n < 2 || pos < 0 || (unsigned)pos >= n)
+        pos = 0, n = 0; /* hidden (as after the page start memset) */
+    if (pos == np.idxpos && n == np.idxn) return;
+    if (n) {
+        snprintf(text, sizeof text, "%u/%u", (unsigned)pos + 1, n);
+        widget_set_text_utf8(np.idx, text);
+    }
+    widget_set_visible(np.idx, n != 0, 0);
+    np.idxpos = pos;
+    np.idxn = n;
 }
 
 /* The info page (page 3). Stock writes its lines when the track changes (show_player_face 0x53bab4 -> the fill 0x539c40, only
@@ -1199,6 +1226,7 @@ static void np_work(void) {
     np_server_art();
     np_cover();
     np_time();
+    np_index();
     np_info();
     ly_tick(); /* the lyrics page (patch/lyrics.c) */
     np_fav_sync();
@@ -1250,6 +1278,7 @@ static int np_on_foreground(void *ctx, void *e) {
     np.relay = NP_RELAY; /* the info page is laid out again (a language or font change meanwhile) */
     np_info_scroll(0); /* and starts at the top */
     ly_refresh(); /* a lyrics text size changed in Settings is laid out now */
+    np.idxon = np_pos_setting(); /* so is the Track Position switch */
     np_work(); /* the page is current when it reappears (fg still 0: a new colour tints the bar once, below) */
     /* the mode button's picture follows the play mode: stock sets it only in its own click handler, so a mode set on the Queue page (or elsewhere) is shown now */
     stock_np_mode_button(ctx);
@@ -1272,6 +1301,8 @@ static void np_start(void *win) {
     np.mode = widget_lookup(win, "btn_playmode", 1);
     if (!np.el || !np.pt) np.el = np.pt = (void *)0; /* only the pair is swapped */
     np.shown = np.eshown = -1;
+    np.idx = widget_lookup(win, "label_index", 1);
+    np.idxon = np_pos_setting();
     for (n = 0; n < NP_INFO_N; ++n) np.info[n] = widget_lookup(win, np_info_names[n], 1);
     for (n = 0; n < NI_N; ++n) np.iw[n] = widget_lookup(win, np_iw_names[n], 1);
     np.ihead = np.iw[NI_ART] && np.iw[NI_TITLE] && np.iw[NI_TITLE2] && np.iw[NI_ARTIST] && np.iw[NI_ALBUM];
