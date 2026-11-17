@@ -28,7 +28,7 @@ JITTER, PLAYS_CAP, ARTIST_CAP, ALBUMS = O['MIX_JITTER'], O['MIX_PLAYS_CAP'], O['
 MAX_NAMES, NAME, FILE_MAX, ART_HEAD, PATH = O['DM_MAX_NAMES'], O['DM_NAME'], O['DM_FILE_MAX'], O['DM_ART_HEAD'], O['DM_PATH']
 W, H = O['DM_W'], O['DM_H']
 PALETTE = ((70, 110, 190), (190, 90, 120), (60, 140, 150), (150, 120, 70))     # the tones a mix without covers gets (patch/dailymix.c dm_palette)
-MIX_MAGIC, ART_MAGIC = b'M1X2\n', b'M1XA'
+MIX_MAGIC, MIX_MAGIC_V2, ART_MAGIC = b'M1X3\n', b'M1X2\n', b'M1XA'   # (M1X2: the old mix file without the made time, still read)
 
 
 # ---- hashes and the generator (patch/covercache.c cc_fnv, patch/dailymix.c) ------------------------------------------------------------------
@@ -162,21 +162,25 @@ def _clean(s):
     return b(s) and all(c >= 0x20 and c != 0x7f for c in b(s)) and len(b(s)) < NAME
 
 
-def dump_mix(day, seed, aseed, regen, tones, names, paths):
-    """The mix file: M1X2, day / seed / art seed / regeneration count / songs, 2..4 tones (6 hex each), 1..3 names, then the songs' paths in play order, one a line (count of them).
-    No stock playlist holds the mix: this file is the whole of it. It lives on the card, in /mnt/mmc/.m1plus/daily-mix/tracks (each card carries its own mix), under a name that is not .m3u / .m3u8 (the stock Import reads only the card's _explaylist_data)."""
-    head = '%d\t%08x\t%08x\t%d\t%d\n' % (day, seed, aseed, regen, len(paths))
-    return (MIX_MAGIC + head.encode() + ' '.join('%02x%02x%02x' % tuple(t) for t in tones).encode() + b'\n' + b'\t'.join(b(n) for n in names) + b'\n'
+def dump_mix(day, seed, aseed, regen, tones, names, paths, made=None):
+    """The mix file: M1X3, day / seed / art seed / regeneration count / songs / made time (8 hex, seconds since 1970), 2..4 tones (6 hex each), 1..3 names, then the songs' paths in play order, one a line (count of them).
+    No stock playlist holds the mix: this file is the whole of it. It lives on the card, in /mnt/mmc/.m1plus/daily-mix/tracks (each card carries its own mix), under a name that is not .m3u / .m3u8 (the stock Import reads only the card's _explaylist_data).
+    Without `made` it is the old M1X2 file (no made time), which dm_load still reads."""
+    head = '%d\t%08x\t%08x\t%d\t%d' % (day, seed, aseed, regen, len(paths)) + ('' if made is None else '\t%08x' % made) + '\n'
+    return ((MIX_MAGIC_V2 if made is None else MIX_MAGIC) + head.encode() + ' '.join('%02x%02x%02x' % tuple(t) for t in tones).encode() + b'\n' + b'\t'.join(b(n) for n in names) + b'\n'
             + b''.join(b(p) + b'\n' for p in paths))
 
 
 def parse_mix(data):
-    """The strict reader (patch/dailymix.c dm_load): (day, seed, artseed, regen, count, tones, names, paths) or None. Names and paths are bytes."""
+    """The strict reader (patch/dailymix.c dm_load): (day, seed, artseed, regen, count, tones, names, paths, made) or None. Names and paths are bytes;
+    made is 0 for an M1X2 file."""
     if isinstance(data, str): data = data.encode('latin-1')
-    if not data.startswith(MIX_MAGIC) or len(data) > FILE_MAX or not data.endswith(b'\n'): return None
+    v3 = data.startswith(MIX_MAGIC)
+    if not (v3 or data.startswith(MIX_MAGIC_V2)) or len(data) > FILE_MAX or not data.endswith(b'\n'): return None
     lines = data[len(MIX_MAGIC):-1].split(b'\n')
     f = lines[0].split(b'\t')
-    if len(f) != 5: return None
+    if len(f) != 5 + v3 or (v3 and not re.match(rb'[0-9a-f]{8}\Z', f[5])): return None
+    made = int(f[5], 16) if v3 else 0
     dec, hx = re.compile(rb'(0|[1-9][0-9]{0,8})\Z'), re.compile(rb'[0-9a-f]{8}\Z')
     if not (dec.match(f[0]) and hx.match(f[1]) and hx.match(f[2]) and dec.match(f[3]) and dec.match(f[4])): return None
     day, seed, aseed, regen, count = int(f[0]), int(f[1], 16), int(f[2], 16), int(f[3]), int(f[4])
@@ -188,7 +192,7 @@ def parse_mix(data):
     if not (1 <= len(names) <= MAX_NAMES and all(_clean(n) for n in names)): return None
     paths = lines[3:]
     if not all(0 < len(p) < PATH and all(c >= 0x20 and c != 0x7f for c in p) for p in paths): return None
-    return day, seed, aseed, regen, count, tones, names, paths
+    return day, seed, aseed, regen, count, tones, names, paths, made
 
 
 def fnv1a(data):

@@ -209,8 +209,11 @@ def homeset_rows(raw):
     return homeset, [w for w in homeset.find('pod_scrollview').children if w.type == 'list_item']
 
 
-def mix_file(day=day_of(WALL), seed=0x1234abcd, aseed=0x0badf00d, regen=0, tones=TONES, names=('Radiohead', 'Björk', 'Air'), paths=PATHS):
-    return X.dump_mix(day, seed, aseed, regen, tones, list(names), list(paths))
+MADE = WALL - 7200    # mix_file()'s made time: two hours before the job tests' clock
+
+
+def mix_file(day=day_of(WALL), seed=0x1234abcd, aseed=0x0badf00d, regen=0, tones=TONES, names=('Radiohead', 'Björk', 'Air'), paths=PATHS, made=MADE):
+    return X.dump_mix(day, seed, aseed, regen, tones, list(names), list(paths), made)
 
 
 def art_file(): return X.dump_art([0x1234] * (W * H), 0x0badf00d)    # a valid art file for mix_file()'s art seed
@@ -413,13 +416,17 @@ def file_tests(ctx):
     expect = ctx.expect
     day0 = day_of(WALL)
     good = mix_file()
-    expect(X.parse_mix(good) == (day0, 0x1234abcd, 0x0badf00d, 0, 25, TONES, [b'Radiohead', 'Björk'.encode(), b'Air'], [p.encode() for p in PATHS]), 'the model reads its own file')
-    expect(good.startswith(b'M1X2\n') and good.count(b'\n') == 4 + 25 and good.split(b'\n')[0:1] == [b'M1X2'] and b'.m3u' not in good.lower(), 'M1X2, the header, the tones, the names, then 25 paths one a line; the paths are plain lines, no playlist syntax')
+    expect(X.parse_mix(good) == (day0, 0x1234abcd, 0x0badf00d, 0, 25, TONES, [b'Radiohead', 'Björk'.encode(), b'Air'], [p.encode() for p in PATHS], MADE), 'the model reads its own file')
+    old = mix_file(made=None)
+    expect(X.parse_mix(old) == X.parse_mix(good)[:8] + (0,) and old.startswith(b'M1X2\n') and b'\t0\t25\n' in old, 'an M1X2 file (no made time) is still read: made 0')
+    mh = b'%08x' % MADE
+    expect(good.startswith(b'M1X3\n') and good.count(b'\n') == 4 + 25 and good.split(b'\n')[0:1] == [b'M1X3'] and b'\t0\t25\t' + mh + b'\n' in good and b'.m3u' not in good.lower(), 'M1X3, the header (made time last), the tones, the names, then 25 paths one a line; the paths are plain lines, no playlist syntax')
     p255, p256 = '/' + 'a' * 254, '/' + 'a' * 255
     corpus = [good,
-              good.replace(b'M1X2', b'M1X1'), good[:-1], good + b'\n', good + b'x', b'', good[:5], good.replace(b'\t', b' ', 1), good.replace(b'1234abcd', b'1234ABCD'),
+              good.replace(b'M1X3', b'M1X1'), good.replace(b'M1X3', b'M1X2'), good.replace(b'M1X3', b'M1X4'), old, old.replace(b'M1X2', b'M1X3'),
+              good.replace(mh, mh.upper()), good.replace(mh, mh[1:]), good.replace(mh, mh + b'0'), good.replace(b'\t' + mh, b' ' + mh), good.replace(mh + b'\n', mh + b'\t\n'), good[:-1], good + b'\n', good + b'x', b'', good[:5], good.replace(b'\t', b' ', 1), good.replace(b'1234abcd', b'1234ABCD'),
               good.replace(b'1234abcd', b'1234abc'), good.replace(b'1234abcd', b'00000000'), good.replace(f'{day0}'.encode(), b'0', 1), good.replace(f'{day0}'.encode(), b'0' + f'{day0}'.encode(), 1),
-              good.replace(b'\t0\t25\n', b'\t256\t25\n'), good.replace(b'\t0\t25\n', b'\t0\t24\n'), good.replace(b'\t0\t25\n', b'\t0\t26\n'), good.replace(b'\t0\t25\n', b'\t0\t10\n'), good.replace(b'\t0\t25\n', b'\t0\t025\n'),
+              good.replace(b'\t0\t25\t', b'\t256\t25\t'), good.replace(b'\t0\t25\t', b'\t0\t24\t'), good.replace(b'\t0\t25\t', b'\t0\t26\t'), good.replace(b'\t0\t25\t', b'\t0\t10\t'), good.replace(b'\t0\t25\t', b'\t0\t025\t'),
               good.replace(b' ', b'', 1), good.replace(b'46 6e', b'46'), good.replace(b'Radiohead', b''), good.replace(b'Radiohead', b'Radio\x01head'),
               good.replace(b'\tAir', b''), good.replace(b'Air', b'Air\tFour'), good.replace(b'Air', b'A' * 95), good.replace(b'Air', b'A' * 96), good.replace(b'Air', b'A' * 300),
               good.replace(b'\n', b'\r\n'), good.replace(b'46', b'4G', 1), b'M1X2\n' + b'\n' * 5, b'M1X2\n' + b'\n' * 40,
@@ -529,7 +536,7 @@ def job_tests(ctx):
     arts_ = [mdl[i]['artist'] for i in picks]; albs = [mdl[i]['album'] for i in picks]
     expect(max(arts_.count(a) for a in set(arts_)) <= 2 and max(albs.count(a) for a in set(albs)) <= 2 and all(a != b for a, b in zip(arts_, arts_[1:])),
            'at most 2 songs of an artist and 2 of an album, no artist twice in a row')
-    expect(m.fs.get(MIX) == X.dump_mix(day, seed, aseed, 0, want_tones, names, [mdl[i]['path'] for i in picks]), f'the mix file: day {day}, the model\'s seed, art seed, the covers\' tones, the top artists, the 25 paths ({m.fs.get(MIX)[:60]})')
+    expect(m.fs.get(MIX) == X.dump_mix(day, seed, aseed, 0, want_tones, names, [mdl[i]['path'] for i in picks], m.wall), f'the mix file: M1X3, day {day}, the model\'s seed, art seed, the covers\' tones, the top artists, the 25 paths ({m.fs.get(MIX)[:60]})')
     classes = {c[1] for log in m.tick_log for c in log if c[0] == 'loadLocalClassList'}
     expect(classes <= {CLS_LIB, CLS_REC, CLS_OFT, CLS_FAV, CLS_ALB}, f'the job reads the library, Most Played, Recently Played, Favourites and the albums and never the stock playlists ({[hex(c) for c in classes]})')
     wr = written(m, m.tick_log)

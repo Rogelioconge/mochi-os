@@ -6,15 +6,15 @@ library, playlist table and canvas mocked. The checks:
   constants    patch/offsets.inc DP_* against tools/pod_dailymix.py, the measured vertical rhythm, the asset's widgets, the images
   colours      the tint over many palettes: white text, the artist / description grey and the Updated accent at 4.5:1 or more; the tint is a 565 word
   art          the page art in C against the model, pixel for pixel; its last rows are the tint; the cost of making it at open
-  open         the card's tap opens the page (window, widgets, tint on the four widgets, sizes, events, one loader timer), falls back to the stock Songs page
+  open         the card's tap opens the page (window, widgets, tint on the four widgets, sizes, events, the loader and age timers), falls back to the stock Songs page
   paint        the header and the songs at the top and scrolled, in window coordinates, nothing decoded in paint
   loader       one cover a tick, none while the list moves, the ring
   touch        a row plays the mix from that song, Shuffle, Play, drags, aborts, a song missing on the card, the playlist gone or renamed
-  texts        13 languages: every line fits, the description in two lines at most, the Updated line (today, yesterday, a date)
+  texts        13 languages: every line fits, the description in two lines at most, the Updated line (its age, an M1X2 file's day, ageing while open)
   free         destroy frees everything and a second open works
 
 Each section (SECTIONS) is a task of its own and shares nothing with the others: the fixture functions (uniq_songs, page12, opened) build a new machine for every caller."""
-import datetime, os, random, struct
+import datetime, os, random, struct, time
 from unicorn import mips_const
 from unicorn.mips_const import UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3, UC_MIPS_REG_V0, UC_MIPS_REG_PC, UC_MIPS_REG_RA, UC_MIPS_REG_F0
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
@@ -116,15 +116,16 @@ class PG(dm_t.DM):
 
 
     # ---- the world: a library, a playlist of ours with `n` songs, a mix file, favourites
-    def world(self, songs, n=12, fav=(), order=None, tones=None, names=('Radiohead', 'Björk', 'Air'), aseed=0x0badf00d, covers=(), day=None):
-        """The library is `songs`; the mix is n of them (order: their indices, default the first n) and is the mix file's paths."""
+    def world(self, songs, n=12, fav=(), order=None, tones=None, names=('Radiohead', 'Björk', 'Air'), aseed=0x0badf00d, covers=(), day=None, made=-30):
+        """The library is `songs`; the mix is n of them (order: their indices, default the first n) and is the mix file's paths. made: the mix's made time against the
+        clock (an int, seconds; default 30 s ago), or None for an old M1X2 file without one."""
         stock_world(self, songs, {}, (), set(fav))
         order = list(range(n)) if order is None else list(order)
         self.library, self.order = songs, order
         self.songs = [songs[i] for i in order]            # the mix's songs in play order
         self.tones = tones or [(70, 110, 190), (190, 90, 120), (60, 140, 150)]
         self.day = day if day is not None else day_of(self.wall, self.tz)
-        self.mixfile = X.dump_mix(self.day, 0x1234abcd, aseed, 0, self.tones, list(names), [s['path'] for s in self.songs])
+        self.mixfile = X.dump_mix(self.day, 0x1234abcd, aseed, 0, self.tones, list(names), [s['path'] for s in self.songs], None if made is None else self.wall + made)
         self.fs[MIX] = self.mixfile
         self.aseed, self.n = aseed, len(order)
         for i in covers:
@@ -410,7 +411,8 @@ def open_tests(ctx):
     expect(all((m.pwin, e) in evs for e in (EVT_DESTROY, EVT_FG, EVT_BG)), 'the window has its destroy, to-front and to-back handlers')
     payload_fns = set(PSYMS.values())
     timers = [c for c in calls if c[0] == 'timer_add' and c[1] in payload_fns]   # the payload's (the stock list_item's 30 ms press timer, list_item_cast+0x8c, runs in the Home tap too)
-    expect([t[2] for t in timers] == [O['DP_MORE_MS']] and timers[0][1] == PSYMS['dp_on_load'], f'one page timer: the cover loader, {O["DP_MORE_MS"]} ms ({timers})')
+    expect([t[1:] for t in timers] == [(PSYMS['dp_on_load'], O['DP_MORE_MS']), (PSYMS['dp_on_age'], 30500)],
+           f'two page timers: the cover loader, {O["DP_MORE_MS"]} ms, and the Updated line\'s, just past the age\'s next minute (made 30 s ago: 30.5 s) ({timers})')
     expect(m.bound[(m.page['btn_return'], EVT_CLICK)][0] == PSYMS['m1_on_back'], 'the back disc is the stock back handler')
     ld = [c[1] for c in calls if c[0] == 'loadLocalClassList']
     dq = [c for c in calls if c[0] == 'toolsQueryDbTable']
@@ -428,7 +430,7 @@ def paint_tests(ctx):
     blits, texts, styles, fills = m.paint(0)
     art_b = [b for b in blits if b[1][2:] == (D.DP_W, D.DP_ART_H)]
     expect(len(art_b) == 1 and art_b[0][2] == (0, 0, D.DP_W, D.DP_ART_H) and art_b[0][1] == (0, 0, D.DP_W, D.DP_ART_H) and m.oy_after == 30 - 0, 'at the top the art is one blit of the whole bitmap at (0, 0), full width; the canvas origin is put back')
-    want = [('Daily Mix', (16, 193, 288, 24), 'label_dp_title'), ('Made for You', (16, 218, 288, 17), 'label_dp_sub'), ('Updated today', (16, 239, 288, 14), 'label_dp_upd'),
+    want = [('Daily Mix', (16, 193, 288, 24), 'label_dp_title'), ('Made for You', (16, 218, 288, 17), 'label_dp_sub'), ('Updated just now', (16, 239, 288, 14), 'label_dp_upd'),
             ('Play', (156, 265, 36, 40), 'label_dp_play')]
     got = [(t, r, s) for (t, r), s in zip(texts, styles)]
     expect(got[:4] == want, f'the title, "Made for You", the Updated line and the pill\'s text are drawn centred in their boxes, each in its own style ({got[:4]})')
@@ -786,7 +788,7 @@ def text_tests(ctx):
         blits, texts, styles, fills = mt.paint(0)
         tr = lambda k: pod_i18n.TEXT[k][loc]
         got = [(t_, r) for (t_, r), s in zip(texts, styles) if s in ('label_dp_title', 'label_dp_sub', 'label_dp_upd')]
-        want_ = [(D.ellipsize(wf, tr('Daily Mix'), 288), (16, 193, 288, 24)), (D.ellipsize(wf, tr('Made for You'), 288), (16, 218, 288, 17)), (D.ellipsize(wf, tr('Updated today'), 288), (16, 239, 288, 14))]
+        want_ = [(D.ellipsize(wf, tr('Daily Mix'), 288), (16, 193, 288, 24)), (D.ellipsize(wf, tr('Made for You'), 288), (16, 218, 288, 17)), (D.ellipsize(wf, tr('Updated just now'), 288), (16, 239, 288, 14))]
         text_ = tr('Songs you love and some to rediscover, made fresh every day.')
         lines = D.wrap(wf, text_, 288, 16) or [text_]
         if len(lines) > 2: lines = [lines[0], D.ellipsize(wf, text_[len(lines[0]):].lstrip(), 288)]
@@ -802,30 +804,64 @@ def text_tests(ctx):
     over = []
     for loc in D.LOCALES:
         tr = lambda k: pod_i18n.TEXT[k][loc]
-        for key, px, room in (('Daily Mix', 24, 288), ('Made for You', 17, 288), ('Updated today', 14, 288), ('Updated yesterday', 14, 288), ('Updated %s', 14, 288)):
-            w_ = width(tr(key).replace('%s', '2026-10-26'), px)
-            if w_ > room: over.append((loc, key, w_))
+        for key, px, room in (('Daily Mix', 24, 288), ('Made for You', 17, 288), ('Updated today', 14, 288), ('Updated yesterday', 14, 288), ('Updated just now', 14, 288), ('Updated %s', 14, 288)):
+            for fill in (('2026-10-26', tr('%dm ago').replace('%d', '59'), tr('%dh ago').replace('%d', '23'), tr('%dd ago').replace('%d', '6'), tr('Sep %d').replace('%d', '30') + ', 2025') if '%s' in key else ('',)):
+                w_ = width(tr(key).replace('%s', fill), px)
+                if w_ > room: over.append((loc, key, fill, w_))
         if width(tr('Play'), 18) > D.DP_PLAY_W - 2 * (D.DP_PILL_GLYPH + D.DP_PILL_GAP): over.append((loc, 'Play'))
         lines = D.wrap(lambda s: width(s, 15), tr('Songs you love and some to rediscover, made fresh every day.'), 288, 2)
         if lines is None: over.append((loc, 'description', 'more than two lines'))
     expect(not over, f'in the shipped font every line fits its 288 px (the pill\'s text its room), the description takes two lines at most, in all 13 languages ({over})')
-    expect(sorted(pod_i18n.DPAGE_KEYS) == sorted(k for k in pod_i18n.TEXT if k in ('Updated today', 'Updated yesterday', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')) and all(set(pod_i18n.TEXT[k]) == set(D.LOCALES) for k in pod_i18n.DPAGE_KEYS)
-           and all(pod_i18n.TEXT['Updated %s'][l].count('%s') == 1 for l in D.LOCALES), 'five new keys in all 13 languages, the date template with one %s')
-    # the Updated line
+    expect(sorted(pod_i18n.DPAGE_KEYS) == sorted(k for k in pod_i18n.TEXT if k in ('Updated today', 'Updated yesterday', 'Updated just now', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')) and all(set(pod_i18n.TEXT[k]) == set(D.LOCALES) for k in pod_i18n.DPAGE_KEYS)
+           and all(pod_i18n.TEXT['Updated %s'][l].count('%s') == 1 for l in D.LOCALES), 'six keys in all 13 languages, the date template with one %s')
+    # the Updated line: the made time against the clock, as the Podcasts dates say it
+    for ago, want_ in ((0, 'Updated just now'), (59, 'Updated just now'), (60, 'Updated 1m ago'), (3599, 'Updated 59m ago'), (3600, 'Updated 1h ago'), (5 * 3600 + 7, 'Updated 5h ago'),
+                       (86399, 'Updated 23h ago'), (86400, 'Updated 1d ago'), (6 * 86400 + 3600, 'Updated 6d ago'), (-30, 'Updated just now'), (-3600, None)):
+        t = PG(); t.world(uniq, 12, made=-ago); t.boot(); t.bitmap_ok = False; t.card_tap()
+        blits, texts, styles, fills = t.paint(0)
+        got_ = [t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd']
+        if want_ is None:   # an hour ahead of the clock (set back): the made day's date, as Podcasts write it
+            expect(len(got_) == 1 and got_[0].startswith('Updated ') and ' ago' not in got_[0] and got_[0] != 'Updated just now', f'a mix made after the clock reads its date ({got_})')
+        else:
+            expect(got_ == [want_], f'the mix made {ago} s ago reads {want_!r} ({got_})')
+    t = PG(); t.world(uniq, 12, made=-40 * 86400); t.boot(); t.bitmap_ok = False; t.card_tap()
+    blits, texts, styles, fills = t.paint(0)
+    expect([t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd'] == ['Updated ' + time.strftime('%b %-d' + (', %Y' if time.gmtime(t.wall - 40 * 86400 + t.tz).tm_year != time.gmtime(t.wall + t.tz).tm_year else ''), time.gmtime(t.wall - 40 * 86400 + t.tz))],
+           'a week or more: the date (Oct 23; another year: Dec 6, 2026)')
+    t = PG(); t.set_language('zh_CN'); t.world(uniq, 12, made=-3 * 3600); t.boot(); t.bitmap_ok = False; t.card_tap()
+    blits, texts, styles, fills = t.paint(0)
+    expect([t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd'] == ['3小时前更新'], 'in Chinese the age leads: 3小时前更新')
+    # the page left open: the line goes on ageing (the age timer), redrawn only when it reads otherwise; none at the back
+    t = PG(); t.world(uniq, 12, made=-30); t.boot(); t.bitmap_ok = False; t.card_tap(); t.paint(0)
+    upd = lambda: [t_ for (t_, r), s in zip(t.paint(0)[1], t.paint(0)[2]) if s == 'label_dp_upd']
+    age = lambda: (t.calls.clear(), t.call(PSYMS['dp_on_age'], count=40000000), list(t.calls))[2]
+    t.wall += 10; cs = age()
+    expect(not [c for c in cs if c[0] == 'widget_invalidate_force'] and [c[1:] for c in cs if c[0] == 'timer_add'] == [(PSYMS['dp_on_age'], 20500)] and upd() == ['Updated just now'],
+           f'40 s old: no redraw, the timer again for the next minute ({cs})')
+    t.wall += 5 * 60; cs = age()
+    expect([c for c in cs if c[0] == 'widget_invalidate_force'] and [c[1:] for c in cs if c[0] == 'timer_add'] == [(PSYMS['dp_on_age'], 20500)] and upd() == ['Updated 5m ago'],
+           f'five minutes on: the header is redrawn and reads "Updated 5m ago" ({cs})')
+    t.calls.clear(); t.fire_page_window(EVT_BG)
+    expect(('timer_remove', 0x777) in t.calls and 'timer_add' not in [c[0] for c in t.calls], 'at the back the age timer stops')
+    t.calls.clear(); t.fire_page_window(EVT_FG)
+    expect([c[1] for c in t.calls if c[0] == 'timer_add'] == [PSYMS['dp_on_age']], 'in front again it is armed again')
+    t = PG(); t.world(uniq, 12, made=None); t.boot(); t.bitmap_ok = False; t.card_tap()
+    expect([c[1:] for c in t.calls_all if c[0] == 'timer_add' and c[1] == PSYMS['dp_on_age']] == [(PSYMS['dp_on_age'], 60000)], 'an M1X2 file (no made time): once a minute')
+    # an M1X2 file (no made time; read until the next mix replaces it): the day against today
     today = mt.wall // 86400
     iso = lambda d: (datetime.date(1970, 1, 1) + datetime.timedelta(days=d)).isoformat()
     for delta, want_ in ((0, 'Updated today'), (1, 'Updated yesterday'), (2, f'Updated {iso(today - 2)}'), (40, f'Updated {iso(today - 40)}'), (400, f'Updated {iso(today - 400)}'), (-3, 'Updated today')):
-        t = PG(); t.world(uniq, 12, day=today - delta); t.boot(); t.bitmap_ok = False; t.card_tap()
+        t = PG(); t.world(uniq, 12, day=today - delta, made=None); t.boot(); t.bitmap_ok = False; t.card_tap()
         blits, texts, styles, fills = t.paint(0)
         expect([t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd'] == [want_], f'the mix made {delta} days ago reads {want_!r}')
-    t = PG(); t.world(uniq, 12); t.wall = 0; t.boot(); t.bitmap_ok = False; t.card_tap()
+    t = PG(); t.world(uniq, 12, made=None); t.wall = 0; t.boot(); t.bitmap_ok = False; t.card_tap()
     blits, texts, styles, fills = t.paint(0)
     expect(not t.up() or [t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd'] in ([], ['Updated today']), 'a clock that is not set says today (or the card is not shown at all)')
     days = [0, 1, 59, 60, 365, 11016, 11017, 18321, 19000, 20000, 20833, 21000, 25000, 30000, 36524, 47482]
     expect(all(D.civil(d) == (lambda dt: (dt.year, dt.month, dt.day))(datetime.date(1970, 1, 1) + datetime.timedelta(days=d)) for d in range(0, 40000, 7)) and all(D.civil(d)[0] > 0 for d in days),
            'the civil date algorithm of the model equals the calendar')
     for d in (1, 59, 60, 11016, 11017, 19782, 19783, 20000):   # 1970-01-02, 03-01, 03-02, 2000-02-29, 03-01, 2024-02-29, 03-01, 2024-10-04
-        t = PG(); t.world(uniq, 12, day=d); t.boot(); t.bitmap_ok = False; t.card_tap()
+        t = PG(); t.world(uniq, 12, day=d, made=None); t.boot(); t.bitmap_ok = False; t.card_tap()
         blits, texts, styles, fills = t.paint(0)
         expect([t_ for (t_, r), s in zip(texts, styles) if s == 'label_dp_upd'] == [f'Updated {iso(d)}'], f'day {d} is written {iso(d)} by the payload\'s civil date')
 

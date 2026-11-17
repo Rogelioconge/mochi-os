@@ -226,6 +226,7 @@ static struct {
     unsigned t0;
     /* the mix as the file holds it */
     unsigned day, seed, aseed, regen, count;
+    unsigned made; /* when the mix was made (seconds since 1970); 0 for an M1X2 file */
     unsigned tone[4], ntone;
     char name[DM_MAX_NAMES][DM_NAME];
     unsigned nname;
@@ -304,13 +305,14 @@ static int dm_load(void) {
     const char *p = buf, *stop;
     int n = dm_read(MIX_FILE, buf, sizeof buf), k;
     long day, regen, count;
-    unsigned seed, aseed, v, tone[4], nt = 0, nn = 0, i, len;
+    unsigned seed, aseed, made = 0, v, tone[4], nt = 0, nn = 0, i, len;
     char name[DM_MAX_NAMES][DM_NAME], *paths;
     const char *ps;
     if (n < 6 || n > DM_FILE_MAX) return 0;
     stop = buf + n;
+    /* M1X3; M1X2 (no made time) is still read until the next mix replaces it; that read can go later */
     for (k = 0; k < 5; ++k)
-        if (buf[k] != "M1X2\n"[k]) return 0;
+        if (buf[k] != "M1X3\n"[k] && (k != 3 || buf[k] != '2')) return 0;
     if (stop[-1] != '\n') return 0;
     p += 5;
     day = dm_dec(&p, stop, '\t');
@@ -319,7 +321,11 @@ static int dm_load(void) {
     if (!dm_hex(p, 8, &aseed) || p[8] != '\t') return 0;
     p += 9;
     regen = dm_dec(&p, stop, '\t');
-    count = dm_dec(&p, stop, '\n');
+    count = dm_dec(&p, stop, buf[3] == '3' ? '\t' : '\n');
+    if (buf[3] == '3') { /* the made time: eight hex digits, a newline after */
+        if (stop - p < 9 || !dm_hex(p, 8, &made) || p[8] != '\n') return 0;
+        p += 9;
+    }
     if (regen < 0 || regen > 255 || count < MIX_MIN_SONGS || count > MIX_SONGS) return 0;
     for (;;) { /* 2..4 tones of six hex digits, a space between, a newline after */
         if (nt == 4 || stop - p < 7 || !dm_hex(p, 6, &v)) return 0;
@@ -359,7 +365,8 @@ static int dm_load(void) {
     for (len = 0; ps + len < stop; ++len) paths[len] = ps[len] == '\n' ? 0 : ps[len];
     free(dm.paths);
     dm.paths = paths;
-    dm.day = (unsigned)day, dm.seed = seed, dm.aseed = aseed, dm.regen = (unsigned)regen, dm.count = (unsigned)count;
+    dm.day = (unsigned)day, dm.made = made, dm.seed = seed, dm.aseed = aseed, dm.regen = (unsigned)regen,
+    dm.count = (unsigned)count;
     for (k = 0; k < 4; ++k) dm.tone[k] = (unsigned)k < nt ? tone[k] : 0;
     dm.ntone = nt;
     memcpy(dm.name, name, sizeof name);
@@ -1143,12 +1150,13 @@ static int dm_ph_commit(job_t *j) {
     char buf[DM_FILE_MAX + 1], *o = buf;
     const char *end = buf + DM_FILE_MAX;
     unsigned i;
-    dm_put(&o, end, "M1X2\n");
+    dm_put(&o, end, "M1X3\n");
     dm_putdec(&o, end, j->day), dm_put(&o, end, "\t");
     dm_puthex(&o, end, j->seed, 8), dm_put(&o, end, "\t");
     dm_puthex(&o, end, j->aseed, 8), dm_put(&o, end, "\t");
     dm_putdec(&o, end, j->regen), dm_put(&o, end, "\t");
-    dm_putdec(&o, end, j->npick), dm_put(&o, end, "\n");
+    dm_putdec(&o, end, j->npick), dm_put(&o, end, "\t");
+    dm_puthex(&o, end, (unsigned)time((long *)0), 8), dm_put(&o, end, "\n");
     for (i = 0; i < j->ntone; ++i) {
         if (i) dm_put(&o, end, " ");
         dm_puthex(&o, end, j->tone[i] & 255, 2), dm_puthex(&o, end, j->tone[i] >> 8 & 255, 2),
@@ -1798,7 +1806,7 @@ void dailymix_start(void *win) {
  * scroll_view over the whole 450 px window, one content view, a floating glass back disc); everything else is painted by the content view's own EVT_AFTER_PAINT as the
  * Albums page paints its list (patch/albums.c): the art (320 x DP_ART_H, made here at open from the mix file's tones and seed: the card's blob field, no scrim, the foot
  * fading into the page's solid tint), the centred lines, the description and the songs (the grid's 52 px covers, a star for favourites). The Shuffle disc, the white Play pill
- * and its glyph are widgets of the content view (their images are the style's); their text is painted. Page-scoped: its widgets, their events, one loader timer.
+ * and its glyph are widgets of the content view (their images are the style's); their text is painted. Page-scoped: its widgets, their events, the loader and age timers.
  * No stock hook. Everything is freed with the window. The songs are the mix file's paths found in the library (copied: the stock list is replaced by every other query).
  */
 #define DP_AHEAD 2 /* rows loaded beyond the view in the scroll direction */
@@ -1810,13 +1818,14 @@ static struct {
     pick_t *
         rows; /* the mix's songs that are in the library and on the card, copied (strings strdup'ed), in the mix's order */
     unsigned n;
-    unsigned day; /* the mix's day (the Updated line) */
+    unsigned day, made; /* the mix's day and made time (the Updated line) */
     void *art; /* the art (RGBA, DP_W x DP_ART_H) */
     unsigned tint, grey, accent; /* 0x00BBGGRR */
     unsigned barc; /* the art's top row (0x00BBGGRR): the status bar's colour, darkened by m1_bar_color */
     int barok, bar; /* the window's foreground and background events are registered; the bar's colour is ours */
     int laid, glyph_x, text_x, text_w;
     unsigned tl[DM_TEXT], sl[DM_TEXT], ul[DM_TEXT], pl[DM_TEXT];
+    char upd[96]; /* the Updated line as last laid out (the age timer redraws once it would read otherwise) */
     int tlen, slen, ulen, plen;
     unsigned dl[DP_DESC_LINES][DP_DESC_WIDE];
     int dlen[DP_DESC_LINES], dn;
@@ -1826,7 +1835,7 @@ static struct {
     int seen, dir, noscroll;
     int saved,
         away; /* the mix's playlist exists (the Add disc shows a check); the window went to the back since it was looked up */
-    unsigned more_timer;
+    unsigned more_timer, age_timer; /* the cover loader; the Updated line's next minute */
     grid_t g; /* the 52 px cover ring (patch/grid.c), the placeholder */
 } dp __attribute__((section(".scratch")));
 
@@ -1945,11 +1954,22 @@ static void dp_civil(unsigned days, int *y, int *m, int *d) {
     *y = yoe + era * 400 + (*m <= 2);
 }
 
-/* "Updated today" / "Updated yesterday" / "Updated 2026-10-26": the mix's day against the local day now (a clock that is not set, or went back, says today). */
+/* "Updated just now" / "Updated 5m ago" / "Updated 3h ago" / "Updated 2d ago" / "Updated Oct 23": the made time against now, as the Podcasts dates say it (pc_when).
+ * An M1X2 file has no made time: "Updated today" / "Updated yesterday" / "Updated 2026-10-26", its day against the local day (a clock that is not set, or went back, says today);
+ * that branch goes with the M1X2 read in dm_load. */
 static unsigned dp_updated(char *out, unsigned size) {
-    unsigned today = dm_today(), gone = today > dp.day ? today - dp.day : 0;
-    char date[16];
+    unsigned today = dm_today(), gone = today > dp.day ? today - dp.day : 0, now = (unsigned)time((long *)0);
+    char date[48];
     int y, m, d;
+    if (dp.made) {
+        date[0] = 0;
+        if (now >= dp.made + 60 || dp.made >= now + 60) pc_when(dp.made, now, date, sizeof date);
+        if (!date[0]) { /* under a minute either way (a made time later than the clock, by more: its date) */
+            dm_copy(out, size, TR("Updated just now"));
+            return strlen(out);
+        }
+        return dm_subst(out, size, TR("Updated %s"), date, "");
+    }
     if (!today || !gone || gone == 1) {
         dm_copy(out, size, TR(gone == 1 ? "Updated yesterday" : "Updated today"));
         return strlen(out);
@@ -1985,15 +2005,14 @@ static void dp_desc(void *canvas) {
 }
 
 static void dp_layout(void *canvas) {
-    char line[96];
     dp_wide(dp.tl, DM_TEXT, TR("Daily Mix"));
     widget_prepare_text_style(dp.st_title, canvas);
     dp.tlen = dm_fit(canvas, dp.tl, DP_TEXT_W);
     dp_wide(dp.sl, DM_TEXT, TR("Made for You"));
     widget_prepare_text_style(dp.st_sub, canvas);
     dp.slen = dm_fit(canvas, dp.sl, DP_TEXT_W);
-    dp_updated(line, sizeof line);
-    dp_wide(dp.ul, DM_TEXT, line);
+    dp_updated(dp.upd, sizeof dp.upd);
+    dp_wide(dp.ul, DM_TEXT, dp.upd);
     widget_prepare_text_style(dp.st_upd, canvas);
     dp.ulen = dm_fit(canvas, dp.ul, DP_TEXT_W);
     dp_wide(dp.pl, DM_TEXT, TR("Play"));
@@ -2002,6 +2021,31 @@ static void dp_layout(void *canvas) {
     widget_prepare_text_style(dp.st_desc, canvas);
     dp_desc(canvas);
     dp.laid = 1;
+}
+
+/* The Updated line goes on ageing while the page is in front: the timer fires just past the age's next whole minute (once a minute for an M1X2 file or a made
+ * time ahead of the clock) and the header is laid out and redrawn only when the line would read otherwise. Stopped while the window is at the back. */
+static int dp_on_age(const void *unused);
+
+static void dp_age_arm(void) {
+    unsigned now = (unsigned)time((long *)0), ms = 60000;
+    if (dp.age_timer || !dp.view) return;
+    if (dp.made && now >= dp.made) ms = (60 - (now - dp.made) % 60) * 1000 + 500;
+    dp.age_timer = timer_add(dp_on_age, (void *)0, ms);
+}
+
+static int dp_on_age(const void *unused) {
+    char line[sizeof dp.upd];
+    (void)unused;
+    dp.age_timer = 0; /* this one ends with the return */
+    if (!dp.view) return RET_OK;
+    dp_updated(line, sizeof line);
+    if (dp.laid && strcmp(line, dp.upd)) {
+        dp.laid = 0;
+        grid_sv_redraw(dp.sv);
+    }
+    dp_age_arm();
+    return RET_OK;
 }
 
 /* The pill's glyph, the gap and the text centred as a pair for the language (the album page's centring, patch/albumpage.c). The text is measured with the
@@ -2302,11 +2346,13 @@ static int dp_on_foreground(void *ctx, void *e) {
     }
     grid_sv_redraw(dp.sv);
     dp_bar_apply();
+    dp_age_arm();
     return RET_OK;
 }
 
 static int dp_on_background(void *ctx, void *e) {
     dp.away = 1;
+    m1_timer_stop(&dp.age_timer);
     dp_bar_black();
     return dp_on_abort(ctx, e); /* and a press in progress ends */
 }
@@ -2391,6 +2437,7 @@ static int dp_on_shuffle(void *ctx, void *e) {
 static void dp_release(void) {
     unsigned i;
     m1_timer_stop(&dp.more_timer);
+    m1_timer_stop(&dp.age_timer);
     grid_free(&dp.g);
     if (dp.art) bitmap_destroy(dp.art);
     for (i = 0; i < dp.n; ++i) dm_rec_free(&dp.rows[i]);
@@ -2440,7 +2487,7 @@ static int dp_open(void) {
     if (dp.win) return 0;
     if (!dm.have) return -1;
     memset(&dp, 0, sizeof dp);
-    dp.day = dm.day;
+    dp.day = dm.day, dp.made = dm.made;
     dp_songs();
     if (!dp.n) {
         if (dp.rows) pod_toast(TR("Storage unavailable")); /* (no memory for the rows: nothing, no message) */
@@ -2507,5 +2554,6 @@ static int dp_open(void) {
     widget_on(dp.view, EVT_AFTER_PAINT, dp_on_paint, (void *)0);
     dp_bar_apply(); /* the page is in front */
     dp_kick();
+    dp_age_arm();
     return 0;
 }

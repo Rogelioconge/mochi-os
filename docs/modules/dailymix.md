@@ -54,8 +54,8 @@ Everything lives on the card, so a mix follows its card:
 strict reader):
 
 ```
-M1X2\n
-<day dec>\t<seed hex8>\t<art seed hex8>\t<regen dec>\t<songs dec>\n
+M1X3\n
+<day dec>\t<seed hex8>\t<art seed hex8>\t<regen dec>\t<songs dec>\t<made hex8>\n
 rrggbb rrggbb [rrggbb [rrggbb]]\n                 (2..4 tones)
 <artist>[\t<artist>[\t<artist>]]\n                 (1..3 names, UTF-8, < 96 bytes, no control byte)
 <path>\n                                          (<songs> lines, 1..255 bytes each, no control byte, in play order)
@@ -63,6 +63,10 @@ rrggbb rrggbb [rrggbb [rrggbb]]\n                 (2..4 tones)
 
 - Day is days since 1970-01-01 of the local calendar day. Seed is `day * 2654435761 ^ regen *
   0x85EBCA6B` (never 0). `regen` counts how often today's mix was made again. Songs are 10..25.
+  Made is the commit time, seconds since 1970 (the Updated line).
+- **Old `M1X2` files** (no made time, the header ends after `<songs>`) are still read, with made 0.
+  The next mix replaces the file, so the M1X2 read in `dm_load` and the day branch of `dp_updated`
+  can be removed later.
 - At most `DM_FILE_MAX` 8192 bytes. Any deviation is "no mix": the section stays hidden.
 
 **`art`** (`MIX_ART_FILE`): `M1XA`, width, height (u16), art seed (u32), FNV-1a of the pixels
@@ -267,10 +271,15 @@ description's capitals 16.
   keeps the mode). **Shuffle** is the stock Shuffle mode (`pod_set_mode`, see [shuffle](shuffle.md))
   and a random start; the queue is the whole mix.
 - **No Regenerate disc:** the job runs on the Home page's timer and needs Home in front.
-- **Updated line:** the mix file's local day against today (`dm_today`): `Updated today`,
-  `Updated yesterday`, else `Updated 2026-10-26` (ISO date, nothing to translate). A clock that is
-  not set or went back says today. New keys: `Updated today`, `Updated yesterday`, `Updated %s`,
-  `Play`, and the description line.
+- **Updated line:** the made time against the clock, worded like the Podcasts dates (`pc_when`):
+  `Updated just now` within a minute either way, `Updated 5m ago` / `3h ago` / `2d ago` under a
+  week, else `Updated Oct 23` (`Oct 23, 2025` in another year; also for a made time over a minute
+  ahead of the clock). An M1X2 file falls back to its day against today (`dm_today`): `Updated
+  today`, `Updated yesterday`, else `Updated 2026-10-26`. Keys: `Updated today`, `Updated
+  yesterday`, `Updated just now`, `Updated %s` (shared with the Podcasts captions), `Play`, and
+  the description line. While the page is in front a timer (`dp_on_age`) fires just past the
+  age's next whole minute and redraws the header only when the line reads differently; it stops at
+  the back and is armed again in front.
 - A page that cannot open does nothing: no song left shows "Storage unavailable", a missing
   widget goes back, no memory for bitmaps opens the page on its tint without art or covers.
 

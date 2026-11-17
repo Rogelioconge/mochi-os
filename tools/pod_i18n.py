@@ -1526,15 +1526,17 @@ TEXT = dict([
     _t('%s and more', '%s等', '%s等', '%s など', '%s 등', '%s et plus', '%s und mehr',
        '%s y más', '%s e altri', '%s และอื่นๆ', '%s i inni', '%s и другие', '%s та інші'),
     _t('%s, %s', *('%s、%s', '%s、%s', '%s、%s') + ('%s, %s',) * 9),
-    # The Daily Mix page (patch/dailymix.c dp_*, docs/modules/dailymix.md "The page"): the Updated line under the subtitle (today, yesterday, else "Updated <ISO date>": the date is
-    # YYYY-MM-DD in every language, so no month names), the white pill's text, and the description under the buttons (two lines of 288 px at 15 px in every language).
+    # The Daily Mix page (patch/dailymix.c dp_*, docs/modules/dailymix.md "The page"): the Updated line under the subtitle ("Updated just now", else "Updated <age or date>" with
+    # the Podcasts dates, pc_when; an old M1X2 mix file: today, yesterday, else the ISO date), the white pill's text, and the description under the buttons (two lines of 288 px at 15 px in every language).
     # A native-speaker pass is wanted.
     _t('Updated today', '今天更新', '今天更新', '今日更新', '오늘 업데이트됨', 'Mis à jour aujourd\'hui', 'Heute aktualisiert',
        'Actualizado hoy', 'Aggiornato oggi', 'อัปเดตวันนี้', 'Zaktualizowano dzisiaj', 'Обновлено сегодня', 'Оновлено сьогодні'),
     _t('Updated yesterday', '昨天更新', '昨天更新', '昨日更新', '어제 업데이트됨', 'Mis à jour hier', 'Gestern aktualisiert',
        'Actualizado ayer', 'Aggiornato ieri', 'อัปเดตเมื่อวาน', 'Zaktualizowano wczoraj', 'Обновлено вчера', 'Оновлено вчора'),
-    _t('Updated %s', '%s 更新', '%s 更新', '%s に更新', '%s 업데이트됨', 'Mis à jour le %s', 'Aktualisiert am %s',
-       'Actualizado el %s', 'Aggiornato il %s', 'อัปเดต %s', 'Zaktualizowano %s', 'Обновлено %s', 'Оновлено %s'),
+    _t('Updated just now', '刚刚更新', '剛剛更新', 'たった今更新', '방금 업데이트됨', 'Mis à jour à l’instant', 'Gerade aktualisiert',
+       'Actualizado ahora mismo', 'Aggiornato adesso', 'เพิ่งอัปเดต', 'Zaktualizowano przed chwilą', 'Только что обновлено', 'Щойно оновлено'),
+    _t('Updated %s', '%s更新', '%s更新', '%sに更新', '%s 업데이트됨', 'Mis à jour : %s', 'Aktualisiert: %s',
+       'Actualizado: %s', 'Aggiornato: %s', 'อัปเดต %s', 'Zaktualizowano %s', 'Обновлено %s', 'Оновлено %s'),
     _t('Play', '播放', '播放', '再生', '재생', 'Lecture', 'Wiedergabe',
        'Reproducir', 'Riproduci', 'เล่น', 'Odtwórz', 'Играть', 'Грати'),
     _t('Songs you love and some to rediscover, made fresh every day.', '你喜爱的歌曲，加上一些值得重新发现的好歌，每天为你更新。',
@@ -2060,7 +2062,7 @@ TEXT.update([
        'การเล่นจะหยุดชั่วคราวขณะเปิดหน้านี้ ออกจากหน้านี้เพื่อปิด', 'Odtwarzanie jest wstrzymane, gdy ta strona jest otwarta. Wyjdź ze strony, aby wyłączyć.',
        'Пока эта страница открыта, воспроизведение приостановлено. Покиньте страницу, чтобы выключить.', 'Поки ця сторінка відкрита, відтворення призупинено. Залиште сторінку, щоб вимкнути.'),
 ])
-DPAGE_KEYS = ('Updated today', 'Updated yesterday', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')   # the Daily Mix page's keys
+DPAGE_KEYS = ('Updated today', 'Updated yesterday', 'Updated just now', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')   # the Daily Mix page's keys
 DAILY_KEYS =('Made for You', 'Daily Mix', 'Regenerate Daily Mix', '%s and more', '%s, %s')     # the card's keys (tools/pod_dailymix.py TEXT)
 
 # Keys a built asset or payload text does not use yet (test/pod/i18n.py exempts them from the orphan check). None: the 10-Band editor's strings are all used (phase 2).
