@@ -91,7 +91,7 @@ tokens, which are not portable to other AWTK builds (`HH:TT` renders `05:PM` on 
 | token | output | token | output |
 |---|---|---|---|
 | `Y` / `YY` | 2026 / 26 | `h` / `hh` | hour 0-23 / 00-23 |
-| `M` / `MM` / `MMM` | 1-12 / 01-12 / month name | `H` / `HH` | hour unpadded / 01-12 |
+| `M` / `MM` / `MMM` | 1-12 / 01-12 / month name | `H` / `HH` | hour unpadded / 01-12 (1-12 in the build) |
 | `D` / `DD` | 1-31 / 01-31 | `m` / `mm`, `s` / `ss` | minute, second |
 | `w` / `W` | weekday 0-6 / name | `T` / `TT` | minute / minute + ` AM` or ` PM` |
 

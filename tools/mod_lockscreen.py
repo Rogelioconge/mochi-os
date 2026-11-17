@@ -23,8 +23,8 @@ Names are kept, app-driven widgets are only moved/restyled.
 Digit_clock format tokens in this AWTK build (wstr_format_date_time in demo, Shanling-modified):
   Y 2026   YY 26   M 1..12  MM 01..12  MMM month name   D / DD day   w weekday 0..6   W weekday name
   (MMM and W: short and in the UI language in the build, see patch_date_names)
-  h / hh hour 0..23 (00..23)   H hour 0..23 unpadded   HH hour 01..12
-  m / mm minute   s / ss second   T minute   TT minute + " AM"/" PM" (so "HH:TT" shows "05:30 PM")
+  h / hh hour 0..23 (00..23)   H hour 0..23 unpadded   HH hour 01..12 (1..12 in the build, see HOUR12_VA)
+  m / mm minute   s / ss second   T minute   TT minute + " AM"/" PM" (so "HH:TT" shows "5:30 PM" in the build)
   anything else is copied literally.
 
 Fonts: the clock / date sizing reads fonts/default.ttf from OUT_WORKDIR, i.e. whatever font the tree
@@ -168,6 +168,12 @@ DATE_NAMES = (   # table, its strings' addresses, stock's strings, ours
     (WEEKDAY_TABLE, (0x75d0b8, 0x75d0c0, 0x75d0c8, 0x75d0d0, 0x75d0dc, 0x75d0e8, 0x75d0f0), STOCK_WEEKDAYS, WEEKDAYS),
     (MONTH_TABLE, (*range(0x75d150, 0x75d174, 4), 0x75d178, 0x75d17c, 0x75d180), STOCK_MONTHS, MONTHS),
 )
+# The 12-hour clock without a leading zero ("9:41", as on an iPhone): HH formats hour % 12 (0 shown as 12) with "%02d". Every hour but 12 and 0 reaches the "%02d"
+# append through `b 0x64eb0c` at 0x64ea60 (after the div it shares with YY, year % 100); that word becomes `b 0x64eba8`, the "%d" append (the delay slot mfhi a2 stays).
+# So HH and YY are unpadded: the status bar's "HH:TT" reads "9:41 AM", the lock clock's "HH:mm" (patch/lockscreen.c lk_clock) "9:41"; YY is only the unused file
+# browser's and the clock stays within 2022..2050.
+HOUR12_VA, HOUR12_STOCK, HOUR12_NEW = 0x64ea60, 0x1000002a, 0x10000051
+assert HOUR12_STOCK == 0x10000000 | (0x64eb0c - HOUR12_VA - 4) >> 2 and HOUR12_NEW == 0x10000000 | (0x64eba8 - HOUR12_VA - 4) >> 2
 assert tuple(WEEKDAYS) == pod_i18n.WEEKDAY_KEYS and tuple(MONTHS) == pod_i18n.MONTH_NAME_KEYS and DATE_FORMAT == pod_i18n.LOCK_DATE_KEY
 
 def date_samples(ttf):
@@ -197,6 +203,9 @@ def patch_date_names(out):
     assert m[0] == struct.unpack_from('<I', DATE_W_CODE, 12)[0] and m[1] == 0x04110000 | ((LOCALE_INFO_VA - DATE_M_VA - 8) >> 2) and m[3] == 0x001e3080 \
         and m[4] == 0x26fe0000 | MONTH_TABLE & 0xffff and MONTH_TABLE >> 16 == WEEKDAY_TABLE >> 16, 'the month path is what the weekday copies'
     struct.pack_into('<6I', b, va_to_off(b, DATE_W_VA + 16), *date_w_words())
+    o = va_to_off(b, HOUR12_VA)
+    if struct.unpack_from('<I', b, o)[0] != HOUR12_STOCK: raise SystemExit(f'{DEMO}: {HOUR12_VA:#x} is not stock\'s `b 0x64eb0c`')
+    struct.pack_into('<I', b, o, HOUR12_NEW)
     for table, addrs, olds, news in DATE_NAMES:
         assert len(addrs) == len(olds) == len(news), hex(table)
         got = struct.unpack_from(f'<{len(addrs)}I', b, va_to_off(b, table))

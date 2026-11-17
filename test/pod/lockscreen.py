@@ -936,6 +936,18 @@ def date_tests(ctx):
         expect(len(sets) == 1 and sets[0][1] == m.w[ML.DATE_WIDGET] and sets[0][2] == want and m.calls.index(sets[0]) > 0, f'{loc}: after stock\'s init the date\'s format is set to {pod_i18n.TEXT[KEY][loc]!r}, once')
     expect(not opened('zh_CN', kill=True)[1] and not opened('zh_CN', widget=False)[1] and not opened('zh_CN', ret=0x10)[1], 'the kill switch, a missing widget, a failed stock init: no format is set (the asset\'s stays)')
 
+    # -- 2b. the clock follows 24-Hour Time (patch/lockscreen.c lk_clock): "HH:mm" with the switch off, the asset's "hh:mm" left alone with it on
+    CLOCK, H24 = ML._C['LK_CLOCK_NAME'], pod.DATA['TIME_24H'][0]
+    def clocked(byte, kill=False, widget=True):
+        m = LK(setting=None, names=NAMES + ((CLOCK,) if widget else ())); m.u.mem_write(H24, bytes([byte]))
+        if kill: m.present.add(KILL)
+        m.open()
+        return m, [c for c in m.calls if c[0] == 'digit_clock_set_format' and c[1] == m.w.get(CLOCK)]
+    m, sets = clocked(0)
+    expect(pod.DATA['TIME_24H'] == (0xa05ab0, 'time24hflag') and CLOCK == 'dclock_time' and awtk_ui.parse(open(UI, 'rb').read()).find(CLOCK).get('format') == 'hh:mm'
+           and len(sets) == 1 and sets[0][2] == ML._C['LK_CLOCK_12H'] == 'HH:mm','24-Hour Time off: the lock clock\'s format becomes "HH:mm", once')
+    expect(not clocked(1)[1] and not clocked(0, kill=True)[1] and not clocked(0, widget=False)[1], '24-Hour Time on, the kill switch, or no clock widget: the asset\'s "hh:mm" stays')
+
     # -- 3. demo's formatter, run for real on the built demo: every weekday and month in every language is the model's text
     WS = {0x71324c: 'wstr_init', 0x713490: 'wstr_set_utf8', 0x7141b0: 'wstr_reset', 0x713770: 'wstr_append_with_len', 0x713940: 'wstr_push_int', 0x70ec88: 'tk_utf8_to_utf16', 0x713834: 'wstr_append'}
 
@@ -996,6 +1008,14 @@ def date_tests(ctx):
     m = FM(); m.set_language('zh_CN')
     expect(m.fmt(KEY, days[3]) == (0, '周三, 11月 11') and m.fmt('hh:mm', days[3]) == (0, '09:41') and m.fmt('Y-MM-DD w', days[3]) == (0, '2026-11-11 3'),
            'the asset\'s format in Chinese (the kill switch) has the language\'s names; the clock and the numeric tokens are as before')
+    expect(struct.unpack('<I', at(stock, ML.HOUR12_VA, 4))[0] == ML.HOUR12_STOCK and struct.unpack('<I', at(built, ML.HOUR12_VA, 4))[0] == ML.HOUR12_NEW
+           and struct.unpack('<2I', at(stock, 0x64eba8, 8)) == (0x1000ffd9, 0x02402825), 'the 12-hour hour: stock\'s `b 0x64eb0c` ("%02d") becomes `b 0x64eba8` (b 0x64eb10; move a1, s2 = "%d")')
+    hours = [datetime.datetime(2026, 11, 11, h, 5) for h in range(24)]
+    want12 = [f'{h % 12 or 12}:05' for h in range(24)]
+    expect([m.fmt('HH:mm', t)[1] for t in hours] == want12 and [m.fmt('hh:mm', t)[1] for t in hours] == [f'{h:02d}:05' for h in range(24)],
+           f'HH is the 12-hour hour without a leading zero ({want12[0]}, {want12[9]}, {want12[12]}, {want12[23]}), hh still 00..23')
+    expect(m.fmt('HH:TT', hours[9]) == (0, '9:05 AM') and m.fmt('HH:TT', hours[0]) == (0, '12:05 AM') and m.fmt('HH:TT', hours[23]) == (0, '11:05 PM') and m.fmt('YY', days[3]) == (0, '26'),
+           'the status bar\'s "HH:TT" reads 9:05 AM / 12:05 AM / 11:05 PM; YY (which shares the edited branch) is still the year\'s two digits')
     m = FM(); ws, dt = m.alloc(16), m.alloc(64); m.u.mem_write(ws, bytes(16)); m.u.mem_write(dt, struct.pack('<7i', 0, 41, 9, 11, 7, 11, 2026))
     expect(m.call(0x64e7b0, a0=ws, a1=m.cstr('W'), a2=dt, count=400000) == 0 and not [c for c in m.calls if c[0] == 'locale_info_tr'], 'a weekday out of range is not looked up (stock\'s bound, kept)')
 

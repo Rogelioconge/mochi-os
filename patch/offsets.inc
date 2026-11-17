@@ -671,6 +671,8 @@
 #define LK_ARTIST_PX 16
 #define LK_ARTIST_RGB "#D0D0D0"
 #define LK_DATE_NAME "dclock_date" /* the lock screen's date (a digit_clock; patch/lockscreen.c lk_date) */
+#define LK_CLOCK_NAME "dclock_time" /* the lock screen's clock (a digit_clock, asset format "hh:mm"; patch/lockscreen.c lk_clock) */
+#define LK_CLOCK_12H "HH:mm" /* its format with 24-Hour Time off: "9:41" (tools/mod_lockscreen.py HOUR12_VA) */
 #define MB_FIRST_MS 120
 #define MB_TICK_MS 500
 #define MB_SETTLE 3

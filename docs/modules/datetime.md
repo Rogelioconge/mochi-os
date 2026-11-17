@@ -40,7 +40,9 @@ day past the month's end moves the day to the month's last. A clock outside 2022
 - Set Date keeps the clock's time of day and Set Time its date. Both call stock's `set_systime`
   with the same five numbers as stock's confirm handler (checked under the emulator).
 - 24-Hour Time stores the byte, calls stock's `change_time24h_12h` (the status bar clock format)
-  and saves `TIME24H`. `config_init` keeps 0 and 1; anything else is 1 (default).
+  and saves `TIME24H`. `config_init` keeps 0 and 1; anything else is 1 (default). The lock screen
+  clock reads the byte when it opens ([lockscreen](lockscreen.md#the-clock)); 12-hour times show
+  no leading zero (`9:41 AM`).
 - **UI thread:** `set_systime` runs `system()` twice (`date`, `hwclock`), so the page freezes for
   that moment, as under stock.
 

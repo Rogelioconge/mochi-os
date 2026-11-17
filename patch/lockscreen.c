@@ -288,12 +288,21 @@ static void lk_date(void *win) {
     if (w) digit_clock_set_format(w, TR("W, MMM D"));
 }
 
+/* The clock follows 24-Hour Time (stock's byte time24hflag, [SYSSET] TIME24H): the asset's "hh:mm" is 24 h, and stock's switch only re-formats the status bar clock
+ * (change_time24h_12h). With the switch off it becomes "HH:mm", the 12-hour hour without a leading zero (tools/mod_lockscreen.py HOUR12_VA) and no AM/PM, as on an iPhone.
+ * The page is built each time the lock screen opens, so a change shows the next time. */
+static void lk_clock(void *win) {
+    void *w = *(volatile unsigned char *)TIME_24H ? 0 : widget_lookup(win, LK_CLOCK_NAME, 1);
+    if (w) digit_clock_set_format(w, LK_CLOCK_12H);
+}
+
 /* The hook (tools/pod.py LOCKSCREEN_INIT): stock first, then ours. */
 int m1plus_lockscreen_init(void *win, void *ctx) {
     int ret = stock_lockscreen_init_trampoline(win, ctx);
     void *w[LK_N];
     if (ret == RET_OK && win && access(KILL_SD, F_OK) != 0) {
         lk_date(win);
+        lk_clock(win);
         bp_lock(win); /* the Battery Percentage beside the page's gauge (patch/battery.c) */
         if (lk_layout() == 1 && lk_mini(win, w)) lk_start(win, w);
     }

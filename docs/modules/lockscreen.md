@@ -22,13 +22,13 @@ applying it twice is refused.
 What the app looks up by name: `img_screensaver` (wallpaper), `view_timeinfo` (shown by the Show Time
 setting), `app_gesture` (swipe), `btn_play`, `btn_next`, `img_battery`, `pgbar_battery`,
 `view_bottomview` (hidden and disabled when nothing is queued), `view_scrlabel_title/artist`,
-`view_img_icon`. Nothing looks up `dclock_time` / `dclock_date`. The lock clock is always `hh:mm`
-24 h whatever the setting (that only reformats the status bar clock).
+`view_img_icon`. Nothing in stock looks up `dclock_time` / `dclock_date`; the payload sets both formats
+([The date](#the-date), [The clock](#the-clock)).
 
 Layout, top to bottom (window y):
 
 - Date, 20 px, ink top 12 ([The date](#the-date)).
-- The 68 px `hh:mm` clock, centred.
+- The 68 px clock, centred ([The clock](#the-clock)).
 - A **glass card** at 16,108, 288x334, holding the **square 264x264 cover** at 12,12, title (20 px
   white) and artist (16 px `#DDDDDD`) at 12,282 / 12,306, and play and next at 180,278 / 228,278
   (48x56, off-white `np_*` glyphs via the page theme's `btn_imgplay1/pause1_style`).
@@ -144,6 +144,20 @@ format that uses either. Three parts (`patch_date_names`, "The lock screen's dat
 
 With the kill switch, or without the widget, the asset's format shows with the language's names. The
 widest date at 20 px is 120 px (zh). Preview panels with `,lang=zh_CN`.
+
+## The clock
+
+The asset's clock format is `hh:mm` (24 h), and stock's 24-Hour Time switch only reformats the status
+bar clock (`change_time24h_12h`), so on stock the lock clock is 24 h whatever the setting. With
+24-Hour Time off (stock's byte `time24hflag`), `lk_clock` sets `HH:mm` at the page's init, after
+stock's init and not with the kill switch: `9:41`, no AM/PM, as on an iPhone. The page is rebuilt each
+time the lock screen opens, so a change shows the next time.
+
+`HH` is stock's 12-hour hour padded with `%02d`. One word in `wstr_format_date_time`
+(`HOUR12_VA` 0x64ea60 in `tools/mod_lockscreen.py`, `b 0x64eb0c` to `b 0x64eba8`) sends it to
+the `%d` append instead, so `HH` is unpadded everywhere: the status bar shows `9:41 AM` (stock
+`09:41 AM`), as our own pages already do. The edited branch is shared with `YY` (year % 100), whose
+only user is the unused file browser; years 2022..2050 keep two digits.
 
 ## Settings
 

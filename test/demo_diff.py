@@ -136,6 +136,7 @@ def main():
     for va in rows: allow(va_to_off(s, va), 4, 'rows')
     for va in COVER_IMM: allow(va_to_off(s, va), 4, 'cover')
     allow(va_to_off(s, ml.DATE_W_VA + 16), 24, 'lock date: the weekday takes the month\'s path')
+    allow(va_to_off(s, ml.HOUR12_VA), 4, '12-hour clock: HH without a leading zero')
     for _, addrs, olds, _ in ml.DATE_NAMES:
         for va, old in zip(addrs, olds): allow(va_to_off(s, va), len(old), 'lock date names')
     diff = [k for k in range(len(s)) if s[k] != m[k]]
@@ -295,6 +296,9 @@ def main():
         ok = ok and good
     o = va_to_off(s, ml.DATE_W_VA + 16); good = m[o:o + 24] == struct.pack('<6I', *ml.date_w_words())      # docs/modules/lockscreen.md "The date"
     print(f'lock date weekday path {ml.DATE_W_VA + 16:#x}: {s[o:o + 24].hex()} -> {m[o:o + 24].hex()}', 'ok' if good else 'WRONG')
+    ok = ok and good
+    o = va_to_off(s, ml.HOUR12_VA); good = struct.unpack_from('<I', s, o)[0] == ml.HOUR12_STOCK and struct.unpack_from('<I', m, o)[0] == ml.HOUR12_NEW   # docs/modules/lockscreen.md "The clock"
+    print(f'12-hour clock branch {ml.HOUR12_VA:#x}: {s[o:o + 4].hex()} -> {m[o:o + 4].hex()}', 'ok' if good else 'WRONG')
     ok = ok and good
     for _, addrs, olds, news in ml.DATE_NAMES:
         for va, old, new in zip(addrs, olds, news):

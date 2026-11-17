@@ -269,6 +269,7 @@ def rows_tests(expect):
     allowed |= {pod.fileoff(built, a) for a in mod_nowplaying.MARKER_WORDS}
     import mod_lockscreen
     allowed |= {pod.fileoff(built, a) + k & ~3 for _, addrs, olds, _ in mod_lockscreen.DATE_NAMES for a, old in zip(addrs, olds) for k in range(len(old))}   # and its shortened weekday and month names
+    allowed.add(pod.fileoff(built, mod_lockscreen.HOUR12_VA))                                            # the 12-hour hour without a leading zero (mod_lockscreen.HOUR12_VA)
     allowed |= {pod.fileoff(built, mod_lockscreen.DATE_W_VA + 16 + 4 * k) for k in range(6)}             # the lock date's weekday takes the month's path in wstr_format_date_time (mod_lockscreen.patch_date_names)
     # the lock screen also sets the cover file size in four `addiu a3/a2, zero, 0xfe` words
     # (mod_lockscreen.COVER_IMM); they must be disjoint from the row edits and only change the 16-bit value
