@@ -22,6 +22,8 @@ and [UI reference](ui.md).
 - **1.4.1:** up to 100 podcast shows, Wi-Fi name ellipsis and list, Cover Flow and LED fixes.
 - **1.5.0:** Audiobooks with LibriVox, scrobbling, Lyrics Mode, new Control Center tiles and a
   music-driven LED light.
+- **1.6.0:** a VU Meter view, a redesigned Now Playing info page and Control Center, Battery
+  History, Mono Audio and Crossfeed, Year groups in Albums and Subsonic folders.
 
 ## Device findings
 
