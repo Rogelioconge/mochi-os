@@ -232,8 +232,8 @@ def paint_tests(ctx):
         nr = len(names)
         dots = dot_blits(blits)
         ys = sorted(b[2][1] for b in dots)
-        want = [AB.row_y(i) - 300 + (ROW - 1 - DOTS) // 2 for i in range(6)]
-        expect(nr >= 3 and ys == want and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dots),
+        want = [AB.row_y(i) - 300 + (O['AB_ROW_H'] - 1 - DOTS) // 2 for i in range(8)]
+        expect(nr == 8 and ys == want and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dots),
                f'{what}: a "..." at x {RIGHT - MORE_W + (MORE_W - DOTS) // 2} on every track ({ys})')
         expect(all(ty[t][2] == 269 - (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP']) for t in names), f'{what}: the titles end {INK_GAP} px before the dots\' ink (x 269): {sorted({ty[t][2] for t in names})}')
         AB.click(m, 'btn_select')

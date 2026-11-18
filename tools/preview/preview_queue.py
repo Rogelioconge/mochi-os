@@ -51,7 +51,7 @@ def content(s, playing=1, shuffle=False, repeat=None, edit=True):
         t, a, k = QUEUE[playing + 1 + i]; y = TOP + i * ROW
         d.rectangle((TEXT_X, y + ROW - 1, TEXT_END - 1, y + ROW - 1), fill=PS.HAIR)
         im.alpha_composite(PI.rounded(PI.sample_cover(PI.ALBUMS[k][2], ART), O['LIST_R']), (ART_X, y + ART_Y))
-        s.text(im, TEXT_X, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(t, 21, text_end - TEXT_X), 21)
+        s.text(im, TEXT_X, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(t, 20, text_end - TEXT_X), 20)
         s.text(im, TEXT_X, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, s.clip(a, 18, text_end - TEXT_X), 18, GREY)
         if edit: im.alpha_composite(more, (PS.dots_x(PS.more_right(False), False), y + (ROW - 1 - PS.DOTS_PX) // 2))
     return im

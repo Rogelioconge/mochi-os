@@ -13,7 +13,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SG = sibling('songs')
 NA = sibling('nextalbum')
 
-WIN_H, HDR, ROW, SY0 = O['AH_WIN_H'], O['AH_HDR_H'], O['LIST_ROW_H'], 30   # SY0: the window's screen y (the status bar's 30 px; the list is the whole window)
+WIN_H, HDR, ROW, SY0 = O['AH_WIN_H'], O['AH_HDR_H'], O['AB_ROW_H'], 30   # SY0: the window's screen y (the status bar's 30 px; the list is the whole window)
+MK = (ROW - O['SG_MARK']) // 2   # a select mark's top in its row (centred)
 SC_YOFF = O['SC_YOFF']
 LIB, ALBUMS, ART, COMP = O['CLASS_ALBUM_TRACKS'], O['CLASS_ALBUMS'], O['CLASS_ARTIST_SONGS'], O['CLASS_14']
 CI = pod.DATA['CLASSINFO'][0]
@@ -214,8 +215,8 @@ def asset_tests(ctx):
            'the pill\'s text is a hidden label (the 18 px #141414 style and the translated "Play"; its white background is the pill\'s for the contrast scan)')
     for name, align, colour in (('label_row_num', 'right', '#AAAAAA'), ('label_row_title', 'left', '#FFFFFF')):
         w = f(name)
-        expect(w.get('visible') == 'false' and w.get('sensitive') == 'false' and w.get('style:normal:font_size') == '21' and w.get('style:normal:text_color') == colour and w.get('style:normal:text_align_h') == align,
-               f'{name}: the hidden 21 px {colour} {align} text style of the rows')
+        expect(w.get('visible') == 'false' and w.get('sensitive') == 'false' and w.get('style:normal:font_size') == str(O['AB_NUM_PX'] if name == 'label_row_num' else 20) and w.get('style:normal:text_color') == colour and w.get('style:normal:text_align_h') == align,
+               f'{name}: the hidden {O["AB_NUM_PX"] if name == "label_row_num" else 20} px {colour} {align} text style of the rows')
     # the glass controls
     k = {c.name: c for c in root.children}
     expect('navigationbar_view' not in k, 'the controls are children of the window itself (no bar view over the list)')
@@ -493,12 +494,12 @@ def rows_tests(ctx):
     blits, texts, fills = paint(m)
     num = [(t, r) for (t, r), s in texts if s == 'label_row_num']
     ttl = [(t, r) for (t, r), s in texts if s == 'label_row_title']
-    expect(num == [(str(i + 1), (12, row_y(i) + O['AB_TEXT_Y'], O['ROW_NUM_W'], 22)) for i in range(2)], f'the number (position + 1) right aligned in a 24 px column at x 12, a 22 px line AB_TEXT_Y down the row: {num}')
-    expect(ttl == [(NAMES[i], (44, row_y(i) + O['AB_TEXT_Y'], 254, 22)) for i in range(2)], f'the title from x 44 (8 px after the number) to 298: {ttl}')
+    expect(num == [(str(i + 1), (12, row_y(i) + O['AB_NUM_Y'], O['ROW_NUM_W'], 22)) for i in range(2)], f'the number (position + 1) right aligned in a 20 px column at x 12, a 22 px line AB_NUM_Y down the row: {num}')
+    expect(ttl == [(NAMES[i], (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP'], row_y(i) + O['AB_TEXT_Y'], 298 - 12 - O['ROW_NUM_W'] - O['AB_NUM_GAP'], 22)) for i in range(2)], f'the title from x 40 (8 px after the number) to 298: {ttl}')
     order = [s for _, s in texts if s in ('label_row_num', 'label_row_title')]
     expect(order == ['label_row_num'] * 2 + ['label_row_title'] * 2, 'the numbers, then the titles: one text style at a time')
     hair = [f_ for f_ in fills if f_[0] == 0x22ffffff]   # AB_HAIR: 13 % white
-    expect(hair == [(0x22ffffff, 0, row_y(0) + 63, 310, 1)], f'a 1 px hairline of 13 % white across the row\'s foot (row 1\'s lies below the window): {hair}')
+    expect(hair == [(0x22ffffff, 0, row_y(i) + ROW - 1, 310, 1) for i in range(2) if row_y(i) + ROW - 1 < WIN_H], f'a 1 px hairline of 13 % white across each row\'s foot inside the window: {hair}')
     expect(len([1 for _, s in texts if s.startswith('label_row')]) == 4 and not [f_ for f_ in fills if f_[0] == 0x33ffffff], 'rows 0 and 1 are in view; nothing is pressed at rest')
     scroll_to(m, 300)
     blits, texts, fills = paint(m)
@@ -511,7 +512,7 @@ def rows_tests(ctx):
     m2 = opened(n=3, titles=[long_title, 'x', 'y'])
     blits, texts, fills = paint(m2)
     got = [t for (t, r), s in texts if s == 'label_row_title'][0]
-    expect(got == SG.fitted(long_title, 254 - 8).encode('latin-1').decode('utf-8') or utf(got) == utf(SG.fitted(long_title, 254 - 8)), f'a title wider than its 254 px is cut with an ellipsis ({got!r})')
+    expect(got == SG.fitted(long_title, 258 - 8).encode('latin-1').decode('utf-8') or utf(got) == utf(SG.fitted(long_title, 258 - 8)), f'a title wider than its 258 px is cut with an ellipsis ({got!r})')
     m2.call(PSYMS['ab_on_destroy'], count=4000000)
     # a CUE track shows its file name, a track without a title its file name
     m2 = opened(n=4, titles=['A', '', 'C', 'D'], cues=(2,))
@@ -543,8 +544,8 @@ def rows_tests(ctx):
     blits, texts, fills = paint(big)
     num = {t: r for (t, r), s in texts if s == 'label_row_num'}
     ttl = {t: r for (t, r), s in texts if s == 'label_row_title'}
-    expect(num['99'][2] == 24 and num['100'][2] == 34 and num['100'][0] == 12 and ttl['T98'][0] == 44 and ttl['T99'][0] == 54 and ttl['T99'][2] == 244 and ttl['T98'][2] == 254,
-           f'row 99 has a 24 px column, row 100 a 34 px one: the title starts at x 54 and is 244 px wide ({num["100"]}, {ttl["T99"]})')
+    expect(num['99'][2] == O['ROW_NUM_W'] and num['100'][2] == O['ROW_NUM_W3'] and num['100'][0] == 12 and ttl['T98'][0] == 40 and ttl['T99'][0] == 48 and ttl['T99'][2] == 250 and ttl['T98'][2] == 258,
+           f'row 99 has a 20 px column, row 100 a 28 px one: the title starts at x 48 and is 250 px wide ({num["100"]}, {ttl["T99"]})')
     expect(big.props[(big.sv, 'virtual_h')] == HDR + 130 * ROW, 'the content grows with the tracks')
     scroll_to(big, HDR + 130 * ROW + 5000)
     blits, texts, fills = paint(big)
@@ -552,7 +553,7 @@ def rows_tests(ctx):
     big.call(PSYMS['ab_on_destroy'], count=4000000)
     # a short album cannot scroll: the content is shorter than the window
     m3 = opened(n=2)
-    expect(m3.props[(m3.sv, 'virtual_h')] == HDR + 2 * ROW, 'two tracks: the content is 472 px')
+    expect(m3.props[(m3.sv, 'virtual_h')] == 450, f'two tracks without a footer: 346 + 2 x 52 = 450 px, the window\'s height ({m3.props[(m3.sv, "virtual_h")]})')
     m3.call(PSYMS['ab_on_destroy'], count=4000000)
     m.call(PSYMS['ab_on_destroy'], count=4000000)
 
@@ -574,7 +575,7 @@ def play_tests(ctx):
     expect(not [c for c in tap(m, 150, 100) if c[0] == 'navigator_to_with_context'] and not [c for c in tap(m, 150, 330) if c[0] == 'navigator_to_with_context'], 'a tap on the header (the cover, the lines, the gap above the first row) plays nothing')
     touch(m, 'down', 150, row_y(0) + 20, 'ab_on_down')
     _, _, fills = paint(m)
-    expect((0x33ffffff, 0, row_y(0), 310, ROW) in fills, f'the row under the finger is filled 20 % white over its whole 64 px: {[f_ for f_ in fills if f_[0] == 0x33ffffff]}')
+    expect((0x33ffffff, 0, row_y(0), 310, ROW) in fills, f'the row under the finger is filled 20 % white over its whole 52 px: {[f_ for f_ in fills if f_[0] == 0x33ffffff]}')
     touch(m, 'abort', 150, row_y(0) + 20, 'ab_on_abort')
     _, _, fills = paint(m)
     expect(not any(f_[0] == O['AB_PRESS'] for f_ in fills), 'an abort (the scroll_view took a drag) clears it')
@@ -660,8 +661,8 @@ def select_tests(ctx):
     marks = [b for b in blits if b[2][2] == O['SG_MARK']]
     num = [(t, r) for (t, r), s in texts if s == 'label_row_num']
     ttl = [(t, r) for (t, r), s in texts if s == 'label_row_title']
-    expect(len(marks) == 5 and all(b[2][0] == 9 for b in marks) and [b[2][1] for b in marks] == [row_y(i) + 19 - OFF for i in range(5)]
-           and num[0][1][0] == 12 + O['SG_SEL_COL'] and ttl[0][1][0] == 44 + O['SG_SEL_COL'] and ttl[0][1][2] == 254 - O['SG_SEL_COL'],
+    expect(len(marks) == 6 and all(b[2][0] == 9 for b in marks) and [b[2][1] for b in marks] == [row_y(i) + MK - OFF for i in range(6)]
+           and num[0][1][0] == 12 + O['SG_SEL_COL'] and ttl[0][1][0] == 40 + O['SG_SEL_COL'] and ttl[0][1][2] == 258 - O['SG_SEL_COL'],
            f'a 26 px mark on each row, the number and the title 30 px right (the title 30 px narrower): {len(marks)} marks')
     off_mark = marks[0][0]
     pix = lambda x, y: SG.pixel(m, off_mark, x, y)
@@ -670,7 +671,7 @@ def select_tests(ctx):
     expect(not any(c[0] == 'navigator_to_with_context' for c in m.calls), 'a tap marks a row and plays nothing')
     blits, texts, fills = paint(m)
     marks = {b[2][1]: b[0] for b in blits if b[2][2] == O['SG_MARK']}
-    expect(marks[row_y(1) + 19 - OFF] != off_mark and marks[row_y(3) + 19 - OFF] != off_mark and marks[row_y(0) + 19 - OFF] == off_mark and marks[row_y(2) + 19 - OFF] == off_mark,
+    expect(marks[row_y(1) + MK - OFF] != off_mark and marks[row_y(3) + MK - OFF] != off_mark and marks[row_y(0) + MK - OFF] == off_mark and marks[row_y(2) + MK - OFF] == off_mark,
            'the two marked rows show the selected mark')
     expect(not any(f_[0] == O['AB_PRESS'] for f_ in fills), 'no press fill in select mode')
     tap(m, 150, ty(1))

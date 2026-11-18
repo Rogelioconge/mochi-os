@@ -681,7 +681,7 @@ def stock_tests(ctx):
     expect(tree.find('btn_albumview') is None and tree.find('btn_coverflow') is None and tree.find('pl_scrim') is None and tree.find('pl_card') is None and tree.find('pl_item0') is None
            and tree.find('btn_backtoplayer').get('style:normal:icon') == 'ah_nav_play',
            'the grid / list toggle and the old popup (pl_scrim, pl_card, pl_item0..3) are gone; Now Playing is the capsule\'s right cap')
-    for nm, px, col in (('label_row_title', 21, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
+    for nm, px, col in (('label_row_title', 20, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
         w = tree.find(nm)
         expect(w is not None and w.get('visible') == 'false' and w.get('sensitive') == 'false' and w.get('style:normal:font_size') == str(px)
                and w.get('style:normal:text_color') == col, f'{nm}: a hidden label carrying the list rows\' {px} px {col} text style')

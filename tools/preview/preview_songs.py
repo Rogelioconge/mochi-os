@@ -165,7 +165,7 @@ def content(s, covers_on=True, select=None, title=None, head=False):
             im.alpha_composite(mk, (ART_X + (SEL_COL - 6 - mk.width) // 2, y + (ROW_H - mk.height) // 2))
         rgb = PI.ALBUMS[ci][2] if ci is not None else None
         im.alpha_composite(PI.rounded(PI.sample_cover(rgb, ART), O['LIST_R']), (ART_X + shift, y + ART_Y))
-        s.text(im, tx, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(title, 21, room), 21)
+        s.text(im, tx, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(title, 20, room), 20)
         s.text(im, tx, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, s.clip(artist, 18, room), 18, GREY)
     return im, heads
 

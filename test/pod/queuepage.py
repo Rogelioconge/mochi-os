@@ -202,7 +202,7 @@ def asset_tests(ctx):
            and empty.get('style:normal:text_color') == '#AAAAAA' and empty.get('style:normal:font_size') == '16' and empty.get('tr_text', 'No upcoming songs') == 'No upcoming songs',
            '"No upcoming songs": a quiet grey 16 px line where the first row would be, hidden until nothing follows')
     expect(O['QP_HEAD_Y'] == O['QP_PILL_Y'] + O['SG_PILL_H'] + 16 and O['QP_TOP'] == O['QP_HEAD_Y'] + O['QP_HEAD_H'] + 6, 'the section line is 16 px under the buttons, the rows 6 px under it')
-    for name, px, colour in (('label_row_title', 21, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
+    for name, px, colour in (('label_row_title', 20, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
         w = f(name)
         expect(w.get('visible') == 'false' and w.get('sensitive') == 'false' and w.get('style:normal:font_size') == str(px) and w.get('style:normal:text_color') == colour,
                f'{name}: the hidden {px} px {colour} text style of the rows (the Songs page\'s)')

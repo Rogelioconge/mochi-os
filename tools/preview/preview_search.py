@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import awtk_ui
 import pod_keyboard as PK
 import pod_search as PS
+import pod_ui
 import preview_icons as PI
 import preview_keyboard as PKV
 
@@ -113,12 +114,13 @@ def draw_rows(s, im, rows, bottom):
         y = top + i * D['SE_ROW_H']
         if y + D['SE_ROW_H'] > BAR + bottom: break
         end = D['SE_END_PLAIN'] if kind == 'song' else D['SE_END_CHEV']
-        s.text(im, D['SE_TEXT_LEFT'], y + O_TITLE_Y + 12, s.clip(title, 21, end - D['SE_TEXT_LEFT']), 21)
+        s.text(im, D['SE_TEXT_LEFT'], y + O_TITLE_Y + 12, s.clip(title, TITLE_PX, end - D['SE_TEXT_LEFT']), TITLE_PX)
         s.text(im, D['SE_TEXT_LEFT'], y + O_SUB_Y + 10, s.clip(sub, 18, end - D['SE_TEXT_LEFT']), 18, rgb(PS.SUB_RGB))
 
 
 O_TITLE_Y, O_SUB_Y = 7, 33   # offsets.inc LIST_TITLE_Y, LIST_SUB_Y
 O_TITLE_H, O_SUB_H = 24, 20  # LIST_TITLE_H, LIST_SUB_H
+TITLE_PX = pod_ui.LIST_TITLE_PX   # the shared label_row_title style: results and recent queries
 RECENT = ('taylor swift', 'blue in green', 'miles davis', '周杰伦', 'a rather long search that does not fit its room')
 
 
@@ -139,7 +141,7 @@ def draw_recent(s, im, recents, bottom):
     for i, q in enumerate(recents):
         y = top + D['SE_REC_HEAD_H'] + i * D['SE_REC_ROW_H']
         if y + D['SE_REC_ROW_H'] > BAR + bottom: break
-        s.text(im, D['SE_REC_TEXT_X'], y + (D['SE_REC_ROW_H'] - O_TITLE_H) / 2 + O_TITLE_H / 2, s.clip(q, 21, room), 21)
+        s.text(im, D['SE_REC_TEXT_X'], y + (D['SE_REC_ROW_H'] - O_TITLE_H) / 2 + O_TITLE_H / 2, s.clip(q, TITLE_PX, room), TITLE_PX)
 
 
 def screen(s, t, kb, text, rows, chip, keyboard=True, hint='Search', page='abc', held=None, sx=0, recents=()):

@@ -69,7 +69,7 @@ def part_lines(b):
 def lv_row(s, im, y):
     """The Library's LibriVox row, under the books: the Podcasts Discover row's tile, the title, the grey line, the chevron, the hairline from the text."""
     _paste(im, R.IMGS[M.PC_SRCH_TILE], O['PP_DL_TILE_X'], y + O['PP_DL_TILE_Y'])
-    s.text(im, O['PP_DL_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, 'LibriVox', 21, WHITE)
+    s.text(im, O['PP_DL_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, 'LibriVox', 20, WHITE)
     s.text(im, O['PP_DL_TEXT_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, PS.fit(s, 'Public domain audiobooks', 18, O['PP_DL_TEXT_W']), 18, GREY)
     _paste(im, M.pod_chevron(M.CARD_CHEVRON[3]), O['PP_DL_CHEV_X'], y + (ROW - 1 - M.POD_CHEV_H) // 2)
     R.hline(im, O['PP_DL_TEXT_X'], W, y + ROW - 1, FOLD)
@@ -97,7 +97,7 @@ def shelf(s, im, y, b):
 def book_row(s, im, y, b, sub):
     """A Library row (the list painter's: the cover, the title and the grey line ending at x 278, the chevron at 288, the hairline from the text to 310); a book that downloads has the ring before its grey line."""
     _paste(im, cover(b, O['LIST_ART'], O['LIST_R']), O['LIST_ART_X'], y + O['LIST_ART_Y'])
-    s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, b.title, 21, O['LIST_TEXT_W_CHEV']), 21, WHITE)
+    s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, b.title, 20, O['LIST_TEXT_W_CHEV']), 20, WHITE)
     x = O['LIST_TEXT_X']
     if b.ring is not None:   # the shared ring (14 px) and the stop square, then LS_MK_GAP (6) of air
         _paste(im, R.ring(O['PA_DL_PX'], b.ring, GREY), x, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] // 2 - O['PA_DL_PX'] // 2)
@@ -146,7 +146,7 @@ def book_page(s, b, scroll=0, title=None, man=None, sheet=None, playing=None):
     for i, (t, sub, played, cur, rg) in enumerate(rows):
         y = H['row'](i)
         x = BK['BK_PART_X']
-        s.text(im, x, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, t, 21, BK['BK_PART_W']), 21, DIM if played else WHITE)
+        s.text(im, x, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, t, 20, BK['BK_PART_W']), 20, DIM if played else WHITE)
         if i == playing:   # the part the player is on: the album page's wave in the ring's slot (12 px, centred on the grey line), the grey line LS_MK_GAP (6) right of it
             _paste(im, M.ab_wave(), x, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] // 2 - O['AB_WAVE'] // 2)
             x += O['AB_WAVE'] + 6
@@ -221,7 +221,7 @@ def librivox_page(s, rows=(), text='', status=None, busy=False, dim=(), scroll=0
         b = Book(title, kind, 1, 0, 0)
         b.cover = R.synth_cover(s, kind) if covers else None   # (None: the placeholder disc)
         _paste(im, cover(b, O['LIST_ART'], O['LIST_R']), O['LIST_ART_X'], y + O['LIST_ART_Y'])
-        s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, title, 21, O['LIST_TEXT_W_CHEV']), 21, WHITE)
+        s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, title, 20, O['LIST_TEXT_W_CHEV']), 20, WHITE)
         if i in dim: s.text(im, O['LIST_TEXT_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, 'Not available', 18, GREY)
         elif author: s.text(im, O['LIST_TEXT_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, PS.fit(s, author, 18, O['LIST_TEXT_W_CHEV']), 18, GREY)
         if i not in dim: _paste(im, M.pod_chevron(M.CARD_CHEVRON[3]), O['LIST_CHEV_X'], y + (ROW - 1 - M.POD_CHEV_H) // 2)
@@ -248,7 +248,7 @@ def preview_page(s, title, author, parts, scroll=0, oncard=None):
     s.text(im, H['x_btn'] + BK['BK_PLAY_W'] // 2, H['y_btn'] + BK['BK_BTN_H'] / 2, 'Open Book' if oncard else 'Download', 18, (0, 0, 0), 'm')
     for i, (t, sec, nbytes) in enumerate(parts):
         y = H['row'](i)
-        s.text(im, BK['BK_PART_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, t, 21, BK['BK_PART_W']), 21, WHITE)
+        s.text(im, BK['BK_PART_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, PS.fit(s, t, 20, BK['BK_PART_W']), 20, WHITE)
         s.text(im, BK['BK_PART_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, PS.fit(s, pod_books.line_text(0, sec, nbytes), 18, BK['BK_PART_W']), 18, GREY)
         R.hline(im, BK['BK_PART_X'], W, y + ROW - 1, FOLD)
     return window_of(s, im, scroll, title if scroll >= H['collapse'] else None), H

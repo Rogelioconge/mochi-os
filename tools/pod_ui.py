@@ -366,7 +366,7 @@ def stock_list(rows, scroll, top=NAVBAR_H):
 GRID_VIEW_H = CLIENT_H - NAVBAR_H     # patch/offsets.inc GRID_VIEW_H
 GRID_TITLE_PX = 16
 GRID_ALBUM_PX, GRID_ARTIST_PX = 18, 15   # the grid's album / artist text under each cover (white / #AAAAAA)
-LIST_TITLE_PX, LIST_SUB_PX = 21, 18   # the list mode's album / artist text (the library rows': 21 px white, 18 px #AAAAAA)
+LIST_TITLE_PX, LIST_SUB_PX = 20, 18   # the list mode's album / artist text (the library rows': 20 px white, 18 px #AAAAAA)
 
 
 def large_title(name, text, states=('normal',)):
@@ -1349,7 +1349,7 @@ def build_songs_page(page):
 # The window's colour is the cover's tone (the payload sets it); the gradient image img_ah_tint, first in the window, darkens it from the top (the stock page's), and the list over it is
 # transparent. The glass controls are the window's last child, so they paint and take touches over the rows: Back, Select | Now Playing as one capsule (the genre songs list's), and
 # in select mode the all / none toggle, Add, Delete and Cancel in the places the stock builder gave them. Two hidden labels carry the rows' text styles (the number, the title; the playing row's number is the ah_wave image); label_title (hidden) is the page's title for the i18n and asset tests.
-AB_STYLES = (('label_row_num', LIST_TITLE_PX, SUB_RGB, 'right'), ('label_row_title', LIST_TITLE_PX, INK_RGB),   # the number (the grey line's colour) and the title (white) at the list title size like every list
+AB_STYLES = (('label_row_num', OFFSETS['AB_NUM_PX'], SUB_RGB, 'right'), ('label_row_title', LIST_TITLE_PX, INK_RGB),   # the number (the grey line's colour) and the title (white) at the list title size like every list
              ('label_row_dim', LIST_TITLE_PX, '#7A7A7A'))   # a source's rows: the title of a row that cannot play (the dim grey, the lowest that keeps 4.5:1 on black)
 AB_META = (('ab_title', 'AH_TITLE_Y', 'AH_TITLE_H', 22, INK_RGB), ('ab_artist', 'AH_ARTIST_Y', 'AH_ARTIST_H', 18, SUB_RGB), ('ab_meta', 'AH_META_Y', 'AH_META_H', 15, '#9C9C9C'))   # srlabel_ah{title,artist,meta}_style
 AB_FOOT_RGB = SUB_RGB   # the footer's grey: the artist line's (not the meta line's #9C9C9C)

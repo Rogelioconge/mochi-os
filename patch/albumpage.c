@@ -15,7 +15,7 @@
  *   cover     the Cover Flow cache file of the album (/mnt/mmc/.m1plus/covers/<key>-168.jpg, the key of the album row), box-reduced to 160 px with its corners cut in the alpha;
  *             a file that is not there is made by the cache worker (one job, polled), an empty "no art" marker leaves the placeholder disc and a black page.
  *   tint      the tone cache (m1_tone_get) or the cover file's average colour; none for a page without a cover.
- *   rows      the stock row's number (position + 1) and title (the stock is_playing: a playing track's number is the wave marker), 64 px, from the stock list while painting.
+ *   rows      the stock row's number (position + 1) and title (the stock is_playing: a playing track's number is the wave marker), AB_ROW_H (56) px, from the stock list while painting.
  *   play      Play / Shuffle / a track: patch/songops.c, and Now Playing opens the way the stock album page's rows do (pod_open_player: with songerinfoflag set the
  *             pages above the Now Playing in the stack are popped first).
  *   source    album_open_src(src, cls, row): the page of an album of a library source (patch/libsrc.h; docs/modules/subsonic.md): tracks from src->list(LS_SONGS, row) (our own deque,
@@ -41,7 +41,7 @@
 #include "viewsort.h"
 #include "entries.h"
 
-#define ROW LIST_ROW_H
+#define ROW AB_ROW_H
 
 #define P(w, off) (*(void **)((char *)(w) + (off)))
 
@@ -211,7 +211,7 @@ static void ab_number(void *canvas, int i, int y) {
     for (d = 1; (unsigned)(i + 1) / d >= 10; d *= 10) {
     }
     for (; d; d /= 10) w[n++] = '0' + ((unsigned)(i + 1) / d) % 10;
-    rect[0] = AB_NUM_X + ab_shift(), rect[1] = y + AB_TEXT_Y, rect[2] = ab_numw(i), rect[3] = AB_TEXT_H;
+    rect[0] = AB_NUM_X + ab_shift(), rect[1] = y + AB_NUM_Y, rect[2] = ab_numw(i), rect[3] = AB_TEXT_H;
     canvas_draw_text_in_rect(canvas, w, n, rect); /* the scroll_view's clip cuts it at the window's edges */
 }
 

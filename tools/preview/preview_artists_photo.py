@@ -21,6 +21,7 @@ import cdefs
 import preview_icons as PI
 import mod_icons as M
 import preview_songs as PS
+import pod_ui
 
 W, WIN, NAV = 320, 450, 50
 ROOT = M.ROOT
@@ -95,7 +96,7 @@ def artists_page(s, scroll=300):
         disc = photo(ph, AR['AR_PHOTO']) if ph else placeholder(s, AR['AR_PHOTO'])
         tall.alpha_composite(disc, (AR['AR_PHOTO_X'], y + (row - AR['AR_PHOTO']) // 2))
         d.rectangle((AR['AR_NAME_X'], y + row - 1, O['LIST_HAIR_END'] - O['SG_RAIL_INSET'] - 1, y + row - 1), fill=HAIR)
-        s.text(tall, AR['AR_NAME_X'], y + row / 2, s.clip(name, 21, AR['AR_TEXT_END'] - AR['AR_NAME_X']), 21)
+        s.text(tall, AR['AR_NAME_X'], y + row / 2, s.clip(name, pod_ui.LIST_TITLE_PX, AR['AR_TEXT_END'] - AR['AR_NAME_X']), pod_ui.LIST_TITLE_PX)
         bar, mask = chevron()
         tall.paste(bar, (AR['AR_CHEV_X'], y + (row - COMMON['POD_CHEV_H']) // 2), mask)
         y += row
@@ -121,7 +122,7 @@ def artist_page(s, name, ph, scroll=0):
         y = rows_y + i * O['LIST_ROW_H']
         tall.alpha_composite(PI.rounded(PI.sample_cover(PI.ALBUMS[ci][2] if ci is not None else None, O['LIST_ART']), O['LIST_R']), (O['LIST_ART_X'], y + O['LIST_ART_Y']))
         room = O['LIST_TEXT_X'] + O['LIST_TEXT_W_CHEV']
-        s.text(tall, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(PS.tr(s, 'All Songs') if ci is None else album, 21, room - O['LIST_TEXT_X']), 21)
+        s.text(tall, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(PS.tr(s, 'All Songs') if ci is None else album, 20, room - O['LIST_TEXT_X']), 20)
         if year: s.text(tall, O['LIST_TEXT_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, year, 18, (0xAA,) * 3)
         d.rectangle((O['LIST_TEXT_X'], y + O['LIST_ROW_H'] - 1, O['LIST_HAIR_END'] - 1, y + O['LIST_ROW_H'] - 1), fill=HAIR)
         bar, mask = chevron()

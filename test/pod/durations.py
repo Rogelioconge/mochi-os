@@ -436,7 +436,7 @@ def album_tests(ctx):
 def footer_tests(ctx):
     """6. The footer under the last row: asset, geometry, scroll height, hidden while unknown, appearing without moving the list, inert in select mode, the same grey as the header, fit and wording in every language."""
     expect = ctx.expect
-    HDR, ROW = O['AH_HDR_H'], O['LIST_ROW_H']
+    HDR, ROW = O['AH_HDR_H'], O['AB_ROW_H']
     # the asset: a hidden, insensitive 15 px #AAAAAA left-aligned label in the content view
     tree = AP.ui()
     node = tree.find('ab_foot')

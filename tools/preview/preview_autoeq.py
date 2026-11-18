@@ -18,6 +18,7 @@ import preview_icons as PI
 import preview_keyboard as PKV
 import preview_radio as PR
 import preview_search as PSR
+import pod_ui
 
 W, H, SS, BAR, D = PKV.W, PKV.H, PKV.SS, PKV.BAR, PS.D
 NAV = PR.NAV                       # the glass bar (50)
@@ -59,7 +60,7 @@ def draw_rows(s, page, rows, bottom, strings):
         if state >= 2: page.alpha_composite(check, (284, int(y + ROW_H / 2 - 10)))
         text = {1: strings['Downloading…'], 2: strings['Saved to EQ · Tap to use'], 3: strings['In use']}.get(state, sub)
         end = 276
-        s.text(page, TEXT_X, y + TITLE_Y + 12, s.clip(title, 21, end - TEXT_X), 21)
+        s.text(page, TEXT_X, y + TITLE_Y + 12, s.clip(title, pod_ui.LIST_TITLE_PX, end - TEXT_X), pod_ui.LIST_TITLE_PX)
         s.text(page, TEXT_X, y + SUB_Y + 10, s.clip(text, 18, end - TEXT_X), 18, PSR.rgb(PS.SUB_RGB))
 
 

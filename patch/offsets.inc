@@ -247,8 +247,8 @@
 #define ROW_ART_INSET 4         /* the cover's left inset on x=0 rows */
 #define ROW_SEPARATOR 4         /* list_item_style draws a 4 px separator under each list_item row */
 #define ROW_MARKER_IMAGE "np_row_playing"   /* the playing row's marker: 40 x 20, a 20 px wave at its right end (tools/mod_icons.py NP) */
-#define ROW_NUM_W 24           /* the album page's number column (patch/albumpage.c): every digit is 11 px at the list title size (LIST_TITLE_PX 21) by AWTK's metrics, "99" = 22 */
-#define ROW_NUM_W3 34          /* the column of a 3-digit number (a 100+ track album): "999" = 33 */
+#define ROW_NUM_W 20           /* the album page's number column (patch/albumpage.c): measured with StbFont.width on default.ttf at AB_NUM_PX (17): "99" = 18, +2 */
+#define ROW_NUM_W3 28          /* the column of a 3-digit number (a 100+ track album): "999" = 27, +1 */
 #define ROW_MAX_CHILDREN 16   /* the row fit leaves anything with more children to the stock layout */
 
 
@@ -316,7 +316,7 @@
 #define CLASS_14 0xff14
 /* Our album page (patch/albumpage.c, docs/modules/album-page.md; ui/m1plus_album.bin, tools/pod_ui.py build_album_page, which reads this file and must equal it): the
  * header numbers (AH_*: the cover at (AH_ART_X, AH_ART_Y) with AH_CORNER px corners, the lines at AH_TITLE_Y / AH_ARTIST_Y / AH_META_Y, the Shuffle disc and the Play pill at
- * AH_BTN_Y, the rows from AH_HDR_H) in a list that is the whole window (AH_WIN_H, the glass controls float over it). A row is LIST_ROW_H high: the track's number (right aligned in
+ * AH_BTN_Y, the rows from AH_HDR_H) in a list that is the whole window (AH_WIN_H, the glass controls float over it). A row is AB_ROW_H high: the track's number (right aligned in
  * ROW_NUM_W, ROW_NUM_W3 from 100) from x AB_NUM_X, the title AB_NUM_GAP after it to AB_TEXT_END, both in a AB_TEXT_H high line AB_TEXT_Y down the row; the press fill and the 1 px
  * hairline are translucent white over the tint (AB_PRESS, AB_HAIR) across AB_ROW_W (the list less its scroll bar). The select mode's glass buttons (the all / none toggle at
  * AB_SELALL_X, AB_SELALL_W wide; Add, Delete, Cancel AB_BTN_W wide) take the places the stock builder gave them. The Play pill's text label is AB_TEXT_SLACK wider than its text.
@@ -328,10 +328,13 @@
 #define AB_NUM_X 12
 #define AB_NUM_GAP 8
 #define AB_TEXT_END 298
-#define AB_TEXT_Y 20
+#define AB_ROW_H 52            /* the album page's track row, the one-line rows' height (Artists, Folders; the two-line lists keep LIST_ROW_H 64): AB_TEXT_Y centres the title's line, 1 px above the middle as on the 64 px rows */
+#define AB_TEXT_Y 14
 #define AB_TEXT_H 22
+#define AB_NUM_PX 17           /* the track number's font size (the title keeps LIST_TITLE_PX 20) */
+#define AB_NUM_Y 15            /* the number line's top in the row, AB_TEXT_H high like the title's: baselines match at row y 30 = AB_TEXT_Y 14 + (22 - 20) / 2 + baseline(20) 15 = AB_NUM_Y + (22 - 17) / 2 + baseline(17) 13 (StbFont), i.e. AB_TEXT_Y + 1 */
 #define AB_WAVE 12             /* the playing track's marker (ah_wave): a square bitmap right-aligned in the number column */
-#define AB_WAVE_Y 24           /* its top in the row: 1 px above the centre of the title's line (AB_TEXT_Y + (AB_TEXT_H - AB_WAVE) / 2 = 25), on the centre of the capitals and digits */
+#define AB_WAVE_Y 18           /* its top in the row: 1 px above the centre of the title's line (AB_TEXT_Y + (AB_TEXT_H - AB_WAVE) / 2 = 19), on the centre of the capitals and digits */
 #define AB_WAVE_COLOR 0x00ECEEEEu /* its colour #EEEEEC as a RGBA8888 word (red in the low byte), the rows' wave */
 #define AB_PRESS 0x33ffffffu
 #define AB_HAIR 0x22ffffffu
@@ -972,7 +975,7 @@
 #define PH_COVER_X 80
 #define PH_COVER_Y 8
 #define PH_COVER_R 10
-#define PH_NAME_X 17            /* the name, 22 px white, centred in 286 px (the album page's title label) */
+#define PH_NAME_X 17            /* the name, 22 px white, centred in 286 px */
 #define PH_NAME_W 286
 #define PH_NAME_Y 182           /* 14 px under the cover */
 #define PH_NAME_H 22

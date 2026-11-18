@@ -90,7 +90,7 @@ def content(s, title, rows, select=None, playing=(), covers=False):
         if name in playing: im.alpha_composite(s.img('pod_ic_nowplaying'), (F['FO_MARK_X_CHEV'] if chev else F['FO_MARK_X'], y + F['FO_ICON_Y']))
         if chev: chevron(im, F['FO_CHEV_X'], y + (ROW_H - 1 - 16) // 2)
         text_end = F['FO_TEXT_END_CHEV'] if chev and name in playing else TEXT_END
-        s.text(im, tx, y + F['FO_TEXT_Y'] + O['LIST_TITLE_H'] / 2, s.clip(name, 21, text_end - tx), 21)
+        s.text(im, tx, y + F['FO_TEXT_Y'] + O['LIST_TITLE_H'] / 2, s.clip(name, 20, text_end - tx), 20)
     return im, end
 
 

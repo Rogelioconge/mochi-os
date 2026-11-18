@@ -107,7 +107,7 @@ def content(s, title, items, index=False):
             tend = PS.dots_x(right, inset > 0) + O['RM_INK_X'] - O['RM_INK_GAP']   # RM_INK_GAP before the glyph's ink (rowmenu_text_end)
             g = marks_w(it[2])
             if g: draw_marks(im, at, it[2], tend - g, ymid); tend -= g + GAP
-        s.text(im, TEXT_X, ymid, s.clip(name, 21, tend - TEXT_X), 21)
+        s.text(im, TEXT_X, ymid, s.clip(name, pod_ui.LIST_TITLE_PX, tend - TEXT_X), pod_ui.LIST_TITLE_PX)
     return im, end, heads
 
 

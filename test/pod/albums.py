@@ -397,7 +397,7 @@ def layout_tests(ctx):
     btns = (cfb, more, nb)
     expect(not [1 for a in btns for b in btns if a is not b and a.x < b.x + b.w and b.x < a.x + a.w], 'no navbar button overlaps another')
     #     list mode: the two hidden text-style labels, the geometry the rows share with the library rows
-    for nm, px, col in (('label_row_title', 21, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
+    for nm, px, col in (('label_row_title', 20, '#FFFFFF'), ('label_row_sub', 18, '#AAAAAA')):
         w = tree.find(nm)
         expect(w is not None and w.type == 'label' and w.get('visible') == 'false' and w.get('sensitive') == 'false'
                and w.get('style:normal:font_size') == str(px) and w.get('style:normal:text_color') == col and w.get('style:normal:text_align_h') == 'left',

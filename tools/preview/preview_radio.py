@@ -88,7 +88,7 @@ def root_page(s):
         y = NAV + TOP + i * ROW + (GAP if i else 0)
         im.alpha_composite(s.img(icon), (16, y + (ROW - 24) // 2))
         PF.chevron(im, 289, y + (ROW - 16) // 2)
-        s.text(im, 56, y + ROW / 2, PS.tr(s, label), 21)
+        s.text(im, 56, y + ROW / 2, PS.tr(s, label), pod_ui.LIST_TITLE_PX)
         if i != 0: d.rectangle((56, y + ROW - 1, W - 11, y + ROW - 1), fill=HAIR)   # a group of one row ends without a separator
     navbar(s, im, 'Radio')
     return im
@@ -106,7 +106,7 @@ def countries_page(s):
             PS.header(s, im, c, y); letters.append(c); y += O['SG_HDR_H']; last = c
         d.rectangle((24, y + ROW - 1, O['LIST_HAIR_END'] - O['SG_RAIL_INSET'] - 1, y + ROW - 1), fill=HAIR)   # the rail is shown: patch/azlist.c az_inset
         PF.chevron(im, O['LIST_CHEV_X'] - O['SG_RAIL_INSET'], y + (ROW - 16) // 2)
-        s.text(im, 24, y + ROW / 2, s.clip(PS.tr(s, n) if False else n, 21, O['LIST_TEXT_X'] + O['LIST_TEXT_W_CHEV'] - O['SG_RAIL_INSET'] - 24), 21)
+        s.text(im, 24, y + ROW / 2, s.clip(PS.tr(s, n) if False else n, 20, O['LIST_TEXT_X'] + O['LIST_TEXT_W_CHEV'] - O['SG_RAIL_INSET'] - 24), 20)
         y += ROW
     PS.rail(s, im, letters)
     navbar(s, im, 'Countries')
@@ -127,7 +127,7 @@ def list_page(s, title, top=TOP, search=False):
         k = 4; mask = Image.new('L', (ART * k, ART * k), 0)
         ImageDraw.Draw(mask).rounded_rectangle((0, 0, ART * k - 1, ART * k - 1), radius=LR * k, fill=255)
         im.paste(tile, (O['LIST_ART_X'], y + O['LIST_ART_Y']), mask.resize((ART, ART), Image.LANCZOS))
-        s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(name, 21, O['LIST_TEXT_W']), 21)
+        s.text(im, O['LIST_TEXT_X'], y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, s.clip(name, 20, O['LIST_TEXT_W']), 20)
         s.text(im, O['LIST_TEXT_X'], y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, s.clip(sub, 18, O['LIST_TEXT_W']), 18, (0xAA,) * 3)
         d.rectangle((0, y + R - 1, W - 1, y + R - 1), fill=HAIR)
     if search:
@@ -198,7 +198,7 @@ def genres_page(s):
     for i, (name, n) in enumerate(GENRES):
         y = NAV + TOP + i * 64
         PF.chevron(im, 289, y + 24)
-        s.text(im, 16, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, name, 21)
+        s.text(im, 16, y + O['LIST_TITLE_Y'] + O['LIST_TITLE_H'] / 2, name, 20)
         s.text(im, 16, y + O['LIST_SUB_Y'] + O['LIST_SUB_H'] / 2, PS.tr(s, '%d stations').replace('%d', str(n)), 15, (0xAA,) * 3)
         d.rectangle((16, y + 63, W - 11, y + 63), fill=HAIR)
     navbar(s, im, 'Genres')

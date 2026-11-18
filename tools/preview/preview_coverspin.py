@@ -70,12 +70,12 @@ def albumpage(s, loaded=False):
     s.text(im, 160, O['AH_ARTIST_Y'] + O['AH_ARTIST_H'] / 2, 'Miles Davis', 17, (0xAA,) * 3, anchor='m')
     s.text(im, 160, O['AH_META_Y'] + O['AH_META_H'] / 2, '1959 · 8 tracks', 14, (0x9C,) * 3, anchor='m')
     PS.play_header(s, im, O['AH_BTN_Y'] + 2)
-    row = O['LIST_ROW_H']
+    row = O['AB_ROW_H']
     for i, t in enumerate(['So What', 'Freddie Freeloader']):
         y = O['AH_HDR_H'] + i * row
         d.rectangle((0, y + row - 1, 309, y + row - 1), fill=(0x3A, 0x3A, 0x3E))
-        s.text(im, O['AB_NUM_X'] + O['ROW_NUM_W'], y + O['AB_TEXT_Y'] + O['AB_TEXT_H'] / 2, str(i + 1), 21, (0xAA,) * 3, 'r')
-        s.text(im, O['AB_NUM_X'] + O['ROW_NUM_W'] + O['AB_NUM_GAP'], y + O['AB_TEXT_Y'] + O['AB_TEXT_H'] / 2, t, 21)
+        s.text(im, O['AB_NUM_X'] + O['ROW_NUM_W'], y + O['AB_NUM_Y'] + O['AB_TEXT_H'] / 2, str(i + 1), O['AB_NUM_PX'], (0xAA,) * 3, 'r')
+        s.text(im, O['AB_NUM_X'] + O['ROW_NUM_W'] + O['AB_NUM_GAP'], y + O['AB_TEXT_Y'] + O['AB_TEXT_H'] / 2, t, 20)
     PS.glass(s, im, 'ah_nav_back', 7, 44); PS.glass(s, im, 'ah_nav_play', 260, 60); PS.glass(s, im, 'pod_nav_more', 214)
     return im
 

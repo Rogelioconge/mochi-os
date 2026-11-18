@@ -501,7 +501,7 @@ def build_shows(s, shows, shelf_n, dl, refreshing):
                                (L['y_sub'], 'Subscriptions', '%d shows' % n_subs, IMGS[M.PC_LIB_TILE])):
         if not y: continue
         _paste(im, tile, o['PP_DL_TILE_X'], y + o['PP_DL_TILE_Y'])
-        s.text(im, o['PP_DL_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, name, 21, WHITE)
+        s.text(im, o['PP_DL_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, name, 20, WHITE)
         s.text(im, o['PP_DL_TEXT_X'], y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, PS.fit(s, sub, 18, o['PP_DL_TEXT_W']), 18, GREY)
         _paste(im, M.pod_chevron(M.CARD_CHEVRON[3]), o['PP_DL_CHEV_X'], y + (o['PC_ROW_H'] - 1 - M.POD_CHEV_H) // 2)
         hline(im, o['PP_DL_TEXT_X'], W, y + o['PC_ROW_H'] - 1, FOLD + (255,))
@@ -548,7 +548,7 @@ def search_page(s, shows, results, text='all in', hint=None, status=None):
         y = NAV + o['PQ_TOP'] + i * o['PC_ROW_H']
         if y + o['PC_ROW_H'] > WIN: break
         _paste(win, cover_img(sh, o['LIST_ART'], o['LIST_R']), o['LIST_ART_X'], y + o['LIST_ART_Y'])
-        s.text(win, o['LIST_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, name, 21, o['LIST_TEXT_W']), 21, WHITE)
+        s.text(win, o['LIST_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, name, 20, o['LIST_TEXT_W']), 20, WHITE)
         s.text(win, o['LIST_TEXT_X'], y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, PS.fit(s, author if feed else 'Not available', 18, o['LIST_TEXT_W']), 18, GREY)
         hline(win, 0, W, y + o['PC_ROW_H'] - 1)
         if not feed: _paste(win, Image.new('RGBA', (W, o['PC_ROW_H'] - 1), (0, 0, 0, o['PQ_DIM'] >> 24)), 0, y)
@@ -723,7 +723,7 @@ def subs_page(s, shows, marked=None, empty=False):
         y = NAV + o['PP_TITLE_H'] + r * o['PC_ROW_H']
         if y + o['PC_ROW_H'] > WIN - (o['SG_BAR_H'] if marked is not None else 0): break
         _paste(win, cover_img(sh, o['LIST_ART'], o['LIST_R']), o['LIST_ART_X'] + shift, y + o['LIST_ART_Y'])
-        s.text(win, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, sh.title, 21, room), 21, WHITE)
+        s.text(win, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, sh.title, 20, room), 20, WHITE)
         s.text(win, o['LIST_TEXT_X'] + shift, y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, PS.fit(s, sh.sub, 18, room), 18, GREY)
         hline(win, o['LIST_TEXT_X'] + shift, W, y + o['PC_ROW_H'] - 1)
         if marked is not None:
@@ -776,7 +776,7 @@ def downloads_page(s, ip, dl, scroll=0, marked=None, line='7 episodes · 217 MB 
             sh, title, tail, played = dl[i - len(ip)]
             sub = PS.fit(s, sh.title, 18, o['LIST_TEXT_W'] - shift - (o['PS_BADGE_CHECK_W'] if played else 0) - FONT.width(tail, 18)) + tail
         _paste(im, cover_img(sh, o['LIST_ART'], o['LIST_R']), o['LIST_ART_X'] + shift, y + o['LIST_ART_Y'])
-        s.text(im, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, title, 21, o['LIST_TEXT_W'] - shift), 21, WHITE)
+        s.text(im, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, PS.fit(s, title, 20, o['LIST_TEXT_W'] - shift), 20, WHITE)
         bx = o['PS_BADGE_CHECK_W'] if played else 0
         if played: _paste(im, glyph16(o['PA_CHECK']), o['LIST_TEXT_X'] + shift - 1, y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] // 2 - 8)
         s.text(im, o['LIST_TEXT_X'] + shift + bx, y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, PS.fit(s, sub, 18, o['LIST_TEXT_W'] - shift - bx), 18, GREY)

@@ -474,10 +474,10 @@ def playlists_grid(s, menu=False, pressed=3, list_mode=False, row_pressed=1, sel
                     pts = [((12 + (10.5 if i % 2 == 0 else 4.75) * math.sin(i * math.pi / 5)) * k, (12.5 - (10.5 if i % 2 == 0 else 4.75) * math.cos(i * math.pi / 5)) * k) for i in range(10)]
                     big = Image.new('L', (24 * k, 24 * k), 0); ImageDraw.Draw(big).polygon(pts, fill=255)
                     im.paste(Image.new('RGBA', (24, 24), (255, 255, 255, 255)), (bx, by), big.resize((24, 24), Image.LANCZOS))
-                s.text(im, o['LIST_TEXT_X'] + shift, y + (rh - o['LIST_TITLE_H']) // 2 + o['LIST_TITLE_H'] / 2, lcut(name, 21), 21)
+                s.text(im, o['LIST_TEXT_X'] + shift, y + (rh - o['LIST_TITLE_H']) // 2 + o['LIST_TITLE_H'] / 2, lcut(name, 20), 20)
                 continue
             im.alpha_composite(mosaic([ALBUMS[i][2] for i in albums if ALBUMS[i][2]], o['LIST_ART'], o['LIST_R']), (o['LIST_ART_X'] + shift, y + o['LIST_ART_Y']))
-            s.text(im, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, lcut(name, 21), 21)
+            s.text(im, o['LIST_TEXT_X'] + shift, y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, lcut(name, 20), 20)
             count = s.strings.get('%d track' if tracks == 1 else '%d tracks', '%d tracks').replace('%d', str(tracks))
             if tracks is not None: s.text(im, o['LIST_TEXT_X'] + shift, y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, lcut(count, 18), 18, (0xAA, 0xAA, 0xAA))
             if select is not None: mark(o['LIST_ART_X'] + (shift - 6 - o['SG_MARK']) // 2, y + (rh - o['SG_MARK']) // 2, r)
@@ -529,7 +529,7 @@ def albums_list(s, pressed=1, scroll=0, artist=False):
         d.rectangle((0, y + rh - 1, W - 1, y + rh - 1), fill=(0x22, 0x22, 0x22))
         im.alpha_composite(rounded(sample_cover(rgb, o['LIST_ART']), o['LIST_R']), (o['LIST_ART_X'], y + o['LIST_ART_Y']))
         if y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] <= H_:     # a text not wholly in the view is not drawn
-            s.text(im, o['LIST_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, cut(title, 21), 21)
+            s.text(im, o['LIST_TEXT_X'], y + o['LIST_TITLE_Y'] + o['LIST_TITLE_H'] / 2, cut(title, 20), 20)
         if y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] <= H_:
             s.text(im, o['LIST_TEXT_X'], y + o['LIST_SUB_Y'] + o['LIST_SUB_H'] / 2, cut(artist_line, 18), 18, (0xAA, 0xAA, 0xAA))
     d.rectangle((0, 0, W - 1, 49), fill=(0, 0, 0, 255)); albums_navbar(s, im, 'grid', scroll)   # (the scroll_view clips the rows under the bar)

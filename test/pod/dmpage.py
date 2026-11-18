@@ -299,8 +299,8 @@ def constants_tests(ctx):
            and [add.get(f'style:{s}:icon') for s in ('normal', 'over', 'pressed')] == ['dp_add', 'dp_add', 'dp_add_down'], 'the Add disc is a visible, sensitive img_btn_style button with its own normal and pressed images, like the Shuffle disc')
     labels = {n: tree.find(n) for n in ('label_dp_title', 'label_dp_sub', 'label_dp_upd', 'label_dp_desc', 'label_dp_play', 'label_dp_row', 'label_dp_artist', 'label_title')}
     expect(all(l.get('visible') == 'false' and l.get('sensitive') == 'false' for l in labels.values())
-           and [int(labels[n].get('style:normal:font_size')) for n in ('label_dp_title', 'label_dp_sub', 'label_dp_upd', 'label_dp_desc', 'label_dp_play', 'label_dp_row', 'label_dp_artist')] == [24, 17, 14, 15, 18, 21, 18]
-           and labels['label_title'].get('tr_text') == 'Daily Mix', 'the text styles are hidden, insensitive labels (24 / 17 / 14 / 15 / 18 px, the rows 21 / 18 as the Albums list); label_title is the hidden page title')
+           and [int(labels[n].get('style:normal:font_size')) for n in ('label_dp_title', 'label_dp_sub', 'label_dp_upd', 'label_dp_desc', 'label_dp_play', 'label_dp_row', 'label_dp_artist')] == [24, 17, 14, 15, 18, 20, 18]
+           and labels['label_title'].get('tr_text') == 'Daily Mix', 'the text styles are hidden, insensitive labels (24 / 17 / 14 / 15 / 18 px, the rows 20 / 18 as the Albums list); label_title is the hidden page title')
     expect(all(labels[n].get('style:normal:text_color') == '#FFFFFF' for n in ('label_dp_title', 'label_dp_sub', 'label_dp_play')) and labels['label_dp_title'].get('style:normal:text_align_h') == 'center'
            and labels['label_dp_desc'].get('style:normal:text_align_h') == 'left', 'white in the asset (the payload sets the grey, the accent and the pill\'s ink from the tint); centred lines, left description')
     xx = os.path.join(raw, 'images', 'xx')

@@ -66,7 +66,7 @@ def page_image(s, tones, seed=SEED, loc='en_US', off=0, songs=SONGS, pressed=Non
     for r, (title, artist, rgb, fav) in enumerate(songs):
         y = D.DP_ROWS_Y + r * O['LIST_ROW_H']
         c.alpha_composite(PI.rounded(PI.sample_cover(rgb if covers else None, O['LIST_ART']), O['LIST_R']), (O['LIST_ART_X'], y + O['LIST_ART_Y']))
-        for text, ty, th, px, rgb_ in ((title, O['LIST_TITLE_Y'], O['LIST_TITLE_H'], 21, (255, 255, 255)), (artist, O['LIST_SUB_Y'], O['LIST_SUB_H'], 18, grey)):
+        for text, ty, th, px, rgb_ in ((title, O['LIST_TITLE_Y'], O['LIST_TITLE_H'], 20, (255, 255, 255)), (artist, O['LIST_SUB_Y'], O['LIST_SUB_H'], 18, grey)):
             top = y + ty - off
             if top >= 0 and top + th <= D.DP_VIEW_H:     # a line not wholly in the view is not drawn (patch/grid.c grid_text)
                 s.text(c, O['LIST_TEXT_X'], y + ty + th / 2, s.clip(text, px, O['LIST_TEXT_W']), px, rgb_)
