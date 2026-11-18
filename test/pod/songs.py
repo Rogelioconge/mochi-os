@@ -16,7 +16,7 @@ UI = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_songs.bi
 ALL = O['CLASS_ALL_SONGS']
 TEXT_X, TEXT_END, SEL = O['LIST_TEXT_X'], O['LIST_HAIR_END'] - O['SG_RAIL_INSET'], O['SG_SEL_COL']   # (the rail is on in these tests: the rows give up SG_RAIL_INSET)
 RAIL_X, RAIL_W = O['SG_RAIL_X'], O['SG_RAIL_W']
-WIDGETS = ('btn_coverflow', 'btn_search', 'view_grid', 'sg_rail', 'sg_foot', 'sg_spin', 'sg_hname', 'btn_return', 'btn_backtoplayer', 'btn_more', 'btn_select', 'btn_selall', 'btn_play', 'btn_shuffle', 'hd_play', 'hd_shuffle', 'sg_glyph', 'sg_play_text', 'sg_add', 'sg_del',
+WIDGETS = ('btn_coverflow', 'btn_search', 'view_grid', 'sg_rail', 'sg_foot', 'sg_spin', 'sg_hname', 'sg_hname2', 'btn_return', 'btn_backtoplayer', 'btn_more', 'btn_select', 'btn_selall', 'btn_play', 'btn_shuffle', 'hd_play', 'hd_shuffle', 'sg_glyph', 'sg_play_text', 'sg_add', 'sg_del',
            'label_title', 'sg_title', 'label_status', 'label_row_title', 'label_row_sub', 'label_row_dim', 'label_row_subdim', 'label_hdr', 'label_rail', 'label_rail_on', 'sg_bubble', 'sg_bubble_letter', 'sg_bar',
            *VS_WIDGETS, 'vs_item8', 'vs_label8', 'vs_glyph8', 'vs_item9', 'vs_label9', 'vs_glyph9')   # (slots 8 and 9: a playlist's Clean Up Playlist and Pin / Unpin Playlist rows, only in this asset and the Playlists page's)
 
@@ -397,12 +397,13 @@ def asset_tests(ctx):
            and sv.children == [grid] and grid.type == 'view', 'the body is the library lists\' structure: list_view > scroll_view > one content view, with the stock mobile scroll bar')
     kids = {c.name: c for c in grid.children}
     hn = kids['sg_hname']
-    expect(list(kids) == ['sg_title', 'sg_hname', 'btn_play', 'btn_shuffle', 'hd_shuffle', 'hd_play', 'sg_glyph', 'sg_foot', 'sg_spin'] and kids['sg_title'].get('style:normal:font_size') == '32' and kids['sg_title'].get('sensitive') == 'false'
+    expect(list(kids) == ['sg_title', 'sg_hname', 'sg_hname2', 'btn_play', 'btn_shuffle', 'hd_shuffle', 'hd_play', 'sg_glyph', 'sg_foot', 'sg_spin'] and kids['sg_title'].get('style:normal:font_size') == '32' and kids['sg_title'].get('sensitive') == 'false'
            and kids['sg_title'].get('style:normal:text_color') == '#FFFFFF' and (kids['sg_title'].x, kids['sg_title'].y, kids['sg_title'].h) == (12, 0, 52),
            'the content view holds the large title (32 px white, x 12, insensitive), the playlist header\'s name, the library\'s two flat pills, the playlist header\'s Shuffle disc, Play pill and glyph and the song count (no count in the header: the footer is the one)')
     expect(hn.type == 'label' and hn.get('visible') == 'false' and hn.get('sensitive') == 'false' and hn.get('style:normal:text_align_h') == 'center'
            and (hn.x, hn.y, hn.w, hn.h) == (O['PH_NAME_X'], O['PH_NAME_Y'], O['PH_NAME_W'], O['PH_NAME_H']) and hn.get('style:normal:font_size') == '22' and hn.get('style:normal:text_color') == '#FFFFFF',
            'a playlist\'s header: the name (22 px white), centred in 286 px (the album page\'s title label), hidden and insensitive until the payload shows it')
+    expect(all(kids[n].get(f'style:normal:margin_{k}') == '0' for n in ('sg_hname', 'sg_hname2') for k in ('left', 'right')), 'the name\'s two lines have no side margins: m1_wrap2 fits each line to the whole PH_NAME_W')
     expect(O['PH_TOP'] == O['PH_PILL_Y'] + O['SG_PILL_H'] + (O['SG_TOP'] - O['SG_PILL_Y'] - O['SG_PILL_H']) and O['PH_COVER_Y'] + O['PH_COVER'] < O['PH_NAME_Y']
            and O['PH_PILL_Y'] == O['PH_NAME_Y'] + O['PH_NAME_H'] + 16 and O['PH_COLLAPSE'] == O['PH_NAME_Y'] + O['PH_NAME_H'] and O['PH_COVER_X'] * 2 + O['PH_COVER'] == 320,
            'the header\'s numbers stack: the cover centred, the name, the pills 16 px under it, the rows start as far under the pills as the library\'s do')
@@ -1463,7 +1464,11 @@ def lists_tests(ctx):
     name = 'A very long playlist name for the road'
     r = m.call(PSYMS['songs_open_playlist'], a0=7, a1=m.cstr(name), count=900000000)
     big = m.widgets['sg_title']
-    pl_lay = lambda n: Layout(['A'] * n, sections=False, top=O['PH_TOP'])   # a playlist's rows start under its header
+    PT = O['PH_TOP'] + O['AH_TITLE_LH']   # the name is wider than PH_NAME_W (8 px a character): two lines, the pills and the rows AH_TITLE_LH lower
+    pl_lay = lambda n: Layout(['A'] * n, sections=False, top=PT)   # a playlist's rows start under its header
+    expect((m.wtext[m.widgets['sg_hname']], m.wtext[m.widgets['sg_hname2']]) == ('A very long playlist name for the', 'road') and vis(m, 'sg_hname2')[0] == 1
+           and ('widget_move', m.widgets['hd_play'], O['AH_PLAY_X'], O['PH_BTN_Y'] + O['AH_TITLE_LH']) in m.calls,
+           f'a long name: two lines (m1_wrap2, the album page\'s title), the pills {O["AH_TITLE_LH"]} px lower ({m.wtext[m.widgets["sg_hname"]]!r} / {m.wtext[m.widgets["sg_hname2"]]!r})')
     expect(r == 0 and [c[1] for c in m.calls if c[0] == 'loadLocalClassList'] == [O['CLASS_ALBUMS'], pls] and m.word(ci) == 7 and m.word(G_CLASS) == pls
            and m.props[(m.sv, 'virtual_h')] == pl_lay(5).content(), 'songs_open_playlist: class 0xff13 with the playlist in classinfo[1]: its five songs')
     expect(m.wtext[big] == fitted(name, O['SG_TITLE_W']) == fitted('A very long playlist name for the ro…', O['SG_TITLE_W']) and m.wtext[m.widgets['label_title']] == fitted(name, 156),
@@ -1479,7 +1484,7 @@ def lists_tests(ctx):
     click(m, 'btn_return')
     expect(vis(m, 'btn_more') == (1, 1) and m.props[(lt, 'w')] == O['NAV_VIEW_X'] - 58, 'and leaving it brings the "..." back, the title to 214 again')
     foot = m.widgets['sg_foot']
-    expect(m.wtext[foot] == '5 songs' and m.props.get((foot, 'y')) == O['PH_TOP'] + 5 * ROW + O['SG_FOOT_GAP'], f'the playlist\'s count under its last row: "5 songs" ({m.wtext.get(foot)!r})')
+    expect(m.wtext[foot] == '5 songs' and m.props.get((foot, 'y')) == PT + 5 * ROW + O['SG_FOOT_GAP'], f'the playlist\'s count under its last row: "5 songs" ({m.wtext.get(foot)!r})')
     m.setword(ci, 3)
     m.calls = []
     m.call(PSYMS['sg_on_fg'], a0=0, a1=0, count=900000000)
@@ -1489,7 +1494,7 @@ def lists_tests(ctx):
     expect(m.word(ci) == 7 and m.props[(m.sv, 'virtual_h')] == pl_lay(5).content(), 'read again with its own id put back in classinfo[1]')
     m.playlist_songs[7] = list(m.songs[:1]); m.setword(SHOWLIST, m.new_deque([]))   # one song left (deleted elsewhere); another query replaced the list
     m.call(PSYMS['sg_on_fg'], a0=0, a1=0, count=900000000)
-    expect(m.wtext[foot] == '1 song' and m.props.get((foot, 'y')) == O['PH_TOP'] + ROW + O['SG_FOOT_GAP'], f'read again, the count follows: "1 song" ({m.wtext.get(foot)!r})')
+    expect(m.wtext[foot] == '1 song' and m.props.get((foot, 'y')) == PT + ROW + O['SG_FOOT_GAP'], f'read again, the count follows: "1 song" ({m.wtext.get(foot)!r})')
     m.playlist_songs[7] = list(m.songs[:5]); m.setword(SHOWLIST, m.new_deque([]))
     m.call(PSYMS['sg_on_fg'], a0=0, a1=0, count=900000000)
     settle(m); m.setword(ci, 3)
@@ -1550,7 +1555,7 @@ def lists_tests(ctx):
     gm = [c for c in calls if c[0] == 'widget_move' and c[1] == m.widgets['sg_glyph']][-1]
     expect(len(pt) == 1 and pt[0][0] == 'Play' and pt[0][1][:2] == (gm[2] + 24, O['PH_BTN_Y'] + 11), f'a playlist paints the Play pill\'s text 8 px after the glyph in a 22 px line in the middle of the pill ({pt})')
     for tw in (32, 64, 140, 300):   # the glyph and the text centred as a pair for the language; one that is too wide, or cannot be measured, is centred as the English text
-        mt = list_machine(titles); mt.playlist_songs = {7: list(mt.songs[:5])}; mt.measure = lambda t, tw=tw: tw
+        mt = list_machine(titles); mt.playlist_songs = {7: list(mt.songs[:5])}; mt.measure = lambda t, tw=tw: tw if t != 'Road Trip' else 8 * len(t)   # (the name keeps its width: one line)
         mt.call(PSYMS['songs_open_playlist'], a0=7, a1=mt.cstr('Road Trip'), count=900000000)
         opened = list(mt.calls)
         fits = 16 + 8 + tw <= O['AH_PLAY_W']

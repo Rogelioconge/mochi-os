@@ -406,7 +406,7 @@ def run(ctx):
                                                    ('I_ALBUM_Y', 'NPI_ALBUM_Y'), ('I_META_PX', 'NPI_META_PX'), ('I_PAD', 'NPI_PAD'), ('I_BADGE_H', 'NPI_BADGE_H'), ('I_BADGE_GAP', 'NPI_BADGE_GAP'),
                                                    ('I_ROW_Y', 'NPI_ROW_Y'), ('I_ROW_PITCH', 'NPI_ROW_PITCH'), ('I_ROW_TEXT', 'NPI_ROW_TEXT'), ('I_ROW_PX', 'NPI_ROW_PX'), ('I_KEY_GAP', 'NPI_KEY_GAP'),
                                                    ('I_ROWS', 'NPI_ROWS'), ('I_LOC_ROW', 'NPI_LOC_ROW'), ('I_LOC_Y', 'NPI_LOC_Y'), ('I_LOC_LH', 'NPI_LOC_LH'), ('I_LOC_LINES', 'NPI_LOC_LINES'), ('I_FOOT', 'NPI_FOOT'),
-                                                   ('I_ROW_TAIL', 'NP_ROW_TAIL'), ('I_RELAY', 'NP_RELAY'), ('I_TITLE_LH', 'NPI_TITLE_LH'), ('I_TAP_PX', 'NPI_TAP_PX'), ('I_FADE', 'NPI_FADE'), ('I_PAGE', 'NPI_PAGE'))) and (mn.SCRIM[1], mn.SCRIM[3], mn.SCRIM_ALPHA, mn.SCRIM_EDGE) == (O['NP_SCRIM_Y'], O['NP_SCRIM_H'], O['NP_SCRIM_ALPHA'], O['NP_SCRIM_EDGE']) and mn.I_W == O['NPI_R'] - O['NPI_X'] and mn.I_TOP + O['NPI_VIEW_H'] == mn.I_BOTTOM == 288 and
+                                                   ('I_ROW_TAIL', 'M1_FIT_TAIL'), ('I_RELAY', 'NP_RELAY'), ('I_TITLE_LH', 'NPI_TITLE_LH'), ('I_TAP_PX', 'NPI_TAP_PX'), ('I_FADE', 'NPI_FADE'), ('I_PAGE', 'NPI_PAGE'))) and (mn.SCRIM[1], mn.SCRIM[3], mn.SCRIM_ALPHA, mn.SCRIM_EDGE) == (O['NP_SCRIM_Y'], O['NP_SCRIM_H'], O['NP_SCRIM_ALPHA'], O['NP_SCRIM_EDGE']) and mn.I_W == O['NPI_R'] - O['NPI_X'] and mn.I_TOP + O['NPI_VIEW_H'] == mn.I_BOTTOM == 288 and
            mn.I_BADGE_W == {'HI-RES': O['NPI_BADGE_HIRES_W'], 'DSD': O['NPI_BADGE_DSD_W']}, 'the payload\'s info page constants equal the asset builder\'s')
 
     # ---- the rows: Format, Sample Rate, Bit Depth, Bitrate (stock's quality line), Genre, Year, File Size, Location; a hairline above each, 33 px apart, a missing row leaves a gap that closes
@@ -636,7 +636,7 @@ def run(ctx):
     m = title_page('Wish You Were Here (2011 Remastered Version)'); h2 = vhigh(m); h1 = vhigh(title_page('Money'))
     expect(h2 == h1 + 24, f'two lines make the content 24 px longer ({h1} -> {h2})')
 
-    # ---- the plain labels have no ellipsis of their own: a long artist, album or value is cut to its room with "..." after it (np_fit; tools/mod_nowplaying.py end_fit)
+    # ---- the plain labels have no ellipsis of their own: a long artist, album or value is cut to its room with "..." after it (m1_fit; tools/mod_nowplaying.py end_fit)
     EF = lambda t, room, px=16: mn.end_fit(t, room, lambda x: ms(x, px))
     for name, artist, album in (('Latin', 'The Jimi Hendrix Experience and Friends Live', 'Electric Ladyland (50th Anniversary Deluxe Edition)'), ('CJK', '久石譲' * 9, '千と千尋の神隠し サウンドトラック ' * 3),
                                 ('short', 'Pink Floyd', 'The Wall'), ('a space before the cut', 'A' * 21 + '    ' + 'B' * 20, 'W' * 40)):

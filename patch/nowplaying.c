@@ -110,7 +110,7 @@ static struct {
     int ibadge; /* the badge shown: 0 none, 1 HI-RES, 2 DSD */
     int ioff; /* the content's scroll offset in px (0 the top): every child of np_i_scroll is at its page y - NPI_TOP - ioff (np_info_scroll) */
     int ih; /* the content's height in px, from NPI_TOP to the end of the last row (np_flow); the scroll_view's virtual_h */
-    int tsh; /* 0, or NPI_TITLE_LH when the title takes two lines: the artist, the album and the rows are that much lower (np_title_fit) */
+    int tsh; /* 0, or NPI_TITLE_LH when the title takes two lines: the artist, the album and the rows are that much lower (m1_wrap2) */
     int td, tm, tsx, tsy,
         tly; /* the finger on np_i_scroll: down, moved (a vertical drag has begun), where it went down, where it was last (np_on_info_touch) */
     void *sv; /* slide_view: its page (value) says whether the info page is the one shown */
@@ -650,9 +650,6 @@ static void np_head_place(void) {
     np_place(np.iw[NI_ALBUM], NPI_TEXT_X, NPI_ALBUM_Y + np.tsh, NPI_TEXT_W, NPI_META_PX);
 }
 
-static void np_title_fit(const char *v);
-static void np_fit(void *w, const char *v, int room);
-
 /* The header: the playing record's title, artist and album, its cover; the badge of a Hi-Res or DSD track (the cassette theme's rule: tape_badge) is np_flow's, on the Format row.
  * New text and cover only when the track changed (mb_track_key) or the layout is redone. */
 static unsigned np_header(int force) {
@@ -670,11 +667,12 @@ static unsigned np_header(int force) {
     title = t ? cc_str(t, REC_TITLE) : "";
     if (t && !*title) title = cc_str(t, REC_NAME);
     np_cut(b, sizeof b, title);
-    np_title_fit(b);
+    np.tsh = m1_wrap2(np.iw[NI_TITLE], np.iw[NI_TITLE2], b, NPI_TEXT_W) ? NPI_TITLE_LH
+                                                                        : 0; /* the title in one or two lines */
     np_cut(b, sizeof b, t ? cc_str(t, REC_ARTIST) : "");
-    np_fit(np.iw[NI_ARTIST], b, NPI_TEXT_W);
+    m1_fit(np.iw[NI_ARTIST], b, NPI_TEXT_W);
     np_cut(b, sizeof b, t ? cc_str(t, REC_ALBUM) : "");
-    np_fit(np.iw[NI_ALBUM], b, NPI_TEXT_W);
+    m1_fit(np.iw[NI_ALBUM], b, NPI_TEXT_W);
     np_head_place();
     np_vis(np.iw[NI_TITLE], 1);
     np_vis(np.iw[NI_ARTIST], 1);
@@ -726,84 +724,29 @@ static int np_qparse(const char *s, char out[4][32]) {
     return n;
 }
 
-/* The width of the n bytes of s (with "..." before them when dots), in w's font; at most NP_ROW_TAIL bytes of s. */
-static int np_mw(void *w, int dots, const char *s, unsigned n) {
-    char b[NP_ROW_TAIL + 4];
-    unsigned wide[NP_ROW_TAIL + 4], m = 0;
-    if (dots) b[0] = b[1] = b[2] = '.', m = 3;
-    if (n > NP_ROW_TAIL) n = NP_ROW_TAIL;
-    memcpy(b + m, s, n);
-    m += n;
-    b[m] = 0;
-    if (!m) return 0;
-    tk_utf8_to_utf16_ex(b, m, wide, NP_ROW_TAIL + 3);
-    return m1_text_w(w, wide);
-}
-
-static int np_cont(const char *v, unsigned i) { return ((unsigned char)v[i] & 0xc0) == 0x80; }
-
-/* A character boundary of v strictly between lo and hi (both boundaries), near the middle; hi when there is none. */
-static unsigned np_mid(const char *v, unsigned lo, unsigned hi) {
-    unsigned m = (lo + hi) / 2;
-    while (m < hi && np_cont(v, m)) ++m;
-    if (m >= hi || m <= lo) {
-        m = lo + 1;
-        while (m < hi && np_cont(v, m)) ++m;
-    }
-    return m;
-}
-
-/* v in the label w, room px wide: whole when it fits, else the longest start (of its first NP_ROW_TAIL bytes: no more is measured) that fits with "..." after it (the spaces before the dots dropped). The labels of the page are plain ones, which have no ellipsis of their
- * own: stock's hscroll_label clips to its resting place on the screen (widget_to_screen), not to where the canvas paints it, so its text was cut while the slide view moved the page. tools/mod_nowplaying.py end_fit
- * is the model. */
-static void np_fit(void *w, const char *v, int room) {
-    char l[NP_ROW_TAIL + 8];
-    unsigned len = 0, lo = 0, hi, m;
-    while (v[len]) ++len;
-    if (len <= NP_ROW_TAIL && np_mw(w, 0, v, len) <= room) { /* whole only when all of it was measured */
-        widget_set_text_utf8(w, v);
-        return;
-    }
-    hi = len > NP_ROW_TAIL ? NP_ROW_TAIL : len; /* the longest start that fits before the dots */
-    while (hi && np_cont(v, hi)) --hi;
-    if (len > NP_ROW_TAIL && np_mw(w, 1, v, hi) <= room)
-        lo = hi; /* a longer text whose measured start fits: that start and the dots */
-    while ((m = np_mid(v, lo, hi)) < hi) {
-        if (np_mw(w, 1, v, m) <= room)
-            lo = m;
-        else
-            hi = m;
-    }
-    while (lo && v[lo - 1] == ' ') --lo;
-    memcpy(l, v, lo);
-    l[lo] = l[lo + 1] = l[lo + 2] = '.';
-    l[lo + 3] = 0;
-    widget_set_text_utf8(w, l);
-}
-
 /* The Location v in w1 and w2 (the second line), room px wide each; np.locn lines. 1: one line when it fits. 2: else broken after the last '/' that fits line 1, when the rest fits line 2. 3: else at the last character
- * that fits line 1, when the rest fits line 2. 4: else line 2 is the end (as much as fits) and line 1 is "..." and what fits just before it. Only the last NP_ROW_TAIL bytes are looked at (rule 4 at once when it is
+ * that fits line 1, when the rest fits line 2. 4: else line 2 is the end (as much as fits) and line 1 is "..." and what fits just before it. Only the last M1_FIT_TAIL bytes are looked at (rule 4 at once when it is
  * longer). tools/mod_nowplaying.py loc_wrap is the model. */
 static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
-    char l[NP_ROW_TAIL + 8];
+    char l[M1_FIT_TAIL + 8];
     unsigned len = 0, lo, hi, m, n1, b1, b2, cut;
     while (v[len]) ++len;
-    cut = len > NP_ROW_TAIL;
+    cut = len > M1_FIT_TAIL;
     if (cut) {
-        v += len - NP_ROW_TAIL;
-        while (np_cont(v, 0)) ++v;
+        v += len - M1_FIT_TAIL;
+        while (m1_utf8_cont(v, 0)) ++v;
         len = 0;
         while (v[len]) ++len;
     }
     np.locn = 1;
     if (!cut) {
-        if (np_mw(w1, 0, v, len) <= room) {
+        if (m1_text_wn(w1, 0, v, len) <= room) {
             widget_set_text_utf8(w1, v);
             return;
         }
         lo = 0, hi = len; /* the longest prefix that fits line 1 */
-        while ((m = np_mid(v, lo, hi)) < hi) {
-            if (np_mw(w1, 0, v, m) <= room)
+        while ((m = m1_utf8_mid(v, lo, hi)) < hi) {
+            if (m1_text_wn(w1, 0, v, m) <= room)
                 lo = m;
             else
                 hi = m;
@@ -812,7 +755,7 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
         np.locn = 2;
         for (m = n1; m > 0; --m) /* the last '/' inside the prefix: the break is after it */
             if (v[m - 1] == '/') {
-                if (np_mw(w1, 0, v + m, len - m) <= room) {
+                if (m1_text_wn(w1, 0, v + m, len - m) <= room) {
                     memcpy(l, v, m);
                     l[m] = 0;
                     widget_set_text_utf8(w1, l);
@@ -821,7 +764,7 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
                 }
                 break;
             }
-        if (n1 && np_mw(w1, 0, v + n1, len - n1) <= room) {
+        if (n1 && m1_text_wn(w1, 0, v + n1, len - n1) <= room) {
             memcpy(l, v, n1);
             l[n1] = 0;
             widget_set_text_utf8(w1, l);
@@ -831,10 +774,10 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
     }
     np.locn = 2;
     b2 = 0;
-    if (np_mw(w2, 0, v, len) > room) { /* the first start from which the end fits line 2 */
+    if (m1_text_wn(w2, 0, v, len) > room) { /* the first start from which the end fits line 2 */
         lo = 0, hi = len;
-        while ((m = np_mid(v, lo, hi)) < hi) {
-            if (np_mw(w2, 0, v + m, len - m) <= room)
+        while ((m = m1_utf8_mid(v, lo, hi)) < hi) {
+            if (m1_text_wn(w2, 0, v + m, len - m) <= room)
                 hi = m;
             else
                 lo = m;
@@ -842,10 +785,10 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
         b2 = hi;
     }
     b1 = 0;
-    if (np_mw(w1, 1, v, b2) > room) { /* the first start from which "..." and the text up to b2 fit line 1 */
+    if (m1_text_wn(w1, 1, v, b2) > room) { /* the first start from which "..." and the text up to b2 fit line 1 */
         lo = 0, hi = b2;
-        while ((m = np_mid(v, lo, hi)) < hi) {
-            if (np_mw(w1, 1, v + m, b2 - m) <= room)
+        while ((m = m1_utf8_mid(v, lo, hi)) < hi) {
+            if (m1_text_wn(w1, 1, v + m, b2 - m) <= room)
                 hi = m;
             else
                 lo = m;
@@ -857,47 +800,6 @@ static void np_loc_fit(void *w1, void *w2, const char *v, int room) {
     l[3 + b2 - b1] = 0;
     widget_set_text_utf8(w1, l);
     widget_set_text_utf8(w2, v + b2);
-}
-
-/* The title v in np_i_title and, when it does not fit NPI_TEXT_W, np_i_title2: np.tsh is NPI_TITLE_LH with two lines, else 0. The break is at the last space that leaves line 1 inside the width (the spaces round it
- * dropped), always, even when line 2 then needs its own end ellipsis; only with no such space (CJK, a first word wider than the line) at the last character that fits. Line 2 is the rest, cut
- * with an ellipsis at the end when it is too long (np_fit). tools/mod_nowplaying.py title_wrap is the model. */
-static void np_title_fit(const char *v) {
-    char l[NP_ROW_TAIL + 8];
-    void *w1 = np.iw[NI_TITLE], *w2 = np.iw[NI_TITLE2];
-    unsigned len = 0, lo, hi, m, n1, k, e;
-    const char *rest;
-    while (v[len]) ++len;
-    np.tsh = 0;
-    widget_set_text_utf8(w2, "");
-    if (np_mw(w1, 0, v, len) <= NPI_TEXT_W) {
-        widget_set_text_utf8(w1, v);
-        return;
-    }
-    lo = 0, hi = len; /* the longest prefix that fits line 1 */
-    while ((m = np_mid(v, lo, hi)) < hi) {
-        if (np_mw(w1, 0, v, m) <= NPI_TEXT_W)
-            lo = m;
-        else
-            hi = m;
-    }
-    n1 = lo;
-    if (!n1) { /* a first character wider than the line: it stays alone */
-        n1 = 1;
-        while (np_cont(v, n1)) ++n1;
-    }
-    np.tsh = NPI_TITLE_LH;
-    for (k = n1; k > 0 && v[k] != ' '; --k) {
-    }
-    for (e = k; e > 0 && v[e - 1] == ' '; --e) {
-    }
-    if (!e) k = e = n1; /* no usable space: the character break */
-    for (rest = v + k; *rest == ' '; ++rest) {
-    }
-    memcpy(l, v, e);
-    l[e] = 0;
-    widget_set_text_utf8(w1, l);
-    np_fit(w2, rest, NPI_TEXT_W);
 }
 
 /* Row r shows ours (own) or nothing of ours (rows 4..7: stock's label of it, never both visible). */
@@ -927,7 +829,7 @@ static void np_set_row(int r, const char *key, const char *val) {
         if (room < 0) room = 0;
         np.rvx[r] = NPI_R - room;
         np.rvw[r] = room;
-        np_fit(w, val, room);
+        m1_fit(w, val, room);
         if (r == 0) np.fmtw = np_tw(w);
     }
     np_row_own(r, 1);

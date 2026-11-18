@@ -1334,10 +1334,12 @@ def build_songs_page(page):
     # a playlist's header (patch/songs.c, class 0xff13): the name and the count, centred under the mosaic the payload paints; the payload moves the pills down and
     # shows these two (hidden and insensitive here, like every decoration it shows later)
     hname = hidden(label('sg_hname', o['PH_NAME_X'], o['PH_NAME_Y'], o['PH_NAME_W'], o['PH_NAME_H'], '', 22, INK_RGB, 'center'))
-    styled(hname, ('normal',), 'text_align_v', 'middle')
+    hname2 = hidden(label('sg_hname2', o['PH_NAME_X'], o['PH_NAME_Y'] + o['AH_TITLE_LH'], o['PH_NAME_W'], o['PH_NAME_H'], '', 22, INK_RGB, 'center'))   # the name's second line (m1_wrap2)
+    for lab in (hname, hname2):   # vertically middle, no side margins: m1_wrap2 fits each line to the full PH_NAME_W
+        for k, v in (('text_align_v', 'middle'), ('margin_left', '0'), ('margin_right', '0')): styled(lab, ('normal',), k, v)
     # the library's flat pills, and a playlist's header disc and pill (the album page's; hidden, patch/songs.c sg_pills shows one set)
     pills, ptext = play_header(o['PH_BTN_Y'])
-    grid.children = [title, hname, sg_pill('btn_play', o['SG_PILL_X0'], o['SG_PILL_Y'], 'Play', 'sg_play', down=SG_PILL_PRESS_RGB),
+    grid.children = [title, hname, hname2, sg_pill('btn_play', o['SG_PILL_X0'], o['SG_PILL_Y'], 'Play', 'sg_play', down=SG_PILL_PRESS_RGB),
                      sg_pill('btn_shuffle', o['SG_PILL_X1'], o['SG_PILL_Y'], 'Shuffle', 'sg_shuffle', down=SG_PILL_PRESS_RGB), *pills, foot,
                      hidden(wf_image('sg_spin', (SCREEN_W - WF_SPIN_PX) // 2, room_y(WF_SPIN_PX, NAVBAR_H + o['SG_TITLE_H']) - NAVBAR_H, WF_SPIN_PX, WF_SPIN_PX, 'wf_spin0', 'default'))]   # a source's loading spinner (the payload places, shows and turns it)
     root.children.append(ptext)
@@ -1410,7 +1412,13 @@ def build_album_page(page):
             styled(lab, (st,), 'font_size', str(px))
             styled(lab, (st,), 'text_color', colour)
             styled(lab, (st,), 'text_align_h', 'center')
+            if name == 'ab_title':   # no side margins: m1_wrap2 fits each line to the full AH_TEXT_W
+                styled(lab, (st,), 'margin_left', '0')
+                styled(lab, (st,), 'margin_right', '0')
         kids.append(lab)
+        if name == 'ab_title':   # the title's second line (patch/albumpage.c ab_head_place: shown, and the lines under it moved down AH_TITLE_LH, when the title takes two)
+            lab2 = Widget('hscroll_label', o['AH_TEXT_X'], o[y] + o['AH_TITLE_LH'], o['AH_TEXT_W'], o[h], [(k, 'ab_title2' if k == 'name' else v) for k, v in lab.props])
+            kids.append(hidden(lab2))
     kids.append(ab_button('btn_shuffle', o['AH_SHUF_X'], o['AH_SHUF_W'], 'ah_shuffle', 'ah_shuffle_down'))
     kids.append(ab_button('btn_play', o['AH_PLAY_X'], o['AH_PLAY_W'], 'ah_pill', 'ah_pill_down'))
     pair = o['AH_PILL_GLYPH'] + o['AH_PILL_GAP'] + AB_PLAY_TEXT_W

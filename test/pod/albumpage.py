@@ -24,7 +24,7 @@ ALBUM, ARTIST = 'Kind of Blue', 'Miles Davis'
 RED = (190, 50, 55)
 NAMES = ['So What', 'Freddie Freeloader', 'Blue in Green', 'All Blues', 'Flamenco Sketches', 'Flamenco Sketches (Alt)', 'So What (Alt)', 'Blue in Green (Alt)']
 WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_selall', 'sg_bar', 'sg_add', 'sg_del', 'btn_play', 'btn_shuffle', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
-           'ab_title', 'ab_artist', 'ab_meta', 'ab_foot', 'ab_spin', 'ab_glyph', 'ab_play_text', 'label_title', 'img_ah_tint',
+           'ab_title', 'ab_title2', 'ab_artist', 'ab_meta', 'ab_foot', 'ab_spin', 'ab_glyph', 'ab_play_text', 'label_title', 'img_ah_tint',
            'btn_more', 'vs_scrim', 'vs_card', 'vs_hair') + tuple(f'vs_item{i}' for i in range(9)) + tuple(f'vs_label{i}' for i in range(9)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_glyph{i}' for i in range(4, 9))
 NAV_BTNS = ('btn_return', 'btn_backtoplayer', 'btn_more', 'btn_selall', 'sg_add', 'sg_del')
 BAR_BLACK = O['NP_BAR_STOCK']
@@ -66,9 +66,9 @@ class AM(SG.SongsMachine):
             self.calls.append(('loadAlbumdetailList', a0, a1))
             cls = {O['CLASS_ALBUMS']: LIB, O['CLASS_ARTIST_ALBUMS']: ART, O['CLASS_COMPOSER_ALBUMS']: COMP}[a0]
             album = self.read_cstr(self.word(a1 + O['REC_ALBUM']))
-            self.u.mem_write(CI + O['CLASSINFO_ALBUM'], bytes(0x100)); self.u.mem_write(CI + O['CLASSINFO_ALBUM'], album.encode())
+            self.u.mem_write(CI + O['CLASSINFO_ALBUM'], bytes(0x100)); self.u.mem_write(CI + O['CLASSINFO_ALBUM'], album.encode('latin-1'))
             if a0 == O['CLASS_ALBUMS']:   # the Albums row: the record's artist is the row's, +9 the Unknown Album flag
-                self.u.mem_write(CI + O['CLASSINFO_ARTIST'], bytes(0x100)); self.u.mem_write(CI + O['CLASSINFO_ARTIST'], self.read_cstr(self.word(a1 + O['REC_ARTIST'])).encode())
+                self.u.mem_write(CI + O['CLASSINFO_ARTIST'], bytes(0x100)); self.u.mem_write(CI + O['CLASSINFO_ARTIST'], self.read_cstr(self.word(a1 + O['REC_ARTIST'])).encode('latin-1'))   # (read_cstr: the bytes as latin-1)
                 self.u.mem_write(CI + 9, bytes([int(self.word(a1 + O['REC_ID']) == 0xffffffff)]))
             else:   # the artist's or composer's page: the name loadAlbumList left (+0x10d, +0x20d for 0xff14)
                 self.u.mem_write(CI + (O['CLASSINFO_ARTIST_14'] if cls == COMP else O['CLASSINFO_ARTIST']), self.scoped.encode() + b'\0')
@@ -207,6 +207,8 @@ def asset_tests(ctx):
         expect(w.type == 'hscroll_label' and (w.x, w.y, w.w, w.h) == (17, y, 286, h) and w.get('sensitive') == 'false' and w.get('ellipses') == 'true' and w.get('yoyo') == 'true'
                and w.get('style:normal:font_size') == str(px) and w.get('style:normal:text_color') == colour and w.get('style:normal:text_align_h') == 'center',
                f'{name}: a centred {px} px {colour} hscroll_label at (17, {y}), 286 x {h}, insensitive (a drag over it scrolls the list), scrolling a long text')
+    expect(all(f(n).get(f'style:{st}:margin_{k}') == '0' for n in ('ab_title', 'ab_title2') for st in ('normal', 'disable', 'focused') for k in ('left', 'right')),
+           'the title\'s two lines have no side margins: m1_wrap2 fits each line to the whole 286 px')
     shuf, play, glyph, ptext = f('btn_shuffle'), f('btn_play'), f('ab_glyph'), f('ab_play_text')
     expect((shuf.x, shuf.y, shuf.w, shuf.h) == (42, 292, 44, 44) and shuf.get('style:normal:icon') == 'ah_shuffle' and shuf.get('style:pressed:icon') == 'ah_shuffle_down'
            and (play.x, play.y, play.w, play.h) == (96, 292, 180, 44) and play.get('style:normal:icon') == 'ah_pill' and play.get('style:pressed:icon') == 'ah_pill_down',
@@ -341,7 +343,7 @@ def header_tests(ctx):
     m2.call(PSYMS['ab_on_destroy'], count=4000000)
     # the pill: glyph, 8 px, text centred as a pair
     for tw in (64, 40, 100, 140, 300):
-        m2 = album_machine(); m2.measure = lambda text, tw=tw: tw if text else 0
+        m2 = album_machine(); m2.measure = lambda text, tw=tw: (tw if text != ALBUM else 8 * len(text)) if text else 0   # (the title keeps its width: one line)
         open_album(m2)
         fits = 16 + 8 + tw <= 180
         x = pill(tw if fits else O['AB_PLAY_TEXT_W'])
@@ -1338,4 +1340,40 @@ def pin_tests(ctx):
     m.call(PSYMS['ab_on_destroy'], count=4000000)
 
 
-SECTIONS = [asset_tests, open_tests, header_tests, cover_tests, rows_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests, pin_tests]   # tools/check.py runs each as its own task
+def title_tests(ctx):
+    """4b. A title wider than AH_TEXT_W: two lines (m1_wrap2, the Now Playing info page's break), and everything under it AH_TITLE_LH lower."""
+    expect = ctx.expect
+    LH, LONG = O['AH_TITLE_LH'], 'The Rise and Fall of Ziggy Stardust and the Spiders from Mars'   # the machine measures 8 px a character: 35 fit the 286 px line
+    HEAD = (('ab_artist', 17, 247), ('ab_meta', 17, 267), ('btn_shuffle', 42, 292), ('btn_play', 96, 292), ('ab_spin', 146, 306))   # the asset's places (x, y)
+    def page(album):
+        m = album_machine(album=album)
+        for n, x, y in HEAD: m.setword(m.widgets[n], x); m.setword(m.widgets[n] + 4, y)
+        open_album(m); return m
+    t = lambda m, n: utf(m.wtext.get(m.widgets[n], ''))
+    ys = lambda m: [m.s32(m.widgets[n] + 4) for n, _, _ in HEAD]
+    m = page(ALBUM)
+    expect(t(m, 'ab_title') == ALBUM and t(m, 'ab_title2') == '' and vis(m, 'ab_title2')[0] == 0 and ys(m) == [y for _, _, y in HEAD],
+           f'a title that fits: one line, the second label hidden, the lines and buttons where the asset put them ({ys(m)})')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+    m = page(LONG)
+    expect((t(m, 'ab_title'), t(m, 'ab_title2')) == ('The Rise and Fall of Ziggy Stardust', 'and the Spiders from Mars') and vis(m, 'ab_title2')[0] == 1,
+           f'a long title: broken at the last space that fits line 1, the rest on line 2 ({t(m, "ab_title")!r} / {t(m, "ab_title2")!r})')
+    expect(ys(m) == [y + LH for _, _, y in HEAD], f'the artist, the year line, Shuffle, Play and the spinner {LH} px lower ({ys(m)})')
+    expect(m.props[(m.widgets['ab_glyph'], 'y')] == 292 + LH + 14, 'the Play glyph moves with the pill')
+    m.watch[PSYMS['pod_open_player']] = 'pod_open_player'
+    expect(not [c for c in tap(m, 150, row_y(0) + 10) if c[0] == 'navigator_to_with_context'], 'the old first row\'s top is header now: it plays nothing')
+    calls = tap(m, 150, row_y(1) + LH + 20)
+    expect([c for c in calls if c[0] == 'loadSongList'][0][1:] == ('1.flac', 0, LIB), 'a tap on the second track plays it at its moved place')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+    m = page('W' * 30 + ' ' + 'x' * 60)
+    expect(t(m, 'ab_title') == 'W' * 30 and t(m, 'ab_title2').endswith('...') and 8 * len(t(m, 'ab_title2')) <= O['AH_TEXT_W'], f'more than two lines: line 2 ends in "..." ({t(m, "ab_title2")!r})')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+    narrow = 'Ab' + '́' * 99 + ' ' + 'x' * 40   # the first M1_FIT_TAIL bytes (200) are zero-width marks: narrow, the whole 336 px
+    m = album_machine(album=narrow); m.measure = lambda text: 8 * sum(c != '́' for c in text)
+    for n, x, y in HEAD: m.setword(m.widgets[n], x); m.setword(m.widgets[n] + 4, y)
+    open_album(m)
+    expect('x' in t(m, 'ab_title2') and vis(m, 'ab_title2')[0] == 1, f'a title longer than the measured {O["M1_FIT_TAIL"]} bytes whose start fits: still two lines ({t(m, "ab_title2")!r})')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+
+
+SECTIONS = [asset_tests, open_tests, header_tests, title_tests, cover_tests, rows_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests, pin_tests]   # tools/check.py runs each as its own task

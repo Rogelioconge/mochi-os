@@ -92,6 +92,19 @@ void m1_show(void *w, int on);
 void m1_timer_stop(unsigned *t);
 /* The width of the text t in widget w's own font, rounded up to whole px (0 or less: it cannot be measured). */
 int m1_text_w(void *w, const unsigned *t);
+/* The width of the n bytes of the UTF-8 s (with "..." before them when dots) in w's font; at most M1_FIT_TAIL bytes of s are measured. */
+int m1_text_wn(void *w, int dots, const char *s, unsigned n);
+/* 1 when byte i of v continues a UTF-8 character. */
+static inline int m1_utf8_cont(const char *v, unsigned i) { return ((unsigned char)v[i] & 0xc0) == 0x80; }
+/* A character boundary of v strictly between lo and hi (both boundaries), near the middle; hi when there is none. */
+unsigned m1_utf8_mid(const char *v, unsigned lo, unsigned hi);
+/* v in the label w, room px wide: whole when it fits, else the longest start (of its first M1_FIT_TAIL bytes: no more is measured) that fits with "..." after it (the spaces
+ * before the dots dropped). tools/mod_nowplaying.py end_fit is the model. */
+void m1_fit(void *w, const char *v, int room);
+/* v in up to two labels room px wide (w1 line 1, w2 line 2, which is emptied first); returns 1 with two lines. The break is at the last space that leaves line 1 inside the
+ * width (the spaces round it dropped), always, even when line 2 then needs its own end ellipsis; only with no such space (CJK, a first word wider than the line) at the last
+ * character that fits. Line 2 is the rest, cut by m1_fit. tools/mod_nowplaying.py title_wrap is the model. */
+int m1_wrap2(void *w1, void *w2, const char *v, int room);
 /* Where a pointer press began (screen coordinates). A page keeps its pressed row + 1 itself; the tap is a release closer than SC_DRAG_PX on both axes (the scroll_view's own drag threshold). */
 typedef struct {
     int x, y;

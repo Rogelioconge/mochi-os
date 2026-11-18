@@ -276,6 +276,7 @@
  * artist baseline -> year digits 9, year baseline -> pill top 16; the label rects are their font size high */
 #define AH_TITLE_Y 224
 #define AH_TITLE_H 22
+#define AH_TITLE_LH 26 /* a two-line title (m1_wrap2): line 2 is this much below line 1, and the lines, the buttons and the rows under it move down as much */
 #define AH_ARTIST_Y 247
 #define AH_ARTIST_H 18
 #define AH_META_Y 267
@@ -489,7 +490,7 @@
  * NPI_ROW_Y, its text NPI_ROW_TEXT under it, NPI_ROW_PX high, the label at NPI_X, the value right aligned to NPI_R, NPI_KEY_GAP after the label; a missing row is left out and the next ones move up.
  * The badge (NPI_BADGE_H high, NPI_BADGE_HIRES_W or NPI_BADGE_DSD_W wide) sits NPI_BADGE_GAP left of the Format value. The Location (row NPI_LOC_ROW): its label, then the path left aligned from NPI_LOC_Y under the
  * hairline in up to NPI_LOC_LINES lines NPI_LOC_LH apart, the content ends NPI_FOOT under the last text. Every own label's box is its text's line plus NPI_PAD above and below.
- * The title takes up to two lines (NPI_TITLE_LH apart, np_title_fit); a second line moves the artist, the album and everything under the header down by NPI_TITLE_LH. Touch: a vertical drag of NPI_TAP_PX or more
+ * The title takes up to two lines (NPI_TITLE_LH apart, m1_wrap2); a second line moves the artist, the album and everything under the header down by NPI_TITLE_LH. Touch: a vertical drag of NPI_TAP_PX or more
  * scrolls the content with the finger (np_on_info_touch), a sideways one is the slide view's; the content goes back to the top when the slide view's page (NPI_PAGE: the info page) is left. The top and bottom NPI_FADE rows of
  * the view fade into the page's colour while there is more content beyond that edge (np_on_info_fade; the colour is the window tone under np_scrim, whose rows are NP_SCRIM_Y.., NP_SCRIM_H high, NP_SCRIM_ALPHA in the
  * middle, ramping over NP_SCRIM_EDGE rows).
@@ -497,7 +498,7 @@
 #define NP_INFO_N 6
 #define NP_INFO_BUF 512
 #define NP_RELAY 3
-#define NP_ROW_TAIL 200 /* the bytes of a Location's end that np_loc_fit looks at */
+#define M1_FIT_TAIL 200 /* the bytes m1_fit and m1_wrap2 (patch/common.c) measure; the bytes of a Location's end that np_loc_fit looks at */
 #define NPI_X 16
 #define NPI_R 304
 #define NPI_TOP 36

@@ -155,6 +155,8 @@ static struct {
     void *foot; /* the song count under the last row (sg_foot, a label in the content view) */
     void *
         hname; /* a playlist's header: the name (sg_hname, an optional label of the content view; the count is the list's footer) */
+    void *hname2; /* the name's second line (sg_hname2): m1_wrap2 breaks a name wider than PH_NAME_W */
+    int tsh; /* 0, or AH_TITLE_LH while the name takes two lines: the pills and the rows are that much lower */
     unsigned *htmp; /* one quadrant of the header's mosaic (PH_COVER / 2 squared words) for grid_mosaic */
     int head; /* the page has a playlist's header (class 0xff13, its labels, its tile and quadrant buffer): the pills and the rows start lower, the large title is not shown */
     grid_t hg; /* the header's one tile, PH_COVER px (patch/grid.c, as the Playlists page's mosaics) */
@@ -495,7 +497,7 @@ static void sg_paint_rows(void *canvas) {
         if (h) grid_blit(canvas, &sg.hg, h, PH_COVER_X, PH_COVER_Y - off, GRID_VIEW_H);
     }
     if (sg.head && !sg.wait)
-        m1_pill_paint(&sg.pill, canvas, PH_BTN_Y - off); /* a playlist's Play pill text, over its picture */
+        m1_pill_paint(&sg.pill, canvas, PH_BTN_Y + sg.tsh - off); /* a playlist's Play pill text, over its picture */
     sg_span(&r0, &r1);
     if (sg.src && r1 - r0 > 31) r1 = r0 + 31;
     for (r = r0; r <= r1; ++r) {
@@ -663,7 +665,7 @@ static int sg_on_load(const void *unused) {
  * The navbar's title: the large title is in the content; once it has scrolled away the navbar shows the small one
  */
 static void sg_title_update(void) {
-    int on = sg.noscroll || sg.select || m1_title_gone(sg_off(), sg.head ? PH_COLLAPSE : 0);
+    int on = sg.noscroll || sg.select || m1_title_gone(sg_off(), sg.head ? PH_COLLAPSE + sg.tsh : 0);
     m1_title_set(sg.title, &sg.title_on, on);
     /* The navbar's fade (an insensitive image, built hidden) is for rows passing under the bar: shown while the list is scrolled, hidden at rest, where
      * it would darken the large title (as the Albums and Playlists pages). Never a touch target. No fade widget = nothing happens. */
@@ -884,7 +886,7 @@ static int sg_on_gen(const void *unused);
 static void sg_spinner(int on) {
     if (!sg.spin) return;
     if (on && sg.head)
-        widget_move(sg.spin, (SG_W - 14) / 2, PH_BTN_Y + (AH_BTN_H - 14) / 2);
+        widget_move(sg.spin, (SG_W - 14) / 2, PH_BTN_Y + sg.tsh + (AH_BTN_H - 14) / 2);
     else if (on)
         widget_move(sg.spin, (SG_W - 14) / 2, SG_TITLE_H + (450 - LS_ROOM_NAV - SG_TITLE_H - 14) / 2);
     ls_spin(sg.spin, on);
@@ -1772,6 +1774,7 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     sg.big = widget_lookup(sg.win, "sg_title", 1); /* optional: the large title */
     sg.foot = widget_lookup(sg.win, "sg_foot", 1);
     sg.hname = widget_lookup(sg.win, "sg_hname", 1); /* optional: a playlist's header */
+    sg.hname2 = widget_lookup(sg.win, "sg_hname2", 1);
     sg.al.win = sg.win, sg.al.sv = sg.sv, sg.al.top = SG_TOP, sg.al.row = ROW;
     az_prefs(&sg.al);
     if (!sg.foot || !sg.back || !sg.np || !sg.btn_more || !sg.btn_select || !sg.btn_selall || !sg.btn_play ||
@@ -1819,23 +1822,26 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     }
     /* A playlist's header (docs/modules/songs.md): the mosaic tile (the Playlists page's, patch/grid.c) and the name under it (the count is the footer under the last row,
      * as Apple Music's), the pills and the rows lower, the large title gone. Without the label, the tile or the quadrant buffer the page keeps its plain look (the large title). */
-    if (sg_playlist() && sg.hname) {
+    if (sg_playlist() && sg.hname && sg.hname2) {
         sg.htmp = calloc((PH_COVER / 2) * (PH_COVER / 2), 4);
         if (grid_init(&sg.hg, sg.win, 1, PH_COVER, PH_COVER_R)) {
             if (sg.src) sg.hg.url = sbs_cover_url;
             grid_placeholder(&sg.hg);
             sg.head = 1;
-            sg.al.top = PH_TOP;
-            widget_move(sg.hd_play, AH_PLAY_X, PH_BTN_Y);
-            widget_move(sg.hd_shuffle, AH_SHUF_X, PH_BTN_Y);
-            az_fit(sg.hname, sg_name_text());
+            sg.tsh = m1_wrap2(sg.hname, sg.hname2, sg_name_text(), PH_NAME_W)
+                         ? AH_TITLE_LH
+                         : 0; /* the name in one or two lines (the album page's title) */
+            sg.al.top = PH_TOP + sg.tsh;
+            widget_move(sg.hd_play, AH_PLAY_X, PH_BTN_Y + sg.tsh);
+            widget_move(sg.hd_shuffle, AH_SHUF_X, PH_BTN_Y + sg.tsh);
             m1_show(sg.big, 0);
-            widget_set_visible(sg.hname, 1, 0); /* (an insensitive label: shown, never a touch target) */
+            widget_set_visible(sg.hname, 1, 0); /* (insensitive labels: shown, never a touch target) */
+            widget_set_visible(sg.hname2, sg.tsh != 0, 0);
         } else
             grid_free(&sg.hg);
     }
     if (sg.head)
-        m1_pill_place(&sg.pill, PH_BTN_Y);
+        m1_pill_place(&sg.pill, PH_BTN_Y + sg.tsh);
     else {
         m1_centre_pill(sg.btn_play, SG_PILL_W);
         m1_centre_pill(sg.btn_shuffle, SG_PILL_W);

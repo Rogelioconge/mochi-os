@@ -24,7 +24,7 @@ Stock album artwork retains its 100 px size.
 
 ## Layout
 
-A stock list fills the 320 × 450 px window. Its content view paints a 346 px header
+A stock list fills the 320 × 450 px window. Its content view paints a 346 px header (372 with a two-line title)
 and 52 px track rows (`AB_ROW_H`). Glass navigation controls are direct window children above the
 list so an enclosing view cannot intercept the whole navigation band.
 
@@ -32,7 +32,7 @@ list so an enclosing view cannot intercept the whole navigation band.
 |---|---|
 | Navigation | Back; the capsule "..." 214 (`btn_more`, `pod_nav_more`, the left cap) / Now Playing 260 (46 / 60 px, a source page's too); selection mode hides the capsule, turns Back into the close x and adds the title and Select All (the shared [select mode](selmode.md)). The "..." opens the shared view-sort card (`vs_bind`, `viewsort.c`) with action rows only: the library's page **Select** (enters the select mode) then, for an album with a title, **Pin Album** / **Unpin Album** (slot `VS_ACT2`; label and glyph follow the pin, [pins](pins.md)); a source's page **Download Album** alone, no Select. Play and Shuffle are the header pill and disc, not card rows. An album without a title ("Unknown Album") has Select alone. The "..." is dead while a source's tracks load |
 | Cover | 160 × 160 at (80, 50), 10 px corners |
-| Album | Centered 22 px white at y 224 |
+| Album | Centered 22 px white at y 224, up to two lines `AH_TITLE_LH` (26) px apart (`ab_title`, `ab_title2`; `m1_wrap2` in `patch/common.c`, the Now Playing info title's break: the last space that fits line 1, else the last character; line 2 cut with `...`). A second line moves the artist, the year line, Shuffle, Play, the spinner and the rows 26 px down (`ab.tsh`, `ab_head_place`) |
 | Artist | Centered 18 px grey at y 247 |
 | Metadata | 15 px at y 267: year and track count, or track count alone |
 | Playback | Shuffle target 44 × 44 at x 42 with a 40 px disc (the pill's height); Play target 180 × 44 at x 96 (12 px after the disc); y 292. A playlist's page (the Songs page with its header) copies this group (`patch/common.c` `m1_pill_place` / `m1_pill_paint`; [Songs](songs.md)) |

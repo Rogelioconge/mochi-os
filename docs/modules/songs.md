@@ -272,7 +272,7 @@ only (Apple shows an "Updated" line there, which needs a change time we do not h
 | part | geometry (`patch/offsets.inc` `PH_*`) |
 |---|---|
 | mosaic | `PH_COVER` 160 px at x `PH_COVER_X` 80, y `PH_COVER_Y` 8; corners `PH_COVER_R` 10 |
-| name | `sg_hname`, x `PH_NAME_X` 17, 286 wide, y `PH_NAME_Y` 182, 22 px white centred, ellipsis (`az_fit`) |
+| name | `sg_hname`, x `PH_NAME_X` 17, 286 wide, y `PH_NAME_Y` 182, 22 px white centred; a wider name takes a second line `sg_hname2` `AH_TITLE_LH` (26) px lower (`m1_wrap2`, the album page's title), line 2 cut with `...`, and the pills, the spinner, the rows and `PH_COLLAPSE` move down 26 px (`sg.tsh`) |
 | disc and pill | `hd_shuffle` / `hd_play` 44 px at `AH_SHUF_X` 42 / `AH_PLAY_X` 96, drawn at y `PH_PILL_Y` 220, buttons at `PH_BTN_Y` 218; glyph `sg_glyph` is insensitive over the pill; text painted from hidden `sg_play_text` (18 px `#141414`, `m1_pill_place` / `m1_pill_paint`) |
 | rows | from `PH_TOP` 272 |
 | collapse | the small title shows from `PH_COLLAPSE` 204 (`m1_title_gone(off, PH_COLLAPSE)`) |
@@ -283,7 +283,7 @@ the library album's); `grid_mosaic` composes the tile ([playlists](playlists.md)
 own one-tile `grid_t` (`sg.hg`) and a quadrant buffer (`sg.htmp`, 25.6 KB). The loader (`sg_on_load`,
 16 ms) makes the mosaic **first**, one cover a tick, only while the header is in view. The keys come
 from the list just read, so no extra query. `sg_head_prep` remakes the tile only when the four keys
-changed. No tile ring or no `sg_hname` in the asset gives the plain look. A tap on the header opens
+changed. No tile ring or no `sg_hname` / `sg_hname2` in the asset gives the plain look. A tap on the header opens
 nothing, and neither does the pinned band over scrolled rows (`az_pin_hit`). An empty playlist says
 "No songs" and shows no header.
 

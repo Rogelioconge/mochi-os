@@ -577,6 +577,91 @@ __attribute__((noinline)) void m1_corners(void *canvas, const unsigned char *tab
 
 int m1_text_w(void *w, const unsigned *t) { return (int)(widget_measure_text(w, t) + 0.999f); }
 
+int m1_text_wn(void *w, int dots, const char *s, unsigned n) {
+    char b[M1_FIT_TAIL + 4];
+    unsigned wide[M1_FIT_TAIL + 4], m = 0;
+    if (dots) b[0] = b[1] = b[2] = '.', m = 3;
+    if (n > M1_FIT_TAIL) n = M1_FIT_TAIL;
+    memcpy(b + m, s, n);
+    m += n;
+    b[m] = 0;
+    if (!m) return 0;
+    tk_utf8_to_utf16_ex(b, m, wide, M1_FIT_TAIL + 3);
+    return m1_text_w(w, wide);
+}
+
+unsigned m1_utf8_mid(const char *v, unsigned lo, unsigned hi) {
+    unsigned m = (lo + hi) / 2;
+    while (m < hi && m1_utf8_cont(v, m)) ++m;
+    if (m >= hi || m <= lo) {
+        m = lo + 1;
+        while (m < hi && m1_utf8_cont(v, m)) ++m;
+    }
+    return m;
+}
+
+void m1_fit(void *w, const char *v, int room) {
+    char l[M1_FIT_TAIL + 8];
+    unsigned len = 0, lo = 0, hi, m;
+    while (v[len]) ++len;
+    if (len <= M1_FIT_TAIL && m1_text_wn(w, 0, v, len) <= room) { /* whole only when all of it was measured */
+        widget_set_text_utf8(w, v);
+        return;
+    }
+    hi = len > M1_FIT_TAIL ? M1_FIT_TAIL : len; /* the longest start that fits before the dots */
+    while (hi && m1_utf8_cont(v, hi)) --hi;
+    if (len > M1_FIT_TAIL && m1_text_wn(w, 1, v, hi) <= room)
+        lo = hi; /* a longer text whose measured start fits: that start and the dots */
+    while ((m = m1_utf8_mid(v, lo, hi)) < hi) {
+        if (m1_text_wn(w, 1, v, m) <= room)
+            lo = m;
+        else
+            hi = m;
+    }
+    while (lo && v[lo - 1] == ' ') --lo;
+    memcpy(l, v, lo);
+    l[lo] = l[lo + 1] = l[lo + 2] = '.';
+    l[lo + 3] = 0;
+    widget_set_text_utf8(w, l);
+}
+
+int m1_wrap2(void *w1, void *w2, const char *v, int room) {
+    char l[M1_FIT_TAIL + 8];
+    unsigned len = 0, lo, hi, m, n1, k, e;
+    const char *rest;
+    while (v[len]) ++len;
+    widget_set_text_utf8(w2, "");
+    if (len <= M1_FIT_TAIL && m1_text_wn(w1, 0, v, len) <= room) { /* one line only when all of it was measured */
+        widget_set_text_utf8(w1, v);
+        return 0;
+    }
+    lo = 0, hi = len > M1_FIT_TAIL ? M1_FIT_TAIL : len; /* the longest prefix that fits line 1 */
+    while (hi < len && m1_utf8_cont(v, hi)) --hi;
+    while ((m = m1_utf8_mid(v, lo, hi)) < hi) {
+        if (m1_text_wn(w1, 0, v, m) <= room)
+            lo = m;
+        else
+            hi = m;
+    }
+    n1 = lo;
+    if (!n1) { /* a first character wider than the line: it stays alone */
+        n1 = 1;
+        while (m1_utf8_cont(v, n1)) ++n1;
+    }
+    for (k = n1; k > 0 && v[k] != ' '; --k) {
+    }
+    for (e = k; e > 0 && v[e - 1] == ' '; --e) {
+    }
+    if (!e) k = e = n1; /* no usable space: the character break */
+    for (rest = v + k; *rest == ' '; ++rest) {
+    }
+    memcpy(l, v, e);
+    l[e] = 0;
+    widget_set_text_utf8(w1, l);
+    m1_fit(w2, rest, room);
+    return 1;
+}
+
 void m1_tap_at(m1_tap_t *t, void *e) { t->x = *(int *)((char *)e + PE_X), t->y = *(int *)((char *)e + PE_Y); }
 
 int m1_tap_near(const m1_tap_t *t, void *e) {

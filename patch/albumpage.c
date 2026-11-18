@@ -61,7 +61,8 @@ static struct {
         st_dim; /* a source's: the title of a row that cannot play (NULL: the asset has none, the row is drawn as the others) */
     void *
         foot; /* the footer under the last row (ab_foot, a label of the content view): "13 tracks, 49 minutes", hidden while the duration is unknown */
-    void *hname, *hartist, *hmeta; /* the header's labels */
+    void *hname, *hname2, *hartist, *hmeta; /* the header's labels (hname2: the title's second line, ab_head_place) */
+    int tsh; /* 0, or AH_TITLE_LH while the title takes two lines: everything under it is that much lower (ab_head_place) */
     m1_pill_t
         pill; /* the Play pill's glyph and its hidden text label (the text style and the translated text; the page paints it), patch/common.c */
     void *list; /* the stock list the page is of (*pdeq_showlist when valid) */
@@ -138,11 +139,12 @@ static int ab_playing(void *rec) {
 }
 
 /* ---------------------------------------------------------------------------
- * Geometry: the header is AH_HDR_H high (the cover at AH_ART_Y, the controls' band over its first rows), then one ROW per track
+ * Geometry: the header is AH_HDR_H high (the cover at AH_ART_Y, the controls' band over its first rows), AH_TITLE_LH more with a two-line title (ab.tsh), then one ROW per track
  */
-static int ab_row_y(int i) { return AH_HDR_H + i * ROW; }
+static int ab_hdr(void) { return AH_HDR_H + ab.tsh; }
+static int ab_row_y(int i) { return ab_hdr() + i * ROW; }
 static int ab_content(void) {
-    return AH_HDR_H + (int)ab.count * ROW + (ab.count && ab.dur ? AB_FOOT_GAP + AB_FOOT_TEXT_H + AB_FOOT_PAD : 0) +
+    return ab_hdr() + (int)ab.count * ROW + (ab.count && ab.dur ? AB_FOOT_GAP + AB_FOOT_TEXT_H + AB_FOOT_PAD : 0) +
            (ab.select ? SG_BAR_H : 0); /* (the bar covers the foot of the window: the last track clears it) */
 }
 
@@ -153,15 +155,15 @@ static int ab_max_scroll(void) {
 
 /* The track under content point y, -1 for the header and the air below the last row. */
 static int ab_at(int y) {
-    int i = (y - AH_HDR_H) / ROW;
-    return y < AH_HDR_H || i >= (int)ab.count ? -1 : i;
+    int i = (y - ab_hdr()) / ROW;
+    return y < ab_hdr() || i >= (int)ab.count ? -1 : i;
 }
 
 /* The rows [*r0, *r1] that touch the view (r1 < r0 for none). */
 static void ab_span(int *r0, int *r1) {
-    int s = grid_sv_off(ab.sv), n = (int)ab.count;
-    *r0 = s <= AH_HDR_H ? 0 : (s - AH_HDR_H) / ROW;
-    *r1 = s + AH_WIN_H - 1 < AH_HDR_H ? -1 : (s + AH_WIN_H - 1 - AH_HDR_H) / ROW;
+    int s = grid_sv_off(ab.sv), n = (int)ab.count, h = ab_hdr();
+    *r0 = s <= h ? 0 : (s - h) / ROW;
+    *r1 = s + AH_WIN_H - 1 < h ? -1 : (s + AH_WIN_H - 1 - h) / ROW;
     if (*r1 > n - 1) *r1 = n - 1;
 }
 
@@ -634,16 +636,37 @@ static void ab_meta(char *out, unsigned size) {
     snprintf(out + o, size - o, "%s", count);
 }
 
+/* The album's title: a source's album row's own (REC_ALBUM, else REC_TITLE), else the browsing record's. */
+static const char *ab_title(void) {
+    void *row;
+    if (!ab.src) return (const char *)ab.ci + CLASSINFO_ALBUM;
+    row = deque_at(ab.srow_d, 0);
+    return *cc_str(row, REC_ALBUM) ? cc_str(row, REC_ALBUM) : cc_str(row, REC_TITLE);
+}
+
+/* w moved down by d px. */
+static void ab_down(void *w, int d) {
+    if (w) widget_move(w, I(w, W_X), I(w, W_Y) + d);
+}
+
+/* The title in one or two lines (m1_wrap2, AH_TEXT_W wide); a second line moves the artist, the year line, Shuffle, Play, the spinner and the rows down AH_TITLE_LH (ab.tsh). */
+static void ab_head_place(void) {
+    int tsh = m1_wrap2(ab.hname, ab.hname2, ab_title(), AH_TEXT_W) ? AH_TITLE_LH : 0, d = tsh - ab.tsh;
+    widget_set_visible(ab.hname2, tsh != 0, 0); /* (insensitive, as the title) */
+    if (!d) return;
+    ab.tsh = tsh;
+    ab_down(ab.hartist, d);
+    ab_down(ab.hmeta, d);
+    ab_down(ab.btn_shuffle, d);
+    ab_down(ab.btn_play, d);
+    ab_down(ab.spin, d);
+    m1_pill_place(&ab.pill, AH_BTN_Y + tsh);
+}
+
 static void ab_texts(void) {
     char line[96];
-    if (ab.src) { /* the album row's own texts (the title is REC_ALBUM, else REC_TITLE) */
-        void *row = deque_at(ab.srow_d, 0);
-        widget_set_text_utf8(ab.hname, *cc_str(row, REC_ALBUM) ? cc_str(row, REC_ALBUM) : cc_str(row, REC_TITLE));
-        widget_set_text_utf8(ab.hartist, cc_str(row, REC_ARTIST));
-    } else {
-        widget_set_text_utf8(ab.hname, (const char *)ab.ci + CLASSINFO_ALBUM);
-        widget_set_text_utf8(ab.hartist, ab_artist());
-    }
+    ab_head_place();
+    widget_set_text_utf8(ab.hartist, ab.src ? cc_str(deque_at(ab.srow_d, 0), REC_ARTIST) : ab_artist());
     if (ab.wait)
         line[0] = 0; /* (the count is not known yet: not "0 tracks") */
     else
@@ -653,7 +676,7 @@ static void ab_texts(void) {
 
 /* The Play pill's text over its picture (cut at the window's edges by the scroll_view's clip, as the picture); the pair is centred by m1_pill_place (patch/common.c). */
 static void ab_paint_pill(void *canvas, int off) {
-    if (!ab.wait) m1_pill_paint(&ab.pill, canvas, AH_BTN_Y - off);
+    if (!ab.wait) m1_pill_paint(&ab.pill, canvas, AH_BTN_Y + ab.tsh - off);
 }
 
 /* ---------------------------------------------------------------------------
@@ -714,9 +737,9 @@ static void ab_load(int keep) {
     if (!ab.count) widget_set_tr_text(ab.status, list ? "Not enough memory" : ls_empty_key(st, "No songs"));
     ls_spin(ab.spin, ab.wait && ab.spin);
     ab_pills(ab.count != 0);
+    ab_texts(); /* (first: a two-line title makes the header taller) */
     ab_foot(); /* (sizes the content: the footer's lines are part of it) */
     widget_set_prop_int(ab.sv, "yoffset", at < 0 ? 0 : at > ab_max_scroll() ? ab_max_scroll() : at);
-    ab_texts();
     if (ab.count || ab.wait)
         ab_cover();
     else
@@ -1094,6 +1117,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.st_title = widget_lookup(ab.win, "label_row_title", 1);
     ab.st_dim = widget_lookup(ab.win, "label_row_dim", 1);
     ab.hname = widget_lookup(ab.win, "ab_title", 1);
+    ab.hname2 = widget_lookup(ab.win, "ab_title2", 1);
     ab.hartist = widget_lookup(ab.win, "ab_artist", 1);
     ab.hmeta = widget_lookup(ab.win, "ab_meta", 1);
     ab.foot = widget_lookup(ab.win, "ab_foot", 1);
@@ -1102,7 +1126,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.pill.ptext = widget_lookup(ab.win, "ab_play_text", 1);
     if (!ab.back || !ab.np || !ab.btn_more || !ab.btn_selall || !ab.btn_add || !ab.btn_del || !ab.title || !ab.selbar ||
         !ab.btn_play || !ab.btn_shuffle || !ab.view || !ab.sv || !ab.status || !ab.st_num || !ab.st_title ||
-        !ab.hname || !ab.hartist || !ab.hmeta || !ab.foot || !ab.pill.glyph || !ab.pill.ptext) {
+        !ab.hname || !ab.hname2 || !ab.hartist || !ab.hmeta || !ab.foot || !ab.pill.glyph || !ab.pill.ptext) {
         navigator_back(); /* an asset that is not ours */
         return -2;
     }

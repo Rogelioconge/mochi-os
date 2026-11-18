@@ -134,7 +134,7 @@ def badge_x(value_w, badge_w):
 def i_row_text_y(r): return flow([True] * I_ROWS)[1][r]
 
 def end_fit(s, room, measure):
-    """np_fit: s whole when it fits room px, else its longest start that fits with "..." after it (the spaces before the dots dropped). The page's labels are plain ones (no ellipsis of their own): stock's hscroll_label
+    """m1_fit (patch/common.c): s whole when it fits room px, else its longest start that fits with "..." after it (the spaces before the dots dropped). The page's labels are plain ones (no ellipsis of their own): stock's hscroll_label
     clips to its resting place on the screen, so its text was cut while the slide_view moved the page."""
     long = len(s.encode()) > I_ROW_TAIL             # only the first I_ROW_TAIL bytes are measured: a longer text is never shown whole
     if not long and measure(s) <= room: return s
@@ -144,7 +144,7 @@ def end_fit(s, room, measure):
     return s[:n].rstrip(' ') + '...'
 
 def title_wrap(s, room, measure):
-    """np_title_fit: the title in up to two lines of room px. Returns ([lines], cut): one line when it fits; else the break is at the last space that leaves line 1 within room (the spaces round it dropped), always, even
+    """m1_wrap2 (patch/common.c): the title in up to two lines of room px. Returns ([lines], cut): one line when it fits; else the break is at the last space that leaves line 1 within room (the spaces round it dropped), always, even
     when line 2 then needs an end ellipsis (cut True; end_fit); only with no such space (CJK, a first word wider than room) at the last character that fits line 1."""
     if measure(s) <= room: return [s], False
     n1 = 0
@@ -491,7 +491,7 @@ def apply_ui(root):
     for r, n in ((4, 'label_genre'), (5, 'label_year'), (6, 'label_size'), (7, 'label_location')):
         w = find(root, n); move(w, I_X, cy(ty(r) - I_PAD), I_W, I_ROW_PX + 2 * I_PAD); text_style(w, I_ROW_PX, GREY, 'left')
     own = []
-    def label(name, x, y, w, px, rgb, align):       # a plain label: the payload cuts a long text itself (np_fit, np_loc_fit), an hscroll_label's clip does not follow the sliding page
+    def label(name, x, y, w, px, rgb, align):       # a plain label: the payload cuts a long text itself (m1_fit, np_loc_fit), an hscroll_label's clip does not follow the sliding page
         y0, h = i_box(cy(y), px)
         wd = awtk_ui.Widget('label', x, y0, w, h, [('name', name), ('visible', 'false'), ('sensitive', 'false')])
         text_style(wd, px, rgb, align); each(wd, STATES, 'margin_left', '0'); each(wd, STATES, 'margin_right', '0'); own.append(wd)
