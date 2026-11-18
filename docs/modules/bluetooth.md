@@ -2,9 +2,7 @@
 
 **Sources:** `patch/btset.c` / `btset.h` (control layer), `patch/btpage.c` (pages), `tools/pod_ui.py`
 (`build_bluetooth_page`, `build_btdevice_page`), `tools/pod_pages.py` (`BLUETOOTH_PAGE`,
-`BTCODEC_PAGE`, `BTDEVICE_PAGE`), `tools/pod_pins.py` `BLUETOOTH_PINS`. **Tests:** `test/pod/btset.py`,
-`test/pod/btpage.py`. **Preview:** `tools/preview/preview_bluetooth.py`.
-
+`BTCODEC_PAGE`, `BTDEVICE_PAGE`), `tools/pod_pins.py` `BLUETOOTH_PINS`.
 Settings > Bluetooth is our own page on stock's own state and calls, as [Wi-Fi](wifi.md) and
 [Buttons & Power](keyspower.md) are. Three layers:
 

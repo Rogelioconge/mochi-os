@@ -3,9 +3,7 @@
 **Sources:** `tools/mod_lockscreen.py` (asset, `patch_cover_src`, `patch_date_names`, `MINI_RECT`,
 `apply_mini`), `tools/mod_wallpaper.py`, `tools/wallpaper_prepare.py`, `patch/lockscreen.c`
 (`lk_*`, `lkwp_*`), `patch/relnotes.c` (instructions page); pins `LOCKSCREEN_PINS`, `LOCKROW_PINS` in
-`tools/pod_pins.py`. **Tests:** `test/pod/lockscreen.py`, `test/awtk_fill.py`, `test/demo_diff.py`.
-**Preview:** `tools/preview/preview_lockscreen.py`; the picker in `tools/preview/preview_settings.py`
-(`draw_lockwall`).
+`tools/pod_pins.py`.
 
 Our own lock screen: a restyled stock page (large glass card, or a mini player like Home's), a short
 localised date, a wallpaper picker and a Lock Screen settings page that replaces stock's. Payload

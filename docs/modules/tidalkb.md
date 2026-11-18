@@ -2,13 +2,10 @@
 
 **Sources:** `patch/tidalkb.c` (`tidal_kb_focus`), `patch/tidalkb.h`; `add_tidal_keyboard` in
 `tools/pod_ui.py` (the asset edit); `TIDALKB_SITE`, `TIDALKB_SEARCH`, `TIDALKB_PINS` in `tools/pod.py`.
-**Tests:** `test/pod/tidalkb.py`. **Preview:** `tools/preview/preview_tidalkb.py`.
-
 Stock's Tidal > Search page has one edit, `search_edit`, and used to pop stock's T9 for it. We embed
 our pad **inside the stock page** with `keyboard_attach` ([keyboard](keyboard.md)): Tidal's toolbar
 and search bar stay, the pad sits at the bottom over the history and results, and the typed text
-shows in the bar. The owner found a separate keyboard page too abrupt (a different navbar style), so
-no page of ours opens. One call-site hook ([payload](payload.md) hook 27); no ACT id, page id or
+shows in the bar. No page of ours opens (a separate keyboard page would change the navbar style). One call-site hook ([payload](payload.md) hook 27); no ACT id, page id or
 settings file; nothing at boot.
 
 ## Stock behaviour we rely on
@@ -55,13 +52,12 @@ the init, before anything is changed.
 3. The action key (`tk_on_go`): trims, does nothing on an empty text, puts the text in the bar,
    hides the pad and runs stock's search. The results show where the pad was.
 4. A tap on the bar (`tk_on_click`) with the pad hidden syncs and shows the pad.
-5. **History taps** (symptom: the bar showed nothing): a 250 ms page-scoped poll (`tk_tick`) compares
+5. **History taps:** a 250 ms page-scoped poll (`tk_tick`) compares
    the edit's text with the pad's; a difference means stock wrote it, so it is shown in the bar and
    the pad hides. A tap on the bar syncs first, so a missing timer only delays this.
 6. Destroy removes the poll and detaches. A second Tidal search page while the first has the
    keyboard gets stock's T9.
-7. **Navbar Search button** (symptom: the pad stayed over the results and the results were appended
-   behind the old ones): stock's init creates the button before the hook runs, bound to the search
+7. **Navbar Search button:** stock's init creates the button before the hook runs, bound to the search
    routine. AWTK runs the newest handler first and `RET_STOP` ends the dispatch, so the hook binds
    `tk_on_search_btn` on it (found as the navbar's last child at 273/0/47/50): it syncs, runs
    `keyboard_go` (which commits pending pinyin first, so `nihao` searches 你好) and answers

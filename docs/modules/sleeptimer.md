@@ -1,9 +1,7 @@
 # Sleep Timer
 
 **Sources:** `patch/sleeptimer.c`, `tools/pod_pages.py` (`SLEEP_PAGE`), `tools/pod_pins.py`
-(`SLEEPTIMER_PINS`), `tools/pod_i18n.py`. **Tests:** `test/pod/sleeptimer.py`, `playmore.py`,
-`pdtiles.py`, `i18n.py`.
-
+(`SLEEPTIMER_PINS`), `tools/pod_i18n.py`.
 Our own Sleep Timer page (`m1plus_sleeptimer`) replaces the two routes that opened stock's Power
 page (`systemset/powermanager_page`, `view_sleep`): Now Playing's More sheet row
 ([playmore](playmore.md)) and the Control Center Sleep Timer tile ([pulldown](pulldown.md)). It is

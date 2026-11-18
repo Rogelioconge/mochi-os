@@ -4,8 +4,7 @@
 worker), `patch/radiopage.c` (stations page), `patch/radionp.c` (Now Playing), `patch/radioinfo.c`
 (Station Info); `build_radio_page`, `build_radionp_page`, `build_radioinfo_page` in
 `tools/pod_ui.py`; hooks `START_PLAYER`, `SAVE_STOP`, `SAVE_START` in `tools/pod.py`; pins
-`RADIO_PINS` in `tools/pod_pins.py`. **Tests:** `test/pod/radio.py`. **Preview:**
-`tools/preview/preview_radionp.py`.
+`RADIO_PINS` in `tools/pod_pins.py`.
 
 Internet radio: My Stations (one saved list, with Import from Card), Recently Played and the
 [radio-browser.info](https://api.radio-browser.info) directory (top stations, countries, genres,
@@ -137,7 +136,7 @@ paused) and whether hciplayer answers `playing`. The first 1.5 s after a start a
 
 States: **Idle**, **Connecting**, **Playing**, **Paused** (stock's pause), **Error** (words in
 `rd_error`), **Stopped**. Running means Connecting, Playing or Paused. The table is `RD_TABLE`, a
-pure function `rd_step(state, event, tries, wifi)` that the tests walk cell by cell.
+pure function `rd_step(state, event, tries, wifi)`.
 
 | Event | Idle | Connecting | Playing | Paused | Error | Stopped |
 |---|---|---|---|---|---|---|
@@ -187,9 +186,8 @@ wake). Hook 18 ([payload](payload.md)) turns that pair into the radio's Reroute 
 
 ## Hand-over
 
-Hook 16 intercepts every local track's start. With the radio running it sends `mclStop()`, sets
-Stopped and resumes stock, with no widget or timer call, since it may run off the UI thread. With
-no radio it is one comparison, also at boot. The hook is pinned, and a mismatch fails the build.
+Hook 16 ([payload](payload.md)) intercepts every local track's start. With the radio running it sends
+`mclStop()`, sets Stopped and resumes stock, with no widget or timer call (it may run off the UI thread).
 Our own play paths reach the same function, so they stop the radio too.
 
 ## Now Playing entries

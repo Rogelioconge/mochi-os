@@ -26,31 +26,50 @@ make doctor
 ## Editing rules
 
 - Run builds and tests in the foreground; never background them and sleep-poll.
-- Edit with the editor tool. Use `tools/sub.py --pairs` for checked mechanical replacements,
-  `tools/peek.py` for image crops, zooms and diffs, and `tools/stock.py` for stock-tree searches.
-- No heredoc scripts, `VAR=value cmd` prefixes or `cd X && ...` chains; use tool flags,
-  absolute paths and `git -C`.
-- Stage explicit paths, never `-A`. Never commit virtual environments, packages or previews.
-- Do not run `ruff format`.
-- Start UI fixes with a failing emulation test or device capture. Previews use the shared AWTK
-  layout/text model and the built font.
+- Edit with the editor tool. Other tools:
+  - `tools/sub.py --pairs` for checked mechanical replacements
+  - `tools/peek.py` to crop, zoom and diff images
+  - `tools/stock.py` to search the stock tree (`addr`, `sym`, `callers`, `strings`)
+- No heredoc scripts, `VAR=value cmd` prefixes or `cd X && …` chains. Use absolute paths and `git -C`.
+- Stage explicit paths, never `-A`. Never commit `.venv`, packages or previews. Never run `ruff format`.
+- Start a UI bug fix with a failing emulation test or a device capture. A look-only tweak (size,
+  colour, spacing) needs only a preview.
 
 ## Development
 
 ```sh
-make test TEST=albums           # selected tests; comma-separated modules or module/section
-make test                      # feature-branch done criterion; no package or goldens
-make dev                       # fresh dev tag, one tree, full tests and verified package
-make dev PERF=1                # make test or make dev plus instruction budgets and stress-scale inputs
+make test TEST=albums/toggle_tests   # selected sections; comma-separated, module or module/section
+make dev                       # dev tag, one tree, full tests, verified package; reuses an identical passing build
+make dev FRESH=1               # force a full run
+make dev PERF=1                # plus instruction budgets and stress-scale inputs
 make preview                   # approximate render of that dev tree
 make flash                     # verified SD copy, then eject
 make ota                       # push that build to the local update server (make ota-serve; see update)
 ```
 
+### How much to run
+
+Size the checks to the change. A full suite never proves more than the sections the change can
+reach.
+
+| Change | Run |
+|---|---|
+| Docs or comments only | `make test TEST=docs`. No `make dev`. |
+| Tests only | The changed sections. |
+| Code, while iterating | The sections that the change and the recipe name. |
+| Something for the device (flash, OTA) | `make dev`, once per build you want to try. |
+| Branch done or squash merge | `make dev` once. An identical tree reuses the passing build in seconds. |
+| Payload instruction budgets or stress inputs touched | Add `PERF=1` to that one run. |
+
+- Don't run a full `make test` before `make dev`; `make dev` runs the full suite itself.
+- The user guides change only when the change is user-visible. Module docs change only when
+  behaviour or interfaces change.
+
 Dev artifacts stay in `out/dev/<tag>/`: `tree/`, `update.bin`, logs and `results.json`.
 `tree/build.json` records the tag, inputs, environment and artifact hashes. Tests and packaging
 use the same tree; About, the preview and the package use its tag.
 
+- Targeted `make test` reuses `work/check`'s tree when nothing outside `test/` changed (about 3 s).
 - Only a fully passing build becomes `latest`. A failed dev run leaves the previous latest
   selected; pass `BUILD=out/dev/<tag>` to choose another.
 - `make flash` verifies the full test receipt, package, target card and read-back hash. It never
@@ -60,7 +79,7 @@ use the same tree; About, the preview and the package use its tag.
   Collisions, moved worktrees and exhausted counters fail explicitly.
 - Release tags are `V2.1-<VERSION>`.
 - `make test` and `make dev` skip the instruction budgets and stress-scale inputs unless `PERF=1`;
-  `make check` always runs them. Run `PERF=1` after touching code they cover.
+  `make check` always runs them.
 - `JOBS=4` limits workers (default one per CPU, at most 16). Runs in several worktrees share one
   set of machine-wide test slots, so they queue for the CPUs.
 - `make clean` removes `work/check` only.
@@ -74,26 +93,11 @@ uv run python -I tools/check.py --tests-only --jobs 4 --timeout 300
 Previews: `tools/preview/preview*.py` write to `out/preview/` (gitignored). Generate the release
 sheet with `uv run python -I tools/preview/preview.py WORKDIR`.
 
-## Context budget
-
-An audit found cache reads dominate cost, mostly in long sessions and subagents. Keep sessions small:
-
-- Give subagents one stage (probe, implement or test), ending with branch, commit and doc
-  handoff; start the next stage fresh.
-- One topic per session. Past ~250k context or at a topic change, document conclusions and
-  start fresh. Close unused sessions.
-- Search large files first, then read relevant ranges. Do not reread unchanged files;
-  `docs/history.md` is for people, not agent context.
-- Crop and zoom images with `tools/peek.py`, then read once.
-- Batch mechanical edits with `tools/sub.py FILE... --pairs PAIRS.json --stat`. Run selected
-  tests while iterating and the full suite at completion.
-
 ## Formatting and lint
 
-- `make format`, then `make format-check`, for tracked payload C and headers. `.clang-format`
-  sets four spaces, attached braces and 120 columns. Select Homebrew clang-format with
-  `LLVM_BIN` or `CLANG_FORMAT`. Keep formatting apart from functional changes and verify package
-  hashes afterward.
+- Run `make format` after editing C. It covers tracked payload C and headers: four spaces,
+  attached braces, 120 columns. `make dev` runs `format-check`. Select Homebrew clang-format
+  with `LLVM_BIN` or `CLANG_FORMAT`. A reformat-only commit stays apart from functional changes.
 - `make lint` runs pinned Ruff bug and syntax checks without formatting. Test, dev and check
   targets run it first. Star imports are allowed in `test/pod/*.py` and
   `tools/preview/preview_tape.py`.

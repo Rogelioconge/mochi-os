@@ -33,7 +33,7 @@ def sections(module):
 
 
 PATCH = {m: [f'patch:{m}/{s}' for s in sections(m)] or [f'patch:{m}'] for m in MODULES}
-LIGHT = ['tools', 'cdefs', 'consts', 'coverflow', 'awtk_fill']
+LIGHT = ['tools', 'docs', 'cdefs', 'consts', 'coverflow', 'awtk_fill']
 TREE_TESTS = ('demo_diff', 'webapi')   # tests that read the built tree
 ALL_TESTS = LIGHT + list(TREE_TESTS) + [t for m in MODULES for t in PATCH[m]]
 
@@ -72,7 +72,7 @@ def parse_tests(spec):
 
 def test_cmd(name, stock, tree=None):
     py = [sys.executable, '-I']
-    if name in ('tools', 'cdefs', 'consts', 'coverflow'): return py + [os.path.join(TEST, name + '.py')]
+    if name in ('tools', 'docs', 'cdefs', 'consts', 'coverflow'): return py + [os.path.join(TEST, name + '.py')]
     if name == 'awtk_fill': return py + [os.path.join(TEST, 'awtk_fill.py'), stock]
     if name == 'webapi': return py + [os.path.join(TEST, 'webapi.py'), str(tree), stock]
     if name == 'demo_diff':
@@ -87,6 +87,17 @@ def run_test(name, cmd, logdir, timeout):
         start = time.monotonic(); rc, log = workflow.run_logged(cmd, logfile, timeout)
     return {'test': name, 'rc': rc, 'counts': counts(log), 'log': log[-2500:],
             'logfile': str(logfile), 'cmd': cmd, 'secs': time.monotonic() - start}
+
+
+def reuse_dev(a, directory, manifest):
+    """Reuse a passing build; docs are not an input, so their test still runs fresh."""
+    logs = Path(ROOT) / 'work/check/logs'; logs.mkdir(parents=True, exist_ok=True)
+    t = run_test('docs', test_cmd('docs', None), logs, a.timeout)
+    if not test_ok(t):
+        print(f'docs: FAIL ({workflow.exit_description(t["rc"])}); log: {t["logfile"]}\n{t["log"]}'); return 1
+    workflow.write(Path(ROOT) / 'out/dev/latest.json', {'build': str(directory)})
+    print(f'reusing passing dev build {manifest["tag"]} (inputs unchanged); docs check passed; next: make flash', flush=True)
+    return 0
 
 
 def run_build(flags, logfile, env=None):
@@ -127,7 +138,7 @@ def finish(a, sel, skipped, golden, builds, tests, t0, reused=False, key=None):
             failed += 1; crashed += t['rc'] < 0; bad = True
             print(f'{t["test"]}: FAIL ({workflow.exit_description(t["rc"])}); log: {t.get("logfile", "(no log)")}')
             print('command:', repr(t.get('cmd', []))); print(t['log'])
-    if key and workflow.input_key() != key:
+    if key and (workflow.build_key() if a.tests_only else workflow.input_key()) != key:
         bad = True; print('ERROR: source or environment changed during this run; results cannot certify this build')
     print(f'tasks {len(tests) - failed} passed, {failed} failed ({crashed} crashed); '
           f'assertions {assertions[0]} passed, {assertions[1]} failed; {time.monotonic() - t0:.1f}s wall')
@@ -149,6 +160,7 @@ def main():
     ap.add_argument('--update', action='store_true'); ap.add_argument('--tests-only', action='store_true')
     ap.add_argument('--test', nargs='+', metavar='NAME[,NAME]'); ap.add_argument('--list', action='store_true')
     ap.add_argument('--dev', action='store_true', help='build, fully test and package one development artifact')
+    ap.add_argument('--fresh', action='store_true', help='with --dev: run the full tests even when a passing build has the same inputs')
     ap.add_argument('--clean', action='store_true', help='remove retained integration/test scratch files')
     ap.add_argument('--no-cache', action='store_true')
     ap.add_argument('--perf', action='store_true', help='also run the cost and stress-scale checks (always on for integration and --update)')
@@ -174,7 +186,12 @@ def main():
             with workflow.lock('build'): shutil.rmtree(Path(ROOT) / 'work/check', ignore_errors=True)
             print('removed work/check; dev artifacts, version counter and caches kept')
             return 0
-        start = time.monotonic(); key = workflow.input_key()
+        start = time.monotonic()
+        if a.dev and not a.fresh:
+            hit = workflow.reusable_dev_build(workflow.input_key(), a.perf)
+            if hit:
+                return reuse_dev(a, *hit)
+        key = workflow.build_key() if a.tests_only else workflow.input_key()   # tests-only runs certify nothing: only an edit to what the tree is built from invalidates them
         sel = [] if a.tests_only or a.dev else a.only or list(TARGETS)
         golden = read_golden(); builds = {}; tests = []
         base = workflow.new_dev_dir() if a.dev else Path(ROOT) / 'work/check'
@@ -201,12 +218,18 @@ def main():
         env = dict(os.environ, M1_WORK=str(base / 'release/work'), M1_OUT=str(base / 'release/out'))
         flags = ['--dev', '--out', base] if a.dev else []
         if needs_tree:
-            run_build([*flags, '--tree-only'], logs / 'tree.log', env)
             tree = base / 'tree' if a.dev else base / 'release/work/mod-release'
-            workflow.validate_tree(tree)
+            reuse = False
+            if a.tests_only and not a.dev and tree.is_dir():   # targeted runs: a tree built from the same build inputs (test-only edits) is still good
+                try: workflow.validate_tree(tree); reuse = True
+                except SystemExit: pass
+            if reuse: print('build reused (inputs unchanged)', flush=True)
+            else:
+                run_build([*flags, '--tree-only'], logs / 'tree.log', env)
+                workflow.validate_tree(tree)
         # Stress inputs have very different costs. Quick runs must not schedule a
         # later dev run's long stress tasks last by overwriting their durations.
-        os.environ['M1_SOURCE_KEY'] = workflow.source_key()   # the tasks compare the tree with this instead of hashing the sources once each; the input key is checked again after them
+        os.environ['M1_SOURCE_KEY'] = workflow.build_source_key()   # the tasks compare the tree with this instead of hashing the sources once each; the input key is checked again after them
         times_path = timing_file(a.perf)
         times = workflow.read(times_path)
         test_start = progress = time.monotonic()
@@ -229,7 +252,7 @@ def main():
                   ', '.join(f'{t["test"].removeprefix("patch:")} {t["secs"]:.1f}s' for t in slowest), flush=True)
         workflow.write(times_path, {n: s for n, s in {**times, **{t['test']: t['secs'] for t in tests}}.items() if n in ALL_TESTS})   # names no longer run are dropped
         tests_passed = len(tests) == len(names) and all(test_ok(t) for t in tests)
-        if workflow.input_key() != key: tests_passed = False
+        if (workflow.build_key() if a.tests_only else workflow.input_key()) != key: tests_passed = False
         if tests_passed and (a.dev or 'release' in sel):
             timings['package'] = run_build([*flags, '--pack-only'], logs / 'package.log', env)
             package = base / 'update.bin' if a.dev else base / 'release/out' / f'M1Plus-{build.TAG}-release-update.bin'
@@ -244,7 +267,7 @@ def main():
             m = workflow.read(tree / 'build.json')
             passed = tests_passed and bool(m.get('package_sha256')) and workflow.input_key() == key
             workflow.write(base / 'results.json', {'passed': passed, 'scope': 'full', 'inputs': key, 'tree': m['tree'],
-                                                  'package_sha256': m.get('package_sha256'), 'expected': names, 'tests': tests,
+                                                  'package_sha256': m.get('package_sha256'), 'expected': names, 'perf': a.perf, 'tests': tests,
                                                   'timings': timings})
             if passed:
                 workflow.tested_package(base)

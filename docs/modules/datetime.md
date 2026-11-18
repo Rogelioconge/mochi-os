@@ -2,9 +2,7 @@
 
 **Sources:** `patch/datetime.c` (page), `patch/timezones.c` (zone hooks), `tools/timezones.py`
 (table, order, pins), `tools/autotime.py` (RTC edits), `tools/pod.py` (`patch_timezones`),
-`DATETIME_PINS` in `tools/pod_pins.py`; page `DATETIME_PAGE`. **Tests:** `test/pod/datetime.py`,
-`test/pod/timezones.py`, `test/demo_diff.py`. **Preview:** `tools/preview/preview_timezones.py`.
-
+`DATETIME_PINS` in `tools/pod_pins.py`; page `DATETIME_PAGE`.
 Settings > General > Date & Time (`m1plus_datetime`) is an own cards page for what stock keeps
 behind All System Settings > `system_time`: Set Automatically, Time Zone, manual date and time,
 24-Hour Time. Every state is stock's own and nothing of ours is saved to a file; stock's three pages

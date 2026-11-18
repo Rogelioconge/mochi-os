@@ -3,8 +3,7 @@
 **Sources:** `patch/pins.c` / `pins.h` (file, API, section), `patch/artists.c` / `albums.c` (artist entries), `patch/menu.c` (`menu_pins`, `mn_arrange`),
 `patch/grid.c` (tiles), `patch/rowmenu.c` (the sheet), `patch/songs.c` (`sg_pin`, `sg_pin_row`),
 `patch/albumpage.c`, `patch/recent.c`, `tools/pod_ui.py` (`pins()`, `row_menu(pins=True)`), `tools/pod_pins_home.py` (file model), `PIN_*` in
-`patch/offsets.inc`, `tools/mod_icons.py` (`RM_PIN_ICONS`). **Tests:** `test/pod/pins.py`.
-**Preview:** `tools/preview/preview_pins.py` (incl. a tile mid-drag).
+`patch/offsets.inc`, `tools/mod_icons.py` (`RM_PIN_ICONS`).
 
 Albums and playlists pinned at the very top of the Home menu, above Cover Flow and the other rows, as
 a grid of covers. They scroll with the list. Only the Home instance has them. No stock hook or address:
@@ -149,7 +148,7 @@ A tap on a missing item drops it at once.
 
 A missing widget, refused registration, no timer or no memory leaves the plain menu. An unreadable or malformed file shows no pins (or the last list) and is never written (see "Read errors never overwrite"). No card in: no pins are read, a pin action answers `PINS_FAIL` and writes nothing. A failed write leaves the old file. A cover that does not decode shows the placeholder.
 
-## Phase 2: Albums long press and song pins
+## Album long press and song pins
 
 - **Albums long press** (`patch/albums.c`, `al_on_hold`, library page only, grid and list): a press held `RM_LONG_MS` on an
   album (not the All Songs tile, not "Unknown Album") opens the three-row sheet (`rowmenu_bind_queue` in the page's asset,
@@ -173,9 +172,9 @@ A missing widget, refused registration, no timer or no memory leaves the plain m
   (`RM_ROWS` 6, `rm_item5`, glyph `rm_ic_pin` / `rm_ic_unpin`) for a song of the card; a source's row (Navidrome) keeps the
   five rows and the five-row glass (`rowmenu_set_rows`: card moved and resized, `style:normal:bg_image` set, as
   `m1_sheet_rows` does). API: `pins_pin_song(rec)` (the start from the record), `pins_has_song(path, cue)`, `pins_unpin_song(path, cue)`, `pins_label_song(path, cue)`,
-  `pins_song_ok(path, cue)`; callers pass `REC_CUE_START`. The `PINS_KEEP` marks are gone.
+  `pins_song_ok(path, cue)`; callers pass `REC_CUE_START`.
 
-## Phase 2b: more entry points
+## More entry points
 
 - **Album page "...":** the library's album page capsule is Select 168 / "..." 214 / Now Playing 260 (as the Albums page's;
   `btn_pin`, `pod_nav_moremid`). It opens the same three rows on the track menu's card (`rowmenu_open_pins`: the six-row card
@@ -185,17 +184,17 @@ A missing widget, refused registration, no timer or no memory leaves the plain m
 - **Recently Played tile on Home:** a press held `RM_LONG_MS` opens the Home sheet (`pins_album_sheet`, reusing `pn.rm`) for the
   tile's album: Play, Shuffle, Pin Album / Unpin Album. See [recent](recent.md).
 
-## Phase 3: artist pins
+## Artist pins
 
 Kind `r`: key = `pn_artist_id`, FNV-1a of the artist's name as the Artists page lists it (ASCII case folded, as an album's title; a name of `PIN_STR` bytes or more, or one with no photo key, cannot be pinned), first cover key = `ap_key(name)`, the artist
-photo's cache key (`patch/artistphoto.c`), name = the artist, path = the **scope**: the artist list it was pinned from, `0` Artists or `1` Album Artists (the stock `artist_type` at that moment; an old line has it empty; the model: `artist_key`). The name is the row's `REC_TITLE`: with Split Artists on it is the first name of the field, so a tile opens the same page the Artists row does.
+photo's cache key (`patch/artistphoto.c`), name = the artist, path = the **scope**: the artist list it was pinned from, `0` Artists or `1` Album Artists (the stock `artist_type` at that moment; a line with it empty is tried against both lists; the model: `artist_key`). The name is the row's `REC_TITLE`: with Split Artists on it is the first name of the field, so a tile opens the same page the Artists row does.
 
 - **Tile:** a circle (`pn_artist_art`, `pn_circle`): the artist's `-168` photo (the lead artist's when the name has none; `ap_lookup`, nothing is fetched from Home), decoded to the 90 px cell, a portrait from its top third, cut to the circle (`ap_circle`)
   and blended into black into an opaque bitmap (a small translucent round shape renders square on the device). No photo yet: the Artists page's circle placeholder (`ap_placeholder`), `tph` set so the next to-foreground looks again and a photo
   that appeared replaces it. The name line, lift and reorder are the other tiles'.
-- **Scope:** `pn_artist_row` sets `artist_type` (and `ARTIST_RELOAD`) to the pin's scope while `artists_find` and the stock queries run; an old line (no scope) tries the list shown, then the other. The row is therefore found even when the shown list lacks the artist (a guest artist is in Artists, not in Album Artists).
+- **Scope:** `pn_artist_row` sets `artist_type` (and `ARTIST_RELOAD`) to the pin's scope while `artists_find` and the stock queries run; a pin with no scope tries the list shown, then the other. The row is therefore found even when the shown list lacks the artist (a guest artist is in Artists, not in Album Artists).
 - **Tap:** `pn_open_artist`: `artists_find(name)`, `albums_open_artist(row, 0, CLASS_ARTISTS)` (Cover Flow when that window will not open), as an Artists row. The albums page reads its albums by `artist_type` each time it loads, so a pin from the other list leaves the setting at the pin's scope, saved (`write_int_config`) as the Show group does; Play / Shuffle (`pn_play_artist`) put it back after the call. **Sheet** (hold): Play, Shuffle (`songs_play_artist`, all the artist's songs; the toast
   "Can't play" when there are none), **Unpin Artist**.
-- **Check:** a pin whose artist is credited by nothing in the list it was pinned from (both lists for an old line) leaves the list and the file; a tap that finds no row drops it too. "Credited" is a case-insensitive substring of a stock row's title (`pn_credited`), so "Lead; Guest" still credits "Guest" after Split Artists is turned off: the unsplit list has no row of its own for it. An empty or failed list, or an artist that only has no row of its own in the mode shown, drops nothing; such a tap says "Can't play" and keeps the pin. A row must also be the artist the tile names: with Split Artists on, `artists_find` answers a joined name ("Lead; Guest", pinned while splitting was off) with its first name's row, which `pn_artist_row` refuses (tap, Play and Shuffle: "Can't play", the pin stays).
+- **Check:** a pin whose artist is credited by nothing in the list it was pinned from (both lists when no scope) leaves the list and the file; a tap that finds no row drops it too. "Credited" is a case-insensitive substring of a stock row's title (`pn_credited`), so "Lead; Guest" still credits "Guest" with Split Artists off. An empty or failed list, or an artist with no row of its own in the mode shown, drops nothing; such a tap says "Can't play" and keeps the pin. A row must be the artist the tile names: with Split Artists on, a joined name ("Lead; Guest") gets its first name's row, which `pn_artist_row` refuses (tap, Play, Shuffle: "Can't play", the pin stays).
 - **Entries:** the Artists page row long press (`ar_on_hold`: Play, Shuffle, Pin Artist / Unpin Artist; [artists](artists.md)) and the artist's Albums page "..." card, Select's slot 7 (`al_pin_row`; [albums](albums.md)). API: `pins_pin_artist(name)`, `pins_has_artist`, `pins_unpin_artist`,
   `pins_label_artist`. Strings "Pin Artist", "Unpin Artist".

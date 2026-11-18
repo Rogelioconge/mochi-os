@@ -4,7 +4,6 @@
 `patch/songops.c`, `patch/filetime.c`, shared grid / cache / shuffle / scroll helpers,
 `tools/pod_ui.py` (`build_songs_page`, `navbar(songs=True)`), `tools/pod_pages.py` (`SONGS`,
 `ACT_SONGS`, `ACT_LIST`), `tools/mod_icons.py` (`SONGS_IMAGES`), `SG_*` in `offsets.inc`.
-**Tests:** `test/pod/songs.py`, `test/pod/filetime.py`. **Preview:** `tools/preview/preview_songs.py`.
 
 The menu's Songs action opens `ui/m1plus_songs.bin`. A failure falls back through `pod_home_open(3)`
 to stock `allmusic_page` (class `0xf001`). No hook; the menu's kill-switch check keeps it closed
@@ -338,8 +337,7 @@ Stock's multi-select **Add to Playlist** and **Delete** are called with a select
   records in place). The picker sets the browsing class to `0xf00b` and never puts it back, so the
   page saves `nagvation_title`, and on return restores it, sets the class back, ends select mode and
   reads the list again. The Favorites path of the stock dialog is not offered.
-- No fallback that opens the stock Songs page in select mode exists: nothing starts it there except
-  its own button handler.
+- The stock Songs page in select mode is started only by its own button handler.
 
 ## The page (`patch/songs.c`)
 
@@ -387,7 +385,6 @@ day.
   0. FAT32 is unchanged in effect. Cost: one `access` and one `statx` per file, 256 bytes of stack.
 - Existing dates change only after a rescan: Update Local Music rebuilds the table, so the first full
   update re-dates the library by creation stamp.
-- Source: q2-pod commit 0d00826 (`ringnav_file_created`, `ringnav_statx`).
 
 ## A library source (`songs_open_src`)
 
@@ -413,5 +410,5 @@ copy (`sg.list`); class `0xf001` with `sg.src` set, so no stock-library path (so
 - **Controls follow the source**: `ls_caps(src)` (NULL has all) decides Search (`LS_CAP_SEARCH`) and
   Select (`LS_CAP_SELECT`). A source without Select has no "..." or Select button; one without any
   has no button, the title runs to Now Playing (x 260) and Now Playing becomes the plain disc
-  `ah_nav_np`. `lib_nd` has none of the three today, so its Songs, Favorites and Downloaded lists
-  have Back, the title and Now Playing only.
+  `ah_nav_np`. `lib_nd` has `LS_CAP_SEARCH` only, so its Songs, Favorites and Downloaded lists have no
+  Select or "..."; Search shows only with a saved server ([subsonic](subsonic.md)).

@@ -1,7 +1,6 @@
 # Charge Limit
 
-**Sources:** `patch/charging.c`, `patch/charging.h`, `patch/power.c`, `patch/power.h`, `patch/battery.c`. **Tests:** `test/pod/charging.py`, `test/pod/power.py`.
-
+**Sources:** `patch/charging.c`, `patch/charging.h`, `patch/power.c`, `patch/power.h`, `patch/battery.c`.
 Settings > **Battery** (with Battery Percentage, first on the page) > **Charge Limit** pauses charging at 80, 85, 90 or 95 %
 while the player runs; 100 % (the default) is no limit. Charging resumes 5 points lower.
 Powered-off charging and the status bar's charging picture stay stock's. The art and the
@@ -94,7 +93,3 @@ Only the `POWER_*` / `USBDAC_CHARGEFLAG` words are pinned (by Battery Percentage
 In the kernel, `charger` `0` sets the driver's disable flag (kept across suspend and resume, not
 across reboot) and nonzero restores the runtime current (DT `x-powers,axp2101-power-supply`: 1000 mA,
 termination 100 mA, 4350 mV, USB input limit 2000 mA, unchanged).
-
-q2-pod (`patch/system.c` `charge_poll`) stops at 80 % and resumes at
-75 % from a 5 s main-loop poll on the Q2's active-low GPIO PE22. Neither that poll (outside
-[safety](safety.md) scope) nor its GPIO or addresses apply to the M1 Plus.

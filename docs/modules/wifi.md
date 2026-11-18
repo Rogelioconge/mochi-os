@@ -2,8 +2,6 @@
 
 **Sources:** `assets/wpa/` (config, `start.S`, `shim.c`), `tools/mod_wpa.py`, `patch/wifictl.c`
 (control socket), `patch/wifipage.c` (pages), `tools/pod_ui.py` (`build_wifi_page` and the sub-pages).
-**Tests:** `test/pod/wpa.py`, `test/pod/wifipage.py`, `test/pod/keyboard.py`. **Preview:**
-`tools/preview/preview_settings.py`, `tools/preview/preview_keyboard.py`.
 
 Stock V2.1 starts hostap `wpa_supplicant` 2.9 from `/usr/bin/wifi_connect.sh`. It was built with only
 EAP-WSC, no SAE and no OWE, so WPA-Enterprise, WPA3-only and Enhanced Open networks cannot join. This
@@ -244,7 +242,7 @@ range is listed (stock lists scan results only); new texts in 13 languages (`too
 
 ## Build
 
-`uv run python -I tools/mod_wpa.py --fetch` downloads the SHA-256-pinned inputs into `work/cache/wpa/dl`
+`tools/mod_wpa.py --fetch` ([workflow](../workflow.md)) downloads the SHA-256-pinned inputs into `work/cache/wpa/dl`
 (`make doctor` and CI check them); the normal build never touches the network. Inputs: the hostap 2.12
 source and five Debian 10 mipsel packages, of which only `usr/include` is extracted (nothing executed).
 
@@ -258,15 +256,5 @@ source and five Debian 10 mipsel packages, of which only `usr/include` is extrac
   to 55,615,488 bytes against stock's 55,738,368: little headroom, which is why debug output is compiled
   out.
 
-## Validation
-
-`test/pod/wpa.py` covers the pins, the config options, the built ELF against the stock supplicant and
-libraries (and `verify()` refusing bad inputs), stock binaries unchanged, and the script rewrite run under
-the host shell with stub programs (ours chosen, stock for the kill switch, a failing `-v` and a missing
-file, the copy ours reads, the hand-over to stock on an error exit).
-
-`test/pod/wifipage.py` runs the compiled payload against a scripted supplicant: parsers and merge order,
-security flags, `wf_split` against an independent model, the control socket's failures, the assets, every
-tap and the commands it sends with both supplicants, the files written, the timer and the page's life.
-The binary itself cannot be run here (no MIPS Linux), so the `-v` self-check is the safety net for a load
+The binary cannot be run on the host (no MIPS Linux), so the start-up `-v` self-check is the safety net for a load
 failure.

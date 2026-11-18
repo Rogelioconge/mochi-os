@@ -2,18 +2,13 @@
 
 **Sources:** `patch/sbnet.c`, `patch/sbparse.c`, `patch/sbapi.c`, `patch/sbdl.c`,
 `patch/libsrc.c`, `patch/sbsrc.c`, `patch/ndroot.c`, `patch/ndserver.c`; builders
-`tools/pod_nd.py`, `tools/pod_ndserver.py`. **Tests:** `test/pod/subsonic.py`, `sbapi.py`,
-`sbdl.py`, `sbsrc.py`, `ndpages.py`, `ndflow.py`, `libsrc.py`, plus the source tests of the
-pages (`albums.py`, `albumpage.py`, `artists.py`, `songs.py`, `playlists.py`, `search.py`).
-**Preview:** `tools/preview/preview_ndroot.py`, `tools/preview/preview_ndserver.py`.
+`tools/pod_nd.py`, `tools/pod_ndserver.py`.
 
 Subsonic (Navidrome, Gonic, Airsonic and any Subsonic-compatible server) is a **library
 source**: the root page is a menu, and the library pages are our own Albums, album, Artists,
 Playlists, Songs and search pages, showing the server's music beside the card's. Strings say
 "Subsonic"; card folders and files keep the Navidrome names. Downloads go to the card
-(`/mnt/mmc/Subsonic`) and play offline. The protocol code began as a pull request by Gaurav
-Mishra (MIT); the interface is ours. The queue ABI was cross-checked against
-[shanling-m1plus-navidrome](https://github.com/shivaluma/shanling-m1plus-navidrome) (MIT).
+(`/mnt/mmc/Subsonic`) and play offline. Credits are in the README.
 
 Playback streams the server's original file (`format=raw` only: no transcoding, no quality
 setting), so sample rate and bit depth are the file's. DSD tracks never stream: they play only
@@ -215,16 +210,14 @@ works.
 | Downloaded tracks | no request | `dl.idx` and the files in `/mnt/mmc/Subsonic` |
 | Star / unstar | at once | flag edited in place in `songs.idx`, `search.idx`, the album file; `starred.idx` replaced; all revert on a refusal |
 
-**A track shows its album's cover.** A song with embedded art has its own coverArt id
-(`mf-<song id>_<time>`) that differs from its album's (`al-<album id>_<time>`), and a cache file
-is named by the hash of its id. Using the song's id would miss the album covers the fill fetched
-and fetch one near-identical file per song. `sba_track_cover(album_id, ...)` therefore gives the
-ALBUM's file through `albcov.idx` and asks for the album's cover only if the file is missing. The
-track's own id is used only when the album is unknown or has no coverArt. Albums, artists and
-playlists keep `sba_cover_get`, one cover id to one file. `albcov.idx` is written beside
-`albums.idx`, removed when it cannot be written, and searched by bisection (16 bytes an album).
+**A track shows its album's cover.** `sba_track_cover(album_id, ...)` gives the ALBUM's file
+through `albcov.idx` (a song's own `mf-<song id>_<time>` id differs from its album's
+`al-<album id>_<time>` and would fetch one file per song) and asks for the album's cover only if
+the file is missing; the track's own id is used only when the album is unknown or has no
+coverArt. `albcov.idx` is written beside `albums.idx`, removed when it cannot be written, and
+searched by bisection (16 bytes an album). Albums, artists and playlists keep `sba_cover_get`.
 
-**Sync.** Phase 1 needs only `getAlbumList2`. A refusal of the artists, playlists or favourites
+**Sync.** It needs only `getAlbumList2`. A refusal of the artists, playlists or favourites
 list keeps that list's old file (or writes an empty one) and the sync still commits and starts
 the fill. A login, certificate, Wi-Fi, network or storage error fails the whole sync.
 
@@ -241,7 +234,7 @@ the files back if it refuses. **`starred.idx` is the truth for every heart**: th
 its ids as sorted 32-bit hash pairs (at most 3,000) and sets `starred` from them on every track
 list read, so a song starred from another client shows a heart.
 
-### Background fill (phase 2 of the sync)
+### Background fill
 
 After the sync the same worker keeps loading metadata while nothing else asks for it, so pages
 open on data instead of a spinner. It runs only with Wi-Fi, in stages kept in `bg.txt`:
@@ -321,7 +314,7 @@ the stall rule) is in [network](network.md). Subsonic's own behaviour:
   itself is asked (`st_dev`/`st_ino`) before adopting, so a second track never adopts and later
   deletes the first one's file. Remove Download removes empty folders.
 - **Cancel** of the running transfer drops its `.part`; a network fault keeps it for the resume.
-- **Safe resume** (`sbn_download`): the first body byte saves a record `<part>.etag` (server,
+- **Safe resume** (`sbn_download`; the shared range rules are in [network](network.md)): the first body byte saves a record `<part>.etag` (server,
   user, track id and the response's strong ETag; no strong ETag keeps no `.part`). A `.part` is
   continued only with that record: `Range: bytes=N-` plus `If-Range`, accepted only for a 206
   whose Content-Range starts at N, ends at the file's last byte and carries the recorded ETag.
@@ -329,9 +322,8 @@ the stall rule) is in [network](network.md). Subsonic's own behaviour:
   status is refused (`SBA_NOTAUDIO`); the finished file needs the announced length and a first
   byte that is not `<`, `{` or `[`. A resume that wrote nothing and got no usable answer keeps the
   `.part` and its record as they were.
-- **Keep awake**: a successful add arms `nl_awake_tick`, which calls
-  `reset_poweroptions_timer(1, 1, 0)` every second while `sba_dl_busy()`, so stock standby does not
-  stop Wi-Fi mid-file (see Keep awake below).
+- **Keep awake**: a successful add arms `nl_awake_tick` (see Keep awake below), so stock standby
+  does not stop Wi-Fi mid-file.
 - **Failure words** (`sbs_message`): "Storage unavailable", "Card is full", "Write failed",
   "Server error 503", "Song not found on the server", "Incorrect username or password", "Server
   certificate not trusted", "Unexpected server response", "Download interrupted", "Not enough
@@ -436,21 +428,19 @@ and an after-transfer observer through `sbn_init`.
 
 ## Songs cap and the sign-in token
 
-- Songs beyond the first 10,000 rows are not listed and have no A-Z rail.
 - `subsonic.conf` travels with the card and is as good as the password for the Subsonic API; it
   is not in the settings folder rule (`/mnt/data/m1plus/...`), which is for small settings.
-- A server's `getPlaylist` and `getStarred2` have no paging, so a list over 4 MiB fails.
+- A server's `getPlaylist` and `getStarred2` have no paging, so a list over 4 MiB fails (Limits).
 
 ## Folders
 
-**Sources:** `patch/ndfolders.c` (the page), `patch/sbsrc.c` (`sbs_folder_list`, `LS_FOLDERS`), `tools/pod_nd.py` `build_folders`. **Tests:** `test/pod/ndfolders.py`. **Preview:** `tools/preview/preview_ndfolders.py` (`nd-folders-*.png`).
-
+**Sources:** `patch/ndfolders.c` (the page), `patch/sbsrc.c` (`sbs_folder_list`, `LS_FOLDERS`), `tools/pod_nd.py` `build_folders`.
 A **Folders** row after Playlists on the Subsonic root (every server type, Navidrome included: its tree
 is tag-built, artist, album, songs) opens a folder browser over the Subsonic API. On Gonic, Airsonic and
 LMS the levels are the real directories. A directory child has `isDir`, `title`, `coverArt` and
 `parent`; a song child has the usual song fields.
 
-### Decisions (final)
+### Behaviour
 
 - Root: one music folder lists its `getIndexes` entries directly (A-Z sections); several list the music
   folders as plain rows first, one tap enters that folder's index.
@@ -462,7 +452,7 @@ LMS the levels are the real directories. A directory child has `isDir`, `title`,
 - A song tap plays the level's songs from the tapped index, by the rules of the other source rows (list
   order, window around the tapped row, `SBA_QUEUE_MAX`).
 
-### Look (phase 1; rows are the local [Folders page](folders.md)'s with its `--covers` geometry)
+### Look (rows are the local [Folders page](folders.md)'s with its `--covers` geometry)
 
 - Root with one folder: A-Z index (section letters 20 px at x 10, 28 px high, and the rail; rows,
   hairline and chevron give up `SG_RAIL_INSET`, as Artists). Title "Folders".
@@ -473,7 +463,7 @@ LMS the levels are the real directories. A directory child has `isDir`, `title`,
 - Loading is `ls_spin` centred under the kept large title and navbar; offline and failed reuse the
   source pages' texts ("Connect to Wi-Fi first", "Can't connect to the server").
 
-### Data layer (phase 2a, `patch/sbapi.c`, `sbparse.c`; tests `sbapi/folders`, `subsonic/folders_parse`)
+### Data layer (`patch/sbapi.c`, `sbparse.c`)
 
 Page-facing API (`patch/sbapi.h`):
 
@@ -516,5 +506,4 @@ A standalone page (`m1plus_ndfolders`, last in `PAGE_ORDER`), not a source list 
 - Rows are the local Folders page's: 52 px, 24 px glyph or 40 px cover (LIST_R corners) at x 8, name at x 56 cut at 256, chevron on directories. Songs: file glyph, title, marks ending at the text end, and the row "..." (the Songs page's zone; the text then ends before it). Pills only when the level holds a song; the rows then start at `SG_TOP`, also on an index level with loose songs (sections below the pills). A directory's cover not yet ready shows the folder glyph. Play queues the level's songs only (directories are left out before the `SBA_QUEUE_MAX` window).
 - A-Z sections and rail on index levels (the root with one music folder, one music folder's index; keys `/` and `mf:`), from the index letters, respecting Settings > Library > List Navigation; every other level is plain.
 - No rows: spinner under the title while loading, else "Connect to Wi-Fi first", "Can't connect to the server" or "Empty folder". The page re-reads when `sba_gen` moves (same rows only swap the records).
-- Not done: a playing-now wave on rows; dimming of offline rows (a tap says "Connect to Wi-Fi first").
-- A level of thousands of rows is held as records (about 350 bytes a row); a windowed read like `sba_songs_window` is the fix if that proves heavy.
+- Rows have no playing-now wave and offline rows are not dimmed (a tap says "Connect to Wi-Fi first"). A level of thousands of rows is held as records (about 350 bytes a row).

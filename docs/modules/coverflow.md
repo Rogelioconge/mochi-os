@@ -1,8 +1,6 @@
 # Cover Flow
 
-**Sources:** `patch/coverflow.c`, `patch/coverflow.h`. **Tests:** `test/pod/coverflow.py`,
-`test/coverflow.py`.
-
+**Sources:** `patch/coverflow.c`, `patch/coverflow.h`.
 A cover carousel over the stock Local Music albums, after q2-pod's Cover Flow design, for the
 320x480 touchscreen (wheel-only parts left out). Opened from the menu's Cover Flow row, and per
 artist from the artist's Albums page button. No hook: everything runs from the page's own widgets,

@@ -107,6 +107,17 @@ def workflow_tests():
         expect('dev counter persisted locally', workflow.read(Path(td) / '.dev-number.json')['number'] == 2)
         expect('dev counter exhaustion refused', refused(lambda: workflow.letters(26**4, 4)))
 
+    with tempfile.TemporaryDirectory() as td, patch.object(workflow, 'ROOT', Path(td)):
+        for d in ('test', 'patch', 'tools'): (Path(td) / d).mkdir(); (Path(td) / d / 'f').write_text('a')
+        subprocess.run(['git', '-C', td, 'init', '-q'], check=True)
+        with patch.object(workflow, 'environment', return_value={}):
+            k, ik = workflow.build_key(), workflow.input_key()
+            (Path(td) / 'test/f').write_text('b')
+            expect('test edit keeps the build key', workflow.build_key() == k and workflow.input_key() != ik)
+            for d in ('patch', 'tools'):
+                (Path(td) / d / 'f').write_text('b')
+                expect(f'{d} edit changes the build key', workflow.build_key() != k); k = workflow.build_key()
+
     with tempfile.TemporaryDirectory() as td:
         tree = Path(td) / 'tree'; (tree / 'rootfs').mkdir(parents=True)
         asset = tree / 'rootfs/asset'; asset.write_bytes(b'original')
@@ -127,6 +138,27 @@ def workflow_tests():
             workflow.write(Path(td) / 'results.json', r | {'tests': [{'test': 'tools', 'rc': 0, 'counts': None}]})
             asset.write_bytes(b'modified')
             expect('modified tested tree rejected', refused(lambda: workflow.tested_package(td)))
+
+    # make dev reuse: a passing full receipt with the same inputs is reused; anything else is not
+    with tempfile.TemporaryDirectory() as td, patch.object(workflow, 'ROOT', Path(td)), patch.object(check, 'ALL_TESTS', ['tools']):
+        d = Path(td) / 'out/dev/V2.1zTESTAAAB'; (d / 'tree').mkdir(parents=True)
+        tkey = workflow.tree_key(d / 'tree'); pk = d / 'update.bin'; pk.write_bytes(b'package')
+        workflow.write(d / 'tree/build.json', {'tree': tkey, 'inputs': 'in', 'tag': 'T', 'package_sha256': workflow.sha(pk)})
+        rr = {'passed': True, 'scope': 'full', 'expected': ['tools'], 'tests': [{'test': 'tools', 'rc': 0, 'counts': None}],
+              'inputs': 'in', 'tree': tkey, 'package_sha256': workflow.sha(pk), 'perf': False}
+        workflow.write(d / 'results.json', rr)
+        expect('reuse picks a matching passing build', (workflow.reusable_dev_build('in') or [None])[0] == d)
+        with patch.object(check, 'run_test', return_value={'test': 'docs', 'rc': 0, 'counts': None, 'log': ''}), patch.object(check, 'ROOT', td):
+            expect('reuse points latest at the build', check.reuse_dev(ns(timeout=5), d, {'tag': 'T'}) == 0
+                   and workflow.read(Path(td) / 'out/dev/latest.json')['build'] == str(d))
+        with patch.object(check, 'run_test', return_value={'test': 'docs', 'rc': 1, 'counts': None, 'log': 'x', 'logfile': 'l'}), patch.object(check, 'ROOT', td):
+            expect('docs failure refuses reuse', check.reuse_dev(ns(timeout=5), d, {'tag': 'T'}) == 1)
+        expect('different input key not reused', workflow.reusable_dev_build('other') is None)
+        expect('perf receipt required when perf asked', workflow.reusable_dev_build('in', True) is None)
+        workflow.write(d / 'results.json', rr | {'passed': False})
+        expect('failed receipt not reused', workflow.reusable_dev_build('in') is None)
+        workflow.write(d / 'results.json', rr); pk.write_bytes(b'tampered')
+        expect('package hash mismatch not reused', workflow.reusable_dev_build('in') is None)
 
     with tempfile.TemporaryDirectory() as td:
         rc, _ = workflow.run_logged([sys.executable, '-I', __file__, '--signal-child'], Path(td) / 'signal.log')

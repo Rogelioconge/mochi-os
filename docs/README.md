@@ -16,6 +16,7 @@
 
 | Reference | Contents |
 |---|---|
+| [Change recipes](recipes.md) | Checklists for a new page, setting row, hook or source file; where each registry lives |
 | [Architecture](architecture.md) | Build overview and the index of every module doc |
 | [UI](ui.md) | Preview, layout rules, fonts, assets and rendering |
 | [Firmware](firmware.md) | Stock hashes, updater behaviour, partitions and space recovery |

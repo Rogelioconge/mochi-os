@@ -2,8 +2,7 @@
 
 **Sources:** `patch/ipod_cf.c` (the screen), the level `K_CF` and a few call-ins in
 `patch/ipod.c`, the shared renderer `patch/coverflow.c` / `patch/coverflow.h`, `IPCF_*` in
-`patch/offsets.inc`. **Tests:** `test/pod/ipod_cf.py`.
-
+`patch/offsets.inc`.
 The iPod Classic's Cover Flow inside the virtual iPod ([ipod](ipod.md)): the iPod main menu's
 **Cover Flow** row opens a screen of the iPod page, not the full-screen Cover Flow page
 ([coverflow](coverflow.md), which the Home menu and the Artists page still open). No new hook,

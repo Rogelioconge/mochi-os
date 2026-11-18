@@ -2,8 +2,7 @@
 
 **Sources:** `tools/mod_pulldown.py`, `tools/mod_icons.py` (look), `patch/pulldown.c`,
 `tools/pod.py` (`PULLDOWN_*`), `tools/pod_pages.py` (tile order and page), `PULLDOWN_PINS`,
-`PULLDOWN_FLAG_PINS`, `TSDOWN_PINS` in `tools/pod_pins.py`. **Tests:** `test/pod/pulldown.py`
-(look), `test/pod/pdtiles.py` (tiles, flags, swipe gates).
+`PULLDOWN_FLAG_PINS`, `TSDOWN_PINS` in `tools/pod_pins.py`.
 
 The stock pull-down (`dialog/dropdown_dialog`) restyled, with tiles the user can hide, show and
 reorder, six tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
@@ -209,8 +208,7 @@ Tiles `c` and `d` are **switches** for the two service settings the Network Serv
 
 ## Swipe gates and the window stack
 
-After locking and unlocking while plugged in, the pull-down could no longer be slid down until a
-reboot. The cause is a stale word in stock's state.
+A stale word in stock's state can stop the pull-down opening until a reboot.
 
 **Gates.** `on_wm_tsmove_fun` opens the pull-down only while `lockscreen_pageflag` is not 1 and
 `dropdown_menu_state` is 0 (and the press began high on the screen with a move of at least 11 px

@@ -2,9 +2,7 @@
 
 **Sources:** `patch/update.c` (page), `patch/relnotes.c` (notes page), `patch/upver.c` (version
 rules, notes parser), `patch/pcnet.c` (check and download jobs); page assets in `tools/pod_ui.py`
-(`build_update_page`, `build_relnotes_page`). **Tests:** `test/pod/update.py`,
-`test/pod/updatepage.py`. **Preview:** `tools/preview/preview_update.py`.
-
+(`build_update_page`, `build_relnotes_page`).
 Over Wi-Fi the page finds the newest GitHub release, downloads its `update.bin` to
 `/mnt/mmc/update.bin`, then calls the firmware's own TF card update. **Stock still does the battery
 check, the confirmation, the MD5 checks and the flash**; nothing here touches flashing, the
@@ -173,8 +171,8 @@ the card".
 
 ## Development channel
 
-A local server can stand in for GitHub (`make ota-serve`, `make ota`); its address goes in a card
-file (`UP_CHAN_FILE`, `tools/ota_server.py`). The package checks above still apply.
+A local server can stand in for GitHub; its address goes in a card file (`UP_CHAN_FILE`,
+`tools/ota_server.py`); see [workflow](../workflow.md) (`make ota-serve`, `make ota`). The package checks above still apply.
 
 ## Pinned stock call
 

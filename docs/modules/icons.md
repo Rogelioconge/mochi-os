@@ -1,9 +1,6 @@
 # Icons
 
 **Sources:** `tools/mod_icons.py`, `tools/mod_icons_pins.txt`, `tools/audit_images.py`, `assets/icons/`.
-**Tests:** `test/pod/assets.py`, `test/pod/navbars.py`. **Preview:** `tools/preview/preview_icons.py
-STOCK_TREE RELEASE_TREE OUT.png` (before and after at 1:1; blue **C** = custom glyph, orange **K** =
-stock kept).
 
 `mod_icons.py` draws every replaced image at its exact stock size and mode. The build only copies the
 committed PNGs (`assets/icons/png/`), so there is no rasteriser in the build and it stays
@@ -86,9 +83,8 @@ The rows live in `ui/m1plus_menu.bin`, `m1plus_shuffle.bin`, `m1plus_extras.bin`
 
 ## Audit
 
-`tools/audit_images.py STOCK [TREE]` lists every `images/xx` file referenced by a `ui/**/*.bin`
-property, a style file or a name string in `demo`, and with TREE only those still byte-identical to
-stock. All of those are kept on purpose:
+`tools/audit_images.py STOCK [TREE]` lists referenced images still byte-identical to stock. All of
+those are kept on purpose:
 
 - keyboard keys
 - backgrounds, scroll arrows and unused AWTK check/radio art

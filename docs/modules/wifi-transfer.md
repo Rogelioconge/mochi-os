@@ -1,8 +1,7 @@
 # Wi-Fi Transfer
 
 **Sources:** `patch/netservice.c` (pages), `patch/webapi.c` (`api.cgi`), `assets/webapp/index.html`,
-`tools/mod_webapp.py`, `tools/pod_pins.py` `NETSERVICE_PINS`. **Tests:** `test/webapi.py`,
-`test/pod/netservice.py`.
+`tools/mod_webapp.py`, `tools/pod_pins.py` `NETSERVICE_PINS`.
 
 Stock runs `thttpd -C /etc/thttpd.conf` when Wi-Fi Transfer is on (port 8888, `dir=/usr/share/web`,
 `cgipat=**.cgi`, `user=root`). The mod leaves the player binary, thttpd and its configuration alone and
@@ -183,24 +182,3 @@ Read statically from `usr/bin/thttpd` 2.29; never executed.
   as a missing end block, not an HTTP error.
 - There is no CGI time limit, so long uploads and tar downloads are not cut off.
 - A CGI runs as root in its own folder.
-
-## Validation
-
-`test/webapi.py` (module `webapi` in `tools/check.py`; `make test TEST=webapi`):
-
-- The host build (AddressSanitizer + UBSan, root in a temporary directory) runs every op as CGI: path rules,
-  hidden names, symlinks (list, download, mkdir, upload, delete leave outside files alone), JSON escaping,
-  UTF-8 names, tar read back with `tarfile` (long names, empty files and folders, 512-byte boundaries, 3 MB),
-  conflict names, chunked and interrupted uploads, content-type and method checks, 300-item bodies; `hidden=1` (list, counts, download, tar, delete of `._` and `.part` files, rename source, dot targets refused, `.m1plus` readable and never writable).
-- The real MIPS `api.cgi` runs in Unicorn with its system calls answered from a temporary directory; 19 scripted
-  requests (list, df, download, tar, mkdir, rename, upload with all conflict modes and chunks, move, delete) must
-  answer like the host build, and leave the same files.
-- Names: every exFAT-illegal character, control characters, trailing dot/space are 400 for mkdir, rename and
-  upload (no `.part` left); a case-only rename runs in Unicorn and its `rename(2)` calls are checked
-  (`Small.bin` to a temporary name to `small.bin`); the host file system may not reproduce exFAT's case behaviour.
-- Page: self-contained (no external URL), every string key in every language with matching placeholders, no CJK
-  or Cyrillic in the English table, shared words equal `pod_i18n`, every `t("key")` exists and is used, only
-  known ops are called. No browser is run (none is a repo dependency).
-- Tree: the page is the built asset; the executable is in the rootfs, equals a fresh build of `patch/webapi.c`, is a static MIPS32 LE ELF
-  (no `PT_INTERP`, no `PT_DYNAMIC`, o32, NaN 2008), the stock files, links and directories are gone, `thttpd`,
-  `thttpd.conf` and `favicon.ico` are unchanged.

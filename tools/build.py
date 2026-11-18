@@ -137,10 +137,10 @@ def main():
             tag = directory.name if a.dev else TAG
             if a.dev and not re.fullmatch(r'V2\.1z[A-Z]{8}', tag):
                 sys.exit('dev output directory must use an allocated development tag')
-            inputs = workflow.input_key()
+            inputs = workflow.input_key(); build_inputs = workflow.build_key(); build_sources = workflow.build_source_key()
             make_tree(stock, mod, not a.no_cache, tag)
-            if workflow.input_key() != inputs: sys.exit('source changed during the build; rebuild before testing or packing')
-            record = {'tag': tag, 'mode': 'dev' if a.dev else 'release', 'inputs': inputs, 'sources': workflow.source_key(),
+            if workflow.build_key() != build_inputs: sys.exit('source changed during the build; rebuild before testing or packing')
+            record = {'tag': tag, 'mode': 'dev' if a.dev else 'release', 'inputs': inputs, 'build_inputs': build_inputs, 'sources': workflow.source_key(), 'build_sources': build_sources,
                       'demo_sha256': workflow.sha(Path(mod) / 'rootfs/release/bin/demo'),
                       'elf_sha256': workflow.sha(Path(mod) / 'podbuild/patch.elf'),
                       'environment': workflow.environment(), 'tree': workflow.tree_key(mod)}

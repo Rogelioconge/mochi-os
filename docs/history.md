@@ -29,17 +29,11 @@ and [UI reference](ui.md).
 
 - **Vinyl tint:** recoloring an already-tinted rim kept the old color, and the model made the
   same mistake as the code. Recolor from pristine pixels and compare against a fresh composition.
-- **Vinyl pause:** stock `play_pause_music` sleeps 150 ms on the UI thread, so full-box
-  composition stuttered the arm. Budgets are in [Vinyl](modules/vinyl.md).
-- **Songs sections:** independent letter runs failed on a real library. Labels must be
-  non-decreasing while as many songs as possible keep their own initial.
 - **Cover-pane motion:** resizing the sampled window every frame jiggled. Scale once and copy at
   whole-pixel offsets ([iPod](modules/ipod.md)).
 - **Recently Played artwork:** an old key picked a cache name the builder never wrote. Lookup and
   construction must share one album identity.
-- **LRCLIB:** uncached requests returned HTTP 503 under load; service errors need a retry path.
 - **Standby:** `reset_poweroptions_timer(1, 1, 0)` can keep the device awake with the screen off.
-- **Keyboard:** a 155-tap log showed no systematic offset, supporting nearest-key selection. The stock T9 popup was 640 px wide on a 320 px screen.
 
 ## Durable lessons
 

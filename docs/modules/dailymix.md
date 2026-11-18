@@ -3,8 +3,7 @@
 **Sources:** `patch/dailymix.c`, `patch/menu.c` (`menu_daily`), `tools/pod_ui.py` (`daily()`,
 `build_dailymix_page`), `tools/pod_pages.py` (`ACT_DAILY`, `ACT_REGEN`), `tools/mod_icons.py`
 (`DAILY`), models `tools/pod_dailymix.py` and `tools/pod_mix.py`, constants `DM_*`, `MIX_*`, `DP_*`
-in `offsets.inc`, texts in `pod_i18n.py`. **Tests:** `test/pod/dailymix.py`, `test/pod/dmpage.py`.
-**Preview:** `tools/preview/preview_dailymix.py`, `preview_dmpage.py`.
+in `offsets.inc`, texts in `pod_i18n.py`.
 
 The Home menu shows a Made for You card above Recently Played: generated gradient art, the mix
 title and artists, and a play disc. A tap opens the detail page; the disc plays. The mix is a file
@@ -65,8 +64,7 @@ rrggbb rrggbb [rrggbb [rrggbb]]\n                 (2..4 tones)
   0x85EBCA6B` (never 0). `regen` counts how often today's mix was made again. Songs are 10..25.
   Made is the commit time, seconds since 1970 (the Updated line).
 - **Old `M1X2` files** (no made time, the header ends after `<songs>`) are still read, with made 0.
-  The next mix replaces the file, so the M1X2 read in `dm_load` and the day branch of `dp_updated`
-  can be removed later.
+  The next mix replaces the file; `dm_load` and the day branch of `dp_updated` keep the M1X2 read.
 - At most `DM_FILE_MAX` 8192 bytes. Any deviation is "no mix": the section stays hidden.
 
 **`art`** (`MIX_ART_FILE`): `M1XA`, width, height (u16), art seed (u32), FNV-1a of the pixels

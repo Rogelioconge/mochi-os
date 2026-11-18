@@ -43,7 +43,7 @@ def init(work):
     MANIFEST = json.load(open(os.path.join(BUILD, 'manifest.json')))
     import workflow, build
     final = workflow.read(os.path.join(work, 'build.json'))
-    if final.get('sources') != (os.environ.get('M1_SOURCE_KEY') or workflow.source_key()) or final.get('demo_sha256') != workflow.sha(DEMO) \
+    if final.get('build_sources') != (os.environ.get('M1_SOURCE_KEY') or workflow.build_source_key()) or final.get('demo_sha256') != workflow.sha(DEMO) \
             or final.get('elf_sha256') != workflow.sha(os.path.join(BUILD, 'patch.elf')):
         raise SystemExit('stale or modified test tree; rebuild with make test or make dev')
     build.TAG = pod.TAG = final['tag']

@@ -26,30 +26,18 @@ Keep assertion counts and exhaustive inventories out of docs: they go stale.
 
 ## C constants
 
-`tools/cdefs.py` reads the integer `#define`s of a C file (`defines(path, names=None, known=None,
-strings=False)`); every reader of C constants in `tools/` and `test/` uses it. A requested name
-that is not a define raises `CDefError` naming the file.
-
-- `parse(text, names, source, known, strings)` does the same for text.
-- Continuations and comments are handled. Values are integer expressions (literals with `u`/`l`
-  suffixes, `+ - * / % << >> & | ~`, parentheses, earlier names) evaluated by an ast walker, not
-  `eval`. Function-like macros and non-integer defines are skipped; `#if` branches are not
-  evaluated.
-- `known={name: int}` seeds names the file's expressions use from elsewhere (not returned);
-  `strings=True` also returns a define that is one string literal (text, no escapes decoded).
-- Not scalar `#define`s, so read otherwise: `tools/preview/preview_ipod.py` expands `ipod_theme.c`
-  macro bodies as text, `test/pod/textgamma.py` reads the `TEXT_GAMMA_LUT` brace list. Tests that
-  compare a generated header's text (`palette`, `queuepage`, `search`) check text, not values.
+`tools/cdefs.py` (`defines(path, names=None, known=None, strings=False)`, `parse(text, ...)`) reads
+the integer `#define`s of a C file; every reader of C constants in `tools/` and `test/` uses it. A
+requested name that is not a define raises `CDefError`. Values are integer expressions evaluated
+by an ast walker, not `eval`; function-like macros and non-integer defines are skipped, `#if`
+branches are not evaluated. `known={name: int}` seeds outside names; `strings=True` also returns a
+one-string-literal define.
 
 Tests write expected draw output as literals. C reads are for cross-checks only (a relation
 between two sources, such as "fits within"), never the expected value of what the C code draws:
-that would pass if the constant changed.
-
-`test/consts.py` (`make test TEST=consts`) is the agreement table: each row is (module, Python name
-or expression, C define or expression over `offsets.inc`, `int` or `rgb`), and a difference fails
-with both file:lines and values. Rows known to disagree sit in `XFAIL` (printed as MISMATCH, not
-failing); `SKIPPED` lists literals with no C twin, with the reason. Add a row when a Python
-module-level number is meant to equal an `offsets.inc` define.
+that would pass if the constant changed. `test/consts.py` (`make test TEST=consts`) is the table
+of Python constants that must equal an `offsets.inc` define; add a row for each new one (`XFAIL`
+lists known mismatches, `SKIPPED` literals with no C twin).
 
 ## Required outcomes
 

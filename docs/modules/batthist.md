@@ -1,7 +1,7 @@
 # Battery History
 
 **Sources:** `patch/batthist.c`, `patch/batthist.h`, `patch/power.c` (external power), `patch/battery.c` (the start); the page: [History
-page](#history-page). **Tests:** `test/pod/batthist.py`. **Setting:** Settings > Battery > **Battery History**, a row (On or Off, chevron; `ACT_BHPAGE` 190) opening its own page, whose first card is the switch, **off by
+page](#history-page). **Setting:** Settings > Battery > **Battery History**, a row (On or Off, chevron; `ACT_BHPAGE` 190) opening its own page, whose first card is the switch, **off by
 default**, `/mnt/data/m1plus/battery-history` (`1` on; [settings](settings.md)); note "Keeps the
 last 24 hours of battery level and use. Turning it off deletes them." while it is off and "Turning it off deletes the history." while it is on (`ACT_BATTHIST` 188; `m1plus_batthist`, `BATTHIST_PAGE`).
 
@@ -32,7 +32,7 @@ Every sample (`bh_sample`) reads:
 |---|---|
 | Wall clock | `time()`; before 2020-01-01 it is an unset RTC: nothing recorded |
 | `CLOCK_MONOTONIC` (1), `CLOCK_BOOTTIME` (7) | `clock_gettime`; without BOOTTIME it stands in for it (a long step is then a clock jump, never standby) |
-| Screen | `m1_screen_lit()`, the backlight byte `0x97cae4` |
+| Screen | `m1_screen_lit()`, the backlight byte (`backlight_status`, [addresses](addresses.md)) |
 | Playing | `mclGetPlayStatus() == 2`: `lw v0, 0xa0abe4` (pinned in `tools/pod_pins.py`, `0x5d3654`), a plain word load, also read by the lock screen, VU page and tracklamp; radio's status is reconciled into it ([radio](radio.md)) |
 | External power | `pwr_external()` ([charging](charging.md#external-power), `patch/power.c`): `battery/status` (`Charging`, `Full`, `Not charging` = external, `Discharging` = battery), `usb` / `ac` `online`, and the raw PD17 level; any source saying external wins, no answer at all (`Unknown` status and nothing else) keeps the last one |
 | Gauge | `battery_gauge()` (`/sys/class/power_supply/battery/capacity`), every `BH_GAUGE` (60) s of BOOTTIME and at once after a standby |
@@ -43,6 +43,8 @@ looks at every source, so an `Unknown` status text with another source saying ex
 charge. `Not charging` counts, so the Charge Limit's hold stays "on the charger".
 
 ### Time
+
+On external power `CLOCK_BOOTTIME` equals `CLOCK_MONOTONIC` (no kernel suspend).
 
 Per step: `awake` = BOOTTIME delta minus `suspended`; `suspended` = BOOTTIME delta minus
 MONOTONIC delta (MONOTONIC stops in suspend; at least `BH_SUSP` 5 s counts). The awake part gets
@@ -135,25 +137,10 @@ Setting off: one cached compare per status bar tick. On: the thread's wakeup eve
 `clock_gettime`, one status read, the backlight byte and play word), a gauge read per minute, a
 820-byte write per quarter hour; ring and state about 1 KB of `.scratch`.
 
-## Open device questions
-
-- Does the kernel suspend with the screen off, and does `CLOCK_BOOTTIME` run ahead of
-  `CLOCK_MONOTONIC` there (the standby gap detection depends on it)? Without a difference, standby
-  looks like idle awake time, which is still attributed to idle.
-- Seen on the device (2026-11-17, a diagnostic log since removed): on a plug in every source follows at once
-  (`battery/status` `Charging`, `usb/online` and `ac/online` 1, PD17 low, `POWER_EXT` 1), and
-  `battery/status` stays `Charging` while the Charge Limit holds. Over 1 h 40 min plugged in with the
-  screen off, `CLOCK_BOOTTIME` and `CLOCK_MONOTONIC` stayed equal (no kernel suspend on external power).
-- Whether a sleeping thread keeps the device from deep standby (it should not hold a wake lock;
-  `sleep` is a plain nanosleep).
-- The gauge's steps (whole percent) against a 1 % an hour idle drain: the estimates need a few hours
-  of data before they mean anything.
-
 ## History page
 
 **Sources:** `patch/bhpage.c`, `tools/batthist_model.py` (the Python model), `tools/pod_ui.py`
-`cards_hist` / `cards_summary`, `tools/preview/preview_batthist.py`. **Tests:** `test/pod/batthist.py`
-(`sc_tests`, `history_tests`, `texts_tests`, `timer_tests`, `visibility_tests`).
+`cards_hist` / `cards_summary`.
 
 The page is `BATTHIST_PAGE` (`tools/pod_pages.py`), opened by the Battery page's Battery History row (a value row
 like Charge Limit: `row_value` writes On or Off, and the Battery page refreshes as it comes back in front), after
@@ -167,7 +154,7 @@ The page keeps itself current like the Sleep Timer page ([sleeptimer](sleeptimer
 recorder takes a fresh sample for what is on screen, and a 1 s timer (`BHP_MS`, added on open, removed in the
 background by `EVT_WINDOW_TO_BG` and with the window by `bhpage_gone`) compares `bh_seq` with the count of the
 last draw and calls `pod_page_refresh` only when a sample landed: so right after the requested sample, then at most
-every 15 s. No widget is touched from the recorder thread. Tests: `timer_tests`, `switch_tests`.
+every 15 s. No widget is touched from the recorder thread.
 
 | State | Shown |
 |---|---|

@@ -2,9 +2,7 @@
 
 **Sources:** `tools/battery_art.py`, `tools/mod_battery.py`, `tools/statusbar.py` (art);
 `patch/battery.c`, `patch/battery.h` (percentage; hook 8 in [payload](payload.md)); `BATTERY_PINS`
-in `tools/pod_pins.py`. **Tests:** `test/pod/battery.py`. **Preview:**
-`tools/preview/preview_battery.py`, `tools/preview/preview.py`.
-
+in `tools/pod_pins.py`.
 The [Charge Limit](charging.md), [Battery History](batthist.md) and the
 [automatic scrobble upload](scrobble.md#automatic-upload) run on the same status bar hook,
 independently of the Battery Percentage setting. The Charge Limit also has a worker thread of its
@@ -63,11 +61,9 @@ stay stock.
 
 ## The wake repaint
 
-After a wake the status bar showed the battery value from before the screen went dark for up to a
-second, although the 1 s tick keeps running while dark (a device log: no suspend, the label already
-current). The likely cause: the framebuffer is blanked while dark (`disable_fb`), so what the UI drew
-then never reached the panel, and only the next change repainted it. Two call-site hooks in stock's `screen_action` (`0x4e71a4`, every backlight
-change: the idle timeout, the power key) fix that. The `jalr toolSetBackLight` words at `0x4e71cc`
+The framebuffer is blanked while the screen is dark (`disable_fb`), so what the UI draws then never
+reaches the panel. Two call-site hooks in stock's `screen_action` (`0x4e71a4`, every backlight
+change: the idle timeout, the power key) repaint on wake. The `jalr toolSetBackLight` words at `0x4e71cc`
 (on) and `0x4e71fc` (off) become `jal bp_light_on` / `jal bp_light_off`. Off sets a flag (`bp.dark`)
 and calls `toolSetBackLight`. On, when the flag is set and `/mnt/mmc/m1plus-off` is absent, first runs
 `show_sysbar_face(0)` (the bar's own timer call, so the labels follow), then marks the whole window
@@ -77,7 +73,7 @@ its group to lay out again), clears the flag and
 calls `toolSetBackLight` with the same argument. So the first frame the panel shows is a fresh one.
 **Cost:** about 34 ms on a wake (measured on the device), nothing while the screen stays lit (the
 flag is clear, so a second on paints nothing). With the kill switch present both hooks are a plain
-`toolSetBackLight` call. Tests: `test/pod/battery.py` section 9.
+`toolSetBackLight` call.
 
 ## BP_LOW
 

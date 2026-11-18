@@ -3,9 +3,8 @@
 **Sources:** `patch/idlelyrics.c`, `patch/lyrics.c` (`ly_retarget`, `ly_release`),
 `patch/minibar.c` (`mb_art_*`), `patch/nowplaying.c` (`np_window`, `np_idle_color`),
 `tools/pod_ui.py` `build_idlelyrics_page`, `tools/pod_pages.py` `IDLELYRICS_PAGE`,
-`tools/mod_nowplaying.py` (`np_scrim_idle`), `IL_*` in `patch/offsets.inc`. **Tests:**
-`test/pod/idlelyrics.py`, `test/pod/lyrics.py`, `LYRICS_PINS` in `tools/pod_pins.py`.
-**Preview:** `tools/preview/preview_idlelyrics.py`.
+`tools/mod_nowplaying.py` (`np_scrim_idle`), `IL_*` in `patch/offsets.inc`, `LYRICS_PINS` in
+`tools/pod_pins.py`.
 
 A full-screen page of our own that opens over Now Playing as an Idle Display destination
 (Settings > Now Playing > Idle Display > Lyrics, see [bigcover](bigcover.md)). It has an 88 px

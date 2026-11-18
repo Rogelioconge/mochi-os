@@ -1,8 +1,7 @@
 # Shuffle
 
 **Sources:** `patch/shuffle.c`, `tools/pod_pins.py` (`SETMODE`, `LOADPL`, `MODE_SITES`,
-`SHUFFLE_PINS`). **Tests:** `test/pod/shuffle.py`, `test/pod/queuepage.py`, `test/pod/settings.py`.
-
+`SHUFFLE_PINS`).
 Shuffle is a payload flag, not stock's mode 2, and owns the queue's locking. Two hooks
 (`mclSetPlayMode`, `mclLoadPlayList`) keep stock's mode word at 0, 1 or 3. The Shuffle page
 (`ui/m1plus_shuffle.bin`, one Shuffle row in the menu, as in q2-pod's Library) has three rows:

@@ -358,11 +358,8 @@ The note under **Upload Scrobbles** shows the last upload, for example "Last upl
 is also one line in `scrobble-uploads` in the hidden `.m1plus` folder on the card (a text file; the
 newest lines are kept, about 8 KB).
 
-Sent listens move to `.scrobbler.log.sent`. With two participating services, a listen leaves the
-log only after both have answered; a temporary failure retries both without double-counting. An
-account that refused its credentials is left out of later uploads: listens sent while it is excluded
-are not sent to it later. A listen refused for good by every participating service moves to
-`.scrobbler.log.rejected`. Unsent listens stay in the log for the next attempt.
+Sent listens move to `.scrobbler.log.sent`, those refused for good to `.scrobbler.log.rejected`;
+unsent listens stay in the log for the next attempt. Details: [scrobbling](modules/scrobble.md).
 
 ## Wi-Fi Transfer
 

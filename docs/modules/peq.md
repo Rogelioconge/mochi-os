@@ -5,9 +5,7 @@ filter), `patch/peq_ui.c` (Equalizer page), `patch/peqlib.c` (Presets page), `pa
 (Preset page), `patch/peqband.c` (band page), `patch/autoeq.c` and `AutoEq` in `patch/pcnet.c`
 (download), `patch/tenband.c` (10-Band editor), `patch/peqout.c` (per-output EQ);
 `tools/mod_player.py` (hciplayer patch), `tools/peq_graph.py` and `tools/tenband_model.py`
-(page models), `build_peq_page` / `build_peqpage_page` in `tools/pod_ui.py`. **Tests:**
-`test/pod/peq.py`, `test/pod/autoeq.py`. **Preview:** `tools/preview/preview_peq.py`,
-`preview_peqpage.py`, `preview_peqband.py`, `preview_tenband.py`, `preview_autoeq.py`.
+(page models), `build_peq_page` / `build_peqpage_page` in `tools/pod_ui.py`.
 User instructions: [equalizer guide](../equalizer-guide.md).
 
 A parametric EQ that runs inside hciplayer as an audio filter, with APO / AutoEq presets from the

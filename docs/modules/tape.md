@@ -1,9 +1,7 @@
 # Cassette Mode
 
 **Sources:** `patch/tape.c`, `tools/tape_art.py`, `tools/pod_ui.py` (`build_tape_page`),
-`tools/mod_icons.py`, `TP_*` in `offsets.inc`. **Tests:** `test/pod/tape.py`. **Preview:**
-`tools/preview/preview_tape.py` (emulated frames in `out/preview/tape-emu-*.png`).
-
+`tools/mod_icons.py`, `TP_*` in `offsets.inc`.
 A fullscreen 480 x 320 cassette-style Now Playing page, opened from the More sheet's Display Mode
 page or by the Idle Display timer ([bigcover](bigcover.md)). Tap the cassette to pause/resume, tap
 the top-left screw to close. No hook or boot work, one page timer. The art is generic, without brand
@@ -172,8 +170,7 @@ name at 0x10, bits a sample at 0x30; 1 = DSD), the record stock's own quality li
   the last track's or its position is below the last one's. `TP_INFO_MS` (600 ms) is the fallback.
   Not held: the first look, a full redraw, nothing playing, the same file (the next CUE track). A
   second change inside the hold restarts it for the newest track; the skipped one is never shown.
-  Why: the player's record trails a track change (a poll every 200 ms), so reading it at once would
-  show the old stream with the new title.
+  (The player's record trails a track change by a 200 ms poll.)
 - The bit rate is not compared after the hold, so a VBR file shows the first look's rate. Exception:
   a record that may still be the last track's (`tp.unsure`) also compares the bit rate.
 - **Auto** (`tp.automatic`): the page opens with the playing track's tape (nothing playing: Normal).
@@ -184,7 +181,7 @@ name at 0x10, bits a sample at 0x30; 1 = DSD), the record stock's own quality li
 ## The cassette
 
 - **Symmetry:** everything static is symmetric about x 240 (cassette 5..475, label 37..443, reels 132
-  / 348, screws 24 / 456); `symmetry_tests` checks it. The intended asymmetries are the light (shadow
+  / 348, screws 24 / 456). The intended asymmetries are the light (shadow
   right and down, bevels and hubs lit from the top left).
 - **Shell:** matte moulded plastic with a crisp knurl of raised squares on a 4 px pitch laid on at 1:1
   on the pixel grid (never downsampled), a smooth rim band, fine grain, a bevel, a moulded step and

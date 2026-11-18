@@ -30,17 +30,15 @@ slides in from the right and back out. `fwupdate_page` and `fwdownload_page` sta
 back to a known build. There is no switch; a stuck page needs a code change in
 `mod_boot.apply_anim`.
 
-## Settings slide safety audit (static, on stock `demo`)
+## Slide safety rule
 
 A close animation keeps the window in the stack, visible, until it ends in the main loop (200 ms).
-The one hazard is code that pops windows in a loop and expects the stack to change synchronously:
-`while (top != X) navigator_back();` would spin and the watchdog would reboot.
-
-The only such loops are Album detail "play from here" and the jump list. Both stop at the first
-`playing_page` or `home_page`, and they open only from library pages, the Now Playing "more"
-dialog, the Home dispatcher and search, never from settings code. Decision: the slides stay on all
-settings windows. The evidence is a static reachability search over stock `demo`, not a device
-test.
+Code that pops windows in a loop and expects the stack to change synchronously
+(`while (top != X) navigator_back();`) would spin and the watchdog would reboot. The only such
+loops are Album detail "play from here" and the jump list. Both stop at the first `playing_page` or
+`home_page`, and they open only from library pages, the Now Playing "more" dialog, the Home
+dispatcher and search, never from settings code (a static reachability search over stock `demo`).
+So the slides stay on all settings windows; new code must not add such a loop reachable from them.
 
 Behaviour differences without hanging: the folder-scan dialog on the specified-folder page opens
 about 200 ms late after Back, two closes or opens within one slide share a pending slot, and the

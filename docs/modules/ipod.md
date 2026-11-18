@@ -3,8 +3,7 @@
 **Sources:** `patch/ipod.c`, `patch/ipod_render.c` (slides), `patch/ipod_theme.c` (appearance),
 `patch/ipod_cf.c` ([Cover Flow screen](ipod-coverflow.md)), `tools/pod_ui.py` (`build_ipod_page`,
 `ui/m1plus_ipod.bin`), `tools/mod_icons.py` (`ipod_wheel`, `ipod_placeholder`, `ipod_podcasts_pane`),
-`IP_*` in `offsets.inc`. **Tests:** `test/pod/ipod.py`. **Preview:** `tools/preview/preview_ipod.py`.
-
+`IP_*` in `offsets.inc`.
 The optional Pod item opens a fullscreen iPod Classic-style page: a 240 px display above a 240 px
 touch-wheel area. It is hidden from the main menu by default. Code keeps the `ipod` and `IP_*`
 names; the device label is Pod (a brand, plain text in every language). The row's glyph
@@ -215,20 +214,15 @@ The page timer runs at 33 ms during a slide; cover work pauses.
 Now Playing rotation has no action; select toggles play/pause. Scrubbing, wheel volume and a
 centre-press mode cycle are unsupported.
 
-- **No scrubber and no held next/previous seeking:** stock `seek_time` can block the UI thread for
-  2 seconds, and direct `mclSetSeek` bypasses stock's pause/DLNA handshake.
-- **No wheel volume:** `set_devicevolume` depends on output-specific state, with no verified
-  universal volume readback. Hardware volume keys keep the tested stock path.
-- **The wheel is silent:** `hciplayer` owns the PCM at the track's exact format and rate and there
-  is no dmix configuration. A second PCM opener can race a track transition, cause EBUSY or power
-  the DAC/amp unexpectedly, and no process is spawned for wheel sounds.
+- **No scrubber, no held next/previous seeking:** stock `seek_time` can block the UI thread 2 s; `mclSetSeek` bypasses the pause/DLNA handshake.
+- **No wheel volume:** `set_devicevolume` depends on output-specific state; hardware volume keys keep the stock path.
+- **The wheel is silent:** `hciplayer` owns the PCM (no dmix); a second opener can race a track change, give EBUSY or power the DAC/amp.
 
 ## Limits
 
 - No search, Genres, Composers or Folders; no cover flip in Cover Flow (the centre opens the tracks
   as a list); no clock in the title bar.
 - The cover pane does not follow the row and shows only covers already in the cache.
-- Long translated labels are cut with an ellipsis to the 130 px root text box (`i18n_tests` lists
-  them).
+- Long translated labels are cut with an ellipsis to the 130 px root text box.
 - The play queue is the stock one: `start_player` copies the shown list, so a Songs list of
   thousands of rows is copied once per play, as the Songs page does.

@@ -4,9 +4,7 @@
 geometry), `patch/bkpage.c` / `bkpage.h` (window, Library and Book levels), `patch/bkfind.c`
 (LibriVox, search and Preview levels), `patch/bknet.c` (LibriVox catalog), `patch/bkdl.c`
 (manifest, folder, download queue), `pc_recent_rank` in `patch/pcmodel.c`; `tools/pod_books.py`
-(layout model), `build_books_page` in `tools/pod_ui.py`. **Tests:** `test/pod/bkmodel.py`,
-`bkpage.py`, `bknet.py`, `bkdl.py`, `bkfind.py`. **Preview:** `tools/preview/preview_books.py`.
-
+(layout model), `build_books_page` in `tools/pod_ui.py`.
 The Extras item **Audiobooks** lists the books in `/mnt/mmc/Audiobooks`, plays them with progress
 and resume, and can find and download public-domain books from LibriVox (Internet Archive) into
 the same folder. Progress lives in the Podcasts resume ring, so no new state file exists. No hook:

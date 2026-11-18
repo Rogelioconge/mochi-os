@@ -71,10 +71,7 @@ Although the partition has ~19 MiB spare above stock, `fwtool` still enforces th
 
 ## 3. Battery and version string
 
-In `ui/system_bar.bin` the battery is an `image` (`img_battery`) with an AWTK `progress_bar`
-(`pgbar_battery`) as its fill. On every refresh `demo` sets the bar to the real capacity (100 when
-charge is complete). `tools/mod_battery.py` redraws the state images as an outline and lays the
-bar out as a horizontal fill inside it ([battery](modules/battery.md)), with no binary patch.
+The battery fill and percentage: [battery](modules/battery.md).
 
 The installed version string stays "V2.1" (the online check and About read it), but
 `update_firmware`'s own compare is repointed ([version](modules/version.md)). So:
@@ -116,7 +113,7 @@ A plain fwtool rebuild of stock is 12 KB under the stock size, which fwtool enfo
   modes, owners and times are unchanged. Directory sizes in a listing change (squashfs directory-table
   length follows the inode layout).
 - **.pdr** (MIPS procedure descriptors, a debugger table) is zeroed in `/release/bin/demo` only
-  (415,744 bytes), as q2-pod does for the Q2; every other ELF ships untouched. The section is found by name in the section headers and must be `PROGBITS`, without
+  (415,744 bytes); every other ELF ships untouched. The section is found by name in the section headers and must be `PROGBITS`, without
   `SHF_ALLOC`, address 0, outside every program header, not overlapping another section or the
   headers, with no relocations against it. The loader only maps program headers, so these bytes are
   never mapped; `.pdr` is used by debuggers (gdb), and nothing on the rootfs is known to read it from
@@ -136,13 +133,9 @@ the mod's own files.
 
 ## 5. Rebuilding
 
-See the [development guide](workflow.md) for commands. `tools/build.py` owns the pipeline,
-`tools/fwtool.py` unpacks, repacks, verifies and diffs, and `tools/stock.py` wraps stock UI and
-disassembly searches. fwtool rebuilds the squashfs with the stock parameters and re-applies every
-stock inode's mode, owner and time; an unmodified round trip diffs clean against stock.
+Commands: [development guide](workflow.md); the pipeline: [pipeline](modules/pipeline.md).
 
 ## 6. The code payload
 
-`demo` is an `ET_EXEC` with a spare final `PT_NULL` program header. The payload is appended at va
-`0xb00000` through pinned sites; see [payload](modules/payload.md) for trampolines, kill switch
-and entry points, and [pipeline](modules/pipeline.md) for the build.
+Appended at va `0xb00000` through pinned sites in the spare `PT_NULL` program header of `demo`
+(`ET_EXEC`): [payload](modules/payload.md).

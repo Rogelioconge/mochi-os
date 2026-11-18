@@ -1,9 +1,7 @@
 # Lyrics page
 
 **Sources:** `patch/lyrics.c`, `patch/lyrics.h`, `patch/nowplaying.c`, `tools/mod_nowplaying.py`,
-`tools/mod_font.py`, `tools/font_inter.py`, `tools/pod_pages.py`. **Tests:** `test/pod/lyrics.py`,
-`LYRICS_PINS` in `tools/pod.py`. **Preview:** `tools/preview/preview_lyrics.py` (`--shot PATH`
-background screenshot; `--mode scrim|intro|size`).
+`tools/mod_font.py`, `tools/font_inter.py`, `tools/pod_pages.py`. `LYRICS_PINS` in `tools/pod.py`.
 
 Now Playing shows synchronized lyrics with a highlighted current line, staggered spring scrolling,
 drag-to-browse, tap-to-seek and intro dots. Latin lines use Inter Bold and other scripts the

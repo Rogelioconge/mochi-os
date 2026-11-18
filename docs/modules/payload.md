@@ -1,7 +1,6 @@
 # The code payload: segment, trampolines, hooks, the entry
 
-**Sources:** `tools/pod.py` (`SOURCES`, `FUNCTIONS`, `DATA`, `LIBC`, the hook pins), `tools/pod_pins.py`, `patch/link.ld`, `patch/m1plus.c`. **Tests:** `test/demo_diff.py`, `test/pod/harness.py`.
-
+**Sources:** `tools/pod.py` (`SOURCES`, `FUNCTIONS`, `DATA`, `LIBC`, the hook pins), `tools/pod_pins.py`, `patch/link.ld`, `patch/m1plus.c`.
 M1+ Music adds pages through a MIPS payload appended to `/release/bin/demo`. The M1 Plus uses an
 X2000, Linux 5.10, Buildroot glibc and AWTK; `demo` has a spare `PT_NULL` program header. All stock
 addresses and patch words are specific to the pinned V2.1 binary; the pinned words themselves

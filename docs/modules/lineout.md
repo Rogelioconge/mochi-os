@@ -1,7 +1,6 @@
 # The Line Out pill, the EQ mark and the sync icon
 
-**Sources:** `patch/lineout.c`, `patch/lineout.h`, `tools/statusbar.py`, `LINEOUT_PINS` in `tools/pod_pins.py`; hook 20 in [payload](payload.md). **Tests:** `test/pod/lineout.py`. **Preview:** `tools/preview/preview.py`.
-
+**Sources:** `patch/lineout.c`, `patch/lineout.h`, `tools/statusbar.py`, `LINEOUT_PINS` in `tools/pod_pins.py`; hook 20 in [payload](payload.md).
 **Behaviour.** While Line Out is on (stock's byte `0xa05aa7`), the status bar shows an amber pill with a black "LO" in place of stock's white "LO" text, and the same in the
 pull-down's own bar copy. Always on: no setting. Everything else is stock: the volume glyph beside it, the volume number in PO mode, the pull-down's Output tile, and the "Line Out sets max volume" confirm.
 

@@ -92,42 +92,33 @@ page's only own write is `volume_showpage` `0x97c790`. The bar's constants are `
 
 ## Stock facts
 
-**Openers of `dialog/volume_dialog`** (name string `0x749a94`; window name `volume_dialog`
-`0x749aac`):
+**Openers of `dialog/volume_dialog`** (name string `0x749a94`; window name `0x749aac`). The status
+bar tap is hook 33 ([addresses](addresses.md)): `on_wm_tsup_fun` `0x4cd8dc` (`widget_on(wm, 0x103)`
+from `home_page_init`, every page, not boot-reachable) calls `navigator_to_with_context(name, 2)`
+`0x4d1d48`, which opens the dialog modally; ours is a plain `window_open`. Gates: `standby_mode`
+`0xa059e0` != 2, `boot_guidestep` `0xa06d00` <= 0, `carmode_startflag` `0xa059dc` != 2, event x in
+80 .. 269, event y and `pressdown_y` `0xa05a30` < 42; after it `reset_poweroptions_timer(1,1,1)`
+and `dacoff_time` cleared. The volume keys (`0xdc` / `0xdd`, `on_wm_keyup_fun` `0x4cd9ac`, site
+`0x4cdc44`) open it with ctx 1. `0x4cdd00` and `0x4e799c` close it when it is the top window.
 
-| site | what |
-|---|---|
-| `0x4cd964` (`on_wm_tsup_fun`) | the status bar tap: `bal navigator_to_with_context(name, 2)` (name in the delay slot) |
-| `0x4cdc44` (`on_wm_keyup_fun` `0x4cd9ac`) | volume key up (`0xdc` / `0xdd`) after the lock gate: `navigator_to_with_context(name, 1)` |
-| `0x4cdd00`, `0x4e799c` | closers when the dialog is the top window (before the screensaver / standby) |
+**The dialog** (320 x 42 root; init `0x47e41c` stores `ctx` in `volume_showpage`: 1 = the 30 px
+strip `view_page1`, 2 = the full page `view_page2`): `btn_return`, `label_title`, `vol_label`
+(24 px, "VOL: 100"), `slider vol_slider`, `btn_dec`, `btn_add`. Handlers: `btn_return` click
+`0x47db0c`, `btn_add` `0x47e034`, `btn_dec` `0x47e180`, `vol_slider` EVT_VALUE_CHANGING (`0x11d`)
+`0x47e1b8`; the window's KEY_UP `0x47e330`, POINTER_UP `0x47dd9c`, TO_BG `0x47dad4`, TO_FG
+`0x47dd64`. `slider_set_value` fires `0x11b` then `0x11c`, never `0x11d`, so the refresh does not
+re-enter the slider handler.
 
-`on_wm_tsup_fun` is `widget_on(wm, 0x103, 0x4cd8dc)` from `home_page_init` (every page). Gates:
-`standby_mode` `0xa059e0` != 2, `boot_guidestep` `0xa06d00` <= 0, `carmode_startflag` `0xa059dc` != 2,
-event x in 80 .. 269, event y and `pressdown_y` `0xa05a30` < 42. After the call:
-`reset_poweroptions_timer(1,1,1)`, `dacoff_time` cleared. It is not boot-reachable.
-`navigator_to_with_context(name, ctx)` `0x4d1d48` opens the dialog modally (`to_modal`): the stock
-tap blocks in a nested loop until it closes; ours is a plain `window_open`.
-
-**The dialog** (`volume_dialog`, 320 x 42 root; init `0x47e41c` stores `ctx` in `volume_showpage`:
-1 = the 30 px strip `view_page1`, 2 = the full page `view_page2`): children `btn_return`,
-`label_title`, `vol_label` (24 px, "VOL: 100"), `slider vol_slider`, `btn_dec`, `btn_add`. The init binds,
-with the window as context: `btn_return` EVT_CLICK `0x47db0c`; `btn_add` EVT_CLICK `0x47e034`; `btn_dec`
-EVT_CLICK `0x47e180`; `vol_slider` EVT_VALUE_CHANGING (`0x11d`) `0x47e1b8`; the window's KEY_UP
-`0x47e330`, POINTER_UP `0x47dd9c`, TO_BG `0x47dad4`, TO_FG `0x47dd64`. `slider_set_value` fires
-`0x11b` then `0x11c`, never `0x11d`, so the refresh does not re-enter the slider handler.
-
-**Handlers** (the window is `a0`): inc `0x47df08` / dec `0x47e06c` step by 1 (guards: `volume < 100`
-and `< max_volume`, `volume > 0`; Bluetooth: `btsource_volume`, no Max Volume), each calling
-`set_devicevolume`, storing, saving `VOLUME` / `BTVOLUME`, refreshing, `0x47de2c`,
-`reset_poweroptions_timer`. The slider handler `0x47e1b8` reads the value, pulls the slider back to
-`max_volume` when it is above it (`slider_set_value_internal`, off Bluetooth), then the same.
-The key handler `0x47e330` swaps `0xdc` / `0xdd` under `ROTATEMODE` `0xa05a9c` == 1, passes the gate
-(`backlight_status` `0x97cae4` != 0, `keylock_flag` `0xa05aa0` == 0 or `keylock_mode` `0x97caec` == 2)
-and returns `RET_STOP` after a step. The refresh `0x47d664` reads `volume` (or `btsource_volume`),
-and on the page branch writes `vol_label` and `slider_set_value`; every lookup is null-checked.
-Back `0x47db0c` stops the timer and closes the window. The value is the volume itself (0 .. 100); the
-Max Volume cap is in the handlers, so the bar may show a value above the tick for an instant while
-dragging. Nothing is saved on close.
+**Stepping:** inc `0x47df08` / dec `0x47e06c` step by 1 (guards `volume < 100` and `< max_volume`,
+`volume > 0`; on Bluetooth `btsource_volume`, no Max Volume), call `set_devicevolume`, save
+`VOLUME` / `BTVOLUME`, refresh, `0x47de2c`, `reset_poweroptions_timer`. The slider handler pulls the
+slider back to `max_volume` when above it (off Bluetooth). The key handler swaps `0xdc` / `0xdd`
+under `ROTATEMODE` `0xa05a9c` == 1, passes the gate (`backlight_status` `0x97cae4` != 0,
+`keylock_flag` `0xa05aa0` == 0 or `keylock_mode` `0x97caec` == 2) and returns `RET_STOP`. The
+refresh `0x47d664` writes `vol_label` and the slider on the page branch, every lookup null-checked.
+Back stops the timer and closes. The value is the volume itself (0 .. 100); the Max Volume cap is
+in the handlers, so the bar may show a value above the tick for an instant while dragging. Nothing
+is saved on close.
 
 **Output and value texts** (our existing code): `peqout_current()` (`patch/peqout.c`) names the
 output (`mclGetOutputWay() == 2` USB DAC; way 0 with `LINEOUT_FLAG` `0xa05aa7` Line Out; else

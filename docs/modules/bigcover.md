@@ -1,8 +1,7 @@
 # Timed cover page (bigcover_page)
 
 **Sources:** `patch/bigcover.c`, `patch/covercache.c` (`cc_fit`, `cc_decode_fit`, the worker),
-`tools/pod.py` `BIGCOVER_*`. **Tests:** `test/pod/bigcover.py`, `test/coverflow.py` (`cc_fit`),
-`test/pod/coverart.py` (the aspect job).
+`tools/pod.py` `BIGCOVER_*`.
 
 Stock opens `bigcover_page` from Now Playing's 500 ms page timer after a counter runs out (20 ticks,
 about ten seconds, with Cover Mode on). The page's `img_playcover` is 320 x 320 but stock fills it
@@ -65,7 +64,7 @@ Stock's 264 px picture stays underneath.
 
 **Sources:** `patch/bigcover.c` (`bc_timed_open`, `idle_view`, `idle_choice`, `idle_set`),
 `patch/m1plus.c` (`ACT_IDLE`, `ACT_IDLESET`), `tools/pod.py` (`IDLE_SITE`, `IDLE_PINS`, `COVER_MODE`),
-`tools/pod_pages.py` (`IDLE_PAGE`). **Tests:** `test/pod/bigcover.py`.
+`tools/pod_pages.py` (`IDLE_PAGE`).
 
 Settings > Now Playing > **Idle Display** chooses where the timed view goes: **Off**, **Album
 Cover** (stock's page, sharpened above), **Cassette**, **Vinyl**, **Lyrics** or **VU Meter** (pages of

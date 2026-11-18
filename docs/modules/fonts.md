@@ -1,9 +1,7 @@
 # Font
 
 **Sources:** `tools/mod_font.py`, `tools/font_inter.py`, `assets/fonts/`, `patch/fontregion.c`,
-`patch/textgamma.c`, `tools/textgamma.py`. **Tests:** `test/pod/textgamma.py`, `test/pod/i18n.py`.
-**Preview:** `tools/preview/preview_cjk.py`, `tools/preview/preview_aa.py`.
-
+`patch/textgamma.c`, `tools/textgamma.py`.
 The UI uses one file, `release/assets/default/raw/fonts/default.ttf`, rewritten by code point. Its
 unitsPerEm (256), hhea ascender/descender/lineGap and OS/2 metrics stay stock, so every layout sized
 from them still adds up. The font step runs first, so every later step measures the new font. A

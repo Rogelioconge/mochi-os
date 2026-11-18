@@ -9,6 +9,7 @@ import paths
 
 ROOT = Path(paths.ROOT)
 IGNORED_INPUTS = ('docs/', 'README.md', 'AGENTS.md', 'LICENSE', 'test/golden.sha256')
+BUILD_IGNORED = IGNORED_INPUTS + ('test/',)   # the tree build (tools/build.py, pod.py) never reads test/
 
 
 def sha(path):
@@ -66,13 +67,13 @@ def test_slot(directory=None, count=SLOTS):
         time.sleep(0.1)
 
 
-def source_key():
+def source_key(ignored=IGNORED_INPUTS):
     r = subprocess.run(['git', '-C', str(ROOT), 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
                        capture_output=True, check=True)
     entries = []
     for rel in sorted(set(os.fsdecode(r.stdout).split('\0')) - {''}):
         p = ROOT / rel
-        if rel.startswith(IGNORED_INPUTS): continue
+        if rel.startswith(ignored): continue
         if p.is_symlink(): entries.append((rel, 'link', os.readlink(p)))
         elif p.is_file(): entries.append((rel, p.stat().st_mode & 0o777, sha(p)))
     return digest(entries)
@@ -95,6 +96,8 @@ def environment():
 
 
 def input_key(): return digest([source_key(), environment()])
+def build_source_key(): return source_key(BUILD_IGNORED)
+def build_key(): return digest([build_source_key(), environment()])   # what the tree build reads: unchanged by test-only edits
 
 
 def tree_key(tree):
@@ -157,7 +160,7 @@ def build_dir(value):
 def validate_tree(tree, current=True):
     m = read(Path(tree) / 'build.json')
     if not m or m.get('tree') != tree_key(tree): raise SystemExit(f'{tree}: tree changed or has no final manifest; rebuild it')
-    if current and m.get('inputs') != input_key(): raise SystemExit(f'{tree}: source or environment changed; rebuild it')
+    if current and m.get('build_inputs') != build_key(): raise SystemExit(f'{tree}: source or environment changed; rebuild it')
     return m
 
 
@@ -172,6 +175,21 @@ def tested_package(directory):
             or not all(test_ok(t) for t in expected_results(ALL_TESTS, r.get('tests', []))):
         raise SystemExit('no matching complete passing test receipt; run make dev')
     return package, m
+
+
+def reusable_dev_build(key, perf=False):
+    """Newest out/dev build whose passing full receipt has these inputs and whose package still verifies, else None."""
+    from check import ALL_TESTS
+    found = []
+    for f in (ROOT / 'out' / 'dev').glob('*/results.json'):
+        r = read(f)
+        if r.get('passed') is True and r.get('scope') == 'full' and r.get('inputs') == key \
+                and set(r.get('expected', [])) == set(ALL_TESTS) and (r.get('perf') or not perf):
+            found.append((f.stat().st_mtime, f.parent))
+    for _, d in sorted(found, reverse=True):
+        try: return d, tested_package(d)[1]
+        except SystemExit: continue
+    return None
 
 
 def exit_description(rc):

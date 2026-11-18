@@ -2,9 +2,7 @@
 
 **Sources:** `patch/artists.c` (the page), `patch/artsplit.c` (split index), `patch/artistphoto.c`
 (photos), `cc_build_add_artist` in `patch/covercache.c`, the artist stage of `hc_on_start` in
-`patch/homecover.c`, `tools/pod_ui.py` `build_artists_page`. **Tests:** `test/pod/artists.py`,
-`test/pod/artistphoto.py`, `test/pod/i18n.py`. **Preview:** `tools/preview/preview_artists_photo.py
-WORKDIR OUT.png`.
+`patch/homecover.c`, `tools/pod_ui.py` `build_artists_page`.
 
 Our Artists page, with Genres and Composers on the same code. No hook; if the window will not open
 the Home dispatcher opens the tile's stock `localclass_page`.
@@ -165,9 +163,7 @@ Title), and so does the scoped Cover Flow. Everything below holds for a composer
   The stock list always ends with "Unknown Artist" (id -1), which opens to "No albums" without
   untagged songs. A second open while Cover Flow is open is refused.
 
-Borrowed from q2-pod: the scope, the bounded shelf, the All albums rule. Not borrowed: its hook on
-the stock artist page and its own SQL album list (here the stock page's list and All songs row, so
-no hook).
+The artist page uses the stock page's list and All songs row, so no hook is needed.
 
 ## Artist photos
 
@@ -201,7 +197,6 @@ one that does not decode, is passed over.
   real key: a folder holding one is nobody's (an `artist.jpg` in an album folder of its own still
   works).
 - Tier 3 also needs the folder's name to give the artist's key.
-- A central `/Artists/<name>.jpg` folder was rejected: name matching is too fragile.
 
 ### Separators
 

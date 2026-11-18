@@ -1,7 +1,6 @@
 # Screenshot
 
-**Sources:** `patch/shot.c`, `patch/shot.h`, `tools/pull_shots.py`. **Tests:** `test/pod/shot.py`.
-
+**Sources:** `patch/shot.c`, `patch/shot.h`, `tools/pull_shots.py`.
 A developer's screen grab: the Screenshot row of Settings > Developer (`ACT_SHOT`, page
 `m1plus_developer`). No stock function is hooked and nothing runs at boot, in the main loop or at
 paint. A tap starts a payload-owned countdown; the only code that runs afterwards is two timer

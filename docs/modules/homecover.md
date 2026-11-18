@@ -1,8 +1,7 @@
 # Home cover build
 
 **Sources:** `patch/homecover.c`, `patch/durations.c`, `patch/covlist.c`, `cache_pill` in
-`tools/pod_ui.py`, `HC_*` in `patch/offsets.inc`. **Tests:** `test/pod/homecover.py`,
-`test/pod/durations.py`.
+`tools/pod_ui.py`, `HC_*` in `patch/offsets.inc`.
 
 The Home page ([menu](menu.md)) builds the album covers that have no cache file in the background,
 with the shared worker ([covercache](covercache.md)), and shows a progress pill at the top while it

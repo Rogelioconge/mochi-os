@@ -2,9 +2,7 @@
 
 **Sources:** `patch/playlists.c`, `patch/grid.c` (`grid_mosaic`, `grid_list_paint`),
 `tools/pod_ui.py` (`build_playlists_page`), `tools/pod_pages.py` (`PLAYLISTS`, `ACT_PLAYLISTS`),
-`PLAYLIST_PINS` in `tools/pod_pins.py`. **Tests:** `test/pod/playlists.py` (Clean Up Playlist:
-`test/pod/songs.py`). **Preview:** `tools/preview/preview_playlists.py`.
-
+`PLAYLIST_PINS` in `tools/pod_pins.py`.
 The menu opens `ui/m1plus_playlists.bin` through `ACT_PLAYLISTS`. No hook. A failed open falls back
 through `pod_home_open(14)` to stock `playlist_page`. The same page is the Add to Playlist picker
 ([picker](picker.md)): list mode, a New Playlist row and a Favorites row pinned first, then the

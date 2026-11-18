@@ -1,9 +1,7 @@
 # Buttons & Power
 
 **Sources:** `patch/keyspower.c` (getters, setters), `patch/m1plus.c` (page wiring),
-`KEYSPOWER_PAGE` in `tools/pod_pages.py`, `KEYSPOWER_PINS` in `tools/pod.py`. **Tests:**
-`test/pod/keyspower.py`, `test/pod/i18n.py`.
-
+`KEYSPOWER_PAGE` in `tools/pod_pages.py`, `KEYSPOWER_PINS` in `tools/pod.py`.
 Settings > Buttons & Power is one own cards page (`m1plus_keyspower`) that replaces four stock
 controls the way [Display](display.md) replaced stock's Display list: our own rows, stock's own
 state words and config saves, no row opening a stock page, nothing of ours saved. Sleep Timer is

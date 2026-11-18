@@ -1,10 +1,8 @@
 # Library rows
 
 **Sources:** `patch/rows.c`, `patch/rows.json`, `tools/mod_ipodrows.py`, `tools/mod_lists.py`.
-**Tests:** `test/pod/rows.py`.
-
-The library lists use q2-pod's compact row look (from its `patch/ipod.json`,
-`compact_set_row_layout` / `compact_row_layout`). Songs (and Hi-Res, Favourites, Recent, Most
+The library lists use a compact row look (stock's `compact_set_row_layout` /
+`compact_row_layout`, re-laid by `patch/rows.json`). Songs (and Hi-Res, Favourites, Recent, Most
 played, a playlist's songs), Folders, Artists/Genres/Composers, Albums, an album's tracks,
 Playlists, Search and Now Playing's jump list get 64 px rows on a 60 px body, 52 px album art drawn
 1:1, 21 px titles to a 12 px right margin, and long titles that end in an ellipsis instead of all

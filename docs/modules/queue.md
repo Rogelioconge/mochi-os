@@ -3,10 +3,7 @@
 **Sources:** `patch/queuepage.c` (page), `patch/upnext.c` + `upnext.h` and `pod_queue_insert`,
 `pod_queue_move`, `pod_queue_remove`, `pod_clear_upnext` in `patch/shuffle.c`, `np_on_queue` in
 `patch/nowplaying.c`, `patch/rowmenu.c` (`rowmenu_bind_queue`, `rowmenu_open_queue`), `tools/pod_ui.py`
-`build_queue_page`, `tools/pod_pages.py` `QUEUE_PAGE`, `QP_*` in `patch/offsets.inc`. **Tests:**
-`test/pod/queuepage.py`, `test/pod/upnext.py`, `test/pod/rowmenu.py`, `test/pod/shuffle.py`.
-**Preview:** `tools/preview/preview_queue.py`.
-
+`build_queue_page`, `tools/pod_pages.py` `QUEUE_PAGE`, `QP_*` in `patch/offsets.inc`.
 Now Playing's queue button opens our own page (`ui/m1plus_queue.bin`, window `m1plus_queue_page`)
 instead of stock's side drawer. It shows the playing track, Shuffle and Repeat buttons, and Up Next
 in real queue order, with Clear and a "..." sheet per row. No hook of its own: `np_on_queue` is a

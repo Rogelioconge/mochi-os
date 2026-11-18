@@ -58,6 +58,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Get Info](modules/songinfo.md) | Track details sheet |
 | [Search](modules/search.md) | Library search, chips, live results |
 | [Menu](modules/menu.md) | Home and Extras layout, customization |
+| [Home pins](modules/pins.md) | Pinned albums, playlists, songs and artists on Home |
 | [Line Out pill](modules/lineout.md) | LO pill, EQ mark, sync icon |
 
 ### Playback
@@ -77,9 +78,11 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Lock screen](modules/lockscreen.md) | Own lock page, wallpaper, date |
 | [Cassette Mode](modules/tape.md) | Landscape rendering, themes, timer |
 | [Vinyl Mode](modules/vinyl.md) | Portrait turntable page |
+| [VU Meter](modules/vu.md) | Display Mode meters, level tap |
 | [Parametric EQ](modules/peq.md) | Engine, presets, Equalizer page |
 | [Mono and Crossfeed](modules/stereo.md) | Stereo stage and hciplayer flag |
 | [Playback settings](modules/playset.md) | Grouped Playback Settings page |
+| [Volume page](modules/volume.md) | Status bar tap's own Volume page |
 | [Scrobbling](modules/scrobble.md) | Card log, ListenBrainz and Last.fm upload |
 | [Virtual iPod](modules/ipod.md) | Touch wheel, navigation, playback |
 | [iPod Cover Flow](modules/ipod-coverflow.md) | Embedded carousel |

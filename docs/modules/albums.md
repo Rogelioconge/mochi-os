@@ -2,9 +2,7 @@
 
 **Sources:** `patch/albums.c`, `patch/viewsort.c` (the "..." card), `patch/grid.c`,
 `patch/covercache.c`, `patch/azlist.c`, `tools/pod_ui.py` (`navbar(albums=True)`,
-`view_sort_card`). **Tests:** `test/pod/albums.py`, `test/pod/artists.py` (scoped page),
-`test/pod/sort.py`, `test/coverflow.py`. **Preview:** the Albums panels in
-`tools/preview/preview_icons.py`.
+`view_sort_card`).
 
 Albums opens a grid or list in the last selected mode. A tap on an album calls `cc_open_album`; Back
 returns to the same position. Cover Flow opens above this page. If the window cannot open, the Home
@@ -267,8 +265,6 @@ of its row count.
 
 ## Album order and initial selection
 
-Per-artist Cover Flow reads the same order with Artist read as Title (`cc_scoped_sort`;
-`load_artist` in `patch/coverflow.c`).
 
 At open, `find_playing` (`patch/coverflow.c`) checks `cc_playing` (`mclGetPlayPos` and the play
 queue at `PLAY_QUEUE`, bounded by `deque_size`). It matches the album by `cc_album_key` (FNV of

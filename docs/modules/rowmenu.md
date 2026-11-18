@@ -7,9 +7,6 @@ Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not cove
 **Sources:** `patch/rowmenu.c` / `rowmenu.h` (open, close, the "..." bitmap and its painter, the actions), `patch/songinfo.c` (Get Info, [songinfo](songinfo.md)), the pages' row painters, hit tests and one-row
 `Add to Playlist`, `patch/upnext.c` (`upnext_add`, [queue](queue.md)), `patch/songops.c` (`so_add`), `patch/picker.c`, `tools/pod_ui.py` (`row_menu`),
 `tools/mod_icons.py` (`RM_MENU_ICONS`, `RM_DOTS`, `GLASS_ROWMENU`), `patch/offsets.inc` (`RM_*`), `tools/pod_i18n.py`.
-**Tests:** `test/pod/rowmenu.py`, `test/pod/songs.py`, `test/pod/albumpage.py`, `test/pod/queuepage.py`.
-**Preview:** `uv run python -I tools/preview/preview_rowmenu.py work/mod-release out/preview/rowmenu.png` (also `tools/preview/preview_songs.py`).
-
 ## What the user sees
 
 - **The "..."**: the Lucide ellipsis (24 px, `rm_dots`, solid dots) in `#8C8C8C` (6.2:1 on black, no accent), in a `RM_MORE_W` 44 px tap zone: centred, except beside the Songs page's A-Z rail where it is right-aligned (bitmap x 260..284, ink ending at 281; `rowmenu_paint`'s `flush`), 19 px down the 64 px row (centred above the hairline).
@@ -22,7 +19,7 @@ Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not cove
   | Songs, A-Z rail shown | x 240..284 (`RM_MORE_RIGHT_RAIL`: flush with the rail's touch column, which starts at 284); the "..." right-aligned in it | 253 |
   | Queue, Up Next rows | x 266..310 | 269 |
 
-  Select mode has no "...": the text ends where it used to and a tap marks the row. An asset without the menu's widgets also leaves the old rows. The state is read once, when the page opens (`rowmenu_bind`), and again at every open of the menu.
+  Select mode has no "...": a tap marks the row. An asset without the menu's widgets also leaves the old rows. The state is read once, when the page opens (`rowmenu_bind`), and again at every open of the menu.
 - **Tap**: the page's own press rules. DOWN in the zone remembers it (no press fill: only a tap elsewhere in the row highlights), ABORT (the scroll_view took a drag) forgets it, UP within
   `SC_DRAG_PX` 10 px of the press, on the same row and still in the zone opens the menu. A drag, a scroll, a press that moves 10 px or more, a press that began in the zone and ended off it
   and a release on the title block, a section header or the air below the last row open nothing. A press that began elsewhere in the row and moved a few pixels into the zone is a row tap
@@ -83,4 +80,4 @@ The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next r
   and `rm_card` (with `rm_item0..4`, `rm_icon0..4`, `rm_label0..4`) as the window's last two children (`pod_ui.row_menu`, after the sort card on the Songs page and the navbar on the album page).
 - `rowmenu_t` lives in each page's state (`sg.rm`, `ab.rm`); the page text edge follows `rowmenu_on` and, on Songs, the rail (`sg_edge`). A list read again with the rail's presence changed drops its text tiles
   (`sg.tend`): their ellipses were cut for the other width.
-- No Go to Album / Go to Artist (the owner dropped them). Removing a queued song is the Queue page's own sheet, above.
+- No Go to Album / Go to Artist. Removing a queued song is the Queue page's own sheet, above.

@@ -2,9 +2,7 @@
 
 **Sources:** `patch/recent.c` (recording, file, shelf), `patch/grid.c` / `grid.h` (cells),
 `patch/menu.c` (`menu_shelf`), `tools/pod_ui.py` (`shelf()`), constants `SH_*`, `RC_*`, `GRID_*` in
-`offsets.inc`, file model `tools/pod_recent.py`. **Tests:** `test/pod/recent.py`. **Preview:**
-`tools/preview/preview.py` (`shelf_image`, `minibar_page`).
-
+`offsets.inc`, file model `tools/pod_recent.py`.
 The Home menu shows up to six recent albums in a two-column shelf below Daily Mix. The covers use
 the shared Albums grid, with album and artist labels. The shelf scrolls with the menu and is absent
 from the normal menu instance. No stock hook or address: it uses its own window, widgets, events

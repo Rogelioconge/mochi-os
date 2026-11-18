@@ -1,8 +1,6 @@
 # List gestures
 
 **Sources:** `patch/scroll.c`, `tools/pod.py` (`patch_scroll`), `SCROLL_PINS` in `tools/pod_pins.py`.
-**Tests:** `test/pod/scroll.py`.
-
 A swipe on a list must never play the song under the finger, and a touch on a list that is still
 coasting must stop it and press nothing. The fix is one data word in AWTK's input path, not a code
 hook: nothing of the stock text is overwritten, and it runs only for touches inside a `scroll_view`.

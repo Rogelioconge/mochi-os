@@ -104,13 +104,10 @@ The threads, the job slot, the download queues and each page's Cancel are the ca
   the card. Neither holds a queue, a thread or a page's state.
 - The episode queue's life cycle is one state table in `patch/pcnet.c` ([podcasts](podcasts.md)
   "Network and feeds"); Subsonic's queue and the radio keep their own.
-- The two download queues stay two models, on purpose. Episodes: slots in a
-  state table under one mutex, changed by the pages and the thread. Subsonic: slots the worker
-  alone changes, the pages post ordered messages (`patch/m1job.h`; [subsonic](subsonic.md) "The
-  queue is the worker's"). Each is held by a sweep of its own (`pcdl/sweep_tests`;
-  `sbdl/sweep_tests`, `sbdl/sweep_pair_tests`), and one model for both would change nothing a
-  user sees. Moving Subsonic's queue to a state table
-  would bring back the races the message box rules out.
+- The two download queues stay two models. Episodes: slots in a state table under one mutex,
+  changed by the pages and the thread. Subsonic: slots only the worker changes, the pages post
+  ordered messages (`patch/m1job.h`; [subsonic](subsonic.md) "The queue is the worker's"), which
+  avoids the races of a shared state table.
 - Fetching one resumable file is two copies (`pn_dl_attempt` in
   `patch/pcnet.c`, `sbn_download` in `patch/sbnet.c`) over the shared rules of
   `patch/netfile.c`. The differences: the stall limit, and `sbn_download` drops the `.part` when the
@@ -122,9 +119,3 @@ The threads, the job slot, the download queues and each page's Cancel are the ca
   purpose: the pages read status records on their own timers.
 - Bulk downloads (an episode, an audiobook, a Subsonic track, the update package) run at the same
   time, each on its own thread, beside one job. There is no limit on them.
-
-## Tests
-
-The emulation scripts libcurl at the import level (`test/pod/harness.py`), so each caller's tests
-see the options `net_perform` set: `test/pod/` `pcnet`, `pcdl`, `pcsearch`, `pcdiscover`,
-`onlineart`, `autoeq`, `update`, `radio`, `sbdl`.

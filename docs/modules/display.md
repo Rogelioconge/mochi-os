@@ -1,8 +1,7 @@
 # Display
 
 **Sources:** `patch/display.c`, `patch/tracklamp.c`, `patch/tracklamp.h`, `tools/pod_pages.py`
-(`DISPLAY_PAGE`), `LOCKSCREEN_PINS`. **Tests:** `test/pod/display.py`, `test/pod/tracklamp.py`.
-Part of [settings](settings.md).
+(`DISPLAY_PAGE`), `LOCKSCREEN_PINS`.Part of [settings](settings.md).
 
 Settings > Display (`m1plus_display`) replaces stock's Display list and its four pages with one
 cards page: the brightness slider; **Screen Timeout** and **Lock Screen** (a link to
@@ -61,8 +60,7 @@ our short key `Screen Rotation` (stock's Spanish text does not fit the switch ro
 ## Sample Rate
 
 A fourth LED Light choice, shown as **Dynamic** (two of its themes do not show the rate). The lamp
-shows the playing track's sample rate as a colour. Contributed in PR #5.
-
+shows the playing track's sample rate as a colour.
 - Choosing it saves the setting and sets stock's lamp mode to 0, so stock lights nothing of its
   own. It opens no page. Choosing Off, Green or Blue saves `0`, lets the lamp go and then does what
   the stock choice does.

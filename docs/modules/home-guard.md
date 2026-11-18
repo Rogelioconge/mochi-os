@@ -1,7 +1,6 @@
 # Home, the boot guard and the window stack
 
-**Sources:** `patch/home.c`, `patch/home.h`. **Tests:** `test/pod/home.py`.
-
+**Sources:** `patch/home.c`, `patch/home.h`.
 `home_page_init` starts M1+ Music behind a durable crash marker and falls back to stock on failure.
 It is the startup UI hook; the separately constrained podcast tag-reader hook can also run through
 Memory Playback. See [payload safety](safety.md).
@@ -105,11 +104,8 @@ follow.
   child order. So `menu_arrange` and `cm_layout` `widget_restack` the rows into page order, hidden
   rows last. Stock's layout then computes exactly the `y` and `virtual_h` we set (rows `POD_ROW_H`
   52 px, no spacing), and a relayout at any time changes nothing. The Extras page is restacked the
-  same way in its fixed order (`EX_ORDER`). Without this the lock screen returning to the menu showed
-  one frame in the default order.
-- **Clear the list's paint hook.** list_view gives its scroll_view a paint-children hook that stops
-  painting at the first child whose top is below the canvas; with an overscrolled list or a shorter
-  canvas the rest of the list vanished. The pages clear that one word (`mn_plain_paint`: only if the
+  same way in its fixed order (`EX_ORDER`).- **Clear the list's paint hook.** list_view gives its scroll_view a paint-children hook that stops
+  painting at the first child whose top is below the canvas (an overscrolled list or a shorter canvas). The pages clear that one word (`mn_plain_paint`: only if the
   widget's vtable is `g_scroll_view_vtable` and the word is exactly the stock hook), so the default
   painter paints them.
 

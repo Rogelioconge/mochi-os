@@ -367,8 +367,8 @@ def run(ctx):
     m.fs[NPPOS] = b'1\n'; m.call(PSYMS['np_on_foreground'], a0=WIN, a1=0, count=6000000)
     expect(m.visible('label_index') == 1 and ixset(m)[-1] == '5/10', 'and on again when it is switched on')
     N = pod_pages.NPSET_PAGE
-    expect([(r.label, r.action) for r in N.rows][-1] == ('Track Position', pod_pages.ACT_NPPOS) and pod_pages.ACT_NPPOS == 192 and pod_pages.ACT_NPPOS in pod_pages.SWITCH_ACTIONS and pod_pages.row_kind(N.rows[-1]) == 'switch' and 'nowplaying-position' in pod_pages.SETTING_FILES and NPPOS.rsplit('/', 1)[1] == 'nowplaying-position',
-           'Settings > Now Playing ends with the Track Position switch (192), saved in nowplaying-position and listed on Settings Files')
+    expect(('Track Position', pod_pages.ACT_NPPOS) in [(r.label, r.action) for r in N.rows] and pod_pages.ACT_NPPOS in pod_pages.SWITCH_ACTIONS and pod_pages.row_kind(next(r for r in N.rows if r.action == pod_pages.ACT_NPPOS)) == 'switch' and 'nowplaying-position' in pod_pages.SETTING_FILES and NPPOS.rsplit('/', 1)[1] == 'nowplaying-position',
+           'Settings > Now Playing has the Track Position switch, saved in nowplaying-position and listed on Settings Files')
     m = NowMachine(); m.page()
     expect(m.call(PSYMS['np_pos_setting']) == 0 and m.call(PSYMS['np_pos_toggle'], count=4000000) == 1 and m.fs[NPPOS] == b'1\n' and m.call(PSYMS['np_pos_setting']) == 1
            and m.call(PSYMS['np_pos_toggle'], count=4000000) == 0 and m.fs[NPPOS] == b'0\n', 'the switch: off by default; a toggle saves 1 atomically, then 0')

@@ -2,9 +2,6 @@
 
 **Sources:** `patch/albumpage.c`, `patch/songops.c`, `patch/covercache.c`, `patch/durations.c`,
 `tools/pod_ui.py` (`build_album_page`).
-**Tests:** `test/pod/albumpage.py`, `test/pod/durations.py`, `test/pod/shared.py`.
-**Preview:** `tools/ah_ink.py` measures header typography; `tools/preview/preview_albumlen.py` draws the scrolled page with its footer and the footer line in all languages.
-
 Albums, Cover Flow, Recently Played and Look up album open `m1plus_album_page`
 (`ui/m1plus_album.bin`) through `cc_open_album`.
 Stock Shanling library pages retain their stock album-details page.
@@ -53,9 +50,7 @@ The database has no duration: `time/time_end` are CUE offsets, 0 for ordinary fi
 through stock's TagLib and kept on the card in `/mnt/mmc/.m1plus/durations` beside the cover cache (`patch/durations.c`, `DUR_FILE`; written by `m1_card_write`; no card or USB mode: no table, nothing measured, no duration shown; a card swapped while a page holds the table is not noticed):
 `taglib_file_new(path, 1)`, `taglib_file_audioproperties`, then `AudioProperties::length()` through vtable slot 3
 (`+0xc`, what libtag_c's `taglib_audioproperties_length` does; `demo` imports the first, second and `taglib_file_free`, not
-that one). `.iso` images are never opened, as stock never reads their properties. The design follows q2-pod's Long Songs
-lengths cache (`patch/navigation.c`, `docs/internals.md#long-songs`).
-
+that one). `.iso` images are never opened, as stock never reads their properties.
 - **File:** 12-byte header (`M1LN`, count, FNV-1a of the entries), then `{key, size, seconds}` entries (12 bytes) sorted by
   key; key = FNV-1a of the path (never 0). It is read whole and searched by bisection. Wrong magic, count, checksum, order
   or size means the file is ignored and the next write replaces it. Writes merge, sort and drop duplicates, go to `.tmp`,

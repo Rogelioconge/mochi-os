@@ -5,7 +5,7 @@
 / `pcjson.c` (feed and JSON parsing), `patch/pccover.c` / `pcpng.c` (covers), `patch/pcdetail.c` /
 `pcnotes.c` / `pcwrap.c` (episode page, notes), `patch/pcfind.c` (search inside a show),
 `m1_segmented` / `m1_capsule` in `patch/common.c`; `tools/pod_ui.py`, `tools/pod_show.py` (layout
-model), `tools/pcregion.py`. **Tests:** `test/pod/podcasts.py` and `test/pod/pc*.py`.
+model), `tools/pcregion.py`.
 
 Local episodes, subscriptions, downloads, directory search, Discover charts, episode notes and
 Saved episodes share the page `ui/m1plus_podcasts.bin`. The Pod interface exposes Podcasts too.
@@ -107,7 +107,7 @@ Index**, chosen in **Settings > Library > Podcasts > Podcast Directory** (`ACT_P
 `m1plus_podcastdirectory`, file `/mnt/data/m1plus/podcast-directory`, `1` is Podcast Index). Both
 use **keyless endpoints**. A tap saves first and only then moves the check.
 
-Exactly one directory is asked, never both, and there is no fallback from one to the other.
+Exactly one directory is asked, never both.
 
 - **Search:** `https://api.podcastindex.org/search?limit=25&term=<term>`, parsed as the store's
   shape. The Podcast Region has no effect on it.
@@ -372,8 +372,10 @@ bounded-memory decoders; display decoding refuses images over 2.1 million pixels
 
 ## Download safety
 
+The shared rules (`.part`, rename, reserve, Range, If-Range) are in [network](network.md).
+
 - Downloads request the stored enclosure URL, not an expiring redirect URL. Data is flushed in 512
-  KB chunks and renamed only on completion, then the show's folder is synced (`net_publish`).
+  KB chunks, then the show's folder is synced on completion.
 - A partial file requests `Range: N-`: 206 appends, 200 restarts, and 416 or a range error restarts
   once. A 206 whose Content-Range starts elsewhere than N counts as a refused range.
 - **If-Range safety:** within one run, an attempt that came with a strong ETag makes the next

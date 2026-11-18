@@ -1,9 +1,7 @@
 # Now Playing's More menu
 
 **Sources:** `patch/playmore.c`, `tools/mod_lists.py` (`edit_playmore`), `tools/pod.py`
-`PLAYMORE_PINS`, `tools/mod_icons.py` (`PC_SHEETS`, `GLASS_SHEET*`). **Tests:**
-`test/pod/playmore.py`. **Preview:** `tools/preview/preview_playmore.py`.
-
+`PLAYMORE_PINS`, `tools/mod_icons.py` (`PC_SHEETS`, `GLASS_SHEET*`).
 The sheet Now Playing's "..." button opens is the stock `dialog/playmore_dialog`
 (`ui/dialog/playmore_dialog.bin`: `list_view` > `scroll_view` > `list_item` rows `listitem0..6`).
 Stock rows: A-B repeat (0), Playback speed (1, badges and `label1_msg`), Add to playlist (2), Online

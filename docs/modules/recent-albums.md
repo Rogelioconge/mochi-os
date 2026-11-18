@@ -2,10 +2,7 @@
 
 **Sources:** `patch/songs.c` (`rv_*`, `sg_set_view`), `patch/grid.c`, `patch/covercache.c`,
 `tools/pod_ui.py` (`build_songs_page`), `patch/home.h` (`RECENTADD_VIEW_FILE`),
-`patch/setfiles.c`. **Tests:** `test/pod/recentalbums.py`. **Preview:**
-`tools/preview/preview_recent_albums.py` (`make preview` writes `recent-songs-view.png` and
-`recent-album-view.png`).
-
+`patch/setfiles.c`.
 The Recently Added list (stock class `0xf009`, shown on our Songs page, see [songs](songs.md) "The
 other lists") has a View group in its "..." card: **Albums** (grid glyph) and **Songs** (list
 glyph). The page stays the Songs page and the rows switch in place between the songs and a
@@ -46,11 +43,5 @@ newest-first Albums grid (the ticked row does nothing). Only this list has the g
 - **Tap:** `cc_open_album(NULL, 0, row)` with the library album row. A drag, the title block, gaps
   and margins open nothing.
 
-## Stock facts that drive this
-
-- Class `0xf009` runs `select * from songtable ORDER BY time_create desc limit 100`. So the Albums
-  side needs its own unlimited query. `sort_time_desc` is that query without the limit.
-- `time_create` is filled by the scan from the file's stat times. Update Library drops and
-  rebuilds `songtable`, so a rescan rewrites every `time_create`. Stock took `st_atime` on exFAT;
-  `patch/filetime.c` supplies the creation time on FAT32 and exFAT, see [songs](songs.md)
-  "Recently Added dates".
+`time_create` comes from the scan; Update Library rebuilds `songtable`, so a rescan rewrites every
+`time_create`. The creation time on FAT32 and exFAT: [songs](songs.md) "Recently Added dates".

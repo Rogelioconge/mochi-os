@@ -1,9 +1,7 @@
 # Add to Playlist picker
 
 **Sources:** `patch/picker.c`, `patch/picker.h` (the add and the copies), `patch/playlists.c` (pick mode),
-`patch/songops.c` (`so_add`), `PICKER_PINS` in `tools/pod.py`. **Tests:** `test/pod/picker.py`.
-**Preview:** `tools/preview/preview_picker.py` (`out/preview/picker.png`).
-
+`patch/songops.c` (`so_add`), `PICKER_PINS` in `tools/pod.py`.
 Our own picker replaces the stock one. Add on the Songs page and the album page (`so_add`) opens it;
 the stock `playlist_page` in picker mode is only the fallback.
 
@@ -51,9 +49,3 @@ was in the background all along: its loader stopped, to-foreground reads it agai
 **Fallback.** `picker_open` returns -1 and `so_add` runs the stock path exactly as before (the selection into the stock vector, `playlist_page` with `PICKER_ADD |
 class`) when: the stock list is not the one the marks are of, the copies cannot be made, the window `m1plus_playlists` does not open, the asset lacks a widget,
 or a picker is already open. The SD file `/mnt/mmc/m1plus-off` disables the whole payload (then stock's page is the only one).
-
-## Tests
-
-`test/pod/picker.py` covers opening, the Favorites row, a tap, New playlist, Back, the fallbacks and the
-stash over an open Playlists page. `test/pod/songs.py` and `albumpage.py` refuse the window
-`m1plus_playlists` where they assert the stock picker fallback.

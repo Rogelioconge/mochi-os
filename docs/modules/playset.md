@@ -2,9 +2,7 @@
 
 **Sources:** `patch/playset.c`, `tools/pod_pages.py` (`PLAYSET_PAGE`, `PSVOLUME_PAGE`, `PSOUTPUT_PAGE`, `PSMAXVOL_PAGE` ..),
 `tools/pod_ui.py` `cards_volcard`, `tools/pod_pins.py` `PLAYSET_PINS`, `tools/pod.py` (`FUNCTIONS`,
-`DATA`). **Tests:** `test/pod/playset.py`, `test/pod/pdtiles.py` (`playtile_tests`),
-`test/pod/i18n.py`. **Preview:** `tools/preview/preview_settings.py`.
-
+`DATA`).
 Settings > Playback Settings is an own hub page (`m1plus_playset`) with two own sub-pages, Volume & Sound
 (`m1plus_psvolume`) and Output (`m1plus_psoutput`), that replace stock's
 `playset/playset_page` ("All Playback Settings") and its sub-pages, as [Buttons & Power](keyspower.md)
@@ -102,8 +100,7 @@ Max Volume, Default Volume and Channel Balance (Volume & Sound) open slider page
 ## Labels
 
 Our own short English keys (stock's translations are partly wrong: French "avoir ralenti" for
-ReplayGain, Italian "Modalità di gioco" for Play Mode), all in the 13 languages ([i18n](i18n.md)),
-fit-checked by `test/pod/i18n.py`. Names differing from stock: **Max Volume**, **Default Volume**
+ReplayGain, Italian "Modalità di gioco" for Play Mode), all in the 13 languages ([i18n](i18n.md)). Names differing from stock: **Max Volume**, **Default Volume**
 (stock "Boot volume"), **Channel Balance**, **Volume & Sound**, **Stereo** and **USB & Digital** (the new page title and headers; `Output` and `Volume` already existed), **Volume Memory**, **Resume** (stock "Memory playback":
 the full word does not fit beside "Location"), **USB Volume** (stock "USB Audio Output": it sets
 the DAC's volume mode), **Digital Filter**, **Track** (ReplayGain; stock "Audio"), **Fixed / Variable**.

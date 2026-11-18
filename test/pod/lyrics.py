@@ -1253,8 +1253,8 @@ def size_setting_tests(ctx):
     N, L = P.NPSET_PAGE, P.LYRSIZE_PAGE
     rows_n = PSYMS[f'pod_rows_{P.NPSET_PAGE_INDEX}']
     labels = [(r.label, r.action, r.arg) for r in N.rows]
-    expect(labels.index(('Lyrics Text Size', P.ACT_LYRSIZE, P.LYRSIZE_PAGE_INDEX)) == labels.index(('Base', P.ACT_VTHEME, P.VTHEME_PAGE_INDEX)) + 1 == len(labels) - 3 and P.ACT_LYRSIZE in P.VALUE_ACTIONS
-           and P.ACT_LYRSIZESET in P.CHECK_ACTIONS and P.VALUE_INIT[P.ACT_LYRSIZE] == 'Large', 'Settings > Now Playing: the Lyrics Text Size value row is its own card between Vinyl Mode and Idle Display, then Track Position (a switch) last; the picker\'s rows are check rows')
+    expect(labels.index(('Lyrics Text Size', P.ACT_LYRSIZE, P.LYRSIZE_PAGE_INDEX)) == labels.index(('Base', P.ACT_VTHEME, P.VTHEME_PAGE_INDEX)) + 1 == labels.index(('Idle Display', P.ACT_IDLE, P.IDLE_PAGE_INDEX)) - 1 and P.ACT_LYRSIZE in P.VALUE_ACTIONS
+           and P.ACT_LYRSIZESET in P.CHECK_ACTIONS and P.VALUE_INIT[P.ACT_LYRSIZE] == 'Large', 'Settings > Now Playing: the Lyrics Text Size value row is its own card between Vinyl Mode and Idle Display; the picker\'s rows are check rows')
     expect([(r.label, r.action, r.arg) for r in L.rows] == [('Small', P.ACT_LYRSIZESET, 0), ('Medium', P.ACT_LYRSIZESET, 1), ('Large', P.ACT_LYRSIZESET, 2)] and L.title == 'Lyrics Text Size'
            and L.key == 'm1plus_lyrsize' and P.LYRSIZE_VALUES == ('Small', 'Medium', 'Large') and P.PAGES[P.LYRSIZE_PAGE_INDEX] is L, 'the picker: Small, Medium, Large, titled Lyrics Text Size')
     expect(LYRSIZE.rsplit('/', 1)[1] in P.SETTING_FILES and LYRSIZE.rsplit('/', 1)[1] == 'nowplaying-lyrics-size' and LYRSIZE.rsplit('/', 1)[1] not in ' '.join(P.RETIRED_FILES), 'the file is a Settings Files row')

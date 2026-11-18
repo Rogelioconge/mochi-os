@@ -1,8 +1,7 @@
 # Menu and Extras layout
 
 **Sources:** `tools/pod_pages.py` (rows, actions), `tools/pod_ui.py` (assets), `patch/menu.c`
-(runtime arrangement). **Tests:** the menu tests under `test/pod/` compare the Python and C models
-and run stock layout and hit-testing. User instructions: the
+(runtime arrangement). User instructions: the
 [guide](../guide.md#find-your-way-around).
 
 The M1+ Music Home menu and Extras: which rows exist, their order, and what the user may hide.

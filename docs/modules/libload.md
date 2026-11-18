@@ -1,8 +1,7 @@
 # Library list hand-over
 
 **Sources:** `patch/libload.c`, `patch/covercache.c` (`cc_class_copy`), `patch/artists.c`
-(`ar_load`), `patch/dailymix.c` (`dm_ph_copy`). **Tests:** `test/pod/libload.py`.
-
+(`ar_load`), `patch/dailymix.c` (`dm_ph_copy`).
 Every local list (Songs, Albums, Artists, Most Played, Recently Played, Favourites, a playlist's
 or an album's songs) is read by stock's `loadLocalClassList(cls)`. Payload hook 29
 ([payload](payload.md)) removes the copies that function made, and the pages no longer keep a

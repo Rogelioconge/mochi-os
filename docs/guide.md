@@ -43,9 +43,14 @@ drag through the covers and tap the centre cover to open its album.
 
 ### Pin to Home
 
-Pin up to six playlists to the top of Home. Open a playlist, tap **…** and choose **Pin Playlist**
-(**Unpin Playlist** takes it away). Pinned items show as covers above Cover Flow; tap one to open it,
-or hold it for **Play**, **Shuffle** and **Unpin**. A new pin joins the end; to reorder, hold a tile until it lifts, drag it to another place (the others make room) and let go. The menu opens as soon as the tile lifts; start dragging and it closes, let go without moving and it stays open. Artists pin too: hold an artist on the Artists page, or tap **…** on the artist's page, and choose **Pin Artist**; an artist shows as a round photo, tap opens the artist's albums, hold gives **Play**, **Shuffle** and **Unpin Artist**. An artist stays pinned in the list it was pinned from (**Artists** or **Album Artists**): a tap on a pin from the other list switches the Artists page to it, as the Show setting does. Turning Split Artists off does not unpin a guest artist; its tile says "Can't play" until the setting is on again. Albums and songs pin too: hold an album on the Albums page, hold a Recently Played tile on Home, or tap **…** on the album's page, and choose **Pin Album**; on a song's **…** (or hold the song) choose **Pin Song**. A song tile shows its album's cover and the song's title; tap plays the album from that song; each track of a CUE image pins on its own. If the card cannot be read or written, pinning and unpinning say "Can't update pins", the tile stays and the list is left alone (a pin list that is damaged is never overwritten: delete `.m1plus/home-pins` to start again). With six pinned, unpin one before pinning another.
+Pin up to six albums, playlists, songs or artists to the top of Home, above Cover Flow. Tap **…**
+(or hold the item) and choose **Pin Album**, **Pin Playlist**, **Pin Song** or **Pin Artist**;
+**Unpin** takes it away. Tap a tile to open or play it, or hold it for **Play**, **Shuffle** and
+**Unpin**. To reorder, hold a tile until it lifts and drag it to another place. A pinned artist
+stays in the list it came from (**Artists** or **Album Artists**); with Split Artists off, a pinned
+guest artist says "Can't play" until the setting is on again. If the card cannot be read or
+written, pinning says "Can't update pins" and the list is left alone (delete `.m1plus/home-pins`
+to start again). With six pinned, unpin one before pinning another.
 
 ### Find a song
 

@@ -2,8 +2,7 @@
 
 **Sources:** `patch/onlineart.c`, "Find Cover & Lyrics" in `patch/pcnet.c`, `patch/pcjson.c`,
 `patch/artistphoto.c`; page asset `ui/m1plus_onlineart.bin` (`build_onlineart_page` in
-`tools/pod_ui.py`). **Tests:** `test/pod/onlineart.py`, `test/pod/onlineartpage.py`,
-`test/pod/playmore.py`. **Preview:** `tools/preview/preview_onlineart.py`. **Sources of data:**
+`tools/pod_ui.py`). **Sources of data:**
 iTunes Search API and Deezer (covers), LRCLIB (lyrics), Deezer and NetEase (artist photos).
 
 An online lookup for the playing track: the album's cover from iTunes, then Deezer, and the

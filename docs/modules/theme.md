@@ -1,8 +1,6 @@
 # Theme
 
 **Sources:** `tools/mod_theme.py`, `tools/awtk_style.py`, `tools/statusbar.py`, `tools/themeoff.py`.
-**Tests:** `test/pod/assets.py`, `test/pod/themeoff.py`, `test/pod/navbars.py`.
-
 The static look of the default theme, built at asset time, plus the status bar and the removal of
 stock's theme1. The colours here are the Black background with the Neutral accent; the run-time
 accent and background mapping is in [accent](accent.md).
@@ -29,8 +27,8 @@ accent and background mapping is in [accent](accent.md).
 | Home page dots | `#EEEEEE` / `#555555` | `#FFFFFF` / `#666666` |
 
 Two colours exist only for the accent mapping and are one blue level off their neutral: the pressed
-row/key `#333334` and the Now Playing progress fill `#FFFFFEEB`. A test proves no other style or
-source has them.
+row/key `#333334` and the Now Playing progress fill `#FFFFFEEB`. No other style or source has
+them.
 
 - **Edits are pinned** (file SHA-256, the old value and state count per edit, `STYLE_EDITS`): the
   list item and row styles, `btn_tablerow_style`, the keyboard key styles, and the gold label styles

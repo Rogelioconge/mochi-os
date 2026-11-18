@@ -3,8 +3,6 @@
 **Sources:** `patch/keyboard.c`, `patch/keyboard.h` (API and geometry constants); the asset is
 `build_keyboard_page` in `tools/pod_ui.py` (`ui/m1plus_keyboard.bin`), geometry in
 `tools/pod_keyboard.py`, glyphs `KEYBOARD_IMAGES` (`qk_*`) in `tools/mod_icons.py`.
-**Tests:** `test/pod/keyboard.py`, `test/pod/pinyin.py` (the engine on its own).
-**Preview:** `tools/preview/preview_keyboard.py`.
 
 Our own on-screen keyboard, built from stock AWTK widgets. It replaces stock's T9 popup
 (`ui/user_keyboard.bin`, laid out 640 px wide in a 320 px popup) wherever we use it, and types
@@ -233,8 +231,7 @@ key and makes it insensitive; a touch the gap rule resolves to it does nothing.
 
 Stock's Google Pinyin engine (AOSP PinyinIME) gives the keyboard Chinese input from the payload, with
 the dictionary stock already ships. Pins: `PINYIN_PINS` in `tools/pod_pins.py`; entry points
-`FUNCTIONS` in `tools/pod.py`; [addresses](addresses.md) "Pinyin engine". Test: `test/pod/pinyin.py`
-(demo's own engine code under Unicorn).
+`FUNCTIONS` in `tools/pod.py`; [addresses](addresses.md) "Pinyin engine".
 
 - **The dictionary** `/release/assets/default/raw/data/gpinyin.dat` is stock's and nothing names it,
   so we open it in place (`im_open_decoder` takes any path, but both the system and the user path

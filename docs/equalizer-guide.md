@@ -11,8 +11,6 @@ Headphones, Line Out and a USB DAC each keep their own EQ (on or off, and what p
 switches by itself when the output changes. The grey line under the switch names the output you
 are setting.
 
-<!-- Screenshot: Equalizer page showing the output, switch and preset list. -->
-
 ## Get started
 
 1. Connect the output you want to adjust and open **Settings → Playback → EQ**.

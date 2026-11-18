@@ -2,9 +2,6 @@
 
 **Sources:** `tools/mod_overlays.py`, `tools/mod_overlays_pins.txt`, `assets/overlays/`,
 `tools/coex.py`, `tools/pod_i18n.py` (`COEX_TEXT`), `patch/m1plus.c` (`pod_confirm_dialog`).
-**Tests:** `test/pod/overlays.py`, `test/pod/navbars.py`. **Preview:**
-`tools/preview/preview_overlays.py work/mod-release out/preview/overlays.png`.
-
 Two stock-looking screens restyled with assets only (no new or renamed widget): the message and
 confirm dialogs and the power-off splash. The step runs after `mod_polish` in `tools/build.py`. It
 copies PNGs committed in `assets/overlays/` (`mod_overlays.py --generate` redraws them), refuses any
@@ -84,11 +81,3 @@ The text is one string under both keys, in the 13 language tables: "Bluetooth au
 Wi-Fi is on." (`COEX_TEXT` has the other twelve). The buttons are stock's `msg_no` ("Cancel") and
 `msg_yes` ("OK"). All 13 texts wrap to at most three lines. Audio stutter on 2.4 GHz (shared antenna
 and band) is the expected risk.
-
-## Tests
-
-`test/pod/overlays.py` checks the pins, the committed assets, the stock bytes of the charging images
-and `poweroff_page.bin`, the glass and ui edits, the scrim, the coex branch words (also listed in
-`test/demo_diff.py`) and, in Unicorn, the stock Wi-Fi tile and page handler over the build (OK calls
-only `wifi_switch(1)`, Bluetooth stays on). `test/pod/navbars.py` exempts the replaced files
-(`mod_overlays.NAMES`, `OVERLAY_UI`).

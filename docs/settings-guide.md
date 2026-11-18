@@ -63,14 +63,7 @@ a browser, open **Wi-Fi Transfer**; see [Wi-Fi Transfer](features-guide.md#wi-fi
 
 ### Home Screen and Control Center
 
-| To change… | Open |
-|---|---|
-| Main menu | **Settings → Home Screen → Main Menu** |
-| Items in Extras | **Settings → Home Screen → Extras** |
-| Recent Albums or Daily Mix | **Settings → Home Screen** |
-| Pull-down tiles | **Settings → Appearance → Control Center** |
-
-Settings remains accessible when Extras items are hidden. **Regenerate Daily Mix** takes effect
+Recent Albums and Daily Mix are under **Home Screen**. Settings remains accessible when Extras items are hidden. **Regenerate Daily Mix** takes effect
 on the next Home visit.
 
 Control Center holds up to eight tiles. Sleep Timer, Settings, Equalizer, Power Off, AirPlay and

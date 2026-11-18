@@ -567,10 +567,11 @@ def idle_setting_tests(ctx):
     expect, P = ctx.expect, pod_pages
     N, I = P.NPSET_PAGE, P.IDLE_PAGE
     rows_n = PSYMS[f'pod_rows_{P.NPSET_PAGE_INDEX}']
-    expect([(r.label, r.action, r.arg) for r in N.rows][-2:-1] == [('Idle Display', P.ACT_IDLE, P.IDLE_PAGE_INDEX)] and P.ACT_IDLE == 82 and P.ACT_IDLESET == 83 and P.ACT_IDLE in P.VALUE_ACTIONS and P.ACT_IDLESET in P.CHECK_ACTIONS,
-           'Settings > Now Playing has the Idle Display value row before the last (Track Position) (a new action id, a value row), the picker\'s rows are check rows')
-    expect([type(x).__name__ for x in N.layout][-6:-3] == ['str', 'Row', 'Note'] and N.layout[-4].text == 'Shown after 10 seconds on Now Playing.' and N.layout[0].text == 'Cassette Mode',
-           'the Idle Display row and its note are the second last card, after the Cassette Mode and Vinyl Mode cards')
+    expect(('Idle Display', P.ACT_IDLE, P.IDLE_PAGE_INDEX) in [(r.label, r.action, r.arg) for r in N.rows] and P.ACT_IDLE == 82 and P.ACT_IDLESET == 83 and P.ACT_IDLE in P.VALUE_ACTIONS and P.ACT_IDLESET in P.CHECK_ACTIONS,
+           'Settings > Now Playing has the Idle Display value row (a new action id, a value row), the picker\'s rows are check rows')
+    idle_i = next(i for i, x in enumerate(N.layout) if getattr(x, 'label', None) == 'Idle Display')
+    expect([type(x).__name__ for x in N.layout][idle_i - 1:idle_i + 2] == ['str', 'Row', 'Note'] and N.layout[idle_i + 1].text == 'Shown after 10 seconds on Now Playing.' and N.layout[0].text == 'Cassette Mode',
+           'the Idle Display row and its note are a card of their own, after the Cassette Mode and Vinyl Mode cards')
     expect([(r.label, r.action, r.arg) for r in I.rows] == [('Off', P.ACT_IDLESET, 0), ('Album Cover', P.ACT_IDLESET, 1), ('Cassette', P.ACT_IDLESET, 2), ('Vinyl', P.ACT_IDLESET, 3), ('Lyrics', P.ACT_IDLESET, 4), ('VU Meter', P.ACT_IDLESET, 5)]
            and I.title == 'Idle Display' and I.key == 'm1plus_idleview' and P.IDLE_VALUES == ('Off', 'Album Cover', 'Cassette', 'Vinyl', 'Lyrics', 'VU Meter') and I.layout[-1].text == 'Shown after 10 seconds on Now Playing.'
            and P.PAGES[P.IDLE_PAGE_INDEX] is I, 'the picker: Off, Album Cover, Cassette, Vinyl, Lyrics, VU Meter, titled Idle Display, with the note')

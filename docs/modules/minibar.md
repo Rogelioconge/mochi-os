@@ -2,9 +2,7 @@
 
 **Sources:** `patch/minibar.c`, `patch/minibar.h`, `tools/pod_ui.py` (`minibar()` in
 `ui/m1plus_menu.bin`), `tools/pod_blur.py` (blur model), `MB_*` in `offsets.inc`,
-`tools/mod_icons.py` (`glass_image`, `pil_glyph`). **Tests:** `test/pod/minibar.py`,
-`test/pod/assets.py`. **Preview:** `tools/preview/preview.py` (`minibar_page`).
-
+`tools/mod_icons.py` (`glass_image`, `pil_glyph`).
 The Home menu's floating card shows cover, title, artist, play/pause and next. The normal menu
 keeps its navbar and has no mini player. Window and widget events plus one page timer drive the bar;
 no stock hook. The look follows Apple Music's floating dark mini player.

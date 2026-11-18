@@ -2,9 +2,7 @@
 
 **Sources:** `patch/vinyl.c`, `tools/vinyl_art.py` (design drawing code and installed layers),
 `tools/pod_ui.py` (`build_vinyl_page`), `tools/mod_icons.py` (pictures and the `pod_ic_vinyl` glyph),
-`VN_*` in `offsets.inc`. **Tests:** `test/pod/vinyl.py`. **Preview:** `tools/preview/preview_vinyl.py`
-(emulated frames in `out/preview/vinyl-emu-*.png` beside the design), `preview_vinyl_themes.py`.
-
+`VN_*` in `offsets.inc`.
 A fullscreen portrait turntable Now Playing page, opened from the More sheet's Display Mode page or
 by the Idle Display timer ([bigcover](bigcover.md)). The record lies off the left edge, its label is
 the playing track's cover and turns at 33 1/3 rpm while playing. A tonearm on a raised plate rests
@@ -39,7 +37,7 @@ top-left chevron to close. No hook, no boot work, one page timer. Neutral greys 
   integer (`vinyl_art.grain_apply`). Key cells are cut from the grained frame so they match. Snow has
   no grain.
 - **Encoding.** `tools/png_pack.py` writes these PNGs: the smallest of RGBA or an 8-bit palette
-  picture with a tRNS chunk (the payload's `vn_load` needs four channels), pixel-identical to a plain
+  picture with a tRNS chunk (the payload's asset loader, `m1_asset_rgba`, needs four channels), pixel-identical to a plain
   PNG (asserted).
 - **Composition** (`vn_compose`, per pixel of a rectangle above the key band): the base; inside radius
   77 of the record centre (96, 196) the label, inverse-mapped through its turn (fixed point, sines
@@ -143,7 +141,7 @@ and frees the bitmaps. While the screen is off (`m1_screen_lit`) a tick draws no
 is `POD_DARK_MS` (1 s); the first lit tick catches up, its step capped at `VN_DT_MAX` (100 ms). A page
 opened dark waits for the light. Nothing here stops the stock screen-off.
 
-**Cost.** Per-tick cost is budgeted in `motion_tests`. `vn_arm_draw` composes each row once over the
+**Cost.** `vn_arm_draw` composes each row once over the
 columns the old or new arm can touch, so arm swings stay under the 50 ms tick.
 
 Stock's `play_pause_music` mutes and then sleeps 150 ms on the UI thread before pausing, so no page

@@ -1,9 +1,6 @@
 # Now Playing
 
-**Sources:** `patch/nowplaying.c`, `tools/mod_nowplaying.py`, `patch/common.c`. **Tests:**
-`test/pod/nowplaying.py`, `test/pod/shared.py`. **Preview:**
-`tools/preview/preview_nowplaying.py`.
-
+**Sources:** `patch/nowplaying.c`, `tools/mod_nowplaying.py`, `patch/common.c`.
 The stock `playing_page` gets cover-coloured backgrounds, rounded artwork, elapsed/remaining time
 and reformatted track information. Playback, the slider and stock lyric loading stay stock.
 [Lyrics](lyrics.md), [Queue](queue.md), [More](playmore.md) and [podcasts](podcasts.md) have their

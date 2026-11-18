@@ -1,7 +1,6 @@
 # The updater's version compare
 
-**Sources:** `UPDATE_SITE` and `UPDATE_PINS` in `tools/pod.py`. **Tests:** `test/demo_diff.py`.
-
+**Sources:** `UPDATE_SITE` and `UPDATE_PINS` in `tools/pod.py`.
 The TF-card updater refuses a package whose line-2 version equals the built-in literal `"V2.1"`
 (error -14). Shanling's official V2.1 package carries exactly that, so an unpatched `demo` would
 refuse it once the mod is installed. One pinned word changes the compare, so the official package

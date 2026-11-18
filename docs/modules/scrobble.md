@@ -3,8 +3,7 @@
 **Sources:** `patch/scrobble.c` (log, automatic upload), `patch/scrobup.c` (upload worker,
 accounts), `patch/scrobpage.c` (Settings pages), `pj_member` / `pj_span` / `pj_next` in
 `patch/pcjson.c`; constants `SC_*`, `SU_*`, `SA_*` in `offsets.inc`; pages in `tools/pod_pages.py`
-(`SCROBBLING_PAGE`, `LB_PAGE`, `LF_PAGE`). **Tests:** `test/pod/scrobble.py`,
-`test/pod/scrobup.py`, `test/pod/scrobpage.py`. **Preview:** `tools/preview/preview_scrobble.py`.
+(`SCROBBLING_PAGE`, `LB_PAGE`, `LF_PAGE`).
 
 Listens are appended to `/mnt/mmc/.scrobbler.log` in Rockbox's AudioScrobbler 1.1 format, so any
 `.scrobbler.log` uploader on a computer can send them. The device can also upload them itself to

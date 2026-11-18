@@ -4,9 +4,7 @@
 (`keyboard_attach`), `patch/songs.c` `sg_on_search`; asset `ui/m1plus_search.bin`
 (`tools/pod_ui.py` `build_search_page`, `keyboard_pad_widgets`), `tools/pod_pages.py` `SEARCH`;
 layout model `tools/pod_search.py` (parses the `#define`s of `patch/search.h`, shared by the builder,
-the preview and the tests). **Tests:** `test/pod/search.py`. **Preview:**
-`tools/preview/preview_search.py`.
-
+the preview and the tests).
 Our own library search in the Apple Music manner: a rounded field, a row of chips (Top Results,
 Artists, Albums, Songs, Playlists; exactly one selected), rows with a thumbnail, a title and a grey
 line, results that follow the typing, and our keyboard embedded at the bottom of the same page. It

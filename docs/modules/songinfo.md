@@ -1,9 +1,7 @@
 # Get Info
 
 **Sources:** `patch/songinfo.c` / `songinfo.h`, `tools/pod_ui.py` (`build_songinfo_page`),
-`pod_pages.SONGINFO`. **Tests:** `test/pod/songinfo.py`. **Preview:**
-`tools/preview/preview_songinfo.py`.
-
+`pod_pages.SONGINFO`.
 A track's details page, opened by the Get Info row of the track rows' "..." sheet
 ([rowmenu](rowmenu.md)).
 

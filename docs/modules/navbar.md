@@ -2,8 +2,6 @@
 
 **Sources:** `tools/pod_ui.py` (`navbar()`, `nav_fade`), `tools/mod_icons.py` (`glass_piece`, `capsule_piece`),
 `tools/mod_ipodrows.py`, `tools/mod_polish.py`, `patch/rows.json`, `patch/common.c` (`m1_title_gone`).
-**Tests:** `test/pod/navbars.py`, `test/pod/rows.py`, `test/pod/navpaint.py`, `test/pod/glassbtn.py`.
-**Preview:** `tools/preview/preview_fade.py`.
 
 Goal: moving between pages never makes the Back arrow, the title or the right-hand icons jump. The reference is the M1+ Music pages' navbar
 (`tools/pod_ui.py` `navbar()`, window coordinates inside the 50 px bar):
@@ -86,7 +84,6 @@ the stock builder), USB mode (its Back and DAC settings are the glass discs on t
 - Titles: `tools/mod_lists.py` `PAGES`, recipe `navtitle` on `folder_page`, `localclass_page`, `allmusic_page`, `playerjumpinfo_page`,
   `playlist_page`.
 - Assets: `tools/mod_ipodrows.py` `NAVBAR_UI_EDITS` (stock rectangles asserted).
-- Tests: `test/pod/rows.py` (every `rows.json` word) and `test/pod/navbars.py` (the stock pages' builders byte-identical to main's).
 
 ## Small titles
 

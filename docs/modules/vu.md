@@ -2,9 +2,7 @@
 
 **Sources:** `patch/peq_player.c` and `patch/vu.c` (the level tap), `patch/vu.h` (the shared level record),
 `patch/vupage.c` (the page), `tools/vu_art.py` (the art: drawing code shared by the preview and the build,
-the reference needle), `tools/pod_ui.py` (`build_vu_page`), `VU_*` in `offsets.inc`. **Tests:**
-`test/pod/vu.py`. **Preview:** `tools/preview/preview_vu.py` (`out/preview/vu-final.png`, `@2x`); the
-emulated page: `out/preview/vu-emu-*.png`.
+the reference needle), `tools/pod_ui.py` (`build_vu_page`), `VU_*` in `offsets.inc`.
 
 A fullscreen portrait Now Playing page: two needle VU meters (left above right) that follow the playing
 audio. Opened from the More sheet's Display Mode page (**VU Meter Mode**, between Vinyl Mode and Lyrics
@@ -173,10 +171,9 @@ the screen off and then nothing is read or drawn). The Vinyl page's `VN_PLAY_MS`
   `vu_keys` while playing), previous, next, drawn pressed; a tap on the page above the keys plays /
   pauses, or closes the page when it was opened by `vupage_open_idle`; a drag, an abort or leaving the
   touch's target does nothing; no MOVE handler, no grab.
-- **Cost** (instructions, `motion_tests`; the Vinyl page's budget is 2.3 M per 50 ms tick, so 1.5 M per 33 ms tick here): both needles sweeping with a lamp changing 1.39 M at the worst (1.26 M typical), a
-  tick with nothing to draw 3 k, the first full draw 1.1 M. Pixels against `vu_art.compose`: no channel
-  differs by more than 2 (the C float arithmetic and the table against the reference's erf; `m1_mix`
-  against PIL's compositing).
+- **Cost budget:** 1.5 M instructions per 33 ms tick (the Vinyl page's is 2.3 M per 50 ms). Both needles
+  sweeping with a lamp changing 1.39 M at the worst (1.26 M typical), a tick with nothing to draw 3 k, the
+  first full draw 1.1 M. The page's pixels match `vu_art.compose` within 2 per channel.
 
 ## Wiring
 
@@ -187,18 +184,4 @@ the screen off and then nothing is read or drawn). The Vinyl page's `VN_PLAY_MS`
   `nowplaying-idle` is `4\n`; `bc_timed_open` calls `vupage_open_idle`. No new setting file or action
   id.
 - **Strings:** "VU Meter Mode" (row and page title) and "VU Meter" (picker, value) in `tools/pod_i18n.py`,
-  all 13 languages, widths checked by `test/pod/i18n.py` and `test/pod/playmore.py`.
-
-## Tests
-
-`test/pod/vu.py` (the player tap bit-exactness, native and float paths, timing and merge, the art, the
-page: levels, ballistics, lamps, the automatic level, pixels against `vu_art.compose`, motion cost, touches, text, life).
-`test/pod/playmore.py` covers the row and its tap, `test/pod/bigcover.py` the picker, the saved value
-and the timed open.
-
-## Device checks still open
-
-- `get_delay` accuracy on Bluetooth, a USB DAC and line out (needle against what is heard).
-- The look at 1x on the panel.
-- The tick cost with the real `memcpy`.
-- Brightness at night.
+  all 13 languages.

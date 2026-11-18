@@ -1,8 +1,6 @@
 # Language
 
 **Sources:** `patch/language.c`, `LANGUAGE_PAGE` in `tools/pod_pages.py`, `LANGUAGE_PINS`.
-**Tests:** `test/pod/language.py`, `test/pod/i18n.py`.
-
 Settings > General > Language is our own picker (`m1plus_language`) for stock's UI language. Like
 [Buttons & Power](keyspower.md) it is a value row (the loaded language's own name, grey) opening
 one card of check rows. The state is stock's own word, nothing of ours is saved, and no row opens a

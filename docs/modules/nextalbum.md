@@ -3,8 +3,6 @@
 **Sources:** `patch/nextalbum.c` / `nextalbum.h` (prefix `na_`), `patch/albumpage.c`, `albums.c`,
 `coverflow.c`, `shuffle.c`, `m1plus.c`, `setfiles.c`, `tools/pod.py` (`NEXTALBUM_SITE`,
 `NEXTALBUM_PINS`), `tools/pod_pages.py`, `pod_i18n.py`, `mod_icons.py` (`skip-forward`).
-**Tests:** `test/pod/nextalbum.py`, `albumpage.py`, `albums.py`, `artists.py`, `nextalbumcf.py`.
-
 Settings > Playback > **Continue Playing** is a value row (Off by default, or Albums) that opens a
 picker with **Off** and **Next Albums** and the hint "Plays the next album in the order of Albums,
 the artist or Cover Flow". When a List play queue started from an album ends, the next album plays,

@@ -1,8 +1,7 @@
 # Cover cache
 
 **Sources:** `patch/covercache.c`, `patch/covercache.h`, `patch/pccover.c` (shrink), `patch/pcpng.c`
-(PNG); `COVER_PINS` in `tools/pod_pins.py`. **Tests:** `test/coverflow.py`, `test/pod/coverart.py`.
-**Preview:** `tools/preview/preview_cover_resample.py`.
+(PNG); `COVER_PINS` in `tools/pod_pins.py`.
 
 The shared album-cover thumbnail cache and the one worker that builds it. Cover Flow, the Albums
 grid, [Home](homecover.md), the mini player and the album page all read the same files. No hook.

@@ -110,8 +110,3 @@ already runs: the status bar timer (`notify` 1, within a second of a jack or DAC
 new hook, timer or boot work. With `notify` 0 the record is written and no command is sent, since the
 player reads it at REINIT. A setting change calls it with `notify` 1 on the UI thread. With the kill
 switch present nothing is written or sent; the dirty state is applied once it is gone.
-
-## Tests
-
-`test/pod/stereo.py` (player under Unicorn, and demo's `settings_tests`), `test/pod/playset.py`
-`stereo_rows_tests`, `test/pod/i18n.py`.

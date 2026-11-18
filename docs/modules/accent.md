@@ -2,10 +2,7 @@
 
 **Sources:** `patch/palette.c`, `patch/palette.h`, `tools/palette.py` (the model),
 `tools/palette_audit.py`, `tools/pod.py` (`STYLE_COLOR`, `IMAGE_ADD`, `STYLE_GRADIENT`,
-`LIGHT_PINS`), `patch/offsets.inc` (`ROLE_*`, `ACC_*`, `LIGHT_*`). **Tests:** `test/pod/palette.py`.
-**Preview:** `tools/preview/preview_accent.py WORKDIR` (`out/preview/accent-*.png`; `make preview`
-runs it), `tools/preview/preview_settings.py`.
-
+`LIGHT_PINS`), `patch/offsets.inc` (`ROLE_*`, `ACC_*`, `LIGHT_*`).
 The user picks a system accent colour and a page background (Black or Tinted). Both go through **one
 palette layer**: every colour the painter gets passes `pal_map(colour)`, which knows the
 background and the accent. Black + Neutral is the identity: every hook is a pass-through and the

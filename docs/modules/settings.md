@@ -2,8 +2,7 @@
 
 **Sources:** `patch/m1plus.c`, `patch/home.c`, `patch/setfiles.c`, `patch/keyspower.c`,
 `patch/datetime.c`, `patch/playset.c`, `patch/battery.c`, `patch/pcregion.c`, `tools/pod_settings.py`,
-`tools/pod_ui.py`, `tools/pod_pages.py`. **Tests:** `test/pod/settings.py`, `test/pod/pdtiles.py`,
-`test/pod/homecover.py`. **Preview:** `tools/preview/preview_settings.py`. User instructions are in
+`tools/pod_ui.py`, `tools/pod_pages.py`. User instructions are in
 the [settings guide](../settings-guide.md).
 
 Settings is main-menu item 18 (`j`), hidden by default. The Extras navbar always reaches it and it cannot
@@ -36,8 +35,6 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | **Developer** | Startup | Boot to M1+ Music, Open Shanling Home | [home guard](home-guard.md) |
 | | Tools | Screenshot, Cache, Settings Files | [screenshot](screenshot.md), [Cache](#cache), [Settings Files](#settings-files) |
 | | Reset | Reset All Settings | [Reset All Settings](#reset-all-settings) |
-
-Keyboards sits under General because the design had no other place for it.
 
 ## Cards
 
@@ -80,7 +77,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   items serve the Wi-Fi Transfer page ([wifi-transfer](wifi-transfer.md)): `Hero(glyph, title, text)` (a
   rounded tile with a white glyph, a 22 px title and a wrapping 14 px grey description, all centred),
   `BigCard()` (one tall card with a large centred label the payload fills) and `Note(center=True)` (a 13 px
-  centred wrapping footer). `test/pod/i18n.py` checks every note wraps within its `lines` in 13 languages.
+  centred wrapping footer).
 
 ## Page notes
 
@@ -202,7 +199,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `wifi-networks` | Saved Wi-Fi networks stock cannot read | `network={}` blocks (WPA3, Enhanced Open, Enterprise) the Wi-Fi page writes and `wifi_connect.sh` adds to the copy only the newer supplicant reads; holds passwords; deleting it (or Reset All Settings) forgets those networks only ([wifi](wifi.md)) |
 
 A leftover `album-order` file (`0` Title, else Artist) is moved into `albums-sort` once, when that file is
-missing, and then deleted (`sort_migrate` in `patch/covercache.c`); Reset All Settings removes a leftover.
+missing, and then deleted (`cc_sort_mode` runs `sort_migrate` in `patch/covercache.c`; [albums](albums.md)); Reset All Settings removes a leftover.
 
 **Stock state we read and write** (no file of ours): stock's `[SYSSET]` words and bytes, read when the
 page opens and written the way stock's handlers write them.
