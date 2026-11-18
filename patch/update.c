@@ -46,6 +46,7 @@ static struct {
     int fetched; /* this page started the download that is running: when it completes, the firmware's update opens */
     int modal; /* inside a stock dialog (a modal call): the timer and the pills leave everything alone */
     int pop; /* the popup is up */
+    int fresh; /* the first tick is still to come: the explanation is put again then (below) */
     int act, act2;
     unsigned px;
 } up __attribute__((section(".scratch")));
@@ -395,6 +396,13 @@ static int up_tick(const void *timer) {
     (void)timer;
     if (!up.win) return RET_OK; /* (the destroy handler removes the timer: this only ends a stray one) */
     if (up.modal) return RET_REPEAT; /* a stock dialog is up: the main loop runs under it, nothing here changes */
+    if (up.fresh) { /* on the device the explanation set in update_open, before the window's first paint, is not drawn (the idle "Version …" line was missing); one set after a paint is: cleared, then put again as a
+                     * later state's is */
+        up.fresh = 0;
+        widget_set_text_utf8(up.text, "");
+        m1_show(up.text, 0);
+        up_sync();
+    }
     if (up.install_wait && --up.install_wait == 0) {
         if (up.fg)
             up_install(); /* the tick after the popup closed and the block was cleared: both have been painted */
@@ -460,6 +468,7 @@ int update_open(void) {
         st == PN_U_CHECKING || st == PN_U_DOWNLOADING; /* a job of the page left a moment ago is still ending */
     if (!up.cancelling) pn_up_reset(); /* an old answer or failure is not shown again */
     up_sync();
+    up.fresh = 1;
     up.timer = timer_add(up_tick, (void *)0, UP_TICK_MS);
     if (!up.timer) {
         navigator_back();

@@ -238,6 +238,11 @@ def flow_tests(ctx):
     expect(any(c == ('label_set_line_wrap', m.widgets['up_text'], 1) for c in m.calls), 'the explanation label wraps its text')
     v = m.view()
     expect(v == ('pod_es_download', 'M1+ Music', f'Version {VERSION}', 'Check for Update', None) and m.pop() is None, f'idle: M1+ Music, the installed version and the Check for Update pill, no popup ({v})')
+    # the first tick puts the explanation again (hidden, then shown with its text): on the device the one set before the window's first paint was not drawn
+    n0 = len(m.hist); m.tick(); n1 = len(m.hist); m.tick()
+    vis = lambda lo, hi: [int(bool(c[2])) for c in m.hist[lo:hi] if c[0] == 'widget_set_visible' and c[1] == m.widgets['up_text']]
+    expect(vis(n0, n1)[:1] == [0] and vis(n0, n1)[-1:] == [1] and 0 not in vis(n1, len(m.hist)) and m.view() == v,
+           f'the first tick hides the explanation and shows it again with the same text, later ticks leave it ({vis(n0, n1)}, {vis(n1, len(m.hist))}, {m.view()})')
     m.click()
     expect(m.thread and m.thread[0] == PSYMS['pn_umain'] and m.view() == ('', 'Checking…', '', None, None), f'the pill starts the check; "Checking…", no pill ({m.view()})')
     m.work(); m.tick()

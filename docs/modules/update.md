@@ -27,6 +27,8 @@ The page is black with the stock navbar and neutral colours; only the download p
 takes the accent. One block with fixed places (`UP_YS` in `tools/pod_ui.py`, the same in every state):
 48 px glyph, title (22 px), detail (18 px grey, two lines at most), a 260 x 48 pill, a second pill.
 `%s` in a text is the version, put in by the payload.
+The detail is put a second time at the page's first tick (hidden, then shown with its text): on the
+device the one set before the window's first paint was not drawn, so the Idle version was missing.
 
 | State | Title | Pills |
 |---|---|---|
