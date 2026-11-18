@@ -278,7 +278,7 @@ def settings_tests(ctx):
     for loc in pod_i18n.LOCALES:
         expect(all(pod_i18n.TEXT[k][loc] for k in keys), f'the page texts have a translation in {loc}')
     expect([mod_icons.CARD_GLYPHS[k] for k in ('Playback Settings', 'Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'Gain', 'Max Volume', 'Default Volume', 'Channel Balance', 'ReplayGain', 'Digital Filter', 'DSD Output Mode', 'USB Volume', 'Digital Output', 'Folder Album Cover', 'Volume Memory', 'Volume & Sound', 'Output')]
-           == ['headphones', 'repeat', 'infinity', 'history', 'folder', 'skip-forward', 'gauge', 'volume-2', 'volume-1', 'sliders-horizontal', 'scale', 'waves', 'audio-lines', 'monitor-speaker', 'cable', 'image', 'memory-stick', 'volume-2', 'monitor-speaker'], 'the glyphs')
+           == ['headphones', 'repeat', 'infinity', 'history', 'folder', 'skip-forward', '+gain-high', 'gauge', 'volume-1', 'sliders-horizontal', 'scale', 'waves', 'audio-lines', 'monitor-speaker', 'cable', 'image', 'memory-stick', 'volume-2', 'monitor-speaker'], 'the glyphs')
 
     def page(index, nrows, kinds=('pod_check', 'pod_label'), **state):
         m = PM(**state)
@@ -393,7 +393,7 @@ def settings_tests(ctx):
     raw = os.path.join(WORK, 'rootfs/release/assets/default/raw/ui')
     trees = {k: awtk_ui.parse(open(os.path.join(raw, k + '.bin'), 'rb').read()) for k in ['m1plus_playset', 'm1plus_psvolume', 'm1plus_psoutput', 'm1plus_settings', 'm1plus_library'] + [p.key for p in pickers]}
     for p, glyphs, title in ((PS, ['repeat', 'infinity', 'history', 'folder', 'skip_forward', 'volume_2', 'monitor_speaker'], 'Playback'),
-                             (VS, ['gauge', 'volume_2', 'volume_1', 'scale', 'sliders_horizontal', 'volume', 'headphones'], 'Volume & Sound'),
+                             (VS, ['gain_high', 'gauge', 'volume_1', 'scale', 'sliders_horizontal', 'volume', 'headphones'], 'Volume & Sound'),
                              (OP, ['waves', 'audio_lines', 'usb', 'monitor_speaker', 'cable'], 'Output')):
         t = trees[p.key]
         expect([t.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(len(p.rows))] == ['pod_ci_' + g for g in glyphs] and t.find('label_title').get('tr_text') == title

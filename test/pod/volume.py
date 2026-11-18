@@ -446,7 +446,7 @@ def row_tests(ctx):
     expect([l.get('tr_text') for l in labs] == ['Max Volume', 'Equalizer', 'Volume & Sound'] and [r.h for r in rows] == [52] * 3 and rows[0].y == card.y + card.h == 178 + card.y and rows[1].y == rows[0].y + 52 and rows[2].y == rows[1].y + 52,
            'Max Volume, Equalizer, Volume & Sound, 52 px each, in one card 10 px under the volume card')
     imgs = [next(c for c in r.children if c.type == 'image' and (c.get('image') or '').startswith('pod_ci_')).get('image') for r in rows]
-    expect(imgs == ['pod_ci_volume_2', 'pod_ci_sliders_vertical', 'pod_ci_volume_2'] and [r.get('style:normal:bg_image') for r in rows] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot'], f'the glyphs are the Volume & Sound page\'s (Max Volume\'s and its own) and the Equalizer row\'s ({imgs}); a top, a mid and a bottom piece')
+    expect(imgs == ['pod_ci_gauge', 'pod_ci_sliders_vertical', 'pod_ci_volume_2'] and [r.get('style:normal:bg_image') for r in rows] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot'], f'the glyphs are the Settings rows\' (Max Volume a gauge, Volume & Sound a speaker) and the Equalizer row\'s ({imgs}); a top, a mid and a bottom piece')
     expect(t.find('pod_value0') is not None and t.find('pod_value1') is not None and t.find('pod_value2') is None, 'Max Volume and Equalizer show a value, Volume & Sound none')
     # the values
     m = page(); m.setword(MAXV, 80); m.calls = []; m.dispatch(m.win, EVT_FG)
