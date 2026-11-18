@@ -14,7 +14,7 @@ the fallback, and the strip that the hardware volume keys open over other pages 
 
 ## Page
 
-- **Volume card** (three card pieces stacked, 156 px, and a 10 px gap under it in the same list
+- **Volume card** (card pieces stacked, 168 px with 12 px padding all round, and a 10 px gap under it in the same list
   item): the number `pod_volnum` (60 px, the bold face) at the left of the first row with the round
   minus and plus buttons (`btn_dec`, `btn_add`) at the right; under it the grey line `pod_volinfo`,
   "Headphones", "Line Out", "USB DAC" or "Bluetooth", plus " · Max 80" while Max Volume is below 100
@@ -37,20 +37,20 @@ the fallback, and the strip that the hardware volume keys open over other pages 
     px from the bar's left end, split at the fill's edge: dark over the fill, white over the track.
   - The value is `volume`, or `btsource_volume` on Bluetooth. Every refresh invalidates the bar.
   - A failed decode leaves the bar unpainted (nothing leaks).
-- **Second card** (10 px under the first): the generic Settings rows Gain (value Low / High; dimmed
-  and inert while Line Out is set, as on the Playback Settings page), Equalizer (value: the current
-  EQ name, Off) and Volume & Sound (no value). Their values refresh on `EVT_WINDOW_TO_FG`
+- **Second card** (10 px under the first): the generic Settings rows Max Volume (value: the
+  number; opens the Max Volume slider page), Equalizer (value: the current EQ name, Off) and Volume
+  & Sound (no value). Their values refresh on `EVT_WINDOW_TO_FG`
   (`page_refresh`). A tap runs `volpage_go` (from `on_row`, `patch/m1plus.c`), which opens the
   target through `pd_open_page` (`patch/pulldown.c`): in front, left alone; in the stack, the windows
   it opened are closed and it is restacked; else it is opened. A page of ours keeps one window.
-  The Settings rows for Gain, Equalizer and Volume & Sound (`open_shared`, `patch/m1plus.c`), the
+  The Settings rows for Gain, Max Volume, Equalizer and Volume & Sound (`open_shared`, `patch/m1plus.c`), the
   Control Center Equalizer tile and the status bar tap take the same helper, so a picker opened
   from any route is never doubled. What a page "opened" is recorded, not inferred from the stack
   (opener table, [pulldown](pulldown.md)): a window above or below it that another route opened is
   never closed, so Back returns to where the user came from.
 - **Entry:** a tap on the top 42 px of any page (stock's window-manager pointer-up handler, x 80 ..
   269) calls `vol_tap_open` (hook 33, tap only, never reads the kill switch). Our page in front: left
-  alone; in the stack: the windows it opened (its Gain / Equalizer / Volume & Sound pages and their
+  alone; in the stack: the windows it opened (its Max Volume / Equalizer / Volume & Sound pages and their
   pickers) are closed and it is restacked, whatever else is above it; else opened (rooted: no
   opener). Stock's
   `navigator_to_with_context` runs when ours will not open, and when stock's own volume dialog is the
@@ -67,7 +67,7 @@ Stock state read or written only by stock's handlers: `volume` `0x97cb10`, `btso
 `headset_output` `0xa05a10`, `dacoff_time` `0x97cae0`; saves `PLAYSET VOLUME` / `BTVOLUME`. The
 page's only own write is `volume_showpage` `0x97c790`. The bar's constants are `VB_*` in
 `patch/offsets.inc` (checked against `tools/mod_icons.py`); the second card's rows are
-`POD_PAGES[POD_VOLUME_PAGE].rows` (Gain, Equalizer, Volume & Sound).
+`POD_PAGES[POD_VOLUME_PAGE].rows` (Max Volume, Equalizer, Volume & Sound).
 
 ## Constraints
 

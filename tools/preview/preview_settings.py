@@ -177,8 +177,8 @@ def draw_volume(s, im, c, y, ink, img, st):
 
 
 def VOLUME_STATES(tr):
-    """The Volume page's three samples: 42 with Max 80; 6 with Max 80 (the glyph split at the fill's edge, the tick); Bluetooth at 64 (no Max, no tick). Gain Low, Equalizer Off."""
-    rows = {'pod_value0': tr('Low'), 'pod_value1': tr('Off')}
+    """The Volume page's three samples: 42 with Max 80; 6 with Max 80 (the glyph split at the fill's edge, the tick); Bluetooth at 64 (no Max, no tick). Max Volume 80, Equalizer Off."""
+    rows = {'pod_value0': '80', 'pod_value1': tr('Off')}
     return [{'volnum': '42', 'volinfo': tr('Headphones') + ' \u00b7 ' + tr('Max') + ' 80', 'vol': 42, 'vmax': 80, 'values': rows},
             {'volnum': '6', 'volinfo': tr('Headphones') + ' \u00b7 ' + tr('Max') + ' 80', 'vol': 6, 'vmax': 80, 'values': rows},
             {'volnum': '64', 'volinfo': tr('Bluetooth'), 'vol': 64, 'vmax': None, 'values': rows}]

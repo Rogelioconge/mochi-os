@@ -17,7 +17,7 @@
  * returns RET_STOP. If our handler cannot be bound, stock's is not bound either. The dialog's own timer, 0x12c / 0x12d and pointer-up handlers are never bound.
  *
  * The bar: vol_slider is stock's and invisible (it keeps the touch and the drag); over it pod_volbar, an insensitive view, is painted in its own EVT_BEFORE_PAINT from four baked images (a capsule track, a capsule fill
- * blitted up to the value so its edge is a straight cut, the speaker glyph in white and in black, split at the edge) and a Max tick. Every refresh invalidates it. Under the card, three rows (Gain, Equalizer, Volume &
+ * blitted up to the value so its edge is a straight cut, the speaker glyph in white and in black, split at the edge) and a Max tick. Every refresh invalidates it. Under the card, three rows (Max Volume, Equalizer, Volume &
  * Sound) are the generic Settings rows (patch/m1plus.c); volpage_go opens their pages without a second window.
  */
 #include "offsets.inc"
@@ -181,11 +181,11 @@ void volpage_opened(void *win) {
     widget_on(win, EVT_WINDOW_TO_FG, (void *)vp_fg, win);
 }
 
-/* The second card's rows (k: 0 Gain, 1 Equalizer, 2 Volume & Sound; the generic row handler of patch/m1plus.c calls this for the Volume page's rows): the target page by its window, as the pull-down's tiles do: in the stack, its
- * sub-pages are closed and it is restacked; else it is opened. Gain does nothing while Line Out locks it (the row is dimmed and insensitive then too). */
+/* The second card's rows (k: 0 Max Volume, 1 Equalizer, 2 Volume & Sound; the generic row handler of patch/m1plus.c calls this for the Volume page's rows): the target page by its window, as the pull-down's tiles do: in the stack, its
+ * sub-pages are closed and it is restacked; else it is opened. */
 void volpage_go(int k) {
-    if (k == 0 && !ps_gain_locked())
-        pd_open_page("m1plus_psgain_page", pod_open_psgain, 0);
+    if (k == 0)
+        pd_open_page("m1plus_psmaxvol_page", pod_open_psmaxvol, 0);
     else if (k == 1)
         pd_open_page("m1plus_peq_page", pod_open_peq, 0);
     else if (k == 2)

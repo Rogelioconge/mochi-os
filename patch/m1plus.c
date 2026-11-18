@@ -580,6 +580,8 @@ static void *stock_front __attribute__((section(
 static int open_shared(int page) {
     if (page == POD_PSGAIN_PAGE)
         pd_open_page("m1plus_psgain_page", pod_open_psgain, 0);
+    else if (page == POD_PSMAXVOL_PAGE)
+        pd_open_page("m1plus_psmaxvol_page", pod_open_psmaxvol, 0);
     else if (page == POD_PEQ_PAGE)
         pd_open_page("m1plus_peq_page", pod_open_peq, 0);
     else if (page == POD_PSVOLUME_PAGE)
@@ -1405,8 +1407,9 @@ int pod_open_sleeptimer(void) { return open_page(POD_SLEEPTIMER_PAGE, 0); }
 /* The Volume page, for the status bar tap (patch/volume.c vol_tap_open): the normal instance, with Back. */
 int pod_open_volume(void) { return open_page(POD_VOLUME_PAGE, 0); }
 
-/* The Gain picker and Volume & Sound, for the Volume page's rows (patch/volume.c volpage_go): the normal instance, with Back. */
+/* The Gain picker, Max Volume and Volume & Sound, for open_shared and the Volume page's rows (patch/volume.c volpage_go): the normal instance, with Back. */
 int pod_open_psgain(void) { return open_page(POD_PSGAIN_PAGE, 0); }
+int pod_open_psmaxvol(void) { return open_page(POD_PSMAXVOL_PAGE, 0); }
 int pod_open_psvolume(void) { return open_page(POD_PSVOLUME_PAGE, 0); }
 
 /* The Audio Codec picker, for the Bluetooth page's codec row (patch/btpage.c): the normal instance, with Back. */

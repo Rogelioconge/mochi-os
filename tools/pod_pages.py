@@ -1231,7 +1231,7 @@ PSUSB_PAGE = Page('m1plus_psusb', 'm1plus_psusb_page', 'USB Volume', layout=[Row
 # Channel Balance's buttons say L and R: a step toward the left or the right). Default Volume: the Volume Memory switch, then the same two cards, dimmed and inert while the switch is on (stock hides its slider view).
 PSMAXVOL_PAGE = Page('m1plus_psmaxvol', 'm1plus_psmaxvol_page', 'Max Volume', layout=[VolCard('maxvol', 'value'), GAP, VolCard('maxvol', 'slider')])
 PSBOOTVOL_PAGE = Page('m1plus_psbootvol', 'm1plus_psbootvol_page', 'Default Volume', layout=[Row('Volume Memory', ACT_BOOTMEM), GAP, VolCard('bootvol', 'value'), GAP, VolCard('bootvol', 'slider')])
-VOLUME_PAGE = Page('m1plus_volume', 'm1plus_volume_page', 'Volume', layout=[VolumeCard(), Row('Gain', ACT_GAIN, PSGAIN_PAGE_INDEX), Row('Equalizer', ACT_PEQ, PEQ_PAGE_INDEX), Row('Volume & Sound', ACT_PAGE, PSVOLUME_PAGE_INDEX)])   # (the item holds a gap under the card; the rows are the second card: patch/volume.c volpage_go)
+VOLUME_PAGE = Page('m1plus_volume', 'm1plus_volume_page', 'Volume', layout=[VolumeCard(), Row('Max Volume', ACT_MAXVOL, PSMAXVOL_PAGE_INDEX), Row('Equalizer', ACT_PEQ, PEQ_PAGE_INDEX), Row('Volume & Sound', ACT_PAGE, PSVOLUME_PAGE_INDEX)])   # (the item holds a gap under the card; the rows are the second card: patch/volume.c volpage_go)
 PSBAL_PAGE = Page('m1plus_psbal', 'm1plus_psbal_page', 'Channel Balance', layout=[VolCard('balance', 'value'), GAP, VolCard('balance', 'slider')])
 # Settings > Library > Podcasts (docs/modules/settings.md, docs/modules/podcasts.md): the Podcast Discover switch in a card of its own; Directory (dimmed and inert while Discover is off) and Podcast Region in the next,
 # and the note under it. (Not PODCASTS, the Podcasts browser: this is the settings page.)

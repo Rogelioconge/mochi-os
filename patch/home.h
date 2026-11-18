@@ -264,6 +264,8 @@ extern int pod_open_settings(void); /* patch/m1plus.c: open_page(POD_SETTINGS_PA
 extern int pod_open_peq(void); /* patch/m1plus.c: open_page(POD_PEQ_PAGE) */
 extern int
 pod_open_psgain(void); /* patch/m1plus.c: open_page(POD_PSGAIN_PAGE), the Gain picker; 0 once its window is up */
+extern int pod_open_psmaxvol(
+    void); /* patch/m1plus.c: open_page(POD_PSMAXVOL_PAGE), the Max Volume slider page; 0 once its window is up */
 extern int
 pod_open_psvolume(void); /* patch/m1plus.c: open_page(POD_PSVOLUME_PAGE), Volume & Sound; 0 once its window is up */
 extern int pod_open_volume(void); /* patch/m1plus.c: open_page(POD_VOLUME_PAGE); 0 once its window is up */

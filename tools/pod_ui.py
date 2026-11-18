@@ -2248,8 +2248,8 @@ def cards_volcard(card):
 
 VOLUME_NUM_PX, VOLUME_INFO_PX = 60, 16   # the Volume page's number (the bold face) and its grey line
 VOLUME_INNER_X, VOLUME_INNER_W = 22, 276   # the card's inner width: the 52 px capsule bar spans it (the card is x 10 .. 310)
-VOLUME_NUM_Y, VOLUME_NUM_H, VOLUME_INFO_Y, VOLUME_INFO_H, VOLUME_BAR_Y = 6, 66, 72, 22, 98   # item rows: the number, its info line, the bar (52 high, 6 px above the card's bottom)
-VOLUME_BTN_CY = 39   # the - / + buttons' centre: the number's
+VOLUME_NUM_Y, VOLUME_NUM_H, VOLUME_INFO_Y, VOLUME_INFO_H, VOLUME_BAR_Y = 12, 66, 78, 22, 104   # item rows: the number, its info line, the bar (52 high, 12 px above the card's bottom: the card's side padding)
+VOLUME_BTN_CY = 45   # the - / + buttons' centre: the number's
 
 
 def cards_volume():
@@ -2260,8 +2260,8 @@ def cards_volume():
     import pod_settings as ST
     v = Widget('view', 0, 0, ST.LIST_W, ST.VOLUME_ITEM_H, [('name', 'pod_volume')])   # (the card is VOLUME_CARD_H high; the gap under it is part of the item)
     for st in STATES: styled(v, (st,), 'bg_color', '#00000000')
-    for k, piece in enumerate(('top', 'mid', 'bot')):
-        p = Widget('view', 0, k * ST.ROW_H, ST.LIST_W, ST.ROW_H, [('name', f'pod_volcard{k}'), ('sensitive', 'false')])
+    for k, (piece, y) in enumerate((('top', 0), ('mid', ST.ROW_H), ('bot', ST.VOLUME_CARD_H - ST.ROW_H), ('mid', ST.VOLUME_CARD_H - 2 * ST.ROW_H))):   # (the second mid piece fills the card's extra height between the first and the bottom)
+        p = Widget('view', 0, y, ST.LIST_W, ST.ROW_H, [('name', f'pod_volcard{k}'), ('sensitive', 'false')])
         for st in STATES:
             styled(p, (st,), 'bg_color', '#00000000')
             styled(p, (st,), 'bg_image', ST.piece_images(piece)[0])

@@ -17,7 +17,7 @@ TIMER_CB, ADD_TIMER, SLIDER_INTERNAL = 0x47d630, 0x668c78, 0x631570   # stock's 
 MINE = {'window_manager_get_top_window', 'window_manager_switch_to', 'window_open', 'window_close', 'navigator_to_with_context', 'widget_is_window_opened', 'widget_on', 'widget_get_prop', 'widget_set_prop', 'value_uint32',
         'timer_count', 'timer_modify', 'widget_remove_timer', 'v_add_timer', 'v_slider_internal'}
 WIDGETS = ('btn_return', 'btn_backtoplayer', 'vol_label', 'pod_volnum', 'pod_volinfo', 'vol_slider', 'btn_add', 'btn_dec', 'pod_volbar', 'pod_row0', 'pod_row1', 'pod_row2', 'pod_value0', 'pod_value1')
-PAGES_OF = {'m1plus_volume': 'm1plus_volume_page', 'm1plus_psgain': 'm1plus_psgain_page', 'm1plus_peq': 'm1plus_peq_page', 'm1plus_psvolume': 'm1plus_psvolume_page', 'm1plus_settings': 'm1plus_settings_page', 'm1plus_sleeptimer': 'm1plus_sleeptimer_page', 'm1plus_playset': 'm1plus_playset_page', 'm1plus_autoeq': 'm1plus_autoeq_page'}   # the assets the page's rows open, and their windows
+PAGES_OF = {'m1plus_volume': 'm1plus_volume_page', 'm1plus_psgain': 'm1plus_psgain_page', 'm1plus_psmaxvol': 'm1plus_psmaxvol_page', 'm1plus_peq': 'm1plus_peq_page', 'm1plus_psvolume': 'm1plus_psvolume_page', 'm1plus_settings': 'm1plus_settings_page', 'm1plus_sleeptimer': 'm1plus_sleeptimer_page', 'm1plus_playset': 'm1plus_playset_page', 'm1plus_autoeq': 'm1plus_autoeq_page'}   # the assets the page's rows open, and their windows
 IMG = os.path.join('rootfs', 'release/assets/default/raw/images/xx')   # (under WORK)
 UI = os.path.join('rootfs', 'release/assets/default/raw/ui/m1plus_volume.bin')
 
@@ -194,7 +194,7 @@ def page_tests(ctx):
     expect(lab.get('visible') == 'false' and lab.get('sensitive') == 'false', 'stock\'s vol_label is hidden and insensitive (its refresh writes "VOL: 42" into it)')
     expect(s.type == 'slider' and s.get('max') == '100' and s.get('step') == '1' and s.get('slide_with_bar') == 'true' and s.get('visible') == 'false' and s.get('sensitive') != 'false' and s.get('style:normal:icon') is None
            and s.get('style:normal:bg_image') is None and s.get('style:normal:fg_image') is None, 'vol_slider is a stock slider 0 .. 100 that draws nothing (invisible, still sensitive: the touch and the drag stay stock\'s)')
-    expect(s.x == 22 and s.x + s.w == 298 and s.h == 52 and s.y + s.h <= 156, 'the slider spans the card\'s inner width 22 .. 298 and is 52 px high inside the 156 px card')
+    expect(s.x == 22 and s.x + s.w == 298 and s.h == 52 and s.y + s.h == 168 - 12, 'the slider spans the card\'s inner width 22 .. 298, is 52 px high and ends 12 px above the 168 px card\'s bottom (the side padding)')
     bar = t.find('pod_volbar')
     expect(bar is not None and (bar.x, bar.y, bar.w, bar.h) == (s.x, s.y, s.w, s.h) and bar.get('sensitive') == 'false' and bar.get('style:normal:bg_color') == '#00000000' and t.find('pod_volume').children.index(bar) > t.find('pod_volume').children.index(s),
            'pod_volbar is an insensitive transparent view exactly over the slider, after it (painted over it)')
@@ -210,9 +210,9 @@ def page_tests(ctx):
         expect(d is not None and d.w == d.h == 36 and d.get('sensitive') == 'false' and 2 * d.x + d.w == 2 * b.x + b.w and 2 * d.y + d.h == 2 * b.y + b.h, f'{dn} is the faint disc centred under its button')
     expect(add.x + (add.w + 36) // 2 == 298, 'the + disc ends at the card\'s inner edge, 298')
     card = t.find('pod_volume')
-    expect(card.h == 166 and [c.get('style:normal:bg_image') for c in card.children[:3]] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot'] and all(c.get('sensitive') == 'false' for c in card.children[:3]),
-           'the card is three stacked card pieces (a top, a mid and a bottom), insensitive and drawn before the controls; the item is 156 px of card and a 10 px gap')
-    expect([(c.y, c.h) for c in card.children[:3]] == [(0, 52), (52, 52), (104, 52)], 'the pieces are stacked in the first 156 px')
+    expect(card.h == 178 and [c.get('style:normal:bg_image') for c in card.children[:4]] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot', 'pod_cd_mid'] and all(c.get('sensitive') == 'false' for c in card.children[:4]),
+           'the card is stacked card pieces (a top, a mid, a bottom and a second mid for the extra 12 px), insensitive and drawn before the controls; the item is 168 px of card and a 10 px gap')
+    expect([(c.y, c.h) for c in card.children[:4]] == [(0, 52), (52, 52), (116, 52), (64, 52)], 'the pieces cover the first 168 px')
     end = t.find('pod_end')
     expect(end is not None and end.y >= card.y + card.h, 'the list ends under the second card')
     for loc in pod_i18n.LOCALES:
@@ -437,35 +437,25 @@ def bar_tests(ctx):
 
 
 def row_tests(ctx):
-    """The second card: Gain, Equalizer and Volume & Sound open their pages once, with their values."""
+    """The second card: Max Volume, Equalizer and Volume & Sound open their pages once, with their values."""
     expect = ctx.expect
     t = awtk_ui.parse(open(os.path.join(WORK, UI), 'rb').read())
     card, rows = t.find('pod_volume'), [t.find(f'pod_row{i}') for i in range(3)]
     expect(all(r is not None and r.type == 'list_item' for r in rows) and t.find('pod_row3') is None, 'three rows, pod_row0 .. pod_row2')
     labs = [next(c for c in r.children if c.name == f'pod_label{i}') for i, r in enumerate(rows)]
-    expect([l.get('tr_text') for l in labs] == ['Gain', 'Equalizer', 'Volume & Sound'] and [r.h for r in rows] == [52] * 3 and rows[0].y == card.y + card.h == 166 + card.y and rows[1].y == rows[0].y + 52 and rows[2].y == rows[1].y + 52,
-           'Gain, Equalizer, Volume & Sound, 52 px each, in one card 10 px under the volume card')
+    expect([l.get('tr_text') for l in labs] == ['Max Volume', 'Equalizer', 'Volume & Sound'] and [r.h for r in rows] == [52] * 3 and rows[0].y == card.y + card.h == 178 + card.y and rows[1].y == rows[0].y + 52 and rows[2].y == rows[1].y + 52,
+           'Max Volume, Equalizer, Volume & Sound, 52 px each, in one card 10 px under the volume card')
     imgs = [next(c for c in r.children if c.type == 'image' and (c.get('image') or '').startswith('pod_ci_')).get('image') for r in rows]
-    expect(imgs == ['pod_ci_gauge', 'pod_ci_sliders_vertical', 'pod_ci_volume_2'] and [r.get('style:normal:bg_image') for r in rows] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot'], f'the glyphs are the Volume & Sound page\'s and the Equalizer row\'s ({imgs}); a top, a mid and a bottom piece')
-    expect(t.find('pod_value0') is not None and t.find('pod_value1') is not None and t.find('pod_value2') is None, 'Gain and Equalizer show a value, Volume & Sound none')
-    # the values and the Gain dim rule
-    m = page(gain=0, lineout=0)
-    expect(m.txt('pod_value0')[-1:] == [m.tr('Low')] and m.txt('pod_value1')[-1:] == [m.tr('Off')], f'Gain Low and the Equalizer Off ({m.txt("pod_value0")}, {m.txt("pod_value1")})')
-    op = [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.widgets['pod_row0']]
-    se = [c[2] for c in m.calls if c[0] == 'widget_set_sensitive' and c[1] == m.widgets['pod_row0']]
-    expect(op[-1:] == [255] and se[-1:] == [1], 'the Gain row is plain and live without Line Out')
-    m.setword(PS.MCL_GAIN, 1); m.calls = []; m.dispatch(m.win, EVT_FG)
-    expect(m.txt('pod_value0')[-1:] == [m.tr('High')], 'back in front: Gain shows High after it was changed under the page')
+    expect(imgs == ['pod_ci_volume_2', 'pod_ci_sliders_vertical', 'pod_ci_volume_2'] and [r.get('style:normal:bg_image') for r in rows] == ['pod_cd_top', 'pod_cd_mid', 'pod_cd_bot'], f'the glyphs are the Volume & Sound page\'s (Max Volume\'s and its own) and the Equalizer row\'s ({imgs}); a top, a mid and a bottom piece')
+    expect(t.find('pod_value0') is not None and t.find('pod_value1') is not None and t.find('pod_value2') is None, 'Max Volume and Equalizer show a value, Volume & Sound none')
+    # the values
+    m = page(); m.setword(MAXV, 80); m.calls = []; m.dispatch(m.win, EVT_FG)
+    expect(m.txt('pod_value0')[-1:] == ['80'] and m.txt('pod_value1')[-1:] == [m.tr('Off')], f'back in front: Max Volume 80 and the Equalizer Off ({m.txt("pod_value0")}, {m.txt("pod_value1")})')
+    expect(not [c for c in m.calls if c[0] in ('widget_set_opacity', 'widget_set_sensitive') and c[1] == m.widgets['pod_row0']], 'the Max Volume row is never dimmed (no Line Out rule)')
     m.setword(D['EQ_FLAG'][0], 1); m.calls = []; m.dispatch(m.win, EVT_FG)
     expect(m.txt('pod_value1')[-1:] != [m.tr('Off')] and m.txt('pod_value1'), f'back in front: the Equalizer row follows the equalizer ({m.txt("pod_value1")})')
-    m = page(gain=0, lineout=1)
-    op = [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.widgets['pod_row0']]
-    se = [c[2] for c in m.calls if c[0] == 'widget_set_sensitive' and c[1] == m.widgets['pod_row0']]
-    expect(op[-1:] == [153] and se[-1:] == [0] and not [c for c in m.calls if c[0] in ('widget_set_opacity', 'widget_set_sensitive') and c[1] != m.widgets['pod_row0']], 'with Line Out set the Gain row is dimmed and insensitive, and no other row is')
-    m.calls = []; m.dispatch(m.widgets['pod_row0'], EVT_CLICK_)
-    expect(not m.seen('window_open', 'switch_to', 'window_close'), 'a tap on the locked Gain row opens nothing')
     # each row opens its page once
-    for k, asset in enumerate(('m1plus_psgain', 'm1plus_peq', 'm1plus_psvolume')):
+    for k, asset in enumerate(('m1plus_psmaxvol', 'm1plus_peq', 'm1plus_psvolume')):
         win = PAGES_OF[asset]
         m = page(('home_page',)); m.calls = []; m.dispatch(m.widgets[f'pod_row{k}'], EVT_CLICK_)
         expect(m.seen('window_open') == [('window_open', asset)] and m.names_() == ['home_page', NAME, win], f'row {k} opens {asset} over the page ({m.seen("window_open")}, {m.names_()})')
@@ -483,9 +473,9 @@ def row_tests(ctx):
         expect(not m.seen('window_open') and m.names_().count(win) == 1 and m.names_()[-1] == win and 'playing_page' in m.names_(), f'row {k} with {asset} under the player: restacked, no second window ({m.names_()})')
 
 
-    # the Settings route (Playback > Volume & Sound > Gain, Equalizer, Volume & Sound) shares the one window
+    # the Settings route (Playback > Volume & Sound > Gain, Max Volume, Equalizer, Volume & Sound) shares the one window
     import pod_pages
-    for act_, idx, asset in ((pod_pages.ACT_GAIN, pod_pages.PSGAIN_PAGE_INDEX, 'm1plus_psgain'), (pod_pages.ACT_PEQ, pod_pages.PEQ_PAGE_INDEX, 'm1plus_peq'), (pod_pages.ACT_PAGE, pod_pages.PSVOLUME_PAGE_INDEX, 'm1plus_psvolume')):
+    for act_, idx, asset in ((pod_pages.ACT_GAIN, pod_pages.PSGAIN_PAGE_INDEX, 'm1plus_psgain'), (pod_pages.ACT_MAXVOL, pod_pages.PSMAXVOL_PAGE_INDEX, 'm1plus_psmaxvol'), (pod_pages.ACT_PEQ, pod_pages.PEQ_PAGE_INDEX, 'm1plus_peq'), (pod_pages.ACT_PAGE, pod_pages.PSVOLUME_PAGE_INDEX, 'm1plus_psvolume')):
         win = PAGES_OF[asset]
         def settings_row(m):
             row = m.alloc(12); m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, act_); m.setword(row + 8, idx)
@@ -516,7 +506,7 @@ def route_tests(ctx):
     # a row's page is Volume's sub-page: the status bar tap closes it, even with other windows above it
     m = page(('home_page',)); m.calls = []; m.dispatch(m.widgets['pod_row0'], EVT_CLICK_)
     m.push('m1plus_playset_page'); m.tap()
-    expect(m.closed == ['m1plus_psgain_page'] and m.names_() == ['home_page', 'm1plus_playset_page', NAME], f'Volume > Gain row > Playback over it > status bar tap: only Gain (opened by Volume) is closed ({m.closed}, {m.names_()})')
+    expect(m.closed == ['m1plus_psmaxvol_page'] and m.names_() == ['home_page', 'm1plus_playset_page', NAME], f'Volume > Max Volume row > Playback over it > status bar tap: only Max Volume (opened by Volume) is closed ({m.closed}, {m.names_()})')
     # the Settings tile (pd_open_own, which closes what is above its page) keeps a Volume page the status bar opened over it, and closes what Settings opened
     m = VM(('home_page', 'm1plus_settings_page')); m.push('m1plus_display_page', 'm1plus_settings_page'); m.tap(); m.tile_eq(9)
     expect(m.closed == ['m1plus_display_page'] and m.names_() == ['home_page', NAME, 'm1plus_settings_page'], f'Settings > Display > status bar Volume > Settings tile: Display (Settings\' own) is closed, Volume stays ({m.closed}, {m.names_()})')

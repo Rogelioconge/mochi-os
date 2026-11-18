@@ -88,7 +88,7 @@ Tap the mini player's cover on Home, or tap the Now Playing button in a page's t
 
 Tap the status bar at the top of any page to open **Volume**. Use the **−** and **+** buttons, drag
 the bar, or press the volume keys. A small mark on the bar shows the **Max Volume** limit. Under
-the bar, shortcuts open **Gain**, **Equalizer** and **Volume & Sound**.
+the bar, shortcuts open **Max Volume**, **Equalizer** and **Volume & Sound**.
 
 ### Choose what plays next
 
