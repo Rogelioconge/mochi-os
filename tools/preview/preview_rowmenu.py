@@ -46,7 +46,7 @@ def album(s, scroll=300, menu=False, playing=2, nd=None, pins=False):
         else: s.text(im, O['AB_NUM_X'] + O['ROW_NUM_W'], y + O['AB_NUM_Y'] + O['AB_TEXT_H'] / 2, str(i + 1), O['AB_NUM_PX'], (0xAA, 0xAA, 0xAA), 'r')
         s.text(im, tx, y + O['AB_TEXT_Y'] + O['AB_TEXT_H'] / 2, s.clip(TRACKS[i], 20, room), 20)
         im.alpha_composite(more, (right - O['RM_MORE_W'] + (O['RM_MORE_W'] - O['RM_DOTS_PX']) // 2, y + (ROW - 1 - O['RM_DOTS_PX']) // 2))
-    for name, x, w in (('ah_nav_back', 7, 44), ('pod_nav_selectl', O['NAV_CF_X'], O['NAV_CF_W']), ('pod_nav_moremid', O['NAV_VIEW_X'], O['NAV_VIEW_W']), ('ah_nav_play', 260, 60)):
+    for name, x, w in (('ah_nav_back', 7, 44), ('pod_nav_more', O['NAV_VIEW_X'], O['NAV_VIEW_W']), ('ah_nav_play', 260, 60)):
         g = s.img(name); im.alpha_composite(g, (x + (w - g.width) // 2, (NAV - g.height) // 2))
     if pins: PS.row_menu(s, im, keys=('Play', 'Shuffle', 'Pin Album'), glyphs=('rm_ic_pplay', 'rm_ic_pshuffle', 'rm_ic_pin'))
     elif menu: PS.row_menu(s, im, *([ND_STATES[nd][0]] if nd else []), **({'glyphs': ND_STATES[nd][1]} if nd else {}))

@@ -94,8 +94,8 @@ nav buttons, sizes, rail and actions. The card's Select row: the navbar becomes 
 All (all, or none when all are marked; it reads Deselect All while every row is marked). The bar's
 pills are dim and dead until a row is marked, and a marked row has a faint white fill. Each row gets a 26 px mark in a 30 px column
 left of the cover (cover and text move right by 30, text width 192); the pills dim. A 64 px bottom
-bar holds two flat 145 px pills, **Add to Playlist** (`list-plus`) and **Delete** (`trash`, glyph
-`#FF6B6B`). The rail stays, centred on the 336 px the bar leaves; the content is 64 px longer. A tap
+bar holds one centred glass capsule (120 x 42) of two icon-only buttons, **Add to Playlist** (`list-plus`) and **Delete** (`trash`, glyph
+`#FF6B6B`; [selmode](selmode.md)). The rail stays, centred on the 336 px the bar leaves; the content is 64 px longer. A tap
 marks a row. Back (the x) leaves the mode.
 
 ## The A-Z rail
@@ -355,8 +355,7 @@ Stock's multi-select **Add to Playlist** and **Delete** are called with a select
 - **The pills** are buttons with the style's `bg_color`, `round_radius` 20 and the glyph as the
   style's `icon`. `sg_centre_pill` centres glyph + 8 px + the measured translated text in every
   language. A label wider than the 93 px beside the glyph steps down to `SG_PILL_PX_SMALL` 16 px
-  (only Russian "Перемешать"). **The select bar's pills are 145 wide** (`SG_BAR_PILL_*`): "Add to
-  Playlist" is 104 px at 18 px. The bar sits below the rail, so they cannot touch it.
+  (only Russian "Перемешать").
 - **Row paint** (`sg_on_paint`, the content view's `EVT_AFTER_PAINT`): header bands, then each row's
   press fill, mark, cover and hairline, titles and artists in one text pass each, header letters,
   and last the pinned band. Geometry helpers work on at most 28 section starts, so a paint never

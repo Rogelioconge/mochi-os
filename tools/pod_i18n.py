@@ -1554,9 +1554,9 @@ TEXT = dict([
     _t('Deselect All', '取消全选', '取消全選', '選択解除', '선택 해제', 'Aucun', 'Keine',
        'Ninguno', 'Nessuno', 'ไม่เลือกเลย', 'Odznacz', 'Снять все', 'Зняти все'),
     _t('Add to Playlist', '加入歌单', '加入歌單', 'リストに追加', '목록에 추가', 'Ajouter', 'Hinzufügen',
-       'Añadir', 'Aggiungi', 'เพิ่ม', 'Dodaj', 'Добавить', 'Додати'),   # (the stock key's texts are longer than the select bar's 145 px pill holds beside its glyph: German 30 characters, Japanese 144 px)
+       'Añadir', 'Aggiungi', 'เพิ่ม', 'Dodaj', 'Добавить', 'Додати'),   # (the stock key's texts are longer than a 145 px pill holds beside its glyph: German 30 characters, Japanese 144 px)
     _t('Delete', '删除', '刪除', '削除', '삭제', 'Supprimer', 'Löschen',
-       'Eliminar', 'Elimina', 'ลบ', 'Usuń', 'Удалить', 'Видалити'),
+       'Eliminar', 'Elimina', 'ลบ', 'Usuń', 'Удалить', 'Видалити'),   # (the Wi-Fi Transfer page's, WEB_KEYS)
     _t('%d Selected', '已选 %d 项', '已選 %d 項', '%d 件選択', '%d개 선택', '%d choisis', '%d gewählt',
        '%d elegidas', '%d scelti', 'เลือก %d', 'Wybrano: %d', 'Выбрано: %d', 'Вибрано: %d'),
     _t('Files below 48 kHz only', '仅对 48kHz 以下有效', '僅對 48kHz 以下有效', '48kHz未満のみ', '48kHz 미만 파일만', 'Fichiers < 48 kHz seulement', 'Nur Dateien unter 48 kHz',
@@ -1883,6 +1883,7 @@ LOCK_DATE_KEY = 'W, MMM D'
 WEEKDAY_KEYS = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat')
 MONTH_NAME_KEYS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
 DEMO_KEYS = WEEKDAY_KEYS + MONTH_NAME_KEYS     # looked up by demo, not by an asset or the payload (the orphan test, test/pod/i18n.py)
+WEB_KEYS = ('Search', 'Size', 'Download', 'Delete', 'Get Info', 'Cancel', 'Waiting', 'Done', 'Cancelled')   # the Wi-Fi Transfer web page's own copies of these (test/webapi.py SHARED checks them; the orphan test counts them used)
 _LOCK_DATE = {   # locale -> (format, the seven weekdays from Sunday, the twelve months)
     'zh_CN': ('M月D日 W', ['周' + c for c in '日一二三四五六'], [f'{m}月' for m in range(1, 13)]),
     'zh_HK': ('M月D日 W', ['週' + c for c in '日一二三四五六'], [f'{m}月' for m in range(1, 13)]),

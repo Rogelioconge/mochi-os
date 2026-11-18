@@ -114,10 +114,7 @@ def page(s, title, rows, scroll=0, select=None, playing=(), empty=False, root=Fa
         ImageDraw.Draw(im).rectangle((0, 0, W - 1, NAV - 1), fill=(0, 0, 0)); PS.glass(s, im, 'ah_nav_back', 7, 44); PS.glass(s, im, 'ah_nav_np', 260, 60)
     else: PS.navbar(s, im, 10 ** 6 if empty else scroll, select, title, direct=direct)   # the capsule "..." | Now Playing, the small title once the large one has scrolled away (always in an empty folder); direct: Select in the "..." place (a playlist file's tracks)
     if select is not None:
-        d = ImageDraw.Draw(im); d.rectangle((0, WIN - O['SG_BAR_H'], W - 1, WIN - 1), fill=(0, 0, 0)); d.rectangle((0, WIN - O['SG_BAR_H'], W - 1, WIN - O['SG_BAR_H']), fill=HAIR)
-        py = WIN - O['SG_BAR_H'] + (O['SG_BAR_H'] - O['SG_PILL_H']) // 2
-        PS.pill(s, im, O['SG_PILL_X0'], py, PS.tr(s, 'Add to Playlist'), s.img('sg_listplus'), w=O['SG_BAR_PILL_W'])
-        PS.pill(s, im, O['SG_BAR_PILL_X1'], py, PS.tr(s, 'Delete'), s.img('sg_trash'), w=O['SG_BAR_PILL_W'])
+        PS.selbar(s, im, WIN, ('add', 'del'), bool(select))
     elif scroll > 0:   # the navbar's fade (img_nb_fade), shown while the list is scrolled
         fade = Image.new('RGBA', (W, 20), (0, 0, 0, 0)); fd = ImageDraw.Draw(fade)
         for y in range(20): fd.rectangle((0, y, W, y), fill=(0, 0, 0, int(160 * (1 - y / 20))))

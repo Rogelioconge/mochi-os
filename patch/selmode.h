@@ -37,6 +37,8 @@ void m1_sel_enter(m1_sel_t *s, int on, int off_end);
 /* The title ("Select Items", "%d Selected"), the Select All label ("Deselect All" once every row is marked) and the bar's pills (dim and dead while nothing is marked), in the mode;
  * nothing off it (the page sets its own title). */
 void m1_sel_head(m1_sel_t *s);
+/* The Select All glass pill as wide as its label plus SG_SELALL_PAD each side, its right edge at SG_SELALL_R (also the folder picker's: patch/lupick.c). */
+void m1_selall_fit(void *btn);
 /* A row's select look, under the rest of the row (before its cover and text): the faint fill when marked (full window width, y .. y + rh - 1: not over the hairline), the mark at
  * x (the row's top y), only when the row can be marked. view_h: the window's height (GRID_VIEW_H, or the album page's whole 450 px). */
 void m1_sel_paint(const m1_sel_t *s, void *canvas, int i, int y, int rh, int w, int mark_x, int view_h);

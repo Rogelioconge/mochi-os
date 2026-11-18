@@ -697,6 +697,7 @@ PAGE_LOCALES = ['en', 'zh', 'zh-HK', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'th', '
 # string keys that reuse an existing translation of the mod: key -> pod_i18n.TEXT key
 SHARED = {'search': 'Search', 'size': 'Size', 'download': 'Download', 'del': 'Delete', 'info': 'Get Info', 'cancel': 'Cancel',
           'waiting': 'Waiting', 'done': 'Done', 'cancelled': 'Cancelled'}
+assert set(SHARED.values()) == set(pod_i18n.WEB_KEYS), 'pod_i18n.WEB_KEYS lists the shared strings'
 API_OPS = {'list', 'df', 'download', 'tar', 'mkdir', 'rename', 'move', 'delete', 'upload'}
 
 

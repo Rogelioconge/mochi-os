@@ -909,7 +909,7 @@ def ah_tint_alpha(y):
 DARK_GLYPH = (0x14, 0x14, 0x14)
 SONGS_IMAGES = {'sg_play': ('play:filled', WHITE, 14, 16), 'sg_shuffle': ('shuffle', WHITE, 16, 16), 'sg_repeat': ('repeat', WHITE, 16, 16), 'sg_repeat1': ('repeat-1', WHITE, 16, 16), 'sg_listplus': ('list-plus', WHITE, 16, 16),
                 'sg_shuffle_on': ('shuffle', DARK_GLYPH, 16, 16), 'sg_repeat_on': ('repeat', DARK_GLYPH, 16, 16), 'sg_repeat1_on': ('repeat-1', DARK_GLYPH, 16, 16),   # the Queue page's lit buttons (#C8C8C8): a near black glyph
-                'sg_trash': ('trash', (0xFF, 0x6B, 0x6B), 16, 16), 'sg_listplus_off': ('list-plus', (0x59, 0x59, 0x59), 16, 16), 'sg_trash_off': ('trash', (0x59, 0x25, 0x25), 16, 16), 'sg_tick': ('+check', WHITE, 14, 14),
+                'sg_trash': ('trash', (0xFF, 0x6B, 0x6B), 16, 16), 'sg_tick': ('+check', WHITE, 14, 14),
                 'pod_ic_vslist': ('list', WHITE, None, 20), 'pod_ic_vsgrid': ('layout-grid', WHITE, None, 20), 'pod_ic_vssearch': ('search', WHITE, None, 20), 'pod_ic_vsselect': ('T:circle-check', WHITE, None, 20),
                 'pod_ic_vsartist': ('mic-vocal', WHITE, None, 20), 'pod_ic_vsalbumartist': ('user-star', WHITE, None, 20),
                 'pod_ic_vsrefresh': ('refresh-cw', WHITE, None, 20), 'pod_ic_vsserver': ('server', WHITE, None, 20),   # the Subsonic root's "..." card (patch/ndroot.c): Sync Now, Server Settings
@@ -1139,6 +1139,7 @@ def album_images():
     p = glyph_fit('play:filled', AH_PLAY_GLYPH, AH_PLAY_GLYPH, AH_PLAY_INK, 0)
     f['ah_play'] = p                 # no padding: the payload places it beside the pill's text (patch/albumpage.c)
     f.update(ah_nav_images())
+    f.update(selbar_images())
     f.update(songs_images())
     f.update(keyboard_images())
     f[NB_FADE[0]] = nb_fade_image()
@@ -1260,9 +1261,9 @@ GLASS_H, GLASS_GLYPH = 42, 20                # the glass is 42 px high (y 4 .. 4
 NAV_SLOT_W, NAV_PLAY_W, NAV_CAPSULE_W = 46, 60, 141   # patch/offsets.inc NAV_VIEW_W; Now Playing's button; the pane of the capsule's pieces (any width: the Albums capsule is 177 .. 311, the Artists one 223 .. 311)
 NAV_PRESS_D, NAV_PRESS_ALPHA = 36, 0.14      # a pressed slice's highlight: a white disc 36 px across (3 px of glass above and below it), 14 % opaque
 
-def glass_piece(w, x0, x1, glyph, glyph_cx, pressed=False, cap=None, h=GLASS_H):
+def glass_piece(w, x0, x1, glyph, glyph_cx, pressed=False, cap=None, h=GLASS_H, ink=WHITE, glyph_px=GLASS_GLYPH):
     """A w x h image whose glass covers columns [x0, x1): a disc (r = h / 2) when x1 - x0 == h, else the slice of the capsule cap = (c0, c1) (image
-    columns, c1 - c0 wide, r = h / 2, the pane glass_image(c1 - c0, ...)); `glyph` (Lucide / 'T:' Tabler name) in white centred on column glyph_cx.
+    columns, c1 - c0 wide, r = h / 2, the pane glass_image(c1 - c0, ...)); `glyph` (Lucide / 'T:' Tabler name) in `ink` (white), glyph_px square, centred on column glyph_cx.
     Pressed: a disc's glass is the lighter one, a slice's the rest glass with the round highlight under the glyph. Straight-alpha RGBA."""
     from PIL import Image
     c0, c1 = cap or (x0, x1)
@@ -1272,7 +1273,7 @@ def glass_piece(w, x0, x1, glyph, glyph_cx, pressed=False, cap=None, h=GLASS_H):
         d = disc(NAV_PRESS_D, WHITE); d.putalpha(d.getchannel('A').point(lambda v: round(v * NAV_PRESS_ALPHA)))
         out.alpha_composite(d, (glyph_cx - NAV_PRESS_D // 2, (h - NAV_PRESS_D) // 2))
     if glyph:
-        g = glyph_fit(glyph, GLASS_GLYPH, GLASS_GLYPH, WHITE, 0, 2.0)
+        g = glyph_fit(glyph, glyph_px, glyph_px, ink, 0, 2.0)
         out.alpha_composite(g, (glyph_cx - g.width // 2, (h - g.height) // 2))
     return out
 
@@ -1315,6 +1316,24 @@ ALBUM += AH_NAV_NAMES
 # at rest stay clear: alpha 255 (1 - t)^3.6, <= 8 from row 12 down (the first row of a text page has its ink from row 15, a switch from row 12). The cover pages
 # (Albums, Playlists: covers from row 4 / 10) start with the fade hidden and show it only while scrolled (patch/albums.c, patch/playlists.c).
 NB_FADE = ('nb_fade', 320, 20)
+
+# The select mode's chrome (patch/selmode.c, docs/modules/selmode.md): Select All is a glass pill, drawn patch3_x so its width follows the text (sg_selall_glass, 72 x 42, r 21; _down
+# pressed); the bottom bar is ONE capsule of 60 px icon-only slots (Add to Playlist, Delete; Playlists / Podcasts have the Delete slot alone, a 60 px capsule), each slot's glass cut from the
+# capsule as the navbar's pieces are: image -> (glyph, ink, capsule columns); _down has the round highlight, _off the glyph at 35 % (nothing marked).
+SELBAR_SLOT, SELBAR_GLYPH, SELBAR_RED, SELBAR_DIM = 60, 22, (0xFF, 0x6B, 0x6B), 0.35
+SELALL_GLASS = (72, 42, 21)
+SELBAR_PIECES = {'sg_bar_add': ('list-plus', WHITE, (0, 2 * SELBAR_SLOT)), 'sg_bar_del': ('trash', SELBAR_RED, (-SELBAR_SLOT, SELBAR_SLOT)), 'sg_bar_one': ('trash', SELBAR_RED, (0, SELBAR_SLOT))}
+SELBAR_NAMES = sorted(['sg_selall_glass', 'sg_selall_glass_down'] + [n + s for n in SELBAR_PIECES for s in ('', '_down', '_off')])
+ALBUM += SELBAR_NAMES
+
+def selbar_images():
+    f = {'sg_selall_glass': glass_image(*SELALL_GLASS), 'sg_selall_glass_down': glass_image(*SELALL_GLASS, True)}
+    for n, (g, ink, cap) in SELBAR_PIECES.items():
+        for suffix, pressed, k in (('', False, 1), ('_down', True, 1), ('_off', False, SELBAR_DIM)):
+            f[n + suffix] = glass_piece(SELBAR_SLOT, 0, SELBAR_SLOT, g, SELBAR_SLOT // 2, pressed, cap, ink=tuple(round(c * k) for c in ink), glyph_px=SELBAR_GLYPH)
+    assert sorted(f) == SELBAR_NAMES
+    return f
+
 ALBUM.append(NB_FADE[0])
 
 def nb_fade_alpha(y, h=NB_FADE[2]):

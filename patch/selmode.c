@@ -80,6 +80,13 @@ void m1_sel_toggle_all(m1_sel_t *s) {
     s->nsel = m1_sel_all_can(s->bits, s->count, s->nsel, s->nmark, s->can, s->ctx);
 }
 
+void m1_selall_fit(void *btn) {
+    const unsigned *t = widget_get_text(btn);
+    int w = (t && *t ? m1_text_w(btn, t) : 0) + 2 * SG_SELALL_PAD;
+    widget_move(btn, SG_SELALL_R - w, SG_SELALL_Y);
+    widget_resize(btn, w, SG_SELALL_H);
+}
+
 void m1_sel_head(m1_sel_t *s) {
     char buf[64];
     int i, any = s->nsel != 0;
@@ -90,6 +97,7 @@ void m1_sel_head(m1_sel_t *s) {
     } else
         widget_set_text_utf8(s->title, TR("Select Items"));
     widget_set_tr_text(s->btn_selall, m1_sel_every(s) ? "Deselect All" : "Select All");
+    m1_selall_fit(s->btn_selall);
     for (i = 0; i < 2; ++i)
         if (s->pill[i]) { /* enable picks the disable style (dimmed glyph and label); sensitive drops the taps */
             widget_set_prop_int(s->pill[i], "enable", any);

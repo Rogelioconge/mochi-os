@@ -389,8 +389,9 @@ def asset_tests(ctx):
     lt = f('label_title')
     expect((lt.x, lt.w) == (58, 110) and lt.get('visible') == 'false' and lt.x + lt.w == 168 == O['NAV_CF_X'] and O['NAV_TITLE_X'] == 58, 'the small title starts at x 58, ends at the Search button (168) and starts hidden')
     sa = f('btn_selall')
-    expect(sa.get('visible') == 'false' and sa.get('sensitive') == 'false' and sa.type == 'button' and sa.x == O['SG_SELALL_X'] and sa.x + sa.w == 312 and sa.x >= lt.x + 142,
-           'Select All is a text button at the right, hidden and insensitive until select mode')
+    expect(sa.get('visible') == 'false' and sa.get('sensitive') == 'false' and sa.type == 'button' and (sa.x, sa.y, sa.h) == (O['SG_SELALL_R'] - sa.w, 4, 42) and sa.x + sa.w == 311 == O['SG_SELALL_R'] and sa.x >= lt.x + 142
+           and sa.get('style:normal:bg_image') == 'sg_selall_glass' and sa.get('style:pressed:bg_image') == 'sg_selall_glass_down' and sa.get('style:normal:bg_image_draw_type') == 'patch3_x',
+           'Select All is a glass pill (patch3_x) at the right, its edge at 311, hidden and insensitive until select mode')
     lv, sv, grid, bar = f('songs_listview'), f('songs_scrollview'), f('view_grid'), f('scroll_bar_m')
     expect(lv.type == 'list_view' and sv.type == 'scroll_view' and sv in lv.children and bar in lv.children and (lv.x, lv.y, lv.w, lv.h) == (0, 50, 320, VIEW_H) and (sv.w, bar.x) == (310, 310)
            and sv.children == [grid] and grid.type == 'view', 'the body is the library lists\' structure: list_view > scroll_view > one content view, with the stock mobile scroll bar')
@@ -431,13 +432,13 @@ def asset_tests(ctx):
     expect((RAIL_X, RAIL_W) == (284, 36) and all(not (p.x < RAIL_X + RAIL_W and p.x + p.w > RAIL_X) for p in pills) and all(RAIL_X - (p.x + p.w) >= 6 for p in pills),
            'no pill reaches the rail\'s touch column (x 284..320): the flat pills end at 278, the header\'s pill at 276, 6 px or more before it (the pills scroll, the rail is fixed)')
     barpills = [c for c in f('sg_bar').children if c.type == 'button']
-    expect(f('sg_bar').y == f('sg_rail').y + O['GRID_VIEW_H'] - O['SG_BAR_H'] and max(p.x + p.w for p in barpills) == 310,
-           'the select bar\'s pills (145 wide, Add to Playlist needs the room) end at 310 but sit below the rail, which is 336 px high in select mode and ends at the bar\'s top')
+    expect(f('sg_bar').y >= f('sg_rail').y + O['GRID_VIEW_H'] - O['SG_BAR_H'] and f('sg_bar').x + max(p.x + p.w for p in barpills) == 220,
+           'the select bar\'s capsule (120 wide, centred) ends at 220, clear of the rail, and sits below the rail, which is 336 px high in select mode and ends at the bar\'s top')
     expect(not any('glass' in (c.get('style:normal:bg_image') or '') or c.get('style:normal:bg_image') for c in grid.children), 'no glass on the pills: no bg_image')
     expect(all(tree.find(n).get('visible') == 'false' and tree.find(n).get('sensitive') == 'false' for n in ('sg_bar', 'vs_scrim', 'vs_card', 'label_status', 'label_row_title', 'label_row_sub', 'label_hdr', 'label_rail', 'label_rail_on'))
            and f('sg_bubble').get('visible') == 'false' and f('sg_bubble').get('sensitive') == 'false' and all(f(f'vs_tick{i}').get('visible') == 'false' for i in range(4)),
            'everything shown later (the bar, the scrim and card, the bubble, the ticks, the status and style labels) starts hidden; the ones that must not take touches are insensitive')
-    expect(all(f(n).get('sensitive') == 'false' for n in ('sg_bubble', 'sg_bubble_letter', 'sg_bar_line', 'sg_title', 'img_nb_fade')), 'decorative overlays are insensitive (the bubble, the bar\'s hairline, the title, the fade)')
+    expect(all(f(n).get('sensitive') == 'false' for n in ('sg_bubble', 'sg_bubble_letter', 'sg_title', 'img_nb_fade')), 'decorative overlays are insensitive (the bubble, the bar\'s hairline, the title, the fade)')
     rail, bub = f('sg_rail'), f('sg_bubble')
     expect((rail.x, rail.y, rail.w, rail.h) == (284, 50, 36, 400) and rail.get('sensitive') is None and rail not in grid.children and tree.children.index(rail) > tree.children.index(lv),
            'the rail is a widget of the window above the list (x 284, 36 wide; the payload sizes it to the drawn span): a touch on it never reaches the scroll_view')
@@ -447,10 +448,11 @@ def asset_tests(ctx):
     expect(f('label_rail').get('style:normal:font_size') == '12' and f('label_rail').get('style:normal:text_color') == '#EEEEEC' and f('label_rail_on').get('style:normal:text_color') == '#000000'
            and f('label_hdr').get('style:normal:font_size') == '20', 'the rail letters are 12 px #EEEEEC (black on the disc), the headers 20 px')
     barw = f('sg_bar')
-    expect((barw.x, barw.y, barw.w, barw.h) == (0, 386, 320, 64) and barw.get('style:normal:bg_color') == '#000000' and f('sg_bar_line').get('style:normal:bg_color') == '#222222'
-           and [(c.name, c.x, c.w, c.h) for c in barw.children if c.type == 'button'] == [('sg_add', 10, 145, 40), ('sg_del', 165, 145, 40)]
-           and f('sg_add').get('style:normal:icon') == 'sg_listplus' and f('sg_del').get('style:normal:icon') == 'sg_trash' and f('sg_add').get('style:normal:bg_color') == '#1C1C1E',
-           'the select bar: 64 px, black with a #222222 hairline, the two flat pills Add to playlist and Delete')
+    expect((barw.x, barw.y, barw.w, barw.h) == (100, 397, 120, 42) and barw.get('style:normal:bg_color') == '#00000000' and tree.find('sg_bar_line') is None
+           and [(c.name, c.x, c.y, c.w, c.h) for c in barw.children if c.type == 'button'] == [('sg_add', 0, 0, 60, 42), ('sg_del', 60, 0, 60, 42)]
+           and f('sg_add').get('style:normal:icon') == 'sg_bar_add' and f('sg_add').get('style:pressed:icon') == 'sg_bar_add_down' and f('sg_add').get('style:disable:icon') == 'sg_bar_add_off'
+           and f('sg_del').get('style:normal:icon') == 'sg_bar_del' and f('sg_del').get('style:disable:icon') == 'sg_bar_del_off' and not any(c.get('text') for c in barw.children),
+           'the select bar: no background, ONE 120 x 42 glass capsule centred in the 64 px foot, of two icon-only 60 px buttons (Add to Playlist, Delete) with normal, pressed and dimmed images')
     card, scrim = f('vs_card'), f('vs_scrim')
     items = {i: f(f'vs_item{i}') for i in range(7)}
     expect((card.x, card.y, card.w, card.h) == (O['PL_CARD_RIGHT'] - O['PL_CARD_MAX'], O['PL_CARD_Y'], O['PL_CARD_MAX'], 7 * 50) and card.get('visible') == 'false'
@@ -1082,11 +1084,14 @@ def collapse_and_select_tests(ctx):
         over = [(loc, StbText(font, px).layout(built[loc].get(key, key))[1]) for loc in pod_i18n.LOCALES if StbText(font, px).layout(built[loc].get(key, key))[1] > room]
         expect(not over, f'the sort card label {key} fits its {room} px row in all 13 languages ({over[:3]})')
     small = O['SG_PILL_PX_SMALL']
-    for key, room, px in [(k, O['SG_PILL_W'] - 16 - 8 - 12, 18) for k in ('Play', 'Shuffle')] + [(k, O['SG_BAR_PILL_W'] - 16 - 8 - 12, 18) for k in ('Add to Playlist', 'Delete')]:
+    for key, room, px in [(k, O['SG_PILL_W'] - 16 - 8 - 12, 18) for k in ('Play', 'Shuffle')]:
         stepped = [loc for loc in pod_i18n.LOCALES if StbText(font, px).layout(built[loc].get(key, key))[1] > room]   # sg_centre_pill steps these down to SG_PILL_PX_SMALL
         over = [(loc, StbText(font, small).layout(built[loc].get(key, key))[1]) for loc in stepped if StbText(font, small).layout(built[loc].get(key, key))[1] > room]
         expect(not over and (key != 'Shuffle' or stepped == ['ru_RU']) and (key == 'Shuffle' or not stepped),
                f'the pill label {key} fits beside its glyph in all 13 languages, at {px} px or stepped down to {small} ({stepped}; over {over[:3]})')
+    over = [(loc, key) for loc in pod_i18n.LOCALES for key in ('Select All', 'Deselect All')
+            if StbText(font, 17).layout(built[loc].get(key, key))[1] + 2 * O['SG_SELALL_PAD'] > O['SG_SELALL_R'] - O['SG_SELALL_X']]
+    expect(not over, f'the Select All glass pill (label at 17 px plus {O["SG_SELALL_PAD"]} px each side) stays right of the title\'s end SG_SELALL_X in all languages ({over[:3]})')
     over = [(loc, StbText(font, 20).layout(built[loc]['%d Selected'].replace('%d', '9999'))[1]) for loc in pod_i18n.LOCALES
             if StbText(font, 20).layout(built[loc]['%d Selected'].replace('%d', '9999'))[1] > O['SG_SELALL_X'] - 58]
     expect(not over, f'"9999 Selected" fits between the title\'s x 58 and Select All in all languages ({over[:3]})')
@@ -1105,7 +1110,7 @@ def collapse_and_select_tests(ctx):
     back = m.widgets['btn_return']
     expect(m.props[(back, 'style:normal:icon')] == 'ah_nav_close' and m.props[(back, 'style:pressed:icon')] == 'ah_nav_close_down', 'Back becomes the x (cancel), a glass disc like it')
     expect(m.wtext[m.widgets['label_title']] == 'Select Items' and ('widget_set_visible', m.widgets['label_title'], 1) in m.calls
-           and ('widget_resize', m.widgets['label_title'], 150, 22) in m.calls, 'the title reads "Select Items", from x 58 to Select All')
+           and ('widget_resize', m.widgets['label_title'], O['SG_SELALL_X'] - 58, 22) in m.calls, 'the title reads "Select Items", from x 58 to Select All')
     expect(('widget_set_sensitive', m.widgets['btn_play'], 0) in m.calls and ('widget_set_sensitive', m.widgets['btn_shuffle'], 0) in m.calls
            and vis(m, 'btn_play')[0] == 1 and vis(m, 'btn_shuffle')[0] == 1 and vis(m, 'hd_play') == (0, 0) and vis(m, 'hd_shuffle') == (0, 0) and vis(m, 'sg_glyph')[0] == 0,
            'the pills are disabled (their dim style), and the playlist header\'s set stays hidden and insensitive')

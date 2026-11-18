@@ -30,7 +30,7 @@ list so an enclosing view cannot intercept the whole navigation band.
 
 | Element | Geometry / appearance |
 |---|---|
-| Navigation | Back; the capsule Select 168 / "..." 214 / Now Playing 260 (46 / 46 / 60 px, the Albums page's); selection mode hides the capsule, turns Back into the close x and adds the title and Select All (the shared [select mode](selmode.md)). The "..." (`btn_pin`, library pages only, an album with a title) opens the pins' three-row sheet: **Play** and **Shuffle** (the Play pill's and Shuffle disc's work, `ab_play_at`) and **Pin Album** / **Unpin Album** ([pins](pins.md)); the sheet is the track menu's own card reworded (`rowmenu_open_pins`: rows past the third hidden, `pc_sheet3`; the next track menu puts the words and rows back). An album without a title ("Unknown Album") has no "...": Select moves to 214 as before. A source's page keeps its capsule: its own "..." (Download Album) at 214, no Select |
+| Navigation | Back; the capsule "..." 214 (`btn_more`, `pod_nav_more`, the left cap) / Now Playing 260 (46 / 60 px, a source page's too); selection mode hides the capsule, turns Back into the close x and adds the title and Select All (the shared [select mode](selmode.md)). The "..." opens the shared view-sort card (`vs_bind`, `viewsort.c`) with action rows only: the library's page **Select** (enters the select mode) then, for an album with a title, **Pin Album** / **Unpin Album** (slot `VS_ACT2`; label and glyph follow the pin, [pins](pins.md)); a source's page **Download Album** alone, no Select. Play and Shuffle are the header pill and disc, not card rows. An album without a title ("Unknown Album") has Select alone. The "..." is dead while a source's tracks load |
 | Cover | 160 × 160 at (80, 50), 10 px corners |
 | Album | Centered 22 px white at y 224 |
 | Artist | Centered 18 px grey at y 247 |
@@ -115,12 +115,10 @@ Repeat all are retained. Shuffle chooses a random starting track and sets the st
 Shuffle mode for this album queue. Mode changes use the stock notification/config path.
 Selection shares Add/Delete operations with [Songs](songs.md) and the chrome with every list page ([selmode](selmode.md)): Back
 is the glass close x (`ab_on_back` leaves the mode), the title reads "Select Items" / "N Selected" from `NAV_TITLE_X`, Select All /
-Deselect All is the text at the right, and the marked rows have the faint fill. The bottom bar (`sg_bar`, `SG_BAR_H` 64 px at the
-window's foot; Add to Playlist and Delete as `sg_add` / `sg_del`, dim until a track is marked) is in the page's tone: `ab_bar_colors`
-sets its fill to the cover tone at 3/4 brightness (`ab_sel_base`) and the pills to that colour with white at alpha 0x1E (0x30
-pressed) as opaque fills (a translucent round fill renders square on the device); `ab_paint_fade` paints `AB_SEL_FADE` (24) one-pixel
-rows above it, the same colour with alpha rising to the bar, over the rows' text. The content is `SG_BAR_H` longer while the mode
-is on, so the last track clears the bar. Device-unverified: the bar colour and the fade over the tinted gradient.
+Deselect All is the glass pill at the right, and the marked rows have the faint fill. The bottom bar (`sg_bar`) is only the
+glass capsule of the icon-only Add to Playlist and Delete buttons `sg_add` / `sg_del` (dim until a track is marked), centred in the
+window's last `SG_BAR_H` (64) px with no background: the rows show through the glass. The content is `SG_BAR_H` longer while the mode
+is on, so the last track clears the capsule.
 
 `pod_open_player` follows the stock row handler's navigation sequence. With
 `songerinfoflag` (`0xa04737`) set, it removes windows above an existing

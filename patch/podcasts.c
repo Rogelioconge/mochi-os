@@ -5475,8 +5475,6 @@ int podcasts_open(void) {
     pg.dord = pg.ord ? pg.ord + PG_DLS_MAX : (unsigned short *)0;
     pg.sv_h = calloc(PG_DLD_MAX, sizeof *pg.sv_h);
     pg.sv_d = calloc(PG_DLD_MAX, sizeof *pg.sv_d);
-    if (pg.del) m1_centre_pill(pg.del, PL_BAR_PILL_W);
-    if (pg.unsubp) m1_centre_pill(pg.unsubp, PL_BAR_PILL_W);
     pc_root(pg.root);
     m1_sel_init(&pg.msel, pg.win, pg.back, pg.title, pg.btn_selall, pg.bar, pg.del, pg.unsubp, pg_can_cb,
                 (void *)0); /* the marks: all or none */

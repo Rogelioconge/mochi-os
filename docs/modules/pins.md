@@ -176,11 +176,10 @@ A missing widget, refused registration, no timer or no memory leaves the plain m
 
 ## More entry points
 
-- **Album page "...":** the library's album page capsule is Select 168 / "..." 214 / Now Playing 260 (as the Albums page's;
-  `btn_pin`, `pod_nav_moremid`). It opens the same three rows on the track menu's card (`rowmenu_open_pins`: the six-row card
-  reworded, rows 4 to 6 hidden, `pc_sheet3`; `rowmenu_open_src` puts it back): **Play** / **Shuffle** as the page's pill and disc,
-  **Pin Album** / **Unpin Album** for the page's album (title and a track path copied at open, cover key `cover_key`). Select mode hides it;
-  an album with no title has none (Select goes to 214); a source's page keeps its own "..." (Download Album).
+- **Album page "...":** the library's album page "..." (`btn_more`, 214) opens the shared view-sort card (`vs_card`): **Select**, then
+  **Pin Album** / **Unpin Album** (slot `VS_ACT2`, `ab_on_card`; title and a track path copied at open, cover key `cover_key`).
+  Play / Shuffle are the page's pill and disc. Select mode hides the "..."; an album with no title has no pin row; a source's page
+  has Download Album only.
 - **Recently Played tile on Home:** a press held `RM_LONG_MS` opens the Home sheet (`pins_album_sheet`, reusing `pn.rm`) for the
   tile's album: Play, Shuffle, Pin Album / Unpin Album. See [recent](recent.md).
 

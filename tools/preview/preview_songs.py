@@ -216,12 +216,26 @@ def glass(s, im, name, x, button_w=46):
     g = s.img(name); im.alpha_composite(g, (x + (button_w - g.width) // 2, (NAV - g.height) // 2))
 
 
+def selall(s, im, text, on=True):
+    """The select mode's Select All: a glass pill (sg_selall_glass) at the navbar's right, 14 px each side of the 17 px label, right edge at SG_SELALL_R."""
+    tw = s.font.width(text, 17); pw = tw + 2 * O['SG_SELALL_PAD']; x = O['SG_SELALL_R'] - pw
+    im.alpha_composite(M.glass_image(pw, O['SG_SELALL_H'], O['SG_SELALL_H'] // 2), (x, O['SG_SELALL_Y']))
+    s.text(im, x + O['SG_SELALL_PAD'], NAV // 2, text, 17, (255, 255, 255) if on else (0x59,) * 3)
+
+
+def selbar(s, im, win_h, pieces, on=True):
+    """The select bar's one centred glass capsule of icon-only 60 px slots (M.selbar_images: 'add' + 'del', or 'one'), vertically centred in the SG_BAR_H bar; dimmed glyphs while nothing is marked."""
+    f = M.selbar_images(); slot = M.SELBAR_SLOT
+    x = (W - slot * len(pieces)) // 2; y = win_h - BAR_H + (BAR_H - M.GLASS_H) // 2
+    for k, n in enumerate(pieces): im.alpha_composite(f['sg_bar_' + n + ('' if on else '_off')], (x + k * slot, y))
+
+
 def navbar(s, im, scroll, select, title=None, artist=False, search=True, direct=False):
     d = ImageDraw.Draw(im); d.rectangle((0, 0, W - 1, NAV - 1), fill=(0, 0, 0))
     if select is not None:    # select mode: the x (glass disc) where Back was, "N Selected" from x 58, Select All at the right
         glass(s, im, 'ah_nav_close', 7, 44)
         s.text(im, O['NAV_TITLE_X'], 25, s.strings.get('%d Selected', '%d Selected').replace('%d', str(len(select))), PI.title_px(s.tree))
-        sa = tr(s, 'Select All'); s.text(im, O['SG_SELALL_X'] + 104 - 8 - s.font.width(sa, 18), 25, sa, 18)
+        selall(s, im, tr(s, 'Select All'))
         return
     glass(s, im, 'ah_nav_back', 7, 44); glass(s, im, 'ah_nav_play', 260, 60)
     if artist:    # an artist's songs: Cover Flow (the left cap) | Select (middle) | Now Playing
@@ -283,10 +297,7 @@ def page(s, covers=True, scroll=0, touched=None, select=None, menu=False, order=
     navbar(s, im, scroll - (O['PH_COLLAPSE'] - O['SG_COLLAPSE'] if head else 0), select, title, artist, search, direct)   # (a playlist's header collapses the title at PH_COLLAPSE)
     if title is None: rail(s, im, letters or [h[1] for h in items if h[0] == 'h'], touched, WIN - NAV - pad)   # (a list has no rail)
     if select is not None:    # the bar: Add to Playlist, Delete (the stock multi-select's add and delete), flat pills
-        d = ImageDraw.Draw(im); d.rectangle((0, WIN - BAR_H, W - 1, WIN - 1), fill=(0, 0, 0)); d.rectangle((0, WIN - BAR_H, W - 1, WIN - BAR_H), fill=HAIR)
-        py = WIN - BAR_H + (BAR_H - PILL_H) // 2
-        pill(s, im, O['SG_PILL_X0'], py, tr(s, 'Add to Playlist'), s.img('sg_listplus'), w=O['SG_BAR_PILL_W'])
-        pill(s, im, O['SG_BAR_PILL_X1'], py, tr(s, 'Delete'), s.img('sg_trash'), w=O['SG_BAR_PILL_W'])
+        selbar(s, im, WIN, ('add', 'del'), bool(select))
     if menu: sort_card(s, im, *(order or (0, False)), kind='library' if menu is True else menu)
     if row_menu_at: row_menu(s, im, fav_on=row_menu_at == 'fav')
     if touched:

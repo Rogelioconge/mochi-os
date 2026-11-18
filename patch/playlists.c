@@ -1288,7 +1288,6 @@ static int pl_open_page(const lib_src_t *src) {
     vs_dated(&pl.vs, 0); /* Name reads A-Z / Z-A */
     pl.rev = set_read(PLAYLISTS_SORT_FILE, '0') == 'a';
     vs_offer(&pl.vs, PL_ROWS_MORE);
-    if (pl.del) m1_centre_pill(pl.del, PL_BAR_PILL_W);
     pl.tmp = calloc((GRID_COVER / 2) * (GRID_COVER / 2),
                     4); /* one quadrant of a mosaic; without it a mosaic falls back to its first cover */
     { /* the stock grid, its two text styles are this page's hidden labels */

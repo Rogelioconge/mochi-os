@@ -85,7 +85,7 @@ It exists for deleting (stock's multi-select only exports and deletes; export st
   Now Playing go. Every cell has a 26 px mark (`m1_make_mark`, cut to a circle) at its cover's
   bottom right; in list mode a 30 px column (`SG_SEL_COL`) opens left of each row and cover, texts
   and hairline shift right. A tap marks; a drag marks nothing.
-- A 64 px bar holds one flat **Delete** pill (300 x 40 at x 10). The content is 64 px longer.
+- A 64 px bar holds one icon-only glass **Delete** capsule (60 x 42, centred). The content is 64 px longer.
 - Back (the x) leaves the mode. A page read again (returning to the front, after a delete) is out
   of it, since the marks were of the old list.
 - Where the page cannot do it (no `btn_selall`, `pl_bar` or `pl_del`, marks that do not decode)

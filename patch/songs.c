@@ -1841,8 +1841,6 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
         m1_centre_pill(sg.btn_shuffle, SG_PILL_W);
     }
     sg_pills();
-    m1_centre_pill(sg.btn_add, SG_BAR_PILL_W);
-    m1_centre_pill(sg.btn_del, SG_BAR_PILL_W);
     az_make_disc(&sg.al);
     m1_sel_init(&sg.sel, sg.win, sg.back, sg.title, sg.btn_selall, sg.bar, sg.btn_add, sg.btn_del, (void *)0,
                 (void *)0); /* the marks: all or none */

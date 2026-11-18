@@ -21,6 +21,11 @@ def run(ctx):
     gen = mod_icons.ah_nav_images()
     expect(H_ == 42 and sorted(gen) == sorted(N) and len(N) == 2 * (len(mod_icons.AH_NAV_PIECES) + 1) and all(same_pixels(shipped(n), gen[n]) for n in N),
            f'the {len(N)} ah_nav_* PNGs are the generator\'s output pixel for pixel')
+    # the select mode's chrome (mod_icons.selbar_images): the Select All glass (patch3_x) and the bottom capsule's slots (normal, pressed, dimmed), shipped pixel for pixel
+    sel = mod_icons.selbar_images()
+    expect(sorted(sel) == mod_icons.SELBAR_NAMES and len(sel) == 2 + 3 * len(mod_icons.SELBAR_PIECES) and all(same_pixels(shipped(n), sel[n]) for n in sel)
+           and all(asset_image(n).size == (60, 42) for n in sel if n.startswith('sg_bar_')) and asset_image('sg_selall_glass').size == (72, 42),
+           'the select mode\'s glass images are the generator\'s output: Select All 72 x 42, every bar slot 60 x 42 (capsule cuts of 120 / 60 px)')
     # independent of mod_icons.glass_piece: (width, glass columns, glyph centre) of every image, and its capsule (image columns) when it is a slice: the Pod pages' right cap of the 141 px capsule, its glass from 7 (the slots' 7 px shift)
     want = {'ah_nav_back': (42, 0, 42, 21), 'ah_nav_close': (42, 0, 42, 21), 'ah_nav_np': (60, 9, 51, 30), 'ah_nav_set': (60, 9, 51, 30),
             'ah_nav_play': (60, 7, 51, 30, (-90, 51))}

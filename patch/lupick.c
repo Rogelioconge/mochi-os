@@ -27,6 +27,7 @@
 #include "azlist.h"
 #include "i18n.h"
 #include "entries.h"
+#include "selmode.h"
 
 #define ROW POD_ROW_H
 #define LP_ASSET "m1plus_lupick"
@@ -376,6 +377,7 @@ static int lp_selall_action(void);
 static void lp_selall_label(void) {
     int act = lp_selall_action();
     widget_set_tr_text(lp.selall, act == LP_SA_ADD ? "Select All" : "Deselect All");
+    m1_selall_fit(lp.selall);
     widget_set_sensitive(lp.selall, act != LP_SA_NONE);
     widget_set_prop_bool(lp.selall, "enable",
                          act != LP_SA_NONE); /* the style's disable state follows the enable flag, not sensitive */

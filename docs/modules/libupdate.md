@@ -95,7 +95,7 @@ go through the same callback.
 
 The page is the Folders page's structure ([folders](folders.md)): glass navbar, a stock list holding one view the payload paints (a
 rounded card of 52 px rows: select circle, name, chevron; hairlines; the grey caption MUSIC CARD at the root), no widget per row.
-Title: Choose Folders at the root, else the folder's name. Navbar: Back, the select mode's flat Select All text button
+Title: Choose Folders at the root, else the folder's name. Navbar: Back, the select mode's Select All glass pill
 (its label is what a tap does, see Selection), Now Playing hidden (as in the select mode). Bottom bar: one pill.
 
 - **Listing.** `opendir` / `readdir` of the level on the UI thread, folders only, as stock's `toolsLoadDirectory` (0x5e85c8):

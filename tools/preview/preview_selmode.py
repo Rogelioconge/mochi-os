@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Mock-up of one select mode for every page (docs/modules/songs.md "Select"): the album page's select mode, design "A+" (the x where Back was, "N Selected" / "Select Items",
-Select All / Deselect All at the right, the 64 px bar in the page's tone with a fade above it and translucent pills).
+"""Mock-up of the select mode's chrome for every page (docs/modules/selmode.md): the album page's select mode (the x where Back was, "N Selected" / "Select Items", Select All / Deselect All in a
+glass pill at the right, the 64 px bar in the page's tone with a fade above it, holding one glass capsule of two icon-only buttons).
 The album rows (marks in the 30 px column, numbers and titles shifted) are the page's own already. Approximate, not AWTK; sample data.
 
   preview_selmode.py WORKDIR OUT.png [--lang CODE]
@@ -59,28 +59,14 @@ def rows_hl(s, im, marked, scroll):
 
 
 def album_bar(s, marked, scroll=300):
-    """Polished A: the Songs chrome, but "Select Items" with nothing marked, "Deselect All" once all are, the bar in the page's tone (a fade above it, translucent pills) so the
-    tinted page does not end in a black slab, the pills dim while nothing is marked, the marked rows lit faintly."""
+    """The album page's select mode: the Songs chrome, "Select Items" with nothing marked, Select All in a glass pill at the top right (Deselect All once all are marked), and ONE centred glass capsule
+    floating over the rows (no bar background) of two icon-only buttons (Add to Playlist, Delete), the glyphs dim while nothing is marked, the marked rows lit faintly."""
     im = Image.new('RGBA', (W, O['AH_WIN_H']), TONE + (255,))
     rows_hl(s, im, marked, scroll)
     glass(s, im, 'ah_nav_close', 7, 44)
     s.text(im, O['NAV_TITLE_X'], 25, title_text(s, len(marked), len(TRACKS)), PI.title_px(s.tree))
-    sa = 'Deselect All' if len(marked) == len(TRACKS) else PS.tr(s, 'Select All')   # (a new string: English only in the mock)
-    s.text(im, W - 12 - s.font.width(sa, 18), 25, sa, 18)
-    win, bar, fade = im.height, PS.BAR_H, 24
-    base = tuple(c * 3 // 4 for c in TONE)
-    for k in range(fade): im.alpha_composite(Image.new('RGBA', (W, 1), base + (255 * k // fade,)), (0, win - bar - fade + k))
-    ImageDraw.Draw(im).rectangle((0, win - bar, W - 1, win - 1), fill=base)
-    py = win - bar + (bar - PS.PILL_H) // 2
-    on = bool(marked)
-    for x, label, g in ((O['SG_PILL_X0'], 'Add to Playlist', 'sg_listplus'), (O['SG_BAR_PILL_X1'], 'Delete', 'sg_trash')):
-        pill = Image.new('RGBA', (O['SG_BAR_PILL_W'], PS.PILL_H), (0, 0, 0, 0))
-        mask = Image.new('L', pill.size, 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, pill.width - 1, pill.height - 1), radius=PS.PILL_R, fill=255)
-        im.paste(Image.alpha_composite(Image.new('RGBA', pill.size, base + (255,)), Image.new('RGBA', pill.size, (255, 255, 255, 0x1E))), (x, py), mask)
-        lab = PS.tr(s, label); tw = s.font.width(lab, 18); gl = s.img(g); gx = x + (O['SG_BAR_PILL_W'] - (PS.GLYPH + PS.GAP + tw)) // 2
-        im.alpha_composite(gl if on else faded(gl, DIM), (gx, py + (PS.PILL_H - gl.height) // 2))
-        rgb = (0xFF, 0x6B, 0x6B) if label == 'Delete' else (0xFF, 0xFF, 0xFF)
-        s.text(im, gx + PS.GLYPH + PS.GAP, py + PS.PILL_H / 2, lab, 18, rgb if on else tuple(int(c * DIM + b * (1 - DIM)) for c, b in zip(rgb, base)))
+    PS.selall(s, im, 'Deselect All' if len(marked) == len(TRACKS) else PS.tr(s, 'Select All'))
+    PS.selbar(s, im, im.height, ('add', 'del'), bool(marked))
     return im
 
 
@@ -91,9 +77,9 @@ def main():
     s = PI.Side(a.workdir, True, a.lang)
     _, heads, _ = PS.build_items()
     two, every = {1, 3}, set(range(len(TRACKS)))
-    panels = [              ('A+ : nothing marked (pills dim)', album_bar(s, set())),
-              ('A+ : 2 marked', album_bar(s, two)),
-              ('A+ : all marked (Deselect All)', album_bar(s, every))]
+    panels = [              ('Nothing marked (capsule dim)', album_bar(s, set())),
+              ('2 marked', album_bar(s, two)),
+              ('All marked (Deselect All)', album_bar(s, every))]
     pad, lab = 12, 20
     sheet = Image.new('RGB', (len(panels) * (W + pad) + pad, 450 + lab + 2 * pad), (0x2A, 0x2A, 0x2A)); d = ImageDraw.Draw(sheet)
     for i, (title, im) in enumerate(panels):

@@ -486,7 +486,7 @@ def footer_tests(ctx):
     # select mode: the footer takes no touch, no mark, no press, is not counted by All, and does not shift
     m = album_with_files(); known(m)
     AP.open_album(m)
-    AP.click(m, 'btn_select')
+    AP.enter_select(m)
     AP.scroll_to(m, 150)
     AP.tap(m, 30, rows_end + GAP + 10 - 150); AP.tap(m, 60, rows_end + 3 - 150)
     blits, texts, fills = AP.paint(m)

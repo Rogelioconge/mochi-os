@@ -734,9 +734,8 @@ def subs_page(s, shows, marked=None, empty=False):
     if marked is not None:
         PS.glass(s, win, 'ah_nav_close', 7, 44)
         s.text(win, o['NAV_TITLE_X'], 25, '%d Selected' % len(marked), PI.title_px(s.tree))
-        s.text(win, o['SG_SELALL_X'] + 104 - 8 - FONT.width('Select All', 18), 25, 'Select All', 18)
-        d.rectangle((0, WIN - o['SG_BAR_H'], W - 1, WIN - 1), fill=(0, 0, 0, 255)); hline(win, 0, W, WIN - o['SG_BAR_H'], PS.HAIR + (255,) if len(PS.HAIR) == 3 else PS.HAIR)
-        PS.pill(s, win, o['SG_PILL_X0'], WIN - o['SG_BAR_H'] + (o['SG_BAR_H'] - o['SG_PILL_H']) // 2, 'Unsubscribe', s.img('sg_trash'), w=o['PL_BAR_PILL_W'])
+        PS.selall(s, win, 'Select All')
+        PS.selbar(s, win, WIN, ('one',))
     else:
         PS.glass(s, win, 'ah_nav_back', 7, 44)
         capsule(s, win, 'none' if empty else 'more')
@@ -791,9 +790,8 @@ def downloads_page(s, ip, dl, scroll=0, marked=None, line='7 episodes · 217 MB 
     if marked is not None:
         PS.glass(s, win, 'ah_nav_close', 7, 44)
         s.text(win, o['NAV_TITLE_X'], 25, '%d Selected' % len(marked), PI.title_px(s.tree))
-        s.text(win, o['SG_SELALL_X'] + 104 - 8 - FONT.width('Select All', 18), 25, 'Select All', 18)
-        d.rectangle((0, WIN - o['SG_BAR_H'], W - 1, WIN - 1), fill=(0, 0, 0, 255)); hline(win, 0, W, WIN - o['SG_BAR_H'], PS.HAIR + (255,) if len(PS.HAIR) == 3 else PS.HAIR)
-        PS.pill(s, win, o['SG_PILL_X0'], WIN - o['SG_BAR_H'] + (o['SG_BAR_H'] - o['SG_PILL_H']) // 2, 'Delete', s.img('sg_trash'), w=o['PL_BAR_PILL_W'])
+        PS.selall(s, win, 'Select All')
+        PS.selbar(s, win, WIN, ('one',))
     else:
         PS.glass(s, win, 'ah_nav_back', 7, 44)
         capsule(s, win, 'none' if empty else 'more')

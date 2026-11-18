@@ -320,7 +320,7 @@
  * AH_BTN_Y, the rows from AH_HDR_H) in a list that is the whole window (AH_WIN_H, the glass controls float over it). A row is AB_ROW_H high: the track's number (right aligned in
  * ROW_NUM_W, ROW_NUM_W3 from 100) from x AB_NUM_X, the title AB_NUM_GAP after it to AB_TEXT_END, both in a AB_TEXT_H high line AB_TEXT_Y down the row; the press fill and the 1 px
  * hairline are translucent white over the tint (AB_PRESS, AB_HAIR) across AB_ROW_W (the list less its scroll bar). The select mode is the shared one (patch/selmode.c): the close x for
- * Back, the title and Select All in the navbar, the SG_BAR_H bar in the page's tone with an AB_SEL_FADE row fade above it. The Play pill's text label is AB_TEXT_SLACK wider than its text.
+ * Back, the title and Select All in the navbar, the glass capsule in the SG_BAR_H foot. The Play pill's text label is AB_TEXT_SLACK wider than its text.
  * AB_COVER_MS: the poll of the cache worker that makes a missing cover. AB_ASSET: the window resource. */
 #define AB_ASSET "m1plus_album"
 #define AB_WINDOW "m1plus_album_page" /* the root widget's name (tools/pod_pages.py ALBUM_PAGE): what navigator_close and the window manager know it by */
@@ -339,7 +339,6 @@
 #define AB_WAVE_COLOR 0x00ECEEEEu /* its colour #EEEEEC as a RGBA8888 word (red in the low byte), the rows' wave */
 #define AB_PRESS 0x33ffffffu
 #define AB_HAIR 0x22ffffffu
-#define AB_SEL_FADE 24         /* the select bar's fade above it, rows (patch/albumpage.c ab_paint_fade) */
 #define AB_TEXT_SLACK 4
 #define AB_PLAY_TEXT_W 32      /* the English "Play" at 18 px: where the payload cannot measure the translated text, the pill's pair is centred for this width */
 #define AB_COVER_MS 200
@@ -947,7 +946,11 @@
 #define REC_TIME_CREATE 0x50  /* stSongInfo: songtable.time_create (column 14), seconds since the epoch: atoi(argv[14]) @0x4e9344 stored at @0x4e9358; the order of Recently Added (docs/modules/recent-albums.md); the album view reads the query in this order and never the field */
 #define REC_INITIAL 0x54      /* stSongInfo: the songtable's Initial column (15), a byte: the ASCII code of '*' (a title that starts with a digit), 'A'..'Z' (the first letter, a CJK character as its pinyin initial) or '#' (anything else); written by the scan (@0x5edcb8), read by the row callback (@0x4e936c) and copied by 0x5db54c (@0x5db9ac); 0 = never written */
 #define NAV_TITLE_X 58           /* the glass navbars' title (tools/pod_ui.py NAV_TITLE_X) */
-#define SG_SELALL_X 208         /* the select mode's Select All text button (to the right edge) */
+#define SG_SELALL_X 190         /* the select mode's title ends here (the Select All pill's left edge at its widest label) */
+#define SG_SELALL_R 311         /* the Select All glass pill (patch/selmode.c m1_selall_fit): its right edge, where the Now Playing glass ends */
+#define SG_SELALL_Y 4
+#define SG_SELALL_H 42          /* the glass band of the 50 px navbar */
+#define SG_SELALL_PAD 14        /* the label's room each side inside the pill */
 #define SG_TITLE_X 12
 #define SG_TITLE_W 296          /* the large title's width on every page: the screen less its margin on both sides, cut with an ellipsis */
 #define SG_TITLE_H 52
@@ -968,9 +971,6 @@
 #define AL_HEAD_PILL_Y 148       /* the pills' y, 16 px under the name's box */
 #define AL_HEAD_END 188          /* where that block ends (AL_HEAD_PILL_Y + SG_PILL_H): the grid's first gap or the list's first row follows, as AL_PILLS_END */
 #define AL_HEAD_COLLAPSE 132     /* the navbar shows the small title once the name's box (its bottom, AL_NAME_Y + PH_NAME_H) has scrolled away */
-#define SG_BAR_PILL_W 145       /* the select bar's pills (Add to Playlist needs the room; the bar is below the rail, whose touch column ends at the bar's top) */
-#define SG_BAR_PILL_X1 165
-#define PL_BAR_PILL_W 300        /* the Playlists page's select bar has the one pill, Delete, across the bar (x SG_PILL_X0, a 10 px margin each side) */
 #define SG_PILL_R 20
 #define SG_PILL_GLYPH 16
 #define SG_PILL_GAP 8

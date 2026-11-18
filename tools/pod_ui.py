@@ -495,7 +495,7 @@ def build_podcasts_page(page):
     root.children.append(status)
     root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB), ('label_row_sub', LIST_SUB_PX, SUB_RGB)))
     root.children += style_labels(PS_STYLES, {'label_ps_latest': INK_RGB})   # the dark label of the white pill: the contrast scan reads the label's own background
-    bar = select_bar('pg_bar', 'pg_bar_line', [('pg_del', OFFSETS['SG_PILL_X0'], 'Delete', 'sg_trash', OFFSETS['PL_BAR_PILL_W']), ('pg_unsubp', OFFSETS['SG_PILL_X0'], 'Unsubscribe', 'sg_trash', OFFSETS['PL_BAR_PILL_W'])])   # the select mode's bar: one Delete pill across it, as the Playlists page's; the Subscriptions page's Unsubscribe is a second pill in the same place (the payload shows one of them)
+    bar = select_bar('pg_bar', [('pg_del', 'one'), ('pg_unsubp', 'one')])   # the select mode's bar: one Delete pill across it, as the Playlists page's; the Subscriptions page's Unsubscribe is a second pill in the same place (the payload shows one of them)
     hidden(bar.children[-1])
     root.children.append(bar)
     root.children.extend(podcasts_sheet())   # the two bottom sheets' one widget set: above the list, the bar and the navbar
@@ -898,7 +898,7 @@ def build_playlists_page(page):
     from mod_icons import PL_MENU_ICONS
     root = build_grid_page(page, toggle=None, coverflow=False, more_left=True, plactions=True, names=('playlists_listview', 'playlists_scrollview'), title_name='pl_title')
     root.children[0].children.append(selall_button())   # the navbar's select mode text (the card's Delete Playlists starts select mode: patch/playlists.c)
-    root.children.append(select_bar('pl_bar', 'pl_bar_line', [('pl_del', OFFSETS['SG_PILL_X0'], 'Delete', 'sg_trash', OFFSETS['PL_BAR_PILL_W'])]))
+    root.children.append(select_bar('pl_bar', [('pl_del', 'one')]))
     root.children.extend(view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=pod_pages.PLAYLIST_MENU, act_glyphs=[n for n, _ in PL_MENU_ICONS]))   # last: above the list, the bar and the navbar
     return root
 
@@ -1000,10 +1000,10 @@ def rail_metrics(font_path):
         if abs(e - d) > 0.5: d += 1 if e > 0 else -1
         dx.append(d)
     return ink2, dx
-SG_SELALL_X, SG_SELALL_W = 208, 104     # the select mode's "Select All" text, right aligned to a 8 px margin
+SG_SELALL_X = OFFSETS['SG_SELALL_X']     # the title's end in select mode (the pill's left edge at its widest label, patch/offsets.inc)
 
 
-def flat_pill(b, fill, down, radius, disabled=None, ink=None, px=None, dim=None, border_color=True, icon=None, icon_off=None):
+def flat_pill(b, fill, down, radius, disabled=None, ink=None, px=None, dim=None, border_color=True, icon=None):
     """Styles the button b as a flat pill (the stock dialogs' buttons do the same): the fill (down while pressed, disabled when given), round_radius, no border (border_color: the transparent one too),
     the label's ink at px (dim while disabled; no label style when ink is None) and the glyph. The one loop of the pills and the keyboard's keys."""
     for st in STATES:
@@ -1014,15 +1014,15 @@ def flat_pill(b, fill, down, radius, disabled=None, ink=None, px=None, dim=None,
         styled(b, (st,), 'border_width', '0')
         if border_color: styled(b, (st,), 'border_color', '#00000000')
         styled(b, (st,), 'round_radius', str(radius))
-        if icon: styled(b, (st,), 'icon', icon_off if icon_off and st == 'disable' else icon)
+        if icon: styled(b, (st,), 'icon', icon)
     return b
 
 
-def sg_pill(name, x, y, text, icon, ink=INK_RGB, w=None, down=SG_PILL_DOWN_RGB, dim='#666666', icon_off=None):
-    """The Shuffle / Play pill: the glyph and the 18 px label, which the payload centres as a pair. Disabled: the fill SG_PILL_OFF_RGB, the label in dim and the glyph icon_off."""
+def sg_pill(name, x, y, text, icon, ink=INK_RGB, w=None, down=SG_PILL_DOWN_RGB, dim='#666666'):
+    """The Shuffle / Play pill: the glyph and the 18 px label, which the payload centres as a pair. Disabled: the fill SG_PILL_OFF_RGB and the label in dim."""
     o = OFFSETS
     b = Widget('button', x, y, w or o['SG_PILL_W'], o['SG_PILL_H'], [('name', name), ('enable', 'true'), pod_i18n.text_prop(text)])
-    return flat_pill(b, SG_PILL_RGB, down, o['SG_PILL_R'], SG_PILL_OFF_RGB, ink, SG_PILL_PX, dim, icon=icon, icon_off=icon_off)
+    return flat_pill(b, SG_PILL_RGB, down, o['SG_PILL_R'], SG_PILL_OFF_RGB, ink, SG_PILL_PX, dim, icon=icon)
 
 
 VS_SORT_KEYS = ('Title', 'Artist', 'Recently Added', 'Year')   # the Albums "..." card's sort rows in order (patch/covercache.h CC_SORT_*)
@@ -1101,35 +1101,40 @@ def view_sort_card(sort_keys=VS_SORT_KEYS, view_keys=VS_VIEW_KEYS, search_key=VS
 
 
 def selall_button():
-    """The select mode's Select All: a flat text button at the navbar's right (hidden and insensitive until select mode: the Songs and Playlists pages)."""
-    sa = hidden(Widget('button', SG_SELALL_X, 0, SG_SELALL_W, NAVBAR_H, [('name', 'btn_selall'), ('enable', 'true'), pod_i18n.text_prop('Select All')]))
-    for st in STATES:   # select mode's text button: flat, right aligned
+    """The select mode's Select All: a glass pill at the navbar's right (hidden and insensitive until select mode: every page with the mode and the folder picker). The glass is sg_selall_glass drawn
+    patch3_x, so the width can follow the label: patch/selmode.c m1_selall_fit sets it at run time, right edge at SG_SELALL_R; the 104 px here is the stock width of "Select All" and a start."""
+    o = OFFSETS
+    sa = hidden(Widget('button', o['SG_SELALL_R'] - 104, o['SG_SELALL_Y'], 104, o['SG_SELALL_H'], [('name', 'btn_selall'), ('enable', 'true'), pod_i18n.text_prop('Select All')]))
+    for st in STATES:
         styled(sa, (st,), 'bg_color', '#00000000')
-        styled(sa, (st,), 'text_color', '#777777' if st == 'pressed' else SELECT_DIM if st == 'disable' else INK_RGB)   # disable: the folder picker's inert button (patch/lupick.c)
-        styled(sa, (st,), 'font_size', '18')
+        styled(sa, (st,), 'bg_image', 'sg_selall_glass_down' if st == 'pressed' else 'sg_selall_glass')
+        styled(sa, (st,), 'bg_image_draw_type', 'patch3_x')
+        styled(sa, (st,), 'text_color', SELECT_DIM if st == 'disable' else INK_RGB)   # disable: the folder picker's inert button (patch/lupick.c): the glass stays, the label dims
+        styled(sa, (st,), 'font_size', '17')
         styled(sa, (st,), 'border_width', '0')
         styled(sa, (st,), 'border_color', '#00000000')
-        styled(sa, (st,), 'text_align_h', 'right')
-        styled(sa, (st,), 'margin_right', '8')
+        styled(sa, (st,), 'text_align_h', 'center')
     return sa
 
 
-SELECT_DIM, SELECT_DIM_RED = '#595959', '#592525'   # the bar's pill ink at 35 % (nothing marked): white, RED_RGB
+SELECT_DIM = '#595959'   # the dimmed ink (35 % white): Select All in the folder picker's inert state
+SB_SLOT_W, SB_BTN_H = 60, 42   # the select bar's capsule: 60 px icon slots, glass 42 px high (tools/mod_icons.py SELBAR_*)
 
 
-def select_bar(name, line_name, pills):
-    """The select mode's bottom bar (hidden until select mode): black, a #222222 top hairline, flat pills [(name, x, text, glyph, width)]. The album page's (line_name None) has no hairline: its page's tone and the pills' translucent white
-    are set at run time (patch/albumpage.c ab_bar_colors)."""
+def select_bar(name, buttons):
+    """The select mode's bottom bar (hidden until select mode): no background, no hairline, ONE centred glass capsule of icon-only buttons [(name, piece)] floating over the list,
+    vertically centred in the window's last SG_BAR_H rows (the list scrolls SG_BAR_H further, so the last row clears it). The bar view is the capsule's own box, so a touch beside it
+    reaches the rows. 'add' and 'del' are the two 60 px slots of a 120 px capsule, 'one' is a 60 px capsule (Delete / Unsubscribe alone). The images are the capsule's slices
+    sg_bar_<piece>, _down (the round highlight) and _off (the glyph at 35 %, nothing marked)."""
     o = OFFSETS
-    bar = hidden(Widget('view', 0, CLIENT_H - o['SG_BAR_H'], SCREEN_W, o['SG_BAR_H'], [('name', name)]))
-    for st in STATES: styled(bar, (st,), 'bg_color', '#000000')
-    line = Widget('view', 0, 0, SCREEN_W, 1, [('name', line_name), ('sensitive', 'false')])
-    for st in STATES: styled(line, (st,), 'bg_color', '#222222')
-    if line_name is None: line = None
-    py = (o['SG_BAR_H'] - o['SG_PILL_H']) // 2
-    red = lambda glyph: glyph == 'sg_trash'   # Delete / Unsubscribe: a red label and glyph (RED_RGB), dimmed with the rest while nothing is marked (patch/selmode.c m1_sel_head)
-    bar.children = ([line] if line else []) + [sg_pill(n, x, py, text, glyph, ink=RED_RGB if red(glyph) else INK_RGB, w=w, dim=SELECT_DIM_RED if red(glyph) else SELECT_DIM, icon_off=glyph + '_off' if glyph in ('sg_trash', 'sg_listplus') else None)
-                             for n, x, text, glyph, w in pills]
+    w = SB_SLOT_W * (1 if all(p == 'one' for _, p in buttons) else 2)   # (the Podcasts bar's two 'one' pills share the one place)
+    bar = hidden(Widget('view', (SCREEN_W - w) // 2, CLIENT_H - o['SG_BAR_H'] + (o['SG_BAR_H'] - SB_BTN_H) // 2, w, SB_BTN_H, [('name', name)]))
+    for st in STATES: styled(bar, (st,), 'bg_color', '#00000000')
+    bar.children = []
+    for n, piece in buttons:
+        b = Widget('button', SB_SLOT_W if piece == 'del' else 0, 0, SB_SLOT_W, SB_BTN_H, [('name', n), ('enable', 'true'), ('style', 'img_btn_style')])
+        for st in STATES: styled(b, (st,), 'icon', f'sg_bar_{piece}_down' if st == 'pressed' else f'sg_bar_{piece}_off' if st == 'disable' else f'sg_bar_{piece}')
+        bar.children.append(b)
     return bar
 
 
@@ -1345,8 +1350,7 @@ def build_songs_page(page):
                                    ('label_grid_title', GRID_ALBUM_PX, INK_RGB), ('label_grid_sub', GRID_ARTIST_PX, SUB_RGB)))   # the last two: Recently Added's album grid
     root.children.extend(azlist_labels())
     root.children.extend(azlist_rail())
-    root.children.append(select_bar('sg_bar', 'sg_bar_line', [('sg_add', o['SG_PILL_X0'], 'Add to Playlist', 'sg_listplus', o['SG_BAR_PILL_W']),
-                                                              ('sg_del', o['SG_BAR_PILL_X1'], 'Delete', 'sg_trash', o['SG_BAR_PILL_W'])]))
+    root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))
     root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up Playlist', 'Pin Playlist'),
                                         act_glyphs=('pod_ic_vssearch', 'pod_ic_vsselect', 'pod_ic_vsclean', 'pod_ic_vspin')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Clean Up Playlist (slot 8) and Pin Playlist / Unpin Playlist (slot 9), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; the Search Songs row is never offered, Search is the navbar button)
     root.children.extend(row_menu())   # last: above everything (the track rows' "..." menu, patch/rowmenu.c)
@@ -1375,15 +1379,13 @@ def ab_nav_button(name, x, w, rest, down=None, hide=False):
 
 
 def album_navbar(page):
-    """The glass controls of the album page, the window's last children: Back, the capsule Select | "..." | Now Playing (the library's page; Select | Now Playing alone for an album that cannot be pinned and on a source's page, whose "..." is the left cap),
+    """The glass controls of the album page, the window's last children: Back, the capsule "..." | Now Playing (the "..." is the left cap),
     and the select mode's title (label_title) and Select All text button (hidden until select mode). They are the window's own children, not a bar view's: a view over the list would take every touch
     in its band (this AWTK's hit test never descends into an insensitive container), and a drag that starts between the discs must scroll the list."""
     title = hidden(Widget('label', NAV_TITLE_X, 14, NAV_VIEW_X - NAV_TITLE_X, 22, [('name', 'label_title'), ('style', 'navbar_label_white'), pod_i18n.text_prop(page.title)]))   # shown only in select mode (patch/selmode.c)
     return [title,
             ab_nav_button('btn_return', NAV_BACK_X, NAV_BACK_W, 'ah_nav_back', 'ah_nav_back_down'),
-            ab_nav_button('btn_select', NAV_CF_X, NAV_CF_W, 'pod_nav_selectl', 'pod_nav_selectl_down'),   # the library's capsule is the Albums page's: Select 168 (left cap), "..." 214 (middle), Now Playing 260 (patch/albumpage.c moves Select to 214 for an album that cannot be pinned, with no "...")
-            ab_nav_button('btn_pin', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_moremid', 'pod_nav_moremid_down', hide=True),   # the pins' sheet: Play, Shuffle, Pin Album / Unpin Album (docs/modules/pins.md); shown by the payload
-            ab_nav_button('btn_more', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_more', 'pod_nav_more_down', hide=True),   # a source's page: the capsule's left cap where Select sits for the library (the "..." card below: Download Album; patch/albumpage.c)
+            ab_nav_button('btn_more', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_more', 'pod_nav_more_down', hide=True),   # the capsule's left cap on the 214 slot: the "..." card below (a source's page: Download Album; the library's: Select, Pin / Unpin Album; patch/albumpage.c shows it)
             ab_nav_button('btn_backtoplayer', NAV_PLAY_X, NAV_PLAY_W, 'ah_nav_play', 'ah_nav_play_down'),
             selall_button()]
 
@@ -1424,10 +1426,9 @@ def build_album_page(page):
     root.children.append(play_text('ab_play_text'))   # the pill's text style and its translated text; the payload paints the text over the pill
     root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
     root.children += style_labels(AB_STYLES)
-    root.children.append(select_bar('sg_bar', None, [('sg_add', o['SG_PILL_X0'], 'Add to Playlist', 'sg_listplus', o['SG_BAR_PILL_W']),
-                                                     ('sg_del', o['SG_BAR_PILL_X1'], 'Delete', 'sg_trash', o['SG_BAR_PILL_W'])]))   # the select mode's bar over the rows (the page's tone, set at run time)
+    root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))   # the select mode's capsule over the rows
     root.children.extend(album_navbar(page))   # the glass controls paint and take touches over the list
-    root.children.extend(view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=('Download Album', 'Select'), act_glyphs=('pod_ic_vsdownload', 'pod_ic_vsselect')))   # a source's "..." card (patch/albumpage.c offers the first row alone: Download Album); hidden on the library's page
+    root.children.extend(view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=('Download Album', 'Select', 'Pin Album'), act_glyphs=('pod_ic_vsdownload', 'pod_ic_vsselect', 'pod_ic_vspin')))   # the "..." card (patch/albumpage.c: a source's page offers the first row, Download Album; the library's Select and, for a titled album, Pin / Unpin Album, slot 8)
     root.children.extend(row_menu())   # last: the track rows' "..." menu (patch/rowmenu.c) covers the navbar too; the "..." of the capsule opens the pins' three rows on the same card (rowmenu_open_pins)
     return root
 
@@ -2806,8 +2807,7 @@ def build_folders_page(page):
     root.children.append(nav_fade(shown=False))   # patch/folders.c shows it while yoffset > 0 (at rest it would darken the large title)
     root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
     root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB),))
-    root.children.append(select_bar('sg_bar', 'sg_bar_line', [('sg_add', o['SG_PILL_X0'], 'Add to Playlist', 'sg_listplus', o['SG_BAR_PILL_W']),
-                                                              ('sg_del', o['SG_BAR_PILL_X1'], 'Delete', 'sg_trash', o['SG_BAR_PILL_W'])]))
+    root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))
     root.children.extend(view_sort_card(sort_keys=pod_pages.FOLDERS_SORT_KEYS))   # the "..." card: Select, then Name, Date Modified, Type (patch/folders.c offers rows 0..2; Search and the view rows stay hidden)
     return root
 LP_DIM_RGB = '#8E8E93'   # a covered row's name (patch/lupick.c): the placeholder grey

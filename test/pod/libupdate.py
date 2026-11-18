@@ -547,8 +547,8 @@ def picker_asset_tests(ctx):
     t = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui/m1plus_lupick.bin'), 'rb').read())
     expect(t.name == 'm1plus_lupick_page' and all(t.find(n) is not None for n in LP_WIDGETS + ('lupick_scrollview', 'lupick_listview')), 'every widget the payload looks up is in the asset')
     nb = {c.name: c for c in t.find('navigationbar_view').children}
-    expect((nb['btn_selall'].x, nb['btn_selall'].w) == (208, 104) and nb['btn_selall'].get('visible') != 'false' and nb['btn_selall'].get('sensitive') != 'false' and nb['btn_backtoplayer'].get('visible') == 'false' and nb['btn_backtoplayer'].get('sensitive') == 'false' and nb['label_title'].w == 208 - 58,
-           'the navbar: Back, the title to the Select All text button (x 208, w 104, shown), Now Playing hidden')
+    expect((nb['btn_selall'].x + nb['btn_selall'].w, nb['btn_selall'].y, nb['btn_selall'].h) == (O['SG_SELALL_R'], 4, 42) and nb['btn_selall'].get('visible') != 'false' and nb['btn_selall'].get('sensitive') != 'false' and nb['btn_backtoplayer'].get('visible') == 'false' and nb['btn_backtoplayer'].get('sensitive') == 'false' and nb['label_title'].w == O['SG_SELALL_X'] - 58,
+           'the navbar: Back, the title to the Select All glass pill (right edge 311, shown), Now Playing hidden')
     bar, sc = t.find('lp_bar'), t.find('lp_scan')
     expect(bar.y == 450 - O['SG_BAR_H'] and sc.get('style:normal:bg_color') == '#E5E5EA' and sc.get('style:normal:text_color') == '#000000' and sc.get('style:disable:bg_color') == '#2C2C2E' and sc.get('style:disable:text_color') == '#98989D',
            'the bottom pill: light grey with black text live, dark grey with grey text dimmed')

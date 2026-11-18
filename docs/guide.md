@@ -66,9 +66,9 @@ example, in Albums you can switch between grid and list or sort by title, artist
 
 ### Select several items
 
-On Songs, Folders, Playlists, Podcasts or an album, choose **Select**, then tap items to mark them.
-**Select All** marks everything. The bar at the bottom acts on the marked items, for example
-**Add to Playlist** or **Delete**. Tap **×** to leave.
+On Songs, Folders, Playlists, Podcasts or an album, choose **Select** (on an album, in the **…** menu), then tap items to mark them.
+**Select All** (top right) marks everything. The icons in the pill at the bottom act on the marked items:
+add to a playlist, or delete (the trash can). They stay dim until something is marked. Tap **×** to leave.
 
 ## Control playback
 

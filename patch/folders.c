@@ -1085,8 +1085,6 @@ static int fo_open_page(void) {
     }
     m1_centre_pill(fo.btn_play, SG_PILL_W);
     m1_centre_pill(fo.btn_shuffle, SG_PILL_W);
-    m1_centre_pill(fo.btn_add, SG_BAR_PILL_W);
-    m1_centre_pill(fo.btn_del, SG_BAR_PILL_W);
     m1_sel_init(&fo.sel, fo.win, fo.back, fo.title, fo.btn_selall, fo.bar, fo.btn_add, fo.btn_del, fo_can,
                 (void *)0); /* the marks: all or none */
     fo.chev = m1_make_chevron();

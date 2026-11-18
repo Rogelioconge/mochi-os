@@ -345,14 +345,13 @@ def width_tests(ctx):
     fnt = PCS.sw().font()
     worst, confirms = {}, []
     row = O['PS_SHEET_VALUE_R'] - O['PS_SHEET_TEXT_X']
-    pill_room = O['PL_BAR_PILL_W'] - (O['SG_PILL_H'] - O['SG_PILL_GLYPH']) // 2 - O['SG_PILL_GLYPH'] - O['SG_PILL_GAP']
     full_fits = []
     for loc in pod_i18n.LOCALES:
         t = pod_i18n.table_for(loc)
         tr = lambda key, n=None, t=t: (pod_i18n.TEXT[key][t].replace('%d', str(n)) if n is not None else pod_i18n.TEXT[key][t])
         w18 = lambda s: fnt.width(s, 18)
         worst[loc] = dict(labels=max(w18(tr(k)) for k in ('Subscriptions', 'Export OPML', 'Select Shows')), title=fnt.width(tr('Subscriptions'), 22), empty=w18(tr('No subscriptions')),
-                          pill=min(w18(tr('Unsubscribe')), fnt.width(tr('Unsubscribe'), O['SG_PILL_PX_SMALL'])), toast=max(w18(tr('Exported %d shows', 40)), w18(tr('Exported %d show', 1))),
+                          toast=max(w18(tr('Exported %d shows', 40)), w18(tr('Exported %d show', 1))),
                           confirm=w18(tr('Unsubscribe from these shows?')))
         confirms += [w18(tr(k)) for k in ('Unsubscribe from this show?', 'Remove the selected downloads?', 'Delete the selected episodes?')]
         full_fits.append((loc, w18(tr('Exported %d shows', 40) + ': subscriptions-export.opml')))
@@ -363,7 +362,6 @@ def width_tests(ctx):
     room = O['NAV_VIEW_X'] - O['NAV_TITLE_X']
     expect(not bad('title', room), f'the title fits the navbar\'s room of {room} px ({bad("title", room)})')
     expect(not bad('empty', 280), f'the empty state fits one line ({bad("empty", 280)})')
-    expect(not bad('pill', pill_room), f'Unsubscribe fits its pill beside the glyph, at most dropping to 16 px ({bad("pill", pill_room)}; room {pill_room})')
     expect(not bad('toast', 300), f'the toast fits 300 px with two digits ({bad("toast", 300)})')
     expect(min(w for _, w in full_fits) > 300, 'the file name does not fit the one-line toast in any language, which is why the toast has the count only')
     expect(not bad('confirm', max(confirms) + 1), f'the confirm is no longer than the longest confirm of the page ({bad("confirm", max(confirms) + 1)})')

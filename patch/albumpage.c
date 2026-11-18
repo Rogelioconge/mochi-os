@@ -49,14 +49,13 @@
 
 static struct {
     void *win, *view, *sv, *status;
-    void *back, *np, *btn_select, *btn_selall, *btn_add, *btn_del, *btn_play, *btn_shuffle;
+    void *back, *np, *btn_selall, *btn_add, *btn_del, *btn_play, *btn_shuffle;
     void *title, *selbar; /* the select mode's navbar title and bottom bar */
-    void *btn_more; /* a source's page: the "..." (Select's place on the library's), opening the card below */
-    void *
-        btn_pin; /* the library's page: the capsule's middle "...", the pins' sheet (Play, Shuffle, Pin Album / Unpin Album) */
+    void *btn_more; /* the navbar's "...", the capsule's left cap: opens the card below */
     char pname[PIN_STR],
         ppath[PIN_PATH]; /* the album row's title and a track path, for the pin ("" title: not pinnable, no "...") */
-    vs_t vs; /* the shared "..." card with one row, Download Album (a source's page only) */
+    vs_t
+        vs; /* the shared "..." card: a source's page Download Album; the library's Select and, for an album with a title, Pin / Unpin Album */
     void *st_num, *st_title; /* hidden labels whose styles are the number's and the title's */
     void *
         st_dim; /* a source's: the title of a row that cannot play (NULL: the asset has none, the row is drawn as the others) */
@@ -225,7 +224,6 @@ static void ab_paint_wave(void *canvas, int i, int y) {
 }
 
 static void ab_paint_pill(void *canvas, int off);
-static void ab_paint_fade(void *canvas);
 
 /* A source's row marks. The group (downloaded disc or download ring, DSD tag) sits at the right, ending at ab_text_end(); the title is cut for the room it takes (grid_tile_t.xw). Painted only
  * for a non-stock source. */
@@ -288,7 +286,6 @@ static void ab_paint(void *canvas) {
             }
         }
     }
-    ab_paint_fade(canvas);
 }
 
 static int ab_on_paint(void *ctx, void *e) {
@@ -330,53 +327,6 @@ __attribute__((noinline)) static void ab_bar_black(void) {
     m1_bar_black(ab.win);
 }
 
-/* The select bar's colours from the page's tone (the asset has black and the pills' grey, the fill is made here): the bar is the tone at 3/4 brightness, its pills that colour with white at alpha
- * 0x1E (0x30 pressed) laid over it as an opaque fill (a translucent round fill renders square on the device), and AB_SEL_FADE rows above it ab_paint fades from transparent to it. */
-static unsigned ab_sel_base(void) {
-    unsigned t = ab.tinted ? ab.tone : 0;
-    return (t & 255) * 3 / 4 | ((t >> 8 & 255) * 3 / 4) << 8 | ((t >> 16 & 255) * 3 / 4) << 16;
-}
-
-static unsigned ab_sel_white(unsigned base, unsigned a) {
-    unsigned c = 0, k;
-    for (k = 0; k < 24; k += 8) c |= ((base >> k & 255) + (255 - (base >> k & 255)) * a / 255) << k;
-    return c;
-}
-
-static void ab_sel_style(void *w, const char *key, unsigned bgr) {
-    unsigned v[4]; /* value_t: type at 0, the uint32 at 8 */
-    memset(v, 0, sizeof v);
-    value_set_uint32(v, 0xff000000u | bgr);
-    widget_set_style(w, key, v);
-}
-
-static void ab_bar_colors(void) {
-    static const char *const key[2][5] = {
-        {"normal:bg_color", "over:bg_color", "focused:bg_color", "disable:bg_color", "selected:bg_color"},
-        {"pressed:bg_color", 0, 0, 0, 0}};
-    unsigned base = ab_sel_base();
-    void *pill[2];
-    int i, k;
-    if (!ab.selbar) return;
-    ab_sel_style(ab.selbar, "normal:bg_color", base);
-    pill[0] = ab.btn_add, pill[1] = ab.btn_del;
-    for (i = 0; i < 2; ++i) {
-        if (!pill[i]) continue;
-        for (k = 0; k < 5; ++k) ab_sel_style(pill[i], key[0][k], ab_sel_white(base, 0x1E));
-        ab_sel_style(pill[i], key[1][0], ab_sel_white(base, 0x30));
-    }
-}
-
-/* The fade above the bar, over the rows' text (the last thing ab_paint draws): AB_SEL_FADE one-pixel rows of the bar's colour, the alpha rising to the bar's top edge. */
-static void ab_paint_fade(void *canvas) {
-    unsigned base = ab_sel_base();
-    int k, top = AH_WIN_H - SG_BAR_H - AB_SEL_FADE;
-    if (!ab.select) return;
-    for (k = 0; k < AB_SEL_FADE; ++k)
-        az_fill_h(canvas, 0, top + k, top + k + 1, AB_ROW_W, (unsigned)(255 * (k + 1) / (AB_SEL_FADE + 1)) << 24 | base,
-                  AH_WIN_H);
-}
-
 /* The tone as the page shows it: in Light Mode neutral (pal_tone: a chromatic dark tone cannot flip, and the page's white text does). ab_tone_raw is the tone as chosen,
  * for ab_relight when the mode changes while the page is open. */
 static unsigned ab_tone_raw __attribute__((section(".scratch")));
@@ -387,7 +337,6 @@ static void ab_tint_set(unsigned tone) {
     ab.tone = color & 0xffffff;
     ab.tinted = 1;
     ab_win_color(color);
-    ab_bar_colors();
     widget_invalidate_force(ab.win, (void *)0);
     ab_bar_apply();
 }
@@ -830,27 +779,6 @@ static int ab_on_play(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The "..." of the library's page: the pins' sheet, Play / Shuffle as the pill and the disc, the last row pins or unpins this album. */
-static void ab_pin_sheet(int row, int act) {
-    (void)row;
-    if (!ab.view || !ab.count || ab.select) return;
-    if (act == RMP_UNPIN) {
-        if (pins_has_album(ab.pname))
-            pins_unpin_album(ab.pname);
-        else
-            pins_pin_album(ab.pname, ab.cover_key, ab.ppath);
-    } else
-        ab_play_at(act == RMP_SHUFFLE ? -1 : 0, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
-}
-
-static int ab_on_pin(void *ctx, void *e) {
-    (void)ctx;
-    (void)e;
-    if (ab.view && ab.count && !ab.select && !ab.rm.open && *ab.pname)
-        rowmenu_open_pins(&ab.rm, 0, pins_has_album(ab.pname), ab_pin_sheet);
-    return RET_OK;
-}
-
 static int ab_on_shuffle(void *ctx, void *e) {
     (void)ctx;
     (void)e;
@@ -859,21 +787,18 @@ static int ab_on_shuffle(void *ctx, void *e) {
 }
 
 /* ---------------------------------------------------------------------------
- * The select mode (patch/selmode.c): the close x in Back's place, "N Selected" and Select All, the bar in the page's tone (ab_bar_colors)
+ * The select mode (patch/selmode.c): the close x in Back's place, "N Selected" and Select All, the glass capsule floating over the rows
  */
 static void ab_select(int on) {
     if (on == ab.select) return;
     ab.select = on;
     ab.press = ab.down = 0;
-    m1_show(ab.btn_select,
-            !on && !ab.src); /* (Add and Delete work on the stock selection: a source's page has no select mode yet) */
-    m1_show(ab.btn_pin, !on && *ab.pname);
+    m1_show(ab.btn_more, !on); /* (Add and Delete work on the stock selection: a source's page has no select mode) */
     m1_show(ab.np, !on);
     m1_show(ab.title, on);
     widget_set_sensitive(ab.btn_play, !on); /* the header's buttons stay, dead */
     widget_set_sensitive(ab.btn_shuffle, !on);
     m1_sel_enter(&ab.sel, on, NAV_VIEW_X); /* (the back button is the close x: it cancels the mode, see ab_on_back) */
-    ab_bar_colors();
     ab_retext();
     ab_size();
     if (grid_sv_off(ab.sv) > ab_max_scroll()) widget_set_prop_int(ab.sv, "yoffset", ab_max_scroll());
@@ -887,13 +812,6 @@ static void ab_toggle(int i) {
 }
 
 static void ab_select_off(void) { ab_select(0); }
-
-static int ab_on_select(void *ctx, void *e) {
-    (void)ctx;
-    (void)e;
-    if (ab.view && ab.count) ab_select(1);
-    return RET_OK;
-}
 
 static int ab_on_selall(void *ctx, void *e) {
     (void)ctx;
@@ -1021,10 +939,16 @@ static int ab_on_abort(void *ctx, void *e) {
 /* ---------------------------------------------------------------------------
  * The window
  */
-/* A source's "...": the card opens and closes. */
+/* The "...": the card opens and closes. The library's Pin Album row reads Unpin Album (and its glyph the pin-off one) while the album is pinned. */
 static int ab_on_more(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    if (!ab.src && (!ab.view || !ab.count || ab.select)) return RET_OK;
+    if (!ab.vs.on && !ab.src && *ab.pname) {
+        widget_set_tr_text(ab.vs.label[VS_ACT2], pins_label_album(ab.pname));
+        widget_set_prop_str(ab.vs.glyph[VS_ACT2 - VS_SORTS], "image",
+                            pins_has_album(ab.pname) ? "pod_ic_vsunpin" : "pod_ic_vspin");
+    }
     vs_menu(&ab.vs, !ab.vs.on, 0, 0, 0);
     return RET_OK;
 }
@@ -1036,12 +960,23 @@ static int ab_on_scrim(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The card's one row, Download Album: the source queues the page's tracks and toasts the outcome (LS_ACT_DOWNLOAD_ALL). */
+/* A source's Download Album: the source queues the page's tracks and toasts the outcome (LS_ACT_DOWNLOAD_ALL). The library's Select enters select mode; Pin / Unpin Album writes or removes the album's pin. */
 static int ab_on_card(void *ctx, void *e) {
+    int k = (int)(long)ctx;
     (void)e;
-    if ((int)(long)ctx != VS_SEARCH) return RET_OK;
     vs_menu(&ab.vs, 0, 0, 0, 0);
-    if (ab.src && ab.list) ab.src->act(ab.src, ab.list, LS_ACT_DOWNLOAD_ALL);
+    if (ab.src) {
+        if (k == VS_SEARCH && ab.list) ab.src->act(ab.src, ab.list, LS_ACT_DOWNLOAD_ALL);
+    } else if (ab.view && ab.count && !ab.select) {
+        if (k == VS_SELECT)
+            ab_select(1);
+        else if (k == VS_ACT2 && *ab.pname) {
+            if (pins_has_album(ab.pname))
+                pins_unpin_album(ab.pname);
+            else
+                pins_pin_album(ab.pname, ab.cover_key, ab.ppath);
+        }
+    }
     return RET_OK;
 }
 
@@ -1144,14 +1079,12 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     widget_on(ab.win, EVT_DESTROY, ab_on_destroy, (void *)0);
     ab.back = m1_bind(ab.win, "btn_return", ab_on_back, (void *)0);
     ab.np = m1_bind(ab.win, "btn_backtoplayer", m1_on_player, (void *)0);
-    ab.btn_select = m1_bind(ab.win, "btn_select", ab_on_select, (void *)0);
     ab.btn_selall = m1_bind(ab.win, "btn_selall", ab_on_selall, (void *)0);
     ab.btn_add = m1_bind(ab.win, "sg_add", ab_on_add, (void *)0);
     ab.btn_del = m1_bind(ab.win, "sg_del", ab_on_delete, (void *)0);
     ab.title = widget_lookup(ab.win, "label_title", 1);
     ab.selbar = widget_lookup(ab.win, "sg_bar", 1);
-    ab.btn_pin = src ? (void *)0 : m1_bind(ab.win, "btn_pin", ab_on_pin, (void *)0);
-    ab.btn_more = src ? m1_bind(ab.win, "btn_more", ab_on_more, (void *)0) : (void *)0;
+    ab.btn_more = m1_bind(ab.win, "btn_more", ab_on_more, (void *)0);
     ab.btn_play = m1_bind(ab.win, "btn_play", ab_on_play, (void *)0);
     ab.btn_shuffle = m1_bind(ab.win, "btn_shuffle", ab_on_shuffle, (void *)0);
     ab.view = widget_lookup(ab.win, "view_grid", 1);
@@ -1167,25 +1100,20 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.spin = widget_lookup(ab.win, "ab_spin", 1); /* (optional) */
     ab.pill.glyph = widget_lookup(ab.win, "ab_glyph", 1);
     ab.pill.ptext = widget_lookup(ab.win, "ab_play_text", 1);
-    if (!ab.back || !ab.np || !ab.btn_select || !ab.btn_selall || !ab.btn_add || !ab.btn_del || !ab.title ||
-        !ab.selbar || !ab.btn_play || !ab.btn_shuffle || !ab.view || !ab.sv || !ab.status || !ab.st_num ||
-        !ab.st_title || !ab.hname || !ab.hartist || !ab.hmeta || !ab.foot || !ab.pill.glyph || !ab.pill.ptext) {
+    if (!ab.back || !ab.np || !ab.btn_more || !ab.btn_selall || !ab.btn_add || !ab.btn_del || !ab.title || !ab.selbar ||
+        !ab.btn_play || !ab.btn_shuffle || !ab.view || !ab.sv || !ab.status || !ab.st_num || !ab.st_title ||
+        !ab.hname || !ab.hartist || !ab.hmeta || !ab.foot || !ab.pill.glyph || !ab.pill.ptext) {
         navigator_back(); /* an asset that is not ours */
         return -2;
     }
-    if (!src && !ab.btn_pin) {
-        navigator_back();
-        return -2;
-    }
-    if (src && (!ab.btn_more || vs_bind(&ab.vs, ab.win, ab_on_card, ab_on_scrim, VS_WITH_SEARCH))) {
+    if (vs_bind(&ab.vs, ab.win, ab_on_card, ab_on_scrim,
+                src ? VS_WITH_SEARCH : VS_WITH_SELECT | (*ab.pname ? VS_WITH_ACT2 : 0))) {
         navigator_back();
         return -2;
     }
     ab.fg = 1;
     ab.barok = widget_on(ab.win, EVT_WINDOW_TO_FG, ab_on_fg, (void *)0) &&
                widget_on(ab.win, EVT_WINDOW_TO_BG, ab_on_bg, (void *)0);
-    m1_centre_pill(ab.btn_add, SG_BAR_PILL_W); /* the glyph beside the text, the pair centred (as the Songs bar) */
-    m1_centre_pill(ab.btn_del, SG_BAR_PILL_W);
     m1_sel_init(&ab.sel, ab.win, ab.back, ab.title, ab.btn_selall, ab.selbar, ab.btn_add, ab.btn_del, (void *)0,
                 (void *)0); /* the marks: all or none */
     ab.wave = grid_wave_make(ab.win);
@@ -1196,15 +1124,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     widget_on(ab.view, EVT_POINTER_ABORT, ab_on_abort, (void *)0);
     widget_on(ab.view, EVT_AFTER_PAINT, ab_on_paint, (void *)0);
     m1_pill_place(&ab.pill, AH_BTN_Y);
-    if (!src) { /* the pin: an album with a title (not "Unknown Album"); else the capsule is Select | Now Playing as before, the "..." hidden */
-        m1_show(ab.btn_pin, *ab.pname != 0);
-        if (!*ab.pname)
-            widget_move(ab.btn_select, NAV_VIEW_X, 0); /* no "...": Select is the left cap on the 214 slot, as before */
-    }
-    if (src) { /* (no select mode on a source's page yet: the "..." takes Select's place) */
-        m1_show(ab.btn_select, 0);
-        m1_show(ab.btn_more, 1);
-    }
+    m1_show(ab.btn_more, 1);
     if (!grid_init(&ab.hg, ab.win, 1, AH_ART, AH_CORNER) || !grid_init(&ab.g, ab.win, GRID_TILES, LIST_ART, 0)) {
         grid_free(&ab.hg);
         grid_free(&ab.g);

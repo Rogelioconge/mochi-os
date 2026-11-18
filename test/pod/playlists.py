@@ -307,13 +307,13 @@ def select_tests(expect, lists):
     names = ('btn_return', 'btn_plactions', 'btn_more', 'btn_backtoplayer')
     # the asset: the select widgets start hidden and insensitive, the bar is the Songs page's (black, a hairline, the flat pill), the popup stays last
     tree = awtk_ui.parse(open(UI, 'rb').read())
-    sa, bar, line, pill = (tree.find(n) for n in ('btn_selall', 'pl_bar', 'pl_bar_line', 'pl_del'))
-    expect(sa.type == 'button' and (sa.x, sa.y, sa.w, sa.h) == (O['SG_SELALL_X'], 0, 104, O['NAV_H']) and sa.get('visible') == 'false' and sa.get('sensitive') == 'false'
-           and sa in tree.find('navigationbar_view').children, 'Select All is the Songs page\'s text button in the navbar, hidden and insensitive')
-    expect(bar.type == 'view' and (bar.x, bar.y, bar.w, bar.h) == (0, 450 - O['SG_BAR_H'], 320, O['SG_BAR_H']) and bar.get('visible') == 'false' and bar.get('sensitive') == 'false'
-           and line in bar.children and line.get('sensitive') == 'false' and pill in bar.children
-           and (pill.x, pill.y, pill.w, pill.h) == (O['SG_PILL_X0'], (O['SG_BAR_H'] - O['SG_PILL_H']) // 2, O['PL_BAR_PILL_W'], O['SG_PILL_H']) and pill.get('style:normal:icon') == 'sg_trash'
-           and pill.get('style:normal:round_radius') == str(O['SG_PILL_R']), 'the bar is the Songs page\'s (64 px, a hairline) with one Delete pill across it, hidden and insensitive')
+    sa, bar, pill = (tree.find(n) for n in ('btn_selall', 'pl_bar', 'pl_del'))
+    expect(sa.type == 'button' and (sa.x + sa.w, sa.y, sa.h) == (O['SG_SELALL_R'], 4, 42) and sa.get('style:normal:bg_image') == 'sg_selall_glass' and sa.get('visible') == 'false' and sa.get('sensitive') == 'false'
+           and sa in tree.find('navigationbar_view').children, 'Select All is the Songs page\'s glass pill in the navbar, hidden and insensitive')
+    expect(bar.type == 'view' and (bar.x, bar.y, bar.w, bar.h) == (130, 450 - O['SG_BAR_H'] + 11, 60, 42) and bar.get('style:normal:bg_color') == '#00000000' and bar.get('visible') == 'false' and bar.get('sensitive') == 'false'
+           and tree.find('pl_bar_line') is None and pill in bar.children
+           and (pill.x, pill.y, pill.w, pill.h) == (0, 0, 60, 42) and pill.get('style:normal:icon') == 'sg_bar_one' and pill.get('style:disable:icon') == 'sg_bar_one_off' and not pill.get('text'),
+           'the bar is the Songs page\'s: no background, just one icon-only Delete capsule 60 x 42 centred in the 64 px foot, hidden and insensitive')
     kids = tree.children
     expect(kids.index(bar) > kids.index(tree.find('playlists_listview')) and kids.index(bar) < kids.index(tree.find('vs_scrim')), 'the bar lies over the list and under the popup')
 

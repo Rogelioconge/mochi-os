@@ -237,7 +237,7 @@ def paint_tests(ctx):
         expect(nr == 8 and ys == want and all(b[2][0] == RIGHT - MORE_W + (MORE_W - DOTS) // 2 for b in dots),
                f'{what}: a "..." at x {RIGHT - MORE_W + (MORE_W - DOTS) // 2} on every track ({ys})')
         expect(all(ty[t][2] == 269 - (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP']) for t in names), f'{what}: the titles end {INK_GAP} px before the dots\' ink (x 269): {sorted({ty[t][2] for t in names})}')
-        AB.click(m, 'btn_select')
+        AB.enter_select(m)
         blits, texts, fills = AB.paint(m)
         ty = {t: rect for (t, rect), st in texts if st == 'label_row_title' and t in AB.NAMES}
         expect(not dot_blits(blits) and ty and all(rect[2] == 298 - (12 + O['ROW_NUM_W'] + O['AB_NUM_GAP'] + O['SG_SEL_COL']) for rect in ty.values()), 'album select mode: no "...", the titles end at 298')
@@ -307,7 +307,7 @@ def touch_tests(ctx):
     expect(vis(m, 'rm_card') == (0, 0), 'album page: a drag opens nothing')
     AB.touch(m, 'down', 288, y, 'ab_on_down'); AB.touch(m, 'abort', 288, y, 'ab_on_abort'); AB.touch(m, 'up', 288, y, 'ab_on_up', 1080)
     expect(vis(m, 'rm_card') == (0, 0), 'album page: an abort then a release opens nothing')
-    AB.click(m, 'btn_select')
+    AB.enter_select(m)
     AB.tap(m, 288, y)
     expect(vis(m, 'rm_card') == (0, 0), 'album page: select mode, no menu')
 
@@ -389,7 +389,7 @@ def hold_tests(ctx):
     AB.touch(m, 'move', 150, y + 12, 'ab_on_move', 1200)
     expect(any(c[0] == 'timer_remove' for c in m.calls), 'album page: a drag stops the hold')
     AB.touch(m, 'up', 150, y + 12, 'ab_on_up', 1300)
-    AB.click(m, 'btn_select'); m.calls.clear()
+    AB.enter_select(m); m.calls.clear()
     AB.touch(m, 'down', 150, y, 'ab_on_down')
     expect(not timers(m), 'album page: select mode arms no hold')
 

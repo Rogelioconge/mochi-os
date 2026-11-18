@@ -429,7 +429,7 @@ def playlists_grid(s, menu=False, pressed=3, list_mode=False, row_pressed=1, sel
         import preview_songs as PS
         PS.glass(s, im, 'ah_nav_close', 7, 44)
         s.text(im, o['NAV_TITLE_X'], 25, s.strings.get('%d Selected', '%d Selected').replace('%d', str(len(select))), title_px(s.tree))
-        sa = s.strings.get('Select All', 'Select All'); s.text(im, o['SG_SELALL_X'] + 104 - 8 - s.font.width(sa, 18), 25, sa, 18)
+        PS.selall(s, im, s.strings.get('Select All', 'Select All'))
     elif pick:   # the Add to Playlist picker (patch/playlists.c pick mode): Back only at rest; its large title is "Add to Playlist"
         import preview_songs as PS
         PS.glass(s, im, 'ah_nav_back', 7, 44)   # the asset's btn_return: the glass disc
@@ -441,8 +441,7 @@ def playlists_grid(s, menu=False, pressed=3, list_mode=False, row_pressed=1, sel
         mk = s.img('selected' if a in select else 'unselect'); im.alpha_composite(mk, (x, y))
     def bar():   # the bar: black, a #222222 hairline, the Delete pill across it
         import preview_songs as PS
-        d_ = ImageDraw.Draw(im); d_.rectangle((0, H_ - o['SG_BAR_H'], W_ - 1, H_ - 1), fill=(0, 0, 0)); d_.rectangle((0, H_ - o['SG_BAR_H'], W_ - 1, H_ - o['SG_BAR_H']), fill=PS.HAIR)
-        PS.pill(s, im, o['SG_PILL_X0'], H_ - o['SG_BAR_H'] + (o['SG_BAR_H'] - o['SG_PILL_H']) // 2, PS.tr(s, 'Delete'), s.img('sg_trash'), w=o['PL_BAR_PILL_W'])
+        PS.selbar(s, im, H_, ('one',), bool(select))
     def card():   # the shared card fitted as vs_fit does: the list-plus button's four actions (vs_glass4), or the "..." card's Grid / List (ticked: the current view) and Name (vs_glass3; the order ticked with its direction line)
         import preview_songs as PS
         im.alpha_composite(Image.new('RGBA', (W_, H_), (0, 0, 0, 0x82)))
