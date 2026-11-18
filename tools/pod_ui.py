@@ -1105,7 +1105,7 @@ def selall_button():
     sa = hidden(Widget('button', SG_SELALL_X, 0, SG_SELALL_W, NAVBAR_H, [('name', 'btn_selall'), ('enable', 'true'), pod_i18n.text_prop('Select All')]))
     for st in STATES:   # select mode's text button: flat, right aligned
         styled(sa, (st,), 'bg_color', '#00000000')
-        styled(sa, (st,), 'text_color', '#777777' if st == 'pressed' else INK_RGB)
+        styled(sa, (st,), 'text_color', '#777777' if st == 'pressed' else SELECT_DIM if st == 'disable' else INK_RGB)   # disable: the folder picker's inert button (patch/lupick.c)
         styled(sa, (st,), 'font_size', '18')
         styled(sa, (st,), 'border_width', '0')
         styled(sa, (st,), 'border_color', '#00000000')
@@ -2814,14 +2814,19 @@ LP_DIM_RGB = '#8E8E93'   # a covered row's name (patch/lupick.c): the placeholde
 
 
 def build_lupick_page(page):
-    """Update Library > Choose Folders (patch/lupick.c, docs/modules/libupdate.md "The folder picker"): the Folders page's structure with no large title: the glass navbar (Back, the title, the Select All
-    disc, Now Playing), a stock list holding one view the payload paints (a card of rows with select circles), the text styles of the rows and the caption, and the bottom bar with the Scan pill."""
+    """Update Library > Choose Folders (patch/lupick.c, docs/modules/libupdate.md "The folder picker"): the Folders page's structure with no large title: the glass navbar (Back, the title, the flat
+    Select All text button of the select mode; Now Playing hidden), a stock list holding one view the payload paints (a card of rows with select circles), the text styles of the rows and the caption, and the bottom bar with the Scan pill."""
     o = OFFSETS
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
     styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
     nb = navbar(page.title)
-    nb.children[0].w = NAV_VIEW_X - NAV_TITLE_X   # the title runs to the Select All disc
-    nb.children.append(ab_nav_button('btn_selall', NAV_VIEW_X, NAV_VIEW_W, 'ah_nav_unsel', 'ah_nav_unsel_down'))
+    for c in nb.children:   # Select All takes the right end: Now Playing stays, hidden, as in the select mode
+        if c.name == 'btn_backtoplayer': hidden(c)
+    nb.children[0].w = SG_SELALL_X - NAV_TITLE_X   # the title runs to the Select All button
+    sa = selall_button()
+    sa.set('visible', 'true')
+    sa.set('sensitive', 'true')
+    nb.children.append(sa)
     root.children.append(nb)
     lv = stock_list([], True)
     lv.set('name', 'lupick_listview')

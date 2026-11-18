@@ -1294,11 +1294,9 @@ def capsule_piece(position, glyph, pressed=False):
 # image -> (width, glass columns, glyph centre, glyph, capsule columns or None): the lone discs. Back (the Pod pages' 44 px button centres it: x 8 .. 50),
 # Now Playing's disc (Pod pages, button x 260: glass 269 .. 311) and the USB mode page's settings disc.
 AH_NAV_PIECES = {'ah_nav_back': (42, 0, 42, 21, 'chevron-left', None), 'ah_nav_close': (42, 0, 42, 21, 'x', None), 'ah_nav_np': (NAV_PLAY_W, 9, 51, 30, 'audio-lines', None),
-                 'ah_nav_set': (NAV_PLAY_W, 9, 51, 30, 'settings', None),   # the USB mode page's DAC settings (tools/mod_ipodrows.py edit_usbmode), on Now Playing's disc
-                 'ah_nav_unsel': (50, 8, 50, 29, 'circle', None)}   # the Update Library folder picker's select-all toggle (patch/lupick.c)
-AH_NAV_SELECTED = ('ah_nav_sel', 'T:circle-check:filled')    # the toggle's "all selected" state (a 50 px disc; no pressed image: stock has none)
+                 'ah_nav_set': (NAV_PLAY_W, 9, 51, 30, 'settings', None)}   # the USB mode page's DAC settings (tools/mod_ipodrows.py edit_usbmode), on Now Playing's disc
 AH_NAV_RIGHT = 'ah_nav_play'                                 # Now Playing as the capsule's right cap (Pod pages)
-AH_NAV_NAMES = sorted([n + s for n in [*AH_NAV_PIECES, AH_NAV_RIGHT] for s in ('', '_down')] + [AH_NAV_SELECTED[0]])
+AH_NAV_NAMES = sorted([n + s for n in [*AH_NAV_PIECES, AH_NAV_RIGHT] for s in ('', '_down')])
 
 def ah_nav_images():
     """The glass buttons' images (AH_NAV_NAMES)."""
@@ -1307,8 +1305,6 @@ def ah_nav_images():
         for n, (w, x0, x1, cx, g, cap) in AH_NAV_PIECES.items():
             f[n + suffix] = glass_piece(w, x0, x1, g, cx, pressed, cap)
         f[AH_NAV_RIGHT + suffix] = capsule_piece('right', 'audio-lines', pressed)
-    w, x0, x1, cx, _ = (50, 8, 50, 29, 0)
-    f[AH_NAV_SELECTED[0]] = glass_piece(w, x0, x1, AH_NAV_SELECTED[1], cx)
     assert sorted(f) == AH_NAV_NAMES
     return f
 

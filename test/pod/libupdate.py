@@ -281,7 +281,7 @@ def page_tests(ctx):
 # The folder picker (patch/lupick.c): the page on a fake card.
 FO = sibling('folders')
 D, F_, L_, U_ = 4, 8, 10, 0   # d_type: directory, file, link, unknown
-LP_WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_selall', 'lp_scan', 'label_title', 'label_status', 'label_row_title', 'label_row_dim', 'label_cap', 'lp_bar', 'img_nb_fade')
+LP_WIDGETS = ('view_grid', 'btn_return', 'btn_selall', 'lp_scan', 'label_title', 'label_status', 'label_row_title', 'label_row_dim', 'label_cap', 'lp_bar', 'img_nb_fade')
 SCREEN_Y0, ROW, VIEW_H = FO.SCREEN_Y0, pod_ui.ROW_H, O['GRID_VIEW_H']
 CARD = {
     '/mnt/mmc': [('Hi-Res', D), ('.m1plus', D), ('lost+found', D), ('System Volume Information', D), ('RECYCLER', D), ('$RECYCLE.BIN', D), ('.LOST.DIR', D), ('.fseventsd', D), ('.Spotlight-V100', D), ('.Trashes', D),
@@ -382,6 +382,7 @@ def lp_states(m, n): return [lp_state(m, r) for r in range(n)]
 def lp_click(m, name): m.click(name, count=400000000)
 def lp_back(m): m.calls.clear(); lp_click(m, 'btn_return')
 def pill(m): return m.wtext[m.widgets['lp_scan']], vis(m, 'lp_scan')[1]
+def sa(m): return m.wtext[m.widgets['btn_selall']], vis(m, 'btn_selall')[1], m.props.get((m.widgets['btn_selall'], 'enable'), 1)   # label, sensitive, enable
 
 
 def picker_tests(ctx):
@@ -445,10 +446,13 @@ def picker_tests(ctx):
     m = picker()
     lp_click(m, 'btn_selall')
     expect(lp_states(m, 10) == [1] * 10 and pill(m)[0] == 'Scan 10 Folders', 'Select All chooses every row of the level')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Deselect All', 'with every row chosen the button reads Deselect All')
     lp_tap(m, ix('Hi-Res'), 150); lp_click(m, 'btn_selall')
     expect(lp_states(m, 4) == [2] * 4 and pill(m)[0] == 'Scan 10 Folders', 'inside a chosen folder Select All has nothing to add (everything is covered)')
+    expect(sa(m) == ('Deselect All', 0, 0), f'inside a chosen folder the button does nothing, so it is dimmed and inert ({sa(m)})')
     lp_back(m); lp_click(m, 'btn_selall')
     expect(lp_states(m, 10) == [0] * 10 and pill(m) == ('Scan Folders', 0), 'Select All with every row chosen clears the level')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Select All', 'and reads Select All again')
     lp_tap(m, ix('Hi-Res'), 150); lp_tap(m, 0, 30, 10); lp_click(m, 'btn_selall')
     expect(lp_states(m, 4) == [1] * 4 and pill(m)[0] == 'Scan 4 Folders', 'Select All inside a level: its folders only (nothing from the root)')
     lp_back(m); lp_click(m, 'btn_selall')
@@ -474,6 +478,7 @@ def picker_tests(ctx):
     lp_click(m, 'btn_selall'); said = toasts(m)
     held = lambda: sum(lp_state(m, r) == 1 for r in range(257))
     expect(held() == 256 and pill(m)[0] == 'Scan 256 Folders' and said == ['You can choose up to 256 folders.'], f'257 folders: Select All chooses 256 and says why ({held()}, {said})')
+    expect(sa(m) == ('Deselect All', 1, 1), f'the set is full and the last row cannot go in: the next tap clears, so the button reads Deselect All ({sa(m)})')
     lp_click(m, 'btn_selall')
     expect(held() == 0 and pill(m) == ('Scan Folders', 0), 'a second tap clears the level (it could not add the last one)')
     # at the limit, choosing a parent that replaces its chosen folders is allowed: the size after the replacement counts (size - dropped + 1)
@@ -542,8 +547,8 @@ def picker_asset_tests(ctx):
     t = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui/m1plus_lupick.bin'), 'rb').read())
     expect(t.name == 'm1plus_lupick_page' and all(t.find(n) is not None for n in LP_WIDGETS + ('lupick_scrollview', 'lupick_listview')), 'every widget the payload looks up is in the asset')
     nb = {c.name: c for c in t.find('navigationbar_view').children}
-    expect((nb['btn_selall'].x, nb['btn_selall'].w) == (214, 46) and nb['btn_selall'].get('style:normal:icon') == 'ah_nav_unsel' and nb['btn_backtoplayer'].get('style:normal:icon') == 'ah_nav_np' and nb['label_title'].w == 214 - 58,
-           'the navbar: Back, the title to the Select All disc (ah_nav_unsel, the multi-select glyph), Now Playing')
+    expect((nb['btn_selall'].x, nb['btn_selall'].w) == (208, 104) and nb['btn_selall'].get('visible') != 'false' and nb['btn_selall'].get('sensitive') != 'false' and nb['btn_backtoplayer'].get('visible') == 'false' and nb['btn_backtoplayer'].get('sensitive') == 'false' and nb['label_title'].w == 208 - 58,
+           'the navbar: Back, the title to the Select All text button (x 208, w 104, shown), Now Playing hidden')
     bar, sc = t.find('lp_bar'), t.find('lp_scan')
     expect(bar.y == 450 - O['SG_BAR_H'] and sc.get('style:normal:bg_color') == '#E5E5EA' and sc.get('style:normal:text_color') == '#000000' and sc.get('style:disable:bg_color') == '#2C2C2E' and sc.get('style:disable:text_color') == '#98989D',
            'the bottom pill: light grey with black text live, dark grey with grey text dimmed')

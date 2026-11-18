@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * One window for every level, ui/m1plus_lupick.bin (tools/pod_ui.py build_lupick_page): the Folders page's structure (patch/folders.c): the glass navbar (Back, the title, the Select All disc, Now Playing)
+ * One window for every level, ui/m1plus_lupick.bin (tools/pod_ui.py build_lupick_page): the Folders page's structure (patch/folders.c): the glass navbar (Back, the title, the Select All text button)
  * over a stock list whose one content view paints the rows itself (a rounded card, a select circle, the name, a chevron), and a bar at the bottom with the Scan pill. No widget per row, so a level may hold
  * any number of folders (LP_MAX are read).
  *
@@ -58,7 +58,7 @@
 #define LP_NAMES_MAX (256 * 1024)
 
 static struct {
-    void *win, *view, *sv, *status, *title, *fade, *back, *np, *selall, *scan, *bar;
+    void *win, *view, *sv, *status, *title, *fade, *back, *selall, *scan, *bar;
     void *st_title, *st_dim,
         *st_cap; /* hidden labels whose styles are the row's text, the covered row's and the caption's */
     void *mark[2], *chev;
@@ -369,13 +369,16 @@ static void lp_title_update(void) {
     if (lp.fade) grid_fade(lp.fade, lp_off() > 0);
 }
 
-/* The Select All disc: checked when every row is in the set or covered. */
-static void lp_selall_icon(void) {
-    unsigned r;
-    int all = lp.n != 0;
-    for (r = 0; r < lp.n && all; r++)
-        if (lp_state(r) == 0) all = 0;
-    grid_icons(lp.selall, all ? "ah_nav_sel" : "ah_nav_unsel", all ? "ah_nav_sel" : "ah_nav_unsel_down");
+enum { LP_SA_NONE, LP_SA_ADD, LP_SA_CLEAR };
+static int lp_selall_action(void);
+
+/* The Select All button says what a tap does (lp_selall_action): Select All, Deselect All, or Deselect All dimmed and inert when the tap would do nothing. */
+static void lp_selall_label(void) {
+    int act = lp_selall_action();
+    widget_set_tr_text(lp.selall, act == LP_SA_ADD ? "Select All" : "Deselect All");
+    widget_set_sensitive(lp.selall, act != LP_SA_NONE);
+    widget_set_prop_bool(lp.selall, "enable",
+                         act != LP_SA_NONE); /* the style's disable state follows the enable flag, not sensitive */
 }
 
 /* The pill: "Scan N Folders", dimmed and inert with none. */
@@ -395,7 +398,7 @@ static void lp_pill(void) {
 
 static void lp_changed(void) {
     lp_pill();
-    lp_selall_icon();
+    lp_selall_label();
     grid_sv_redraw(lp.sv);
 }
 
@@ -532,21 +535,34 @@ static int lp_below(unsigned r) {
     return n;
 }
 
-/* Select All: every row of this level that is not covered goes into the set (each dropping the chosen folders under it), or, when every one already is, out of it. The limit is on the size after the
- * change, size - the chosen folders under the unchosen rows + those rows: when that is over 256 as many rows go in as fit, the rows that free room (they hold chosen folders) first, then the rest in
- * the order shown, and the limit is told in a message; a tap that can add none (the set is full) clears the level's rows if it holds any, so a second tap after the limit stopped the first clears them. */
+/* What a Select All tap does now (its label and sensitivity show the same): LP_SA_ADD when a row is plain and one of them fits the limit (a row holding chosen folders always fits: it drops
+ * them), or none fits and the level has no chosen row (the tap only tells the limit); else LP_SA_CLEAR when the level has a chosen row (also after the limit stopped an add, so the next tap
+ * clears); else LP_SA_NONE (no rows, or every row covered by a chosen folder above). */
+static int lp_selall_action(void) {
+    unsigned r;
+    int plain = 0, held = 0, fits = 0;
+    for (r = 0; r < lp.n; r++) {
+        int st = lp_state(r);
+        if (st == 1) held = 1;
+        if (st != 0) continue;
+        plain = 1;
+        if (!fits && lp.nsel - lp_below(r) < LP_SELMAX) fits = 1;
+    }
+    if (plain && (fits || !held)) return LP_SA_ADD;
+    return held ? LP_SA_CLEAR : LP_SA_NONE;
+}
+
+/* Select All (lp_selall_action): add every plain row of this level (each dropping the chosen folders under it), or take the level's chosen rows out. The limit is on the size after the change,
+ * size - the chosen folders under the plain rows + those rows: when that is over 256 as many rows go in as fit, the rows that free room (they hold chosen folders) first, then the rest in the order
+ * shown, and the limit is told in a message. */
 static int lp_on_selall(void *ctx, void *e) {
     unsigned r;
-    int pass, all = 1, held = 0, capped = 0, added = 0, oom = 0;
+    int pass, act, capped = 0, oom = 0;
     (void)ctx;
     (void)e;
     if (!lp.view || !lp.n) return RET_OK;
-    for (r = 0; r < lp.n; r++) {
-        int st = lp_state(r);
-        if (st == 0) all = 0;
-        if (st == 1) held = 1;
-    }
-    if (!all) {
+    act = lp_selall_action();
+    if (act == LP_SA_ADD) {
         for (pass = 0; pass < 2 && !oom; pass++)
             for (r = 0; r < lp.n && !oom; r++) {
                 char full[LP_PATH];
@@ -554,16 +570,13 @@ static int lp_on_selall(void *ctx, void *e) {
                 if (lp_state(r) != 0 || !lp_child(r, full, sizeof full)) continue;
                 if (pass == 0 && !lp_below(r)) continue;
                 got = lp_select(full);
-                if (got > 0)
-                    added++;
-                else if (got == 0)
+                if (got == 0)
                     capped = 1;
-                else
+                else if (got < 0)
                     oom = 1; /* not the limit: stop, keep what is chosen */
             }
-        if (capped && !added && held && !oom) all = 1;
-    }
-    if (all) {
+        if (capped) pod_toast(TR("You can choose up to 256 folders."));
+    } else if (act == LP_SA_CLEAR) {
         for (r = 0; r < lp.n; r++) {
             char full[LP_PATH];
             int i;
@@ -571,8 +584,7 @@ static int lp_on_selall(void *ctx, void *e) {
             i = lp_find(full);
             if (i >= 0) lp_drop(i);
         }
-    } else if (capped)
-        pod_toast(TR("You can choose up to 256 folders."));
+    }
     lp_changed();
     return RET_OK;
 }
@@ -666,7 +678,6 @@ int lupick_open(void) {
     if (!lp.win) return -1;
     widget_on(lp.win, EVT_DESTROY, lp_on_destroy, (void *)0);
     lp.back = m1_bind(lp.win, "btn_return", lp_on_back, (void *)0);
-    lp.np = m1_bind(lp.win, "btn_backtoplayer", m1_on_player, (void *)0);
     lp.selall = m1_bind(lp.win, "btn_selall", lp_on_selall, (void *)0);
     lp.scan = m1_bind(lp.win, "lp_scan", lp_on_scan, (void *)0);
     lp.title = widget_lookup(lp.win, "label_title", 1);
@@ -678,7 +689,7 @@ int lupick_open(void) {
     lp.st_dim = widget_lookup(lp.win, "label_row_dim", 1);
     lp.st_cap = widget_lookup(lp.win, "label_cap", 1);
     lp.bar = widget_lookup(lp.win, "lp_bar", 1);
-    if (!lp.back || !lp.np || !lp.selall || !lp.scan || !lp.title || !lp.view || !lp.sv || !lp.status || !lp.st_title ||
+    if (!lp.back || !lp.selall || !lp.scan || !lp.title || !lp.view || !lp.sv || !lp.status || !lp.st_title ||
         !lp.st_dim || !lp.st_cap || !lp.bar) {
         navigator_back(); /* an asset that is not ours */
         return -2;

@@ -19,11 +19,10 @@ def run(ctx):
     # ---- the navbar's glass buttons (mod_icons.ah_nav_images; docs/modules/navbar.md): every image as wide as the real button it sits in
     N, H_, GL = mod_icons.AH_NAV_NAMES, mod_icons.GLASS_H, mod_icons.GLASS_GLYPH
     gen = mod_icons.ah_nav_images()
-    expect(H_ == 42 and sorted(gen) == sorted(N) and len(N) == 2 * (len(mod_icons.AH_NAV_PIECES) + 1) + 1 and all(same_pixels(shipped(n), gen[n]) for n in N),
+    expect(H_ == 42 and sorted(gen) == sorted(N) and len(N) == 2 * (len(mod_icons.AH_NAV_PIECES) + 1) and all(same_pixels(shipped(n), gen[n]) for n in N),
            f'the {len(N)} ah_nav_* PNGs are the generator\'s output pixel for pixel')
     # independent of mod_icons.glass_piece: (width, glass columns, glyph centre) of every image, and its capsule (image columns) when it is a slice: the Pod pages' right cap of the 141 px capsule, its glass from 7 (the slots' 7 px shift)
     want = {'ah_nav_back': (42, 0, 42, 21), 'ah_nav_close': (42, 0, 42, 21), 'ah_nav_np': (60, 9, 51, 30), 'ah_nav_set': (60, 9, 51, 30),
-            'ah_nav_unsel': (50, 8, 50, 29), 'ah_nav_sel': (50, 8, 50, 29),
             'ah_nav_play': (60, 7, 51, 30, (-90, 51))}
     PD = 36   # a pressed slice: the rest glass and a white disc of PD px, 14 % opaque, on the glyph's centre (3 px of glass above and below)
     def highlight(out, cx):

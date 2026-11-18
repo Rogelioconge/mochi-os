@@ -2116,7 +2116,7 @@ TEXT.update([
        'Última actualización', 'Ultimo aggiornamento', 'อัปเดตล่าสุด', 'Ostatnia aktualizacja', 'Обновлено', 'Оновлено'),
     _t('Update Now', '立即更新', '立即更新', '今すぐ更新', '지금 업데이트', 'Mettre à jour', 'Jetzt aktualisieren',
        'Actualizar ahora', 'Aggiorna ora', 'อัปเดตตอนนี้', 'Aktualizuj teraz', 'Обновить сейчас', 'Оновити зараз'),
-    _t('Choose Folders', '选择文件夹', '選擇資料夾', 'フォルダを選択', '폴더 선택', 'Choisir les dossiers', 'Ordner wählen',
+    _t('Choose Folders', '选择文件夹', '選擇資料夾', 'フォルダを選択', '폴더 선택', 'Choisir dossiers', 'Ordner wählen',
        'Elegir carpetas', 'Scegli cartelle', 'เลือกโฟลเดอร์', 'Wybierz foldery', 'Выбрать папки', 'Вибрати папки'),
     # The folder picker (patch/lupick.c): the pill (the count goes where %d is; one folder and none have their own texts), the root's caption and the empty level.
     _t('Scan %d Folders', '扫描 %d 个文件夹', '掃描 %d 個資料夾', '%d 個のフォルダをスキャン', '폴더 %d개 스캔', 'Analyser %d dossiers', '%d Ordner scannen',

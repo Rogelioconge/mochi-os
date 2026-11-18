@@ -95,8 +95,8 @@ go through the same callback.
 
 The page is the Folders page's structure ([folders](folders.md)): glass navbar, a stock list holding one view the payload paints (a
 rounded card of 52 px rows: select circle, name, chevron; hairlines; the grey caption MUSIC CARD at the root), no widget per row.
-Title: Choose Folders at the root, else the folder's name. Navbar: Back, Select All disc (`ah_nav_unsel` / `ah_nav_sel`, checked
-when every row of the level is ticked or covered), Now Playing. Bottom bar: one pill.
+Title: Choose Folders at the root, else the folder's name. Navbar: Back, the select mode's flat Select All text button
+(its label is what a tap does, see Selection), Now Playing hidden (as in the select mode). Bottom bar: one pill.
 
 - **Listing.** `opendir` / `readdir` of the level on the UI thread, folders only, as stock's `toolsLoadDirectory` (0x5e85c8):
   `d_type` 4 (a link or unknown type by one `opendir`), no name starting with `.`, and not `lost+found`, `System Volume
@@ -113,7 +113,9 @@ when every row of the level is ticked or covered), Now Playing. Bottom bar: one 
   on the size after that, so when the result is over 256 it adds as many as fit, the rows that hold selected descendants (they free
   room) first, then the rest in the order shown, and says "You can choose up to 256 folders."; a tap that can add none, with some of
   the level's rows in the set, clears them. A path that cannot be allocated stops Select All and keeps the set (no message,
-  no clear). Back pops a level (offset restored); at the root it closes the page. The hardware Back
+  no clear). One function (`lp_selall_action`) decides the tap, and the button shows it: "Select All" when it adds (or only tells
+  the limit), "Deselect All" when it clears (also once the limit stopped an add), and "Deselect All" dimmed and inert when it does
+  nothing (every row covered by a chosen folder above). Back pops a level (offset restored); at the root it closes the page. The hardware Back
   key closes the page at any level.
 - **Pill.** "Scan N Folders" ("Scan 1 Folder"); with none, "Scan Folders", dimmed: not sensitive and not enabled (the style's disable state follows the enable flag). Live: light grey, black text;
   dimmed: dark grey, grey text.

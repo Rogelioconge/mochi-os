@@ -49,6 +49,8 @@ Songs (`sg.sel`), Folders (`fo.sel`, `fo_can`: folder or audio file, not a dot n
 bound on `pg.pick` with `m1_sel_bind`; `can` reads the `pg.can` cache `pg_sel_scan` fills; `pill[0]`
 is set at each `pg_select` to Delete or Unsubscribe), the album page (`ab.sel`, view_h `AH_WIN_H`; its bar is in the page's tone, see [album-page](album-page.md): `select_bar` with no hairline, colours set at run time).
 
+The Update Library folder picker (`patch/lupick.c`) uses the same Select All / Deselect All button, marks and dimmed pill, but keeps its own path set (folders across levels; a chosen folder covers its children) rather than `m1_sel_t`.
+
 ## Notes
 
 - `LIST_SEL_FILL` is alpha-blended by `canvas_fill_rect`.
