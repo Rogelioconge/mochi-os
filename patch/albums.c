@@ -74,6 +74,8 @@
 #include "artistphoto.h"
 #include "coverflow.h"
 #include "entries.h"
+#include "rowmenu.h"
+#include "pins.h"
 
 /* patch/songs.c: our Songs page on all the artist's (or composer's: scope CLASS_COMPOSERS) songs; -1 when it did not open */
 
@@ -133,6 +135,8 @@ static struct {
     int sort,
         rev; /* the order shown (cc_sort_mode: CC_SORT_*) and its direction (cc_sort_rev: 1 = Z-A, Oldest First) */
     vs_t vs; /* the "..." card */
+    rowmenu_t rm; /* the long press sheet (Play, Shuffle, Pin Album / Unpin Album; the library's page only: rm.on) */
+    void *rm_label, *rm_icon; /* its third row's label and glyph */
     /* an artist's or composer's page under the name: the Play and Shuffle pills (pills: both widgets exist) and each album's year
      * (cc_album_years of the artist's songs, one entry per stock row, 0 = none; NULL: no years); the library's page has neither */
     void *btn_play, *btn_shuffle;
@@ -459,6 +463,16 @@ static int al_can_find(void) {
     return I(deque_at(al.artist_row, 0), REC_ID) != -1 && ap_key(name) && ap_key(name) != ap_key("Unknown Artist");
 }
 
+/* The "..." card's Select slot on a library artist's page is Pin Artist / Unpin Artist (docs/modules/pins.md): its words and glyph follow the pins file. */
+static void al_pin_row(void) {
+    int has;
+    if (!al.artist_row || !(al.vs.sorts & VS_WITH_SELECT) || !al.vs.label[VS_SELECT]) return;
+    has = pins_has_artist(cc_str(deque_at(al.artist_row, 0), REC_TITLE));
+    widget_set_tr_text(al.vs.label[VS_SELECT], has ? "Unpin Artist" : "Pin Artist");
+    if (al.vs.glyph[VS_SELECT - VS_SORTS])
+        image_base_set_image(al.vs.glyph[VS_SELECT - VS_SORTS], has ? "pod_ic_vsunpin" : "pod_ic_vspin");
+}
+
 /* Is there a photo for this artist now? */
 static int al_has_photo(void) {
     char url[80];
@@ -739,6 +753,50 @@ static int al_item_of(void *e) {
     return al.list ? al_row_at(pt[1]) : al_cell_at(pt[0], pt[1]);
 }
 
+/* The long press sheet (docs/modules/pins.md): the library's page only (a source's albums are not on the card), a real album (not the All Songs tile, not "Unknown Album": the pins need a title). */
+static void *al_pin_rec(int a, unsigned *ckey) {
+    unsigned row;
+    void *rec;
+    if (!al.rm.on || al.src || a < 0 || a >= (int)al.count) return (void *)0;
+    row = al.order ? al.order[a] : (unsigned)a;
+    rec = deque_at(al.albums, row);
+    if (!rec || al_is_card(rec) || I(rec, REC_ID) == -1 || !*cc_str(rec, REC_ALBUM)) return (void *)0;
+    if (ckey) *ckey = al.keys ? al.keys[row] : cc_album_key(rec);
+    return rec;
+}
+
+static int al_pinnable(int a) { return al_pin_rec(a, (unsigned *)0) != (void *)0; }
+
+/* A row of the sheet (it has closed): Play, Shuffle, Pin Album / Unpin Album for the album it was opened on. */
+static void al_sheet(int a, int act) {
+    unsigned ckey = 0;
+    void *rec = al_pin_rec(a, &ckey);
+    const char *name, *path;
+    if (!rec) return;
+    name = cc_str(rec, REC_ALBUM), path = cc_str(rec, REC_PATH);
+    if (act == RMP_UNPIN) {
+        if (pins_has_album(name))
+            pins_unpin_album(name);
+        else
+            pins_pin_album(name, ckey, path);
+    } else if (pins_play_album(name, ckey, path, act == RMP_SHUFFLE) < 0)
+        pod_toast(TR("Can't play"));
+}
+
+/* A press held RM_LONG_MS on an album: the sheet opens while the finger is down; the press is forgotten, so the release opens nothing. */
+static void al_on_hold(int a) {
+    unsigned ckey = 0;
+    void *rec = al_pin_rec(a, &ckey);
+    int has;
+    al.down = 0;
+    if (al.list) grid_set_press(&al.press, 0, al.sv);
+    if (!rec || !al.fg || al.vs.on) return;
+    has = pins_has_album(cc_str(rec, REC_ALBUM));
+    if (al.rm_label) widget_set_tr_text(al.rm_label, has ? "Unpin Album" : "Pin Album");
+    if (al.rm_icon) widget_set_prop_str(al.rm_icon, "image", has ? "rm_ic_unpin" : "rm_ic_pin");
+    rowmenu_open_queue(&al.rm, a, al_sheet);
+}
+
 static int al_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -747,12 +805,20 @@ static int al_on_down(void *ctx, void *e) {
     a = al_item_of(e);
     al.down = a + 1, m1_tap_at(&al.tap, e);
     if (al.list) grid_set_press(&al.press, a + 1, al.sv);
+    if (a >= 0 && al_pinnable(a)) rowmenu_hold_start(a, al_on_hold);
+    return RET_OK;
+}
+
+static int al_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (al.down && e) rowmenu_hold_move(&al.tap, e); /* a drift of SC_DRAG_PX or more is a drag, not a long press */
     return RET_OK;
 }
 
 static int al_on_up(void *ctx, void *e) {
     int a = al.down - 1;
     (void)ctx;
+    rowmenu_hold_stop();
     al.down = 0;
     if (al.list) grid_set_press(&al.press, 0, al.sv);
     if (a < 0 || !e || !al.view) return RET_OK;
@@ -784,6 +850,7 @@ static int al_on_up(void *ctx, void *e) {
 static int al_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     al.down = 0;
     if (al.list) grid_set_press(&al.press, 0, al.sv);
     return RET_OK;
@@ -792,6 +859,7 @@ static int al_on_abort(void *ctx, void *e) {
 static int al_on_bg(void *ctx, void *e) {
     az_rail_end(&al.az);
     al_on_abort(ctx, e);
+    rowmenu_close(&al.rm);
     al.fg = 0;
     m1_timer_stop(&al.more_timer);
     return RET_OK;
@@ -864,6 +932,7 @@ static int al_on_destroy(void *ctx, void *e) {
     ls_cover_end(&al.cp);
     ls_spin_end(al.spin);
     al_build_end(); /* the timer removed, the worker cancelled (cc_build_stop) */
+    rowmenu_free(&al.rm);
     grid_free(&al.g);
     if (al.hdr) bitmap_destroy(al.hdr);
     az_free(&al.az);
@@ -1097,6 +1166,14 @@ static int al_on_item(void *ctx, void *e) {
     if (k == VS_SEARCH && al_can_find()) {
         al.rk_ep = ap_epoch(); /* (what the page shows now: al_on_fg looks again when the Find page closes) */
         al.finding = onlineart_open_artist(cc_str(deque_at(al.artist_row, 0), REC_TITLE)) == 0;
+    } else if (k == VS_SELECT && (al.vs.sorts & VS_WITH_SELECT) &&
+               al.artist_row) { /* Pin Artist / Unpin Artist (a full list: pins_pin_artist shows the toast) */
+        const char *name = cc_str(deque_at(al.artist_row, 0), REC_TITLE);
+        if (pins_has_artist(name))
+            pins_unpin_artist(name);
+        else
+            pins_pin_artist(name);
+        al_pin_row();
     } else if (k == VS_SEARCH) {
         if (al.src)
             search_open_src_in(al.src, SEARCH_ALBUMS); /* the server's search, not the card's */
@@ -1127,7 +1204,10 @@ static int al_on_scrim(void *ctx, void *e) {
 static int al_on_more(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (al.win && al.vs.card) vs_menu(&al.vs, !al.vs.on, al.sort, al.rev, al.list);
+    if (al.win && al.vs.card) {
+        if (!al.vs.on) al_pin_row();
+        vs_menu(&al.vs, !al.vs.on, al.sort, al.rev, al.list);
+    }
     return RET_OK;
 }
 
@@ -1167,6 +1247,7 @@ static int al_begin(void) {
     else
         widget_on(al.win, EVT_WINDOW_TO_BG, al_on_abort, (void *)0);
     widget_on(al.view, EVT_POINTER_DOWN, al_on_down, (void *)0);
+    widget_on(al.view, EVT_POINTER_MOVE, al_on_move, (void *)0);
     widget_on(al.view, EVT_POINTER_UP, al_on_up, (void *)0);
     widget_on(al.view, EVT_POINTER_ABORT, al_on_abort, (void *)0);
     widget_on(al.view, EVT_AFTER_PAINT, al_on_paint, (void *)0);
@@ -1339,8 +1420,9 @@ static int al_open(int list, void *artist_row, unsigned scope, const lib_src_t *
     if (vs_bind(
             &al.vs, al.win, al_on_item, al_on_scrim,
             (artist_row ? VS_ALL_SORTS & ~(1u << CC_SORT_ARTIST) : VS_ALL_SORTS) | VS_WITH_VIEWS |
-                ((artist_row ? al_can_find() : ls_caps(al.src) & LS_CAP_SEARCH)
-                     ? VS_WITH_SEARCH
+                ((artist_row ? al_can_find() : ls_caps(al.src) & LS_CAP_SEARCH) ? VS_WITH_SEARCH : 0) |
+                (artist_row && al_can_find()
+                     ? VS_WITH_SELECT
                      : 0))) { /* (one artist's albums: no Artist row, and no Search row: it searched the whole library's albums; a source without Search: no row. A library artist's page has Find Artist Photo in the Search row's slot) */
         navigator_back(); /* an asset that is not ours */
         return -2;
@@ -1349,10 +1431,16 @@ static int al_open(int list, void *artist_row, unsigned scope, const lib_src_t *
         widget_set_tr_text(al.vs.label[VS_SEARCH], "Find Artist Photo");
         if (al.vs.glyph[VS_SEARCH - VS_SORTS])
             image_base_set_image(al.vs.glyph[VS_SEARCH - VS_SORTS], "pod_ic_vsphoto");
+        al_pin_row(); /* (Select's slot: Pin Artist) */
     }
     al.sort = artist_row ? cc_scoped_sort() : cc_sort_mode();
     al.rev = cc_sort_rev();
     vs_view(&al.vs, list);
+    if (!al.src) { /* the long press sheet of the library's page (an asset without it: no long press) */
+        rowmenu_bind_queue(&al.rm, al.win);
+        al.rm_label = widget_lookup(al.win, "rm_label2", 1);
+        al.rm_icon = widget_lookup(al.win, "rm_icon2", 1);
+    }
     al.az.win = al.win, al.az.sv = al.sv, al.az.top = al_top(), al.az.row = LIST_ROW_H;
     az_prefs(&al.az);
     al.az_ok = az_bind(&al.az, al.win);

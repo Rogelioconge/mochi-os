@@ -17,6 +17,7 @@ def machine(**kw):
     m = AP.album_machine(**kw)
     m.class_lists[ARTISTS] = [m.record(album='', artist=f'Artist {i}', path='', title=f'Artist {i}', rid=i + 1) for i in range(3)]
     m.class_lists[ALL] = list(m.songs)
+    m.free_row = False   # (these tests query the same row again without reading the list: the album page's freed-row check is in test/pod/albumpage.py)
     return m
 
 

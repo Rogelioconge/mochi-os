@@ -25,6 +25,7 @@ def run(ctx):
                        f'{asset_name}:{w.name} is a stock-styled row')
             if w.type != 'button' or w.get('style'): continue
             if w.name.startswith('vs_item'): continue   # the "..." card's rows press as a translucent white over the card's glass (test/pod/albums.py card_asset_tests)
+            if w.name.startswith('rm_item'): continue   # the Home pins' long press sheet (a menu asset's rm_card): the rows menu's rows press as a translucent white over its glass (test/pod/rowmenu.py)
             bad = [st for st in STATES if not is_dark(w.get(f'style:{st}:bg_color', ''))
                    or not is_light(w.get(f'style:{st}:text_color', ''))]
             expect(not bad, f'{asset_name}:{w.name} is dark with light text in every state ({bad})')

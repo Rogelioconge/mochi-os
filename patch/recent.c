@@ -46,6 +46,8 @@
 #include "podcasts.h"
 #include "fnv.h"
 #include "scrobble.h"
+#include "rowmenu.h"
+#include "pins.h"
 
 #if SH_TILES != GRID_COLS * SH_ROWS || SH_TILES != RC_MAX
 #error the shelf shows every album the file keeps: SH_TILES = GRID_COLS * SH_ROWS = RC_MAX
@@ -79,6 +81,7 @@ static struct {
         tried_n; /* identities the album list had no row for (not asked again while the page lives) */
     int down; /* the tile a press began on, + 1; 0 none */
     int down_x, down_y; /* where it began (screen coordinates) */
+    m1_tap_t tap; /* and the same for the long press (drift cancels it) */
     grid_t g; /* the tiles (SH_TILES, cell i shows entry i), the placeholder, the rounded corners: patch/grid.c */
     unsigned id[SH_TILES]; /* the identity of the album each tile was made for */
 } rc __attribute__((section(".scratch")));
@@ -573,18 +576,38 @@ int recent_rekey(void *albums, unsigned *rows) {
     return n;
 }
 
+/* A press held RM_LONG_MS on a tile: the Home pins' sheet (Play, Shuffle, Pin Album / Unpin Album) opens while the finger is down; the press is forgotten, so the release opens nothing. */
+static void rc_on_hold(int i) {
+    const ent_t *e;
+    rc.down = 0;
+    if (!rc.win || !rc.shown || !rc.fg || i < 0 || i >= SH_TILES) return;
+    e = rc_ent(rc.id[i]);
+    if (e) pins_album_sheet(e->album, e->ckey, e->path);
+}
+
+static int rc_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (rc.down && e) rowmenu_hold_move(&rc.tap, e);
+    return RET_OK;
+}
+
 static int rc_on_down(void *ctx, void *e) {
     (void)ctx;
     rc.down = 0;
     if (!e || !rc.win) return RET_OK;
     rc.down = rc_local(e) + 1;
     rc.down_x = rc_pe(e, PE_X), rc.down_y = rc_pe(e, PE_Y);
+    if (rc.down) {
+        m1_tap_at(&rc.tap, e);
+        rowmenu_hold_start(rc.down - 1, rc_on_hold);
+    }
     return RET_OK;
 }
 
 static int rc_on_up(void *ctx, void *e) {
     int a = rc.down - 1, dx, dy;
     (void)ctx;
+    rowmenu_hold_stop();
     rc.down = 0;
     if (a < 0 || !e || !rc.win || !rc.shown) return RET_OK;
     dx = rc_pe(e, PE_X) - rc.down_x;
@@ -598,6 +621,7 @@ static int rc_on_up(void *ctx, void *e) {
 static int rc_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     rc.down = 0;
     return RET_OK;
 }
@@ -622,6 +646,7 @@ static int rc_on_background(void *ctx, void *e) {
     if (!rc.win || ctx != rc.win) return RET_OK;
     rc.fg = 0;
     rc.down = 0;
+    rowmenu_hold_stop();
     rc_unarm();
     return RET_OK;
 }
@@ -664,6 +689,7 @@ void recent_start(void *win) {
         !widget_on(win, EVT_WINDOW_TO_FG, rc_on_foreground, win) ||
         !widget_on(rc.shelf, EVT_AFTER_PAINT, rc_on_paint, (void *)0) ||
         !widget_on(rc.shelf, EVT_POINTER_DOWN, rc_on_down, (void *)0) ||
+        !widget_on(rc.shelf, EVT_POINTER_MOVE, rc_on_move, (void *)0) ||
         !widget_on(rc.shelf, EVT_POINTER_UP, rc_on_up, (void *)0) ||
         !widget_on(rc.shelf, EVT_POINTER_ABORT, rc_on_abort, (void *)0)) {
         rc_stop(); /* a handler that was registered finds no window of ours any more */

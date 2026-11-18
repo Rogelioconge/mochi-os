@@ -33,7 +33,7 @@ list so an enclosing view cannot intercept the whole navigation band.
 
 | Element | Geometry / appearance |
 |---|---|
-| Navigation | Back; Select / Now Playing capsule; selection mode adds All/None, Add, Delete, Cancel |
+| Navigation | Back; the capsule Select 168 / "..." 214 / Now Playing 260 (46 / 46 / 60 px, the Albums page's); selection mode hides the "..." and adds All/None, Add, Delete, Cancel. The "..." (`btn_pin`, library pages only, an album with a title) opens the pins' three-row sheet: **Play** and **Shuffle** (the Play pill's and Shuffle disc's work, `ab_play_at`) and **Pin Album** / **Unpin Album** ([pins](pins.md)); the sheet is the track menu's own card reworded (`rowmenu_open_pins`: rows past the third hidden, `pc_sheet3`; the next track menu puts the words and rows back). An album without a title ("Unknown Album") has no "...": Select moves to 214 as before. A source's page keeps its capsule: its own "..." (Download Album) at 214, no Select |
 | Cover | 160 × 160 at (80, 50), 10 px corners |
 | Album | Centered 22 px white at y 224 |
 | Artist | Centered 18 px grey at y 247 |

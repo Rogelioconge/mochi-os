@@ -751,6 +751,39 @@
 #define RC_TAP_PX 10
 #define RC_RESOLVE_MS 5000   /* the menu's to-foreground resolves an album's cover key (loads the stock album list) only this long after the menu opened */
 
+/* ---------------------------------------------------------------------------
+ * Home pins at the very top of the Home instance of the menu (patch/pins.c, docs/modules/pins.md; the widgets are in ui/m1plus_menu.bin, tools/pod_ui.py pins(), tools/pod_pins_home.py).
+ * pod_pins is a view PIN_W (the list's width) wide, the first shown child of pod_scrollview, hidden and insensitive in the asset: PIN_COLS columns of PIN_COVER px covers at x PIN_MARGIN,
+ * PIN_GAP apart, PIN_R px corners blended into black, PIN_TOP from the section's top; under a cover PIN_TGAP of air, then the name, PIN_TH high, PIN_TEXT_PX white, centred, one line cut with an ellipsis;
+ * rows PIN_PITCH apart (cover + PIN_TGAP + PIN_TH + PIN_ROW_GAP); PIN_BOTTOM of air under the last row. PIN_MAX items (two rows), in the user's order (a new pin joins the end); none: the section is hidden and the menu is the plain one.
+ * The file /mnt/mmc/.m1plus/home-pins (on the card): magic line, then one line per pin (tools/pod_pins_home.py); PIN_STR bytes per name (NUL included), PIN_PATH per track path, PIN_FILE_MAX bytes read at most.
+ * PIN_TICK_MS: one cover (or one mosaic quarter) per tick, first PIN_FIRST_MS after the menu opened (its first paint decodes nothing).
+ */
+#define PIN_W 310
+#define PIN_COLS 3
+#define PIN_MARGIN 12
+#define PIN_GAP 8
+#define PIN_COVER 90        /* (PIN_W - 2 * PIN_MARGIN - (PIN_COLS - 1) * PIN_GAP) / PIN_COLS */
+#define PIN_R 6
+#define PIN_TOP 6
+#define PIN_TGAP 6
+#define PIN_TH 20
+#define PIN_TEXT_PX 15
+#define PIN_ROW_GAP 10
+#define PIN_PITCH (PIN_COVER + PIN_TGAP + PIN_TH + PIN_ROW_GAP)   /* 126 */
+#define PIN_BOTTOM 8
+#define PIN_LIFT 4          /* the tile held for a reorder is drawn this many px larger on each side */
+#define PIN_MAX 6
+#define PIN_ROWS 2
+#define PIN_H(n) (PIN_TOP + (n) * PIN_PITCH - PIN_ROW_GAP + PIN_BOTTOM)   /* the section's height for n rows of tiles: 130, 256 */
+#define PIN_HMAX PIN_H(PIN_ROWS)
+#define PIN_STR 96
+#define PIN_PATH 256
+#define PIN_FILE_MAX 3072
+#define PIN_TICK_MS 30
+#define PIN_FIRST_MS 150
+#define PIN_CHECK_MS 5000   /* the menu's to-foreground checks the pins against the library (loads the stock album list) only this long after the menu opened */
+
 /* Scrobbling (patch/scrobble.c, docs/modules/scrobble.md): a listen is LISTEN_MAX_S heard, or half the length, of a track longer than LISTEN_MIN_S (q2-pod's play counts, Last.fm's rule) */
 #define SC_MIN_S 30
 #define SC_MAX_S 240
@@ -862,7 +895,7 @@
  * RM_DOTS_RGB) centred in a RM_MORE_W wide tap zone (flush with its right edge beside the rail) whose right edge is RM_MORE_RIGHT (the list's width); on the Songs page, while the A-Z rail is shown, RM_MORE_RIGHT_RAIL (flush with the rail's
  * touch column, which starts at SG_RAIL_X 284). The row's text ends RM_INK_GAP before the glyph's ink (the bitmap's columns from RM_INK_X on), as a chevron row's text ends 10 px before its chevron. A tap on it, or a press held RM_LONG_MS on the row, opens the sheet: RM_ROWS rows of PM_ROW_H at the window's foot in
  * Now Playing's More sheet's glass (pc_sheet5, 320 x 250, top corners only), laid out by the asset (the payload only shows and hides it). */
-#define RM_ROWS 5
+#define RM_ROWS 6 /* the asset's rows: the five above and Pin Song / Unpin Song (a song of the card only: rowmenu_open_src hides it and makes the glass five rows high for any other row) */
 #define RM_QUEUE_ROWS 3 /* the Queue page's sheet: Play Next, Play After, Remove from Queue (docs/modules/queue.md) */
 #define RM_MORE_W 44
 #define RM_MORE_RIGHT 310
@@ -1672,7 +1705,7 @@
 #define VS_VIEWS 2
 #define VS_SEARCH (VS_SORTS + VS_VIEWS) /* slot 6: the optional Search row, the card's first (a glyph, no tick) */
 #define VS_SELECT (VS_SEARCH + 1) /* slot 7: the optional Select row, second in the card (a check-circle glyph, no tick) */
-#define VS_ACT2 (VS_SELECT + 1) /* slot 8: an optional third action row (the Songs asset has it for a playlist's Clean Up Playlist; the Playlists asset has it and slot 9: New Playlist, Import, Export, Delete Playlists are slots 6..9), a glyph, no tick */
+#define VS_ACT2 (VS_SELECT + 1) /* slot 8: an optional third action row (the Songs asset has it for a playlist's Clean Up Playlist and slot 9 for Pin / Unpin Playlist; the Playlists asset has both: New Playlist, Import, Export, Delete Playlists are slots 6..9), a glyph, no tick */
 #define VS_ACT3 (VS_ACT2 + 1) /* slot 9: the fourth */
 #define VS_ROWS (VS_ACT3 + 1)
 #define VS_ALL_SORTS ((1u << VS_SORTS) - 1)

@@ -20,7 +20,7 @@ there is no slide.
 
 | Page | Rows | Height / glass |
 |---|---|---|
-| 1 (opens here every time) | Look up album, Look up artist, Add to playlist, **Display Mode** (chevron), **More** (chevron) | 250 px, `pc_sheet5` |
+| 1 (opens here) | Look up album, Look up artist, Add to playlist, **Display Mode** (chevron), **More** (chevron) | 250 px, `pc_sheet5` |
 | 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, More | 100 px, `pc_sheet2` |
 | 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, More | 100 px, `pc_sheet2` |
 | 2 (More; its back header returns to the page it came from) | back header **< More**, Playback speed, **Sleep Timer**, A-B repeat, **Cover & Lyrics**, Delete song (red `#FF6B6B`) | 300 px, `pc_sheet6` |
@@ -114,7 +114,7 @@ and resizes it.
 `dialog_playmore_dialog_init` (`j m1plus_playmore_init; nop`, trampoline resumes after the prologue),
 pinned in `PLAYMORE_PINS`. It runs only when the sheet is built, so never at boot or in the main loop.
 The stock init runs first. Then `pm_start` looks up widgets by name, checks the asset is the one it
-knows (sixteen rows, `pod_glass`, the labels), sets the texts and registers twelve handlers.
+knows (eighteen rows, `pod_glass`, the labels), sets the texts and registers thirteen handlers.
 **Everything fallible happens before the first row moves**; any failure leaves the stock seven rows.
 State is one `.scratch` struct cleared by the destroy handler; each handler checks its context is
 the dialog the state belongs to, so a handler a failed start left behind does nothing.

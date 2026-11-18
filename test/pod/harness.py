@@ -849,7 +849,7 @@ class Machine:
             self.__dict__.setdefault('queries', []).append(sql)   # (every query of the machine's life, which self.calls loses when a test clears it)
             m_ = re.fullmatch(r"select \* from songtable where fileurl in \((.*)\)", sql)
             a_ = re.fullmatch(re.escape(pod.ALBUM_HEAD) + r" where album='((?:[^']|'')*)' COLLATE NOCASE" + re.escape(pod.ALBUM_GROUP), sql) if a2 == 0x4e93c8 else None   # one album's record (payload cc_album_rep_key): getAllAlbum's statement filtered to a name, so the album list's own record of that name (class_lists[0xf003]), ASCII case folded
-            f_ = re.fullmatch(r"select \* from songtable where fileurl='((?:[^']|'')*)' limit 1", sql)   # one file's row (patch/folders.c fo_album_of): the library's first row with that path
+            f_ = re.fullmatch(r"select \* from songtable where fileurl='((?:[^']|'')*)'( limit 1)?", sql)   # one file's row (patch/folders.c fo_album_of): the library's first row with that path; without the limit every row with it (a CUE image's tracks; patch/pins.c pn_song_album)
             d_ = re.fullmatch(r"select \* from songtable where fileurl>='((?:[^']|'')*)/' and fileurl<'((?:[^']|'')*)0' order by fileurl limit 1", sql)   # a folder's first row in path order (BINARY: bytes)
             album_sql = sql == pod.ALBUM_SQL and a2 == 0x4e93c8   # getAllAlbum's statement with stock's album row callback (payload cc_cmap_build): one record per album (class_lists[0xf003]), the empty-album group skipped as the callback does
             n_ = re.fullmatch(r"select \* from songtable where filename in \((.*)\)", sql)   # the library's rows with those file names (Clean Up Playlist's repair, patch/songops.c so_relink_chunk)
@@ -869,7 +869,7 @@ class Machine:
                 elif f_ or d_:
                     lib = self.class_lists.get(0xf001, self.showlist)
                     path_of = lambda r: self.read_cstr(self.word(r + O['REC_PATH']))
-                    if f_: rows = [r for r in lib if path_of(r) == f_.group(1).replace("''", "'")][:1]
+                    if f_: rows = [r for r in lib if path_of(r) == f_.group(1).replace("''", "'")][:1 if f_.group(2) else None]
                     else:
                         base = d_.group(1).replace("''", "'")
                         rows = sorted((r for r in lib if path_of(r).encode() >= (base + '/').encode() and path_of(r).encode() < (base + '0').encode()), key=lambda r: path_of(r).encode())[:1]

@@ -419,7 +419,8 @@ def build_grid_page(page, toggle='list', coverflow=True, names=('albums_listview
         root.children.extend(azlist_labels())
         root.children.extend(azlist_rail())
     if albums:
-        root.children.extend(view_sort_card())   # last: above everything
+        root.children.extend(view_sort_card())   # above the list, the rail and the navbar
+        root.children.extend(row_menu(pins=True))   # last: the long press sheet of an album (Play, Shuffle, Pin Album / Unpin Album; patch/albums.c, docs/modules/pins.md)
     return root
 
 
@@ -903,23 +904,25 @@ def build_playlists_page(page):
 
 
 
-RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS)
+RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS)
 RM_QUEUE_KEYS = ('Play Next', 'Play After', 'Remove from Queue')   # the Queue page's sheet: three rows (the same code path, patch/rowmenu.c rowmenu_bind_queue), the glass of three rows
 RM_QUEUE_GLASS = 'pc_sheet3'
-RM_GLASS = 'pc_sheet5'                                       # the sheet's glass: Now Playing's More sheet's pane, five rows high, top corners only (tools/mod_icons.py GLASS_ROWMENU)
+PIN_KEYS = ('Play', 'Shuffle', 'Unpin Album')   # the Home pins' long press sheet (patch/pins.c): three rows on the same sheet, the glyphs of tools/mod_icons.py RM_PIN_ICONS
+RM_GLASS = 'pc_sheet6'                                       # the sheet's glass: Now Playing's More sheet's pane, six rows high (a row without Pin Song makes it five: patch/rowmenu.c rowmenu_set_rows), top corners only
 RM_ICON_X, RM_TEXT_X, RM_TEXT_R = 14, 48, 22                  # Now Playing's More sheet's rows (pod_tape: the 24 px glyph at x 14, the label from x 48, ending at 298)
 RM_LABEL_PX = 18
 
 
-def row_menu(queue=False):
+def row_menu(queue=False, pins=False):
     """(scrim, card): the track rows' "..." menu, shared by the album page and the Songs page (patch/rowmenu.c, docs/modules/rowmenu.md): a bottom sheet as Now Playing's More sheet
     (tools/mod_lists.py edit_playmore): the window's dim scrim, a full-width card at the window's foot in that sheet's glass, five PM_ROW_H rows filling it, each a transparent button
-    (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info.
+    (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info, Pin Song (the payload swaps its label and glyph to Unpin Song, and hides it, with the glass five rows high, for a row that is not a song of the card).
     Hidden AND insensitive until the payload shows them; nothing is placed or sized at open. Put it last in the window, above the list, the bars and the navbar.
-    queue: the Queue page's sheet, three rows (Play Next, Play After, Remove from Queue) on the three-row glass."""
-    from mod_icons import RM_MENU_ICONS, RM_REMOVE, BARE_PX
-    keys, icons, glass = (RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS) if queue else (RM_KEYS, RM_MENU_ICONS, RM_GLASS)
-    rows, rh = OFFSETS['RM_QUEUE_ROWS' if queue else 'RM_ROWS'], OFFSETS['PM_ROW_H']
+    queue: the Queue page's sheet, three rows (Play Next, Play After, Remove from Queue) on the three-row glass.
+    pins: the Home pins' sheet (the menu's Home instance) and the Albums page's long press, the same three rows: Play, Shuffle, Unpin Album (the payload sets Unpin Playlist on a playlist's tile, Pin Album / Unpin Album on the Albums page, Unpin Song in the second row of a song's two-row sheet)."""
+    from mod_icons import RM_MENU_ICONS, RM_REMOVE, RM_PIN_ICONS, BARE_PX
+    keys, icons, glass = (PIN_KEYS, RM_PIN_ICONS, RM_QUEUE_GLASS) if pins else (RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS) if queue else (RM_KEYS, RM_MENU_ICONS, RM_GLASS)
+    rows, rh = OFFSETS['RM_QUEUE_ROWS' if queue or pins else 'RM_ROWS'], OFFSETS['PM_ROW_H']
     assert len(keys) == rows == len(icons)
     scrim = modal_scrim('rm_scrim')
     card = hidden(Widget('view', 0, CLIENT_H - rows * rh, SCREEN_W, rows * rh, [('name', 'rm_card')]))
@@ -1176,7 +1179,8 @@ def build_artists_page(page):
     root.children.extend(azlist_labels())
     root.children.extend(azlist_rail())
     scrim, card = view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), view_keys=('Artists', 'Album Artists'), search_key='Search Artists', view_glyphs=('pod_ic_vsartist', 'pod_ic_vsalbumartist'))
-    root.children.extend((scrim, card))   # last: above everything (the "..." card: Search Artists, Show: Artists / Album Artists, Name)
+    root.children.extend((scrim, card))   # (the "..." card: Search Artists, Show: Artists / Album Artists, Name)
+    root.children.extend(row_menu(pins=True))   # last: the long press sheet of an artist (Play, Shuffle, Pin Artist / Unpin Artist; patch/artists.c, docs/modules/pins.md)
     return root
 
 
@@ -1336,8 +1340,8 @@ def build_songs_page(page):
     root.children.extend(azlist_rail())
     root.children.append(select_bar('sg_bar', 'sg_bar_line', [('sg_add', o['SG_PILL_X0'], 'Add to Playlist', 'sg_listplus', o['SG_BAR_PILL_W']),
                                                               ('sg_del', o['SG_BAR_PILL_X1'], 'Delete', 'sg_trash', o['SG_BAR_PILL_W'])]))
-    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up Playlist'),
-                                        act_glyphs=('pod_ic_vssearch', 'pod_ic_vsselect', 'pod_ic_vsclean')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Clean Up Playlist (slot 8), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; the Search Songs row is never offered, Search is the navbar button)
+    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up Playlist', 'Pin Playlist'),
+                                        act_glyphs=('pod_ic_vssearch', 'pod_ic_vsselect', 'pod_ic_vsclean', 'pod_ic_vspin')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Clean Up Playlist (slot 8) and Pin Playlist / Unpin Playlist (slot 9), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; the Search Songs row is never offered, Search is the navbar button)
     root.children.extend(row_menu())   # last: above everything (the track rows' "..." menu, patch/rowmenu.c)
     return root
 
@@ -1364,14 +1368,15 @@ def ab_nav_button(name, x, w, rest, down=None, hide=False):
 
 
 def album_navbar(page):
-    """The glass controls of the album page, the window's last children: Back, the capsule Select | Now Playing (Select the left cap, Now Playing the right: the genre songs list's),
+    """The glass controls of the album page, the window's last children: Back, the capsule Select | "..." | Now Playing (the library's page; Select | Now Playing alone for an album that cannot be pinned and on a source's page, whose "..." is the left cap),
     and the select mode's toggle, Add, Delete and Cancel (hidden until select mode). They are the window's own children, not a bar view's: a view over the list would take every touch
     in its band (this AWTK's hit test never descends into an insensitive container), and a drag that starts between the discs must scroll the list."""
     o = OFFSETS
     title = hidden(Widget('label', NAV_TITLE_X, 14, NAV_VIEW_X - NAV_TITLE_X, 22, [('name', 'label_title'), ('style', 'navbar_label_white'), pod_i18n.text_prop(page.title)]))   # never shown: the page has no title
     return [title,
             ab_nav_button('btn_return', NAV_BACK_X, NAV_BACK_W, 'ah_nav_back', 'ah_nav_back_down'),
-            ab_nav_button('btn_select', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_selectl', 'pod_nav_selectl_down'),
+            ab_nav_button('btn_select', NAV_CF_X, NAV_CF_W, 'pod_nav_selectl', 'pod_nav_selectl_down'),   # the library's capsule is the Albums page's: Select 168 (left cap), "..." 214 (middle), Now Playing 260 (patch/albumpage.c moves Select to 214 for an album that cannot be pinned, with no "...")
+            ab_nav_button('btn_pin', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_moremid', 'pod_nav_moremid_down', hide=True),   # the pins' sheet: Play, Shuffle, Pin Album / Unpin Album (docs/modules/pins.md); shown by the payload
             ab_nav_button('btn_more', NAV_VIEW_X, NAV_VIEW_W, 'pod_nav_more', 'pod_nav_more_down', hide=True),   # a source's page: the capsule's left cap where Select sits for the library (the "..." card below: Download Album; patch/albumpage.c)
             ab_nav_button('btn_backtoplayer', NAV_PLAY_X, NAV_PLAY_W, 'ah_nav_play', 'ah_nav_play_down'),
             ab_nav_button('btn_selall', o['AB_SELALL_X'], o['AB_SELALL_W'], 'ah_nav_unsel', 'ah_nav_unsel_down', hide=True),
@@ -1418,7 +1423,7 @@ def build_album_page(page):
     root.children += style_labels(AB_STYLES)
     root.children.extend(album_navbar(page))   # the glass controls paint and take touches over the list
     root.children.extend(view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=('Download Album', 'Select'), act_glyphs=('pod_ic_vsdownload', 'pod_ic_vsselect')))   # a source's "..." card (patch/albumpage.c offers the first row alone: Download Album); hidden on the library's page
-    root.children.extend(row_menu())   # last: the track rows' "..." menu (patch/rowmenu.c) covers the navbar too
+    root.children.extend(row_menu())   # last: the track rows' "..." menu (patch/rowmenu.c) covers the navbar too; the "..." of the capsule opens the pins' three rows on the same card (rowmenu_open_pins)
     return root
 
 
@@ -2540,6 +2545,27 @@ def shelf():
     return sh
 
 
+# The Home pins of the menu's Home instance (patch/pins.c, docs/modules/pins.md; PIN_* of patch/offsets.inc): a view the width of the list, the first child of the scroll view while shown (the payload puts the
+# rows below it), hidden and insensitive until something is pinned. No header: the tiles (covers and names) are painted by the payload in its own EVT_AFTER_PAINT, and it takes the taps; the one hidden
+# label pod_pin_title only carries the name's text style (15 px white, centred).
+PIN_W, PIN_TEXT_PX, PIN_COVER, PIN_TOP, PIN_PITCH, PIN_ROW_GAP, PIN_BOTTOM, PIN_ROWS = (OFFSETS[k] for k in ('PIN_W', 'PIN_TEXT_PX', 'PIN_COVER', 'PIN_TOP', 'PIN_PITCH', 'PIN_ROW_GAP', 'PIN_BOTTOM', 'PIN_ROWS'))
+def PIN_H(n): return PIN_TOP + n * PIN_PITCH - PIN_ROW_GAP + PIN_BOTTOM   # the section's height for n rows of tiles: 130, 256 (patch/offsets.inc PIN_H)
+PIN_HMAX = PIN_H(PIN_ROWS)
+def pin_x(i, n):
+    """Tile i's x with n pins (patch/pins.c pn_x): 1 or 2 pins are one row centred in the section, 3 or more start at PIN_MARGIN (a partial last row from the left)."""
+    cols, gap, margin = (OFFSETS[k] for k in ('PIN_COLS', 'PIN_GAP', 'PIN_MARGIN'))
+    x0 = (PIN_W - (n * PIN_COVER + (n - 1) * gap)) // 2 if n < cols else margin
+    return x0 + i % cols * (PIN_COVER + gap)
+PIN_NAMES = ('pod_pins', 'pod_pin_title')
+
+
+def pins():
+    sec = hidden(Widget('view', 0, 0, PIN_W, PIN_HMAX, [('name', 'pod_pins')]))
+    styled(sec, ('normal', 'disable', 'focused', 'pressed', 'over', 'selected'), 'bg_color', '#000000')
+    sec.children += style_labels((('pod_pin_title', PIN_TEXT_PX, INK_RGB, 'center'),))
+    return sec
+
+
 # The cache pill of the Home instance (patch/homecover.c, docs/modules/homecover.md; HC_* of patch/offsets.inc): a 296 x 40 capsule (#1C1C1E, fully rounded) above the list, hidden and insensitive until the payload
 # shows it (and moves the list down by HC_H). Children: the text label pod_cover_prog (15 px #AAAAAA, "Preparing covers 120/840"), a 4 px progress bar (pod_cache_track #FFFFFF33, pod_cache_fill #EBEBEB, the
 # payload resizes the fill like the Podcasts refresh card's) and the stop button pod_cache_x (the disc pod_cache_x / _down; a 40 px touch box).
@@ -3404,11 +3430,13 @@ def build_page(page):
     if page is pod_pages.MENU:   # the mini player bar (shown by the payload, on the Home instance only) and the list's padding under it
         sv = lv.children[0]
         assert sv.w == SH_W
+        sv.children.append(pins())   # the Home pins (the payload puts them first, above the rows, and shows them when something is pinned)
         sv.children.append(daily())   # after the rows, before the shelf: the Daily Mix card (the payload moves it below the last shown row and shows it when there is a mix)
         sv.children.append(shelf())   # then the shelf (the payload moves it below the last shown row and shows it when there are albums to show)
         sv.children.append(hidden(Widget('view', 0, len(page.rows) * ROW_H, sv.w, MB_PAD, [('name', 'pod_pad')])))   # last child; the payload shows it with the bar
         root.children.append(cache_pill())   # (hidden; the bar stays the last child: it paints over everything)
         root.children.append(minibar())
+        root.children.extend(row_menu(pins=True))   # the pins' long press sheet: the window's last two children, above the bar
     return root
 
 

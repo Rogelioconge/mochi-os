@@ -49,6 +49,9 @@
 #include "artsplit.h"
 #include "coverflow.h"
 #include "entries.h"
+#include "rowmenu.h"
+#include "songops.h"
+#include "pins.h"
 
 #define AR_ROW \
     52 /* tools/pod_ui.py ROW_H: the menu's rows (the Artists rows were 52 px before the page took the Songs page's structure) */
@@ -96,6 +99,9 @@ static struct {
     int down; /* the row a press began on, + 1 */
     m1_tap_t tap; /* and where */
     int title_on, noscroll;
+    rowmenu_t
+        rm; /* the long press sheet (Play, Shuffle, Pin Artist / Unpin Artist; the library's Artists page only: rm.on) */
+    void *rm_label, *rm_icon; /* its third row's label and glyph */
     int photo; /* Artists and Album Artists: rows with a circle (the ring decodes it, ar_on_photo) */
     unsigned char *
         pst; /* 2 bits per display position: AP_UNKNOWN / AP_PHOTO / AP_NONE / AP_LEAD (ap_lookup's answer once it is known) */
@@ -120,6 +126,31 @@ static const char *ar_name(void *r) {
 
 /* The stock row shown at display position i. */
 static unsigned ar_stock(unsigned i) { return ar.order ? ar.order[i] : i; }
+
+/* One row for the artist `name`, as the Albums page and Cover Flow take it (artists.h). */
+void *artists_find(const char *name) {
+    void *list, *one;
+    unsigned i, n;
+    if (!name || !*name) return (void *)0;
+    if (*(volatile int *)ARTIST_TYPE != 1 && as_mask()) {
+        one = as_first_row(name); /* the split on: the first name of the field */
+        if (one) return one;
+    }
+    if (loadLocalClassList(CLASS_ARTISTS) <= 0) return (void *)0;
+    list = *(void **)PDEQ_SHOWLIST;
+    n = list ? deque_size(list) : 0;
+    for (i = 0; i < n; i++) {
+        void *r = deque_at(list, i);
+        if (*(int *)((char *)r + REC_ID) == -1 || cc_nocase(cc_str(r, REC_TITLE), name)) continue;
+        one = _create_deque(
+            "stSongInfo"); /* the page takes its own copy of the row; this list only carries it there (and keeps the stock list's reload from pulling it away) */
+        if (!one) return (void *)0;
+        deque_init(one);
+        _deque_push_back(one, r);
+        return one;
+    }
+    return (void *)0;
+}
 
 /* A tap: an artist's or a composer's albums on our Albums page (Cover Flow if that window will not open); a genre's songs on our Songs page (the stock row tap's classinfo and class 0xff09, songs_open_genre). */
 static __attribute__((noinline)) int
@@ -448,6 +479,46 @@ static int ar_item_of(void *e) {
     return az_pin_hit(&ar.al, pt[1]) ? -1 : az_at(&ar.al, pt[1]); /* (the pinned band is dead) */
 }
 
+/* The long press sheet (docs/modules/pins.md): the library's Artists (and Album Artists) page only, a real artist (not the Unknown Artist row; the pins need a name that has a photo key and fits the file). The artist's stock row. */
+static void *ar_pin_rec(int a) {
+    void *rec;
+    const char *name;
+    if (!ar.rm.on || ar.src || ar.cls != CLASS_ARTISTS || a < 0 || a >= (int)ar.count) return (void *)0;
+    rec = deque_at(ar.artists, ar_stock((unsigned)a));
+    name = ar_name(rec);
+    if (!rec || *(int *)((char *)rec + REC_ID) == -1 || !*name || !ap_key(name) || strlen(name) >= PIN_STR)
+        return (void *)0;
+    return rec;
+}
+
+/* A row of the sheet (it has closed): Play, Shuffle (all the artist's songs, as the scoped Albums page's pill and disc), Pin Artist / Unpin Artist for the artist it was opened on. */
+static void ar_sheet(int a, int act) {
+    void *rec = ar_pin_rec(a);
+    const char *name;
+    if (!rec) return;
+    name = ar_name(rec);
+    if (act == RMP_UNPIN) {
+        if (pins_has_artist(name))
+            pins_unpin_artist(name);
+        else
+            pins_pin_artist(name);
+    } else if (songs_play_artist(rec, CLASS_ARTISTS, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER) < 0)
+        pod_toast(TR("Can't play"));
+}
+
+/* A press held RM_LONG_MS on an artist: the sheet opens while the finger is down; the press is forgotten, so the release opens nothing. */
+static void ar_on_hold(int a) {
+    void *rec = ar_pin_rec(a);
+    int has;
+    ar.down = 0;
+    grid_set_press(&ar.press, 0, ar.sv);
+    if (!rec || ar.vs.on) return;
+    has = pins_has_artist(ar_name(rec));
+    if (ar.rm_label) widget_set_tr_text(ar.rm_label, has ? "Unpin Artist" : "Pin Artist");
+    if (ar.rm_icon) widget_set_prop_str(ar.rm_icon, "image", has ? "rm_ic_unpin" : "rm_ic_pin");
+    rowmenu_open_queue(&ar.rm, a, ar_sheet);
+}
+
 static int ar_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -456,12 +527,20 @@ static int ar_on_down(void *ctx, void *e) {
     a = ar_item_of(e);
     ar.down = a + 1, m1_tap_at(&ar.tap, e);
     grid_set_press(&ar.press, a + 1, ar.sv);
+    if (a >= 0 && ar_pin_rec(a)) rowmenu_hold_start(a, ar_on_hold);
+    return RET_OK;
+}
+
+static int ar_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (ar.down && e) rowmenu_hold_move(&ar.tap, e); /* a drift of SC_DRAG_PX or more is a drag, not a long press */
     return RET_OK;
 }
 
 static int ar_on_up(void *ctx, void *e) {
     int a = ar.down - 1;
     (void)ctx;
+    rowmenu_hold_stop();
     grid_press_end(&ar.down, &ar.press, ar.sv);
     if (a < 0 || !e || !ar.view) return RET_OK;
     if (m1_tap_near(&ar.tap, e) && ar_item_of(e) == a) ar_open((unsigned)a);
@@ -471,6 +550,7 @@ static int ar_on_up(void *ctx, void *e) {
 static int ar_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     grid_press_end(&ar.down, &ar.press, ar.sv);
     return RET_OK;
 }
@@ -533,6 +613,7 @@ static int ar_on_fg(void *ctx, void *e) {
 
 static int ar_on_bg(void *ctx, void *e) {
     az_rail_end(&ar.al);
+    rowmenu_close(&ar.rm);
     return ar_on_abort(ctx, e);
 }
 
@@ -548,6 +629,7 @@ static int ar_on_destroy(void *ctx, void *e) {
     grid_free(&ar.g);
     az_free(&ar.al);
     if (ar.chev) bitmap_destroy(ar.chev);
+    rowmenu_free(&ar.rm);
     free(ar.order);
     free(ar.rank);
     free(ar.pst);
@@ -777,6 +859,11 @@ static int ar_open_page(int home, const lib_src_t *src) {
         navigator_back(); /* an asset that is not ours */
         return h ? pod_home_open(h) : -1;
     }
+    if (ar.cls == CLASS_ARTISTS && !ar.src) { /* the long press sheet (an asset without it: no long press) */
+        rowmenu_bind_queue(&ar.rm, ar.win);
+        ar.rm_label = widget_lookup(ar.win, "rm_label2", 1);
+        ar.rm_icon = widget_lookup(ar.win, "rm_icon2", 1);
+    }
     ar.rev = set_read(ar_sort_file(0), '0') == 'a';
     az_make_disc(&ar.al);
     ar.chev = m1_make_chevron();
@@ -785,6 +872,7 @@ static int ar_open_page(int home, const lib_src_t *src) {
     ar.epoch = ap_epoch();
     widget_on(ar.win, EVT_WINDOW_TO_FG, ar_on_fg, (void *)0);
     widget_on(ar.view, EVT_POINTER_DOWN, ar_on_down, (void *)0);
+    widget_on(ar.view, EVT_POINTER_MOVE, ar_on_move, (void *)0);
     widget_on(ar.view, EVT_POINTER_UP, ar_on_up, (void *)0);
     widget_on(ar.view, EVT_POINTER_ABORT, ar_on_abort, (void *)0);
     widget_on(ar.view, EVT_AFTER_PAINT, ar_on_paint, (void *)0);

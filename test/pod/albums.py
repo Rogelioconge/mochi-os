@@ -369,7 +369,7 @@ def layout_tests(ctx):
     expect(all(grid.get(f'style:normal:{k}') == v for k, v in (('text_color', '#FFFFFF'), ('font_size', '16'),
                                                                  ('text_align_h', 'left'), ('bg_color', '#000000'))),
            'its style is the 16 px white title text on black (what widget_prepare_text_style reads)')
-    expect(not [w for w in tree.walk() if w.type in ('list_item', 'slide_menu') or (w.type == 'image' and w.name not in ('img_nb_fade', 'al_spin') and not w.name.startswith('vs_'))],
+    expect(not [w for w in tree.walk() if w.type in ('list_item', 'slide_menu') or (w.type == 'image' and w.name not in ('img_nb_fade', 'al_spin') and not w.name.startswith(('vs_', 'rm_')))],
            'no widget per album: the page is a navbar, a list, the fade under the bar, a status label and the loading spinner')
     bar = tree.find('scroll_bar_m')
     expect(bar is not None and bar.type == 'scroll_bar_m' and (bar.x, bar.w) == (SVW, 10) and bar in tree.find('albums_listview').children,
@@ -442,8 +442,8 @@ def layout_tests(ctx):
     m = albums_machine(30)
     calls = open_grid(m)
     names = [c[0] for c in calls]
-    expect(('window_open', 'm1plus_albums') in calls and names.count('widget_on') == 4 + 1 + 2 + 1 + 1 + 3 + 1 + 8 + 1,
-           f'the window, Back, Now Playing, Search, "...", Cover Flow, the card\'s eight rows and scrim, the scroll and scroll-end events of the scroll_view, foreground, background, three pointer events (down, up, abort) and the paint are bound ({names.count("widget_on")})')
+    expect(('window_open', 'm1plus_albums') in calls and names.count('widget_on') == 4 + 1 + 2 + 1 + 1 + 4 + 1 + 8 + 1,
+           f'the window, Back, Now Playing, Search, "...", Cover Flow, the card\'s eight rows and scrim, the scroll and scroll-end events of the scroll_view, foreground, background, four pointer events (down, move for the long press, up, abort) and the paint are bound ({names.count("widget_on")})')
     sv0, view0 = m.widgets['albums_scrollview'], m.widgets['view_grid']
     expect(all(('widget_on', sv0, O[e], PSYMS['al_on_scroll'], 0) in calls for e in ('EVT_SCROLL', 'EVT_SCROLL_END')) and not any(c[0] == 'widget_grab' for c in calls)
            and all(('widget_on', view0, O[e], PSYMS[f], 0) in calls for e, f in (('EVT_POINTER_DOWN', 'al_on_down'), ('EVT_POINTER_UP', 'al_on_up'), ('EVT_POINTER_ABORT', 'al_on_abort'))),
@@ -2880,4 +2880,66 @@ def loading_tests(ctx):
     expect(not any(e[0] == 'state' for e in m.fake_log) and not spin(m) and not status(m), 'cached rows: shown at once, the state is not asked, no spinner')
 
 
-SECTIONS = [layout_tests, taps_list_tests, toggle_tests, stock_widget_tests, background_build_tests, foreground_loader_tests, reread_tests, card_asset_tests, sort_card_tests, reverse_tests, title_tests, az_tests, years_tests, year_grid_tests, src_tests, loading_tests, nextalbum_tests]   # tools/check.py runs each as its own task
+def long_press_tests(ctx):
+    """The long press (docs/modules/pins.md): an album held RM_LONG_MS in the grid or the list opens the three-row sheet (Play, Shuffle, Pin Album / Unpin Album by the pins file) and its release opens no album; a drift
+    of SC_DRAG_PX or more, an abort or a release before the time cancels it; Pin Album writes the album's line, Unpin Album removes it; Play and Shuffle start the album; the All Songs tile and a source's page have none."""
+    expect = ctx.expect
+    import pod_pins_home as H
+    RM = sibling('rowmenu')
+    PINS = '/mnt/mmc/.m1plus/home-pins'
+    opened = lambda calls: [c for c in calls if c[0] == 'navigator_to_with_context']
+    timers = lambda m: [c for c in m.calls if c[0] == 'timer_add' and c[1] == PSYMS['rm_on_hold']]
+    vis = RM.vis
+
+    def machine(list_mode):
+        m = albums_machine(11, cls=ListMachine, cached=False)
+        if list_mode: m.fs[ALBUMS_FILE] = b'0\n'
+        RM.with_menu(m, 0)   # the sheet's widgets (the asset's Albums page has the queue form's three rows; the rest are never looked at) and the dots image
+        Machine.widget(m, 'rm_icon1')
+        open_grid(m); settle(m)
+        return m
+
+    for mode in ('grid', 'list'):
+        m = machine(mode == 'list')
+        x, y = (MARGIN + COVER // 2, TOP + RGAP + 10) if mode == 'grid' else (100, TOP + 10 + ROW)   # album 0 / album 1
+        a = 0 if mode == 'grid' else 1
+        gesture(m, [('down', x, y, 1000)])
+        expect(len(timers(m)) == 1 and [t for t in m.calls if t[0] == 'timer_add' and t[1] == PSYMS['rm_on_hold']][0][2] == O['RM_LONG_MS'] and vis(m, 'rm_card') != (1, 1),
+               f'{mode}: a press on an album arms the one {O["RM_LONG_MS"]} ms timer, nothing is open yet')
+        m.call(PSYMS['rm_on_hold'], count=900000000)
+        expect(vis(m, 'rm_card') == (1, 1) and vis(m, 'rm_scrim') == (1, 1) and m.wtext[m.widgets['rm_label2']] == 'Pin Album' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_pin',
+               f'{mode}: held, the sheet opens with Pin Album and the pin glyph')
+        m.calls = []
+        got = gesture(m, [('up', x, y, 1600)])
+        expect(not opened(got) and vis(m, 'rm_card') == (1, 1), f'{mode}: the release afterwards opens no album and leaves the sheet open')
+        RM.SG.click(m, 'rm_item2')
+        want = H.parse(m.fs.get(PINS, b''))
+        expect(len(want) == 1 and want[0][0] == 'a' and want[0][3] == f'Album {a}' and want[0][1] == H.identity(f'Album {a}') and want[0][4] == f'/mnt/mmc/m/{a}/1.flac' and vis(m, 'rm_card') == (0, 0),
+               f'{mode}: Pin Album writes the album\'s line (title, its first track) and closes the sheet ({want})')
+        gesture(m, [('down', x, y, 2000)])
+        m.call(PSYMS['rm_on_hold'], count=900000000)
+        expect(m.wtext[m.widgets['rm_label2']] == 'Unpin Album' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_unpin', f'{mode}: a pinned album reads Unpin Album with the pin-off glyph')
+        gesture(m, [('up', x, y, 2600)])
+        RM.SG.click(m, 'rm_item2')
+        expect(H.parse(m.fs.get(PINS, b'')) == [], f'{mode}: Unpin Album removes the line')
+        # Play and Shuffle start the album through the stock lists
+        for item, name in (('rm_item0', 'Play'), ('rm_item1', 'Shuffle')):
+            gesture(m, [('down', x, y, 3000)]); m.call(PSYMS['rm_on_hold'], count=900000000); gesture(m, [('up', x, y, 3600)])
+            m.calls = []
+            m.click(item, count=900000000)
+            expect(vis(m, 'rm_card') == (0, 0) and 'loadAlbumList' in m.names(), f'{mode}: {name} closes the sheet and reads the stock album list ({m.names()[:6]})')
+        # cancelled: a drift, an abort, an early release
+        m.calls = []
+        gesture(m, [('down', x, y, 5000)])
+        m.calls = []
+        m.touch('move', x + 20, SCREEN_Y0 + y, 5100, fn='al_on_move')
+        expect(any(c[0] == 'timer_remove' for c in m.calls), f'{mode}: a drift of 20 px stops the timer')
+        gesture(m, [('abort', x, y, 5200)]); m.calls = []
+        gesture(m, [('down', x, y, 6000), ('abort', x, y, 6100)])
+        expect(any(c[0] == 'timer_remove' for c in m.calls) and vis(m, 'rm_card') == (0, 0), f'{mode}: an abort stops the timer')
+        m.calls = []
+        got = gesture(m, [('down', x, y, 7000), ('up', x, y, 7100)])
+        expect(bool(opened(got)) and any(c[0] == 'timer_remove' for c in m.calls) and vis(m, 'rm_card') == (0, 0), f'{mode}: a tap shorter than the time still opens the album and stops the timer')
+
+
+SECTIONS = [layout_tests, taps_list_tests, toggle_tests, stock_widget_tests, background_build_tests, foreground_loader_tests, reread_tests, card_asset_tests, sort_card_tests, reverse_tests, title_tests, az_tests, years_tests, year_grid_tests, src_tests, loading_tests, nextalbum_tests, long_press_tests]   # tools/check.py runs each as its own task

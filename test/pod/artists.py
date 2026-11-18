@@ -1146,16 +1146,16 @@ def scoped_sort_tests(ctx):
         m.touch('down', 100, 80 + TOP_ROWS + y, 1000, fn='al_on_down')
         m.touch('up', 100, 80 + TOP_ROWS + y, 1080, fn='al_on_up', count=40000000)
         return [c[3] for c in m.calls if c[:2] == ('navigator_to_with_context', 'albuminfo_page')]
-    # the card: Find Artist Photo (the Search row's slot: find_photo_tests), Grid, List and three sort rows, packed, 300 px, the six-row glass; no Search Albums (it searched every album, not the artist's); hidden rows are insensitive; the names are all there
+    # the card: Find Artist Photo (the Search row's slot: find_photo_tests), Pin Artist (the Select row's slot), Grid, List and three sort rows, packed, 350 px, the seven-row glass; no Search Albums (it searched every album, not the artist's); hidden rows are insensitive; the names are all there
     m = scoped_machine(); m.call(PSYMS['ar_open'], a0=0, count=40000000)
     m.click('btn_more')
     expect(vis(m, 'vs_item1') == (0, 0) and m.wtext.get(m.widgets['vs_label6']) == 'Find Artist Photo', 'the scoped card has no Artist row (hidden and insensitive) and no Search Albums row')
-    expect(all(vis(m, f'vs_item{i}') == (1, 1) for i in (0, 2, 3, 4, 5, 6)) and vis(m, 'vs_card') == (1, 1), 'Find Artist Photo, Grid, List, Title, Recently Added and Year are shown')
-    moves = {i: [c[2:] for c in m.calls if c[0] == 'widget_move' and c[1] == m.widgets[f'vs_item{i}']] for i in (0, 2, 3, 4, 5, 6)}
-    expect(moves == {6: [(0, 0)], 4: [(0, 50)], 5: [(0, 100)], 0: [(0, 150)], 2: [(0, 200)], 3: [(0, 250)]}, f'the rows are packed from the top: the action row, Grid and List, the sorts ({moves})')
-    expect(vis(m, 'vs_hair')[0] == 1 and ('widget_move', m.widgets['vs_hair'], 0, 50) in m.calls, 'the hairline under the action row')
-    expect(all(m.props.get((m.widgets['vs_card'], f'style:{st}:bg_image')) == 'vs_glass6' for st in ('normal', 'pressed', 'over')), 'the card is drawn in the 300 px, six-row glass')
-    expect([c[2:] for c in m.calls if c[0] == 'widget_resize' and c[1] == m.widgets['vs_card']][-1][1] == 300, 'the card is 300 px high')
+    expect(all(vis(m, f'vs_item{i}') == (1, 1) for i in (0, 2, 3, 4, 5, 6, 7)) and vis(m, 'vs_card') == (1, 1) and m.wtext.get(m.widgets['vs_label7']) == 'Pin Artist', 'Find Artist Photo, Pin Artist, Grid, List, Title, Recently Added and Year are shown')
+    moves = {i: [c[2:] for c in m.calls if c[0] == 'widget_move' and c[1] == m.widgets[f'vs_item{i}']] for i in (0, 2, 3, 4, 5, 6, 7)}
+    expect(moves == {6: [(0, 0)], 7: [(0, 50)], 4: [(0, 100)], 5: [(0, 150)], 0: [(0, 200)], 2: [(0, 250)], 3: [(0, 300)]}, f'the rows are packed from the top: the two action rows, Grid and List, the sorts ({moves})')
+    expect(vis(m, 'vs_hair')[0] == 1 and ('widget_move', m.widgets['vs_hair'], 0, 100) in m.calls, 'the hairline under the action rows')
+    expect(all(m.props.get((m.widgets['vs_card'], f'style:{st}:bg_image')) == 'vs_glass7' for st in ('normal', 'pressed', 'over')), 'the card is drawn in the 350 px, seven-row glass')
+    expect([c[2:] for c in m.calls if c[0] == 'widget_resize' and c[1] == m.widgets['vs_card']][-1][1] == 350, 'the card is 350 px high')
     expect([vis(m, f'vs_tick{i}')[0] for i in range(4)] == [1, 0, 0, 0], 'the saved Artist (the default) shows as Title: Title is ticked')
     # the library page keeps four sorts, the 350 px card and the asset's own seven-row glass
     ml = scoped_machine(); ml.call(PSYMS['albums_open'], count=20000000); ml.calls = []; ml.click('btn_more')
@@ -2269,7 +2269,7 @@ def find_photo_tests(ctx):
     expect(('widget_set_tr_text', m.widgets['vs_label6'], 'Find Artist Photo') in m.open_calls and ('image_base_set_image', m.widgets['vs_glyph6'], 'pod_ic_vsphoto') in m.open_calls,
            'the page gives the card\'s action slot its own text and glyph: Find Artist Photo, a picture')
     m.calls = []; m.click('btn_more')
-    expect(vis(m, 'vs_item6') == (1, 1) and vis(m, 'vs_item7') == (0, 0) and ('widget_move', m.widgets['vs_item6'], 0, 0) in m.calls, 'it is the card\'s first row; no Select row')
+    expect(vis(m, 'vs_item6') == (1, 1) and vis(m, 'vs_item7') == (1, 1) and ('widget_move', m.widgets['vs_item6'], 0, 0) in m.calls, 'it is the card\'s first row; Pin Artist (the Select slot) is the second')
     stub(m)
     m.calls = []; m.click('vs_item6', count=40000000)
     expect(m.found == ['Miles Davis'] and vis(m, 'vs_card') == (0, 0) and not [c for c in m.calls if c[0] == 'window_open'], f'a tap closes the card and opens the Find page for the artist\'s name, not the Search page ({m.found})')
@@ -2307,6 +2307,22 @@ def find_photo_tests(ctx):
     photo(m, (60, 90, 200)); picked(m)
     new = fire(m, 'al_on_fg')
     expect(m.found == ['Miles Davis'] and not [c for c in new if c[0] == 'widget_move' and c[1] == m.widgets['btn_play']], 'a Find page that did not open leaves nothing to look at on the return')
+    # Pin Artist / Unpin Artist (the Select slot): the pins file's line for the artist; the words and the glyph follow it
+    import pod_pins_home as PH_
+    PINS = '/mnt/mmc/.m1plus/home-pins'
+    m = head_machine()
+    expect(('widget_set_tr_text', m.widgets['vs_label7'], 'Pin Artist') in m.open_calls and ('image_base_set_image', m.widgets['vs_glyph7'], 'pod_ic_vspin') in m.open_calls, 'the Select slot reads Pin Artist with the pin glyph')
+    m.click('btn_more'); m.calls = []
+    m.click('vs_item7', count=40000000)
+    got = PH_.parse(m.fs.get(PINS, b''))
+    expect(got == [('r', PH_.identity('Miles Davis'), (ap_key('Miles Davis'), 0, 0, 0), 'Miles Davis', '0')] and vis(m, 'vs_card') == (0, 0)
+           and ('widget_set_tr_text', m.widgets['vs_label7'], 'Unpin Artist') in m.calls and ('image_base_set_image', m.widgets['vs_glyph7'], 'pod_ic_vsunpin') in m.calls,
+           f'a tap pins the artist (name key, photo key, name), closes the card and the row now reads Unpin Artist ({got})')
+    m.click('btn_more'); m.click('vs_item7', count=40000000)
+    expect(PH_.parse(m.fs.get(PINS, b'')) == [] and ('widget_set_tr_text', m.widgets['vs_label7'], 'Pin Artist') in m.calls, 'a tap on Unpin Artist removes the line')
+    m.fs[PINS] = PH_.dump([PH_.pin([], ('a', i + 1, (i + 1, 0, 0, 0), f'A{i}', ''))[0][0] for i in range(6)])
+    m.calls = []; m.click('btn_more'); m.click('vs_item7', count=40000000)
+    expect([c[1] for c in m.calls if c[0] == 'toast'] == ['Unpin an item first'] and len(PH_.parse(m.fs[PINS])) == 6, 'with six pinned the tap shows "Unpin an item first" and changes nothing')
     # a composer's page: no row
     m = artists_machine(albums_page=True, photos=False, composers=('Bach',))
     m.fs['/mnt/data/m1plus/albums-view'] = b'0\n'
@@ -2321,6 +2337,77 @@ def find_photo_tests(ctx):
     for loc in pod_i18n.LOCALES:
         if not pod_i18n.TEXT['Find Artist Photo'].get(loc): expect(False, f'Find Artist Photo has no {loc} text')
     expect(len({pod_i18n.TEXT['Find Artist Photo'][loc] for loc in pod_i18n.LOCALES}) >= 12, 'the row\'s text is translated in the 13 languages')
+
+
+def hold_tests(ctx):
+    """The long press (docs/modules/pins.md): an artist row held RM_LONG_MS on the library's Artists page opens the three-row sheet (Play, Shuffle, Pin Artist / Unpin Artist by the pins file) and its release opens no artist; a
+    drift of SC_DRAG_PX or more, an abort or a release before the time cancels it; Play and Shuffle play all the artist's songs; Pin Artist writes the artist's line, Unpin Artist removes it; the Unknown Artist row, Genres and
+    Composers have none."""
+    expect = ctx.expect
+    import pod_pins_home as PH_
+    RM = sibling('rowmenu')
+    PINS = '/mnt/mmc/.m1plus/home-pins'
+    names = ['Miles Davis', 'Nina Simone', 'Unknown Artist']
+    mod = Model(names)
+    timers = lambda m: [c for c in m.calls if c[0] == 'timer_add' and c[1] == PSYMS['rm_on_hold']]
+    shown = lambda m: RM.vis(m, 'rm_card') == (1, 1)
+
+    def machine(**kw):
+        m = artists_machine(**kw)
+        RM.with_menu(m, 0)
+        Machine.widget(m, 'rm_icon1')
+        m.played = []
+        m.handlers[PSYMS['songs_play_artist']] = 'songs_play_artist'
+        inner = m._hook
+        def hook(u, address, size, _):
+            if m.handlers.get(address) == 'songs_play_artist':
+                m.played.append((m.read_cstr(m.word(u.reg_read(UC_MIPS_REG_A0) + O['REC_TITLE'])), u.reg_read(UC_MIPS_REG_A1), u.reg_read(UC_MIPS_REG_A2)))   # noqa: F821
+                u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return   # noqa: F821
+            return inner(u, address, size, _)
+        m._hook = hook
+        return m
+
+    def down(m, y, t=1000): m.touch('down', 100, SCREEN_Y0 + y, t, fn='ar_on_down')
+    def up(m, y, t=1600): m.touch('up', 100, SCREEN_Y0 + y, t, fn='ar_on_up', count=30000000)
+
+    m = machine(); m.call(PSYMS['artists_open'], count=5000000)
+    y = mod.row_y(1) + 10
+    m.calls = []; down(m, y)
+    expect(len(timers(m)) == 1 and timers(m)[0][2] == O['RM_LONG_MS'] and not shown(m), f'a press on an artist arms the one {O["RM_LONG_MS"]} ms timer, nothing is open yet')
+    m.call(PSYMS['rm_on_hold'], count=900000000)
+    expect(shown(m) and m.wtext[m.widgets['rm_label2']] == 'Pin Artist' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_pin' and RM.vis(m, 'rm_scrim') == (1, 1), 'held: the sheet opens with Pin Artist and the pin glyph')
+    m.calls = []
+    up(m, y)
+    expect(shown(m) and not [c for c in m.calls if c[0] == 'loadAlbumList'] and ('window_open', 'm1plus_cover') not in m.calls, 'the release afterwards opens no artist and leaves the sheet open')
+    RM.SG.click(m, 'rm_item2')
+    got = PH_.parse(m.fs.get(PINS, b''))
+    expect(got == [('r', PH_.identity('Nina Simone'), (PH_.artist_key('Nina Simone'), 0, 0, 0), 'Nina Simone', '0')] and not shown(m), f'Pin Artist writes the artist\'s line and closes the sheet ({got})')
+    down(m, y, 2000); m.call(PSYMS['rm_on_hold'], count=900000000); up(m, y, 2600)
+    expect(m.wtext[m.widgets['rm_label2']] == 'Unpin Artist' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_unpin', 'a pinned artist reads Unpin Artist with the pin-off glyph')
+    RM.SG.click(m, 'rm_item2')
+    expect(PH_.parse(m.fs.get(PINS, b'')) == [], 'Unpin Artist removes the line')
+    for item, name, how in (('rm_item0', 'Play', 1), ('rm_item1', 'Shuffle', 2)):
+        down(m, y, 3000); m.call(PSYMS['rm_on_hold'], count=900000000); up(m, y, 3600)
+        m.played.clear(); m.click(item, count=900000000)
+        expect(not shown(m) and m.played == [('Nina Simone', 0xf004, how)], f'{name} closes the sheet and plays all the artist\'s songs ({m.played})')
+    # cancelled: a drift, an abort, an early release (a tap still opens the artist)
+    m.calls = []; down(m, y, 5000); m.calls = []
+    m.touch('move', 120, SCREEN_Y0 + y, 5100, fn='ar_on_move')
+    expect(any(c[0] == 'timer_remove' for c in m.calls), 'a drift of 20 px stops the timer')
+    m.touch('abort', 100, SCREEN_Y0 + y, 5200, fn='ar_on_abort'); m.calls = []
+    down(m, y, 6000); m.touch('abort', 100, SCREEN_Y0 + y, 6100, fn='ar_on_abort')
+    expect(any(c[0] == 'timer_remove' for c in m.calls) and not shown(m), 'an abort stops the timer')
+    m.calls = []
+    down(m, y, 7000); up(m, y, 7100)
+    expect([c for c in m.calls if c[0] == 'loadAlbumList'] and any(c[0] == 'timer_remove' for c in m.calls) and not shown(m), 'a tap shorter than the time still opens the artist and stops the timer')
+    # the Unknown Artist row has none
+    m.calls = []; down(m, mod.row_y(2) + 10, 8000)
+    expect(not timers(m), 'the Unknown Artist row arms no hold')
+    up(m, mod.row_y(2) + 10, 8050)
+    # Genres and Composers have none
+    m = machine(genres=('Jazz',)); m.call(PSYMS['artists_open'], a0=pod_pages.HOME_GENRE, count=5000000)
+    m.calls = []; down(m, Model(['Jazz']).row_y(0) + 10)
+    expect(not timers(m), 'a genre row arms no hold')
 
 
 def reread_tests(ctx):
@@ -2617,4 +2704,4 @@ def split_lookup_tests(ctx):
     expect(split_machine(None).call(PSYMS['as_session'], a0=1, count=4000000) == 0, 'setting off: no session')
 
 
-SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests, split_tests, split_lookup_tests]
+SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests, split_tests, split_lookup_tests, hold_tests]

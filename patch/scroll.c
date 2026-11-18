@@ -12,7 +12,7 @@
  * One hook, and no code of the stock app is overwritten: the on_event_before_children slot of g_scroll_view_vtable
  * (0x97a330, zero in stock), which widget_on_event_before_children (0x666c34) calls for every pointer event of a
  * scroll_view before the event goes down to its children. It runs only for touches inside a scroll_view; never at boot,
- * in paint or in the main loop. A MOVE costs two compares. No allocation, no syscall, no log: the kill switch
+ * in paint or in the main loop. A MOVE costs three compares. No allocation, no syscall, no log: the kill switch
  * (/mnt/mmc/m1plus-off, or the flash one) is read once, at the first DOWN or UP, and the hook is a no-op for a session
  * that starts with it.
  *
@@ -30,6 +30,7 @@
 #include "stock.h"
 #include "scroll.h"
 #include "home.h"
+#include "pins.h"
 
 #define B(w, off) (*(unsigned char *)((char *)(w) + (off)))
 #define I(w, off) (*(int *)((char *)(w) + (off)))
@@ -76,6 +77,9 @@ __attribute__((noinline)) static int sc_up(void *w, void *e) {
  * widget and the event, both non-null. Anything but a pointer DOWN or UP is stock. */
 int m1plus_scroll_event(void *w, void *e) {
     unsigned type = *(unsigned *)e & 0xffff;
+    if (w == pins_lift_sv)
+        B(w, SC_YSLIDE) =
+            0; /* a Home pin is lifted (patch/pins.c): the list does not slide with its drag or fling at its drop, whatever a layout set since the hold; no late-drag abort either */
     if (type == EVT_POINTER_DOWN) return sc_down(w, e);
     if (type == EVT_POINTER_UP) return sc_up(w, e);
     return RET_OK;

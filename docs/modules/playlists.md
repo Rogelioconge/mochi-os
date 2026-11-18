@@ -187,6 +187,11 @@ so it does not depend on `g_class_type`. The selection vector is the Songs page'
 - **Pins** (`tools/pod.py`): `createPlayListItem` (named), data words `pdeq_playlist`,
   `nagvation_title`, `navigation_status`, and `PLAYLIST_PINS` for the two static click handlers.
 
+## Pin Playlist (`patch/songs.c` `sg_pin`)
+
+A stock playlist's songs page also has **Pin Playlist** / **Unpin Playlist** as the third row of the "..." card (slot 9,
+`VS_ACT3`, `pod_ic_vspin` / `pod_ic_vsunpin`): the playlist is pinned to the top of Home ([pins](pins.md)).
+
 ## Clean Up Playlist (`patch/songs.c` `sg_clean`, `patch/songops.c`)
 
 **Why.** A playlist song is a row of the `playlist` table with its own copy of the song's columns,

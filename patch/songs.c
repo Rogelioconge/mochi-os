@@ -70,6 +70,7 @@
 #include "entries.h"
 #include "artsplit.h"
 #include "search.h"
+#include "pins.h"
 
 #define ROW LIST_ROW_H
 #define SG_MARK_UP \
@@ -281,7 +282,9 @@ static int sg_title_end(void) {
 static unsigned sg_offers(void) {
     if (sg_lib()) return VS_WITH_SELECT | VS_ALL_SORTS;
     if (sg_recent()) return VS_WITH_VIEWS | (sg.rv ? 0 : VS_WITH_SELECT);
-    if (sg_cleans()) return VS_WITH_SELECT | VS_WITH_ACT2; /* a playlist: Select, Clean Up Playlist (slot 8) */
+    if (sg_cleans())
+        return VS_WITH_SELECT | VS_WITH_ACT2 |
+               VS_WITH_ACT3; /* a playlist: Select, Clean Up Playlist (slot 8), Pin / Unpin Playlist (slot 9) */
     return VS_WITH_SELECT;
 }
 
@@ -1474,8 +1477,17 @@ static int sg_on_rail_paint(void *ctx, void *e) {
  * The Sort card (patch/viewsort.c): Title, File Name, Format and Recently Added are the stock sort_flag 0, 1, 2 and 3 / 4 (Newest First / Oldest First under Recently Added); a row sets the
  * stock order (@0x47d114: sort_flag and [SYSSET] SORTSELECT) and the list is read again. The ticked row of the alphabetical three reverses (SONGS_SORT_FILE, saved first), Recently Added flips 3 and 4.
  */
+/* A playlist's Pin Playlist / Unpin Playlist row (slot 9, docs/modules/pins.md): its words and glyph follow the pin, set before the card is fitted. */
+static void sg_pin_row(void) {
+    int pinned = pins_has_playlist(sg.pl_id, sg.name);
+    if (sg.vs.label[VS_ACT3]) widget_set_tr_text(sg.vs.label[VS_ACT3], pins_label_playlist(sg.pl_id, sg.name));
+    if (sg.vs.glyph[VS_ACT3 - VS_SORTS])
+        widget_set_prop_str(sg.vs.glyph[VS_ACT3 - VS_SORTS], "image", pinned ? "pod_ic_vsunpin" : "pod_ic_vspin");
+}
+
 static void sg_menu(int on) {
     sg.menu = on;
+    if (on && sg_cleans()) sg_pin_row();
     vs_menu(&sg.vs, on, sg.sort > 3 ? 3 : sg.sort, sg.sort == 4 || sg_flipped(),
             !sg.rv); /* (Recently Added's Albums row is ticked in the albums view) */
 }
@@ -1562,12 +1574,32 @@ static void sg_clean(void) {
     }
 }
 
+/* Pins the playlist to the top of Home, or takes the pin away (patch/pins.c): its id and name, and the mosaic's album keys from the list the page holds (grid_mosaic_keys, as the header's tile). */
+static void sg_pin(void) {
+    unsigned key[4];
+    int nk;
+    if (!sg_cleans() || !sg.view || sg.select) return;
+    if (pins_has_playlist(
+            sg.pl_id,
+            sg.name)) { /* (an unreadable pins file: has is 0 and the pin below refuses with the toast, said once) */
+        pins_unpin_playlist(sg.pl_id, sg.name);
+        return;
+    }
+    memset(key, 0, sizeof key);
+    nk = sg.count ? grid_mosaic_keys(sg.list, sg.albums, key, (int *)0) : 0;
+    pins_pin_playlist(sg.pl_id, sg.name, key, (unsigned)nk);
+}
+
 static int sg_on_item(void *ctx, void *e) {
     int k = (int)(long)ctx, cur = sg.sort > 3 ? 3 : sg.sort;
     (void)e;
     sg_menu(0);
     if (k == VS_ACT2) { /* a playlist's Clean Up Playlist */
         sg_clean();
+        return RET_OK;
+    }
+    if (k == VS_ACT3) { /* a playlist's Pin Playlist / Unpin Playlist */
+        sg_pin();
         return RET_OK;
     }
     if (k == VS_SELECT) { /* the old Select button: select mode (an empty list has nothing to select) */

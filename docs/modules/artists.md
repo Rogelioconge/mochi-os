@@ -114,6 +114,10 @@ Statics are prefixed `ar_`. Memory: the copy of the stock rows, `order` 4 bytes,
 placeholder, the rail disc and chevron, all freed with the window. A tile ring that cannot be made
 closes the page.
 
+### Long press
+
+On the library's Artists and Album Artists page (not a source, Genres or Composers) a row held `RM_LONG_MS` opens the three-row sheet Play / Shuffle / Pin Artist (Unpin Artist when pinned) (`ar_on_hold`, `ar_sheet`, `ar_pin_rec`: not the Unknown Artist row); the release opens nothing. Play and Shuffle are `songs_play_artist`. `artists_find(name)` is the one-row deque for a name as the page lists it (the split's first name, else the stock row), shared with Look up artist and the Home pins ([pins](pins.md)).
+
 ## Shared furniture, `patch/azlist.c`
 
 Moved out of `patch/songs.c`. The Songs page owns the design ([songs](songs.md) "The A-Z rail").

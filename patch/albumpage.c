@@ -4,7 +4,7 @@
  *
  * One page, ui/m1plus_album.bin (tools/pod_ui.py build_album_page): the stock list (list_view > scroll_view) holding ONE content view, view_grid, as the Songs page, which
  * reaches the window's top (450 px) with the glass controls floating over it (Back, a Select | Now Playing capsule; in select mode the all / none toggle, Add, Delete and
- * Cancel), so the rows scroll under them. The content view holds the header's widgets (the title, the artist and the "year . N tracks" line, the Shuffle disc and the
+ * Cancel; the library's capsule is Select | "..." | Now Playing as the Albums page's: the "..." opens the Play / Shuffle / Pin Album sheet, docs/modules/pins.md), so the rows scroll under them. The content view holds the header's widgets (the title, the artist and the "year . N tracks" line, the Shuffle disc and the
  * Play pill with its glyph and text) and paints the rest itself in its EVT_AFTER_PAINT: the rounded cover, the tracks' numbers and titles, the press fill, the hairlines
  * and the select marks. The window is tinted from the cover as Now Playing is (m1_tone under the gradient image img_ah_tint), and so is the status bar (m1_bar_tint).
  *
@@ -40,6 +40,7 @@
 #include "libsrc.h"
 #include "viewsort.h"
 #include "entries.h"
+#include "pins.h"
 
 #define ROW AB_ROW_H
 
@@ -49,6 +50,10 @@ static struct {
     void *win, *view, *sv, *status;
     void *back, *np, *btn_select, *btn_selall, *btn_add, *btn_del, *btn_cancel, *btn_play, *btn_shuffle;
     void *btn_more; /* a source's page: the "..." (Select's place on the library's), opening the card below */
+    void *
+        btn_pin; /* the library's page: the capsule's middle "...", the pins' sheet (Play, Shuffle, Pin Album / Unpin Album) */
+    char pname[PIN_STR],
+        ppath[PIN_PATH]; /* the album row's title and a track path, for the pin ("" title: not pinnable, no "...") */
     vs_t vs; /* the shared "..." card with one row, Download Album (a source's page only) */
     void *st_num, *st_title; /* hidden labels whose styles are the number's and the title's */
     void *
@@ -780,6 +785,27 @@ static int ab_on_play(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* The "..." of the library's page: the pins' sheet, Play / Shuffle as the pill and the disc, the last row pins or unpins this album. */
+static void ab_pin_sheet(int row, int act) {
+    (void)row;
+    if (!ab.view || !ab.count || ab.select) return;
+    if (act == RMP_UNPIN) {
+        if (pins_has_album(ab.pname))
+            pins_unpin_album(ab.pname);
+        else
+            pins_pin_album(ab.pname, ab.cover_key, ab.ppath);
+    } else
+        ab_play_at(act == RMP_SHUFFLE ? -1 : 0, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
+}
+
+static int ab_on_pin(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    if (ab.view && ab.count && !ab.select && !ab.rm.open && *ab.pname)
+        rowmenu_open_pins(&ab.rm, 0, pins_has_album(ab.pname), ab_pin_sheet);
+    return RET_OK;
+}
+
 static int ab_on_shuffle(void *ctx, void *e) {
     (void)ctx;
     (void)e;
@@ -805,6 +831,7 @@ static void ab_select(int on) {
     m1_show(ab.back, !on);
     m1_show(ab.btn_select,
             !on && !ab.src); /* (Add and Delete work on the stock selection: a source's page has no select mode yet) */
+    m1_show(ab.btn_pin, !on && *ab.pname);
     m1_show(ab.np, !on);
     m1_show(ab.btn_selall, on);
     m1_show(ab.btn_add, on);
@@ -1055,9 +1082,17 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     unsigned key;
     int fresh;
     void *copy = (void *)0;
+    char pname[PIN_STR] = "",
+         ppath[PIN_PATH] =
+             ""; /* (the pin's strings, taken while the row is alive: the query below frees the list it is in) */
     if (ab.win || !row || (!src && I(row, REC_ID) == ID_ALL_SONGS))
         return -1; /* (a source's synthetic ids reach -2 too) */
     key = cc_album_key(row);
+    if (!src) {
+        const char *t = cc_str(row, REC_ALBUM), *q = cc_str(row, REC_PATH);
+        if (I(row, REC_ID) != -1 && *t && strlen(t) < PIN_STR && strlen(q) < PIN_PATH)
+            memcpy(pname, t, strlen(t) + 1), memcpy(ppath, q, strlen(q) + 1);
+    }
     if (src) { /* the page keeps its own copy of the row: it is the scope of every read of the tracks */
         copy = so_row_deque(row);
         if (!copy) return -1;
@@ -1065,6 +1100,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
         loadAlbumdetailList((int)cls, row);
     memset(&ab, 0, sizeof ab);
     ab.cover_key = key;
+    memcpy(ab.pname, pname, sizeof pname), memcpy(ab.ppath, ppath, sizeof ppath);
     if (src) {
         ab.src = src, ab.srow_d = copy;
         ab.cls = CLASS_ALBUM_TRACKS; /* (what Now Playing is opened with; a source ignores it) */
@@ -1087,6 +1123,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.btn_add = m1_bind(ab.win, "sg_add", ab_on_add, (void *)0);
     ab.btn_del = m1_bind(ab.win, "sg_del", ab_on_delete, (void *)0);
     ab.btn_cancel = m1_bind(ab.win, "btn_cancel", ab_on_cancel, (void *)0);
+    ab.btn_pin = src ? (void *)0 : m1_bind(ab.win, "btn_pin", ab_on_pin, (void *)0);
     ab.btn_more = src ? m1_bind(ab.win, "btn_more", ab_on_more, (void *)0) : (void *)0;
     ab.btn_play = m1_bind(ab.win, "btn_play", ab_on_play, (void *)0);
     ab.btn_shuffle = m1_bind(ab.win, "btn_shuffle", ab_on_shuffle, (void *)0);
@@ -1109,6 +1146,10 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
         navigator_back(); /* an asset that is not ours */
         return -2;
     }
+    if (!src && !ab.btn_pin) {
+        navigator_back();
+        return -2;
+    }
     if (src && (!ab.btn_more || vs_bind(&ab.vs, ab.win, ab_on_card, ab_on_scrim, VS_WITH_SEARCH))) {
         navigator_back();
         return -2;
@@ -1125,6 +1166,11 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     widget_on(ab.view, EVT_POINTER_ABORT, ab_on_abort, (void *)0);
     widget_on(ab.view, EVT_AFTER_PAINT, ab_on_paint, (void *)0);
     m1_pill_place(&ab.pill, AH_BTN_Y);
+    if (!src) { /* the pin: an album with a title (not "Unknown Album"); else the capsule is Select | Now Playing as before, the "..." hidden */
+        m1_show(ab.btn_pin, *ab.pname != 0);
+        if (!*ab.pname)
+            widget_move(ab.btn_select, NAV_VIEW_X, 0); /* no "...": Select is the left cap on the 214 slot, as before */
+    }
     if (src) { /* (no select mode on a source's page yet: the "..." takes Select's place) */
         m1_show(ab.btn_select, 0);
         m1_show(ab.btn_more, 1);

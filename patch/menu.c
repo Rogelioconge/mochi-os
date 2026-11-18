@@ -223,7 +223,8 @@ void menu_plain_paint(void *sv) { mn_plain_paint(sv); } /* patch/pulldown.c: its
  * the order they are shown (hidden rows last, they are skipped), and that layout gives the rows the y and the virtual
  * height set here: any relayout leaves the page as it is.
  *
- * The menu's list has three non-row children (the Home instance's): the Daily Mix section (patch/dailymix.c), DM_SEC_H high, which follows the shown rows (below Extras:
+ * The Home pins (patch/pins.c), PIN_H(1 or 2) high, are the first child while visible: the rows start below them (y = the pins' height + row x 52).
+ * The menu's list has three more non-row children (the Home instance's): the Daily Mix section (patch/dailymix.c), DM_SEC_H high, which follows the shown rows (below Extras:
  * the rows keep their places, the section sits at y = shown rows x 52 while it is visible), the Recently Played shelf (patch/recent.c), one to three rows of covers high
  * (its own height), right after the section, and the trailing spacer row pod_pad (the mini player bar's padding), the last child, after the shelf. All three are skipped
  * by the layouter while hidden. The list keeps its scroll position (clamped to the new
@@ -231,7 +232,9 @@ void menu_plain_paint(void *sv) { mn_plain_paint(sv); } /* patch/pulldown.c: its
  * the asset is not ours (nothing was changed). */
 static int mn_arrange(void *win, int extras) {
     void *sv = widget_lookup(win, "pod_scrollview", 1), *row[POD_MENU_ROWS], *hdr[POD_EXTRAS_GROUPS],
-         *seq[POD_MENU_ROWS + POD_EXTRAS_GROUPS + 2];
+         *seq[POD_MENU_ROWS + POD_EXTRAS_GROUPS + 3];
+    void *pins = extras ? (void *)0
+                        : widget_lookup(win, "pod_pins", 1); /* the Home pins (patch/pins.c), if the asset has them */
     void *pad = extras
                     ? (void *)0
                     : widget_lookup(
@@ -243,13 +246,15 @@ static int mn_arrange(void *win, int extras) {
         extras ? (void *)0
                : widget_lookup(win, "pod_daily", 1); /* the Daily Mix section (patch/dailymix.c), if the asset has it */
     unsigned total = extras ? POD_EXTRAS_ROWS : POD_MENU_ROWS, i, pos = 0, k = 0;
-    int vh, max, shelf_h, daily_h, rows_h;
+    int vh, max, shelf_h, daily_h, rows_h, pins_h;
     if (!sv) return 0;
     for (i = 0; i < total; i++) {
         row[i] = mn_find(win, "pod_row", i);
         if (!row[i]) return 0; /* not our asset: leave it as it is */
     }
     mn_load();
+    pins_h = pins && widget_get_visible(pins) ? widget_get_prop_int(pins, "h", PIN_HMAX)
+                                              : 0; /* the pins' own height: one or two rows of tiles */
     shelf_h = shelf && widget_get_visible(shelf)
                   ? widget_get_prop_int(shelf, "h", SH_HMAX)
                   : 0; /* its own height: one to three rows of covers (patch/recent.c sets it) */
@@ -262,13 +267,17 @@ static int mn_arrange(void *win, int extras) {
         for (i = 0; i < k; i++) widget_restack(seq[i], i);
         rows_h = vh;
     } else {
+        if (pins) {
+            widget_move(pins, 0, 0);
+            seq[k++] = pins; /* first: above every row (hidden, the layouter skips it) */
+        }
         for (i = 0; i < mn.n; i++) {
             seq[k++] = row[mn.order[i]];
-            mn_place(row[mn.order[i]], pos++, 1);
+            mn_put(row[mn.order[i]], pins_h + (int)pos++ * POD_ROW_H, 1);
         }
         seq[k++] = row[N];
-        mn_place(row[N], pos++, 1); /* Extras: always shown, always the last row */
-        rows_h = (int)pos * POD_ROW_H;
+        mn_put(row[N], pins_h + (int)pos++ * POD_ROW_H, 1); /* Extras: always shown, always the last row */
+        rows_h = pins_h + (int)pos * POD_ROW_H;
         if (daily) {
             widget_move(daily, 0, rows_h);
             seq[k++] = daily; /* right after the shown rows (hidden, the layouter skips it) */
@@ -315,6 +324,7 @@ static void mn_section(void *win, const char *name, int on) {
 
 void menu_shelf(void *win, int on) { mn_section(win, "pod_shelf", on); }
 void menu_daily(void *win, int on) { mn_section(win, "pod_daily", on); }
+void menu_pins(void *win, int on) { mn_section(win, "pod_pins", on); }
 
 /* ---- the Main Menu page */
 

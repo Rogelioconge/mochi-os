@@ -68,6 +68,10 @@ large title.
 - A touch on the circle, name or pills' block opens nothing. A page without `al_name` (an asset that
   is not ours) keeps the large title and the pills at y 52.
 
+## Long press
+
+On the library page (grid and list) an album held `RM_LONG_MS` opens a Play / Shuffle / Pin Album sheet (`al_on_hold`, `al_sheet`); see `docs/modules/pins.md`.
+
 ## Layout and state
 
 | Element | Contract |
@@ -210,7 +214,7 @@ of its row count.
 
 | Page | Card |
 |---|---|
-| a library artist (`al_can_find`: not a composer, not a source, not Unknown Artist) | Find Artist Photo (slot 6, glyph `pod_ic_vsphoto`), hairline, Grid, List, Title, Recently Added, Year: six rows, 300 px, `vs_glass6` |
+| a library artist (`al_can_find`: not a composer, not a source, not Unknown Artist) | Find Artist Photo (slot 6, glyph `pod_ic_vsphoto`), Pin Artist / Unpin Artist (the Select slot 7, `al_pin_row`, glyph `pod_ic_vspin` / `pod_ic_vsunpin`; see [pins](pins.md)), hairline, Grid, List, Title, Recently Added, Year: seven rows, 350 px, `vs_glass7` |
 | a composer, or a source's artist | the same without the action row: five rows, `vs_glass5` |
 
 - Find Artist Photo closes the card and calls `onlineart_open_artist(name)`

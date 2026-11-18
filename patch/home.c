@@ -337,6 +337,7 @@ void home_menu_opened(void *win, int settings, int entry) {
         if (hs.as_home) {
             if (hm_fill_window(win)) { /* the mini player bar and the Recently Played shelf: this instance only */
                 minibar_start(win);
+                pins_start(win);
                 recent_start(win);
                 dailymix_start(win);
                 homecover_start(win);

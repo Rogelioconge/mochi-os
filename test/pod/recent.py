@@ -311,8 +311,8 @@ def file_and_layout_tests(ctx):
     ui = awtk_ui.parse(open(menu_asset, 'rb').read())
     sv_n = ui.find('pod_scrollview')
     kids = [c.name for c in sv_n.children]
-    expect(kids[-3:] == ['pod_daily', 'pod_shelf', 'pod_pad'] and kids[:-3] == [f'pod_row{i}' for i in range(len(pod_pages.MENU.rows))],
-           f'the rows, then the Daily Mix section, the shelf (below the last row), the spacer is last ({kids[:3]}..{kids[-3:]})')
+    expect(kids[-4:] == ['pod_pins', 'pod_daily', 'pod_shelf', 'pod_pad'] and kids[:-4] == [f'pod_row{i}' for i in range(len(pod_pages.MENU.rows))],
+           f'the rows, then the Home pins (the payload puts them first), the Daily Mix section, the shelf (below the last row), the spacer is last ({kids[:3]}..{kids[-4:]})')
     sh = sv_n.find('pod_shelf')
     expect(sh.type == 'view' and (sh.x, sh.y, sh.w, sh.h) == (0, 0, O['SH_W'], SH_H3) and sh.get('visible') == 'false' and sh.get('sensitive') == 'false'
            and sh.get('style:normal:bg_color') == '#000000', 'pod_shelf is a 310 x 182 view after the rows, hidden and insensitive in the asset, black')
@@ -472,8 +472,8 @@ def file_and_layout_tests(ctx):
     expect(wl[:4] == ['pod_shelf', 'pod_scrollview', 'pod_sh_title', 'pod_sh_sub'], f'start looks up the shelf, the list and the two style labels ({wl[:4]})')
     ons = [(c[1], c[2], c[3]) for c in calls if c[0] == 'widget_on']
     want = [(m.root, EVT_DESTROY, PSYMS['rc_on_destroy']), (m.root, EVT_BG, PSYMS['rc_on_background']), (m.root, EVT_FG, PSYMS['rc_on_foreground']),
-            (m.shelf, EVT_AFTER_PAINT, PSYMS['rc_on_paint']), (m.shelf, EVT_DOWN, PSYMS['rc_on_down']), (m.shelf, EVT_UP, PSYMS['rc_on_up']), (m.shelf, EVT_ABORT, PSYMS['rc_on_abort']), (m.sv, O['EVT_SCROLL'], PSYMS['rc_on_scroll'])]
-    expect(ons == want, f'window destroy, to-background, to-foreground; the shelf\'s own paint and its pointer down, up and abort ({len(ons)} handlers)')
+            (m.shelf, EVT_AFTER_PAINT, PSYMS['rc_on_paint']), (m.shelf, EVT_DOWN, PSYMS['rc_on_down']), (m.shelf, O['EVT_POINTER_MOVE'], PSYMS['rc_on_move']), (m.shelf, EVT_UP, PSYMS['rc_on_up']), (m.shelf, EVT_ABORT, PSYMS['rc_on_abort']), (m.sv, O['EVT_SCROLL'], PSYMS['rc_on_scroll'])]
+    expect(ons == want, f'window destroy, to-background, to-foreground; the shelf\'s own paint and its pointer down, move (the long press drift), up and abort ({len(ons)} handlers)')
     expect(m.timers == [(PSYMS['rc_first'], O['RC_FIRST_MS'])] and 0 < O['RC_FIRST_MS'] <= 250, f'one short one-shot, nothing else is armed at start ({m.timers})')
     expect(not [c for c in calls if c[0] in ('bitmap_create_ex', 'widget_load_image', 'fopen', 'loadLocalClassList', 'loadAlbumList', 'canvas_draw_image', 'timer_remove')],
            'start decodes nothing, allocates no bitmap, loads no album list')

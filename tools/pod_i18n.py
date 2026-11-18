@@ -517,6 +517,29 @@ TEXT = dict([
        'Eliminar listas', 'Elimina playlist', 'ลบเพลย์ลิสต์', 'Usuń playlisty', 'Удалить плейлисты', 'Видалити плейлисти'),
     _t('No playlists', '没有歌单', '沒有歌單', 'プレイリストがありません', '재생 목록 없음', 'Aucune playlist', 'Keine Playlists',
        'No hay listas', 'Nessuna playlist', 'ไม่มีเพลย์ลิสต์', 'Brak playlist', 'Нет плейлистов', 'Немає плейлистів'),
+    # Home pins (patch/pins.c, docs/modules/pins.md): Apple Music's words, per type: a playlist page's "..." card row (Pin / Unpin Playlist), the long press sheet's row (Unpin Album / Unpin Playlist),
+    # the album pins' words for the Albums long press, and the toast when six items are pinned. Machine translations, unreviewed.
+    _t('Pin Playlist', '固定歌单', '釘選播放列表', 'プレイリストを固定', '재생 목록 고정', 'Épingler la playlist', 'Playlist anheften',
+       'Fijar lista', 'Fissa playlist', 'ปักหมุดเพลย์ลิสต์', 'Przypnij playlistę', 'Закрепить плейлист', 'Закріпити плейлист'),
+    _t('Unpin Playlist', '取消固定歌单', '取消釘選播放列表', 'プレイリストの固定を解除', '재생 목록 고정 해제', 'Désépingler la playlist', 'Playlist lösen',
+       'Dejar de fijar lista', 'Rimuovi playlist', 'เลิกปักหมุดเพลย์ลิสต์', 'Odepnij playlistę', 'Открепить плейлист', 'Відкріпити плейлист'),
+    _t('Pin Album', '固定专辑', '釘選專輯', 'アルバムを固定', '앨범 고정', "Épingler l'album", 'Album anheften',
+       'Fijar álbum', 'Fissa album', 'ปักหมุดอัลบั้ม', 'Przypnij album', 'Закрепить альбом', 'Закріпити альбом'),
+    _t('Unpin Album', '取消固定专辑', '取消釘選專輯', 'アルバムの固定を解除', '앨범 고정 해제', "Désépingler l'album", 'Album lösen',
+       'Dejar de fijar álbum', 'Rimuovi album', 'เลิกปักหมุดอัลบั้ม', 'Odepnij album', 'Открепить альбом', 'Відкріпити альбом'),
+    _t('Pin Song', '固定歌曲', '釘選歌曲', '曲を固定', '노래 고정', 'Épingler le morceau', 'Titel anheften',
+       'Fijar canción', 'Fissa brano', 'ปักหมุดเพลง', 'Przypnij utwór', 'Закрепить песню', 'Закріпити пісню'),
+    _t('Unpin Song', '取消固定歌曲', '取消釘選歌曲', '曲の固定を解除', '노래 고정 해제', 'Désépingler le morceau', 'Titel lösen',
+       'Dejar de fijar canción', 'Rimuovi brano', 'เลิกปักหมุดเพลง', 'Odepnij utwór', 'Открепить песню', 'Відкріпити пісню'),
+    _t('Pin Artist', '固定歌手', '釘選歌手', 'アーティストを固定', '아티스트 고정', "Épingler l'artiste", 'Interpret anheften',
+       'Fijar artista', 'Fissa artista', 'ปักหมุดศิลปิน', 'Przypnij wykonawcę', 'Закрепить исполнителя', 'Закріпити виконавця'),
+    _t('Unpin Artist', '取消固定歌手', '取消釘選歌手', 'アーティストの固定を解除', '아티스트 고정 해제', "Désépingler l'artiste", 'Interpret lösen',
+       'Dejar de fijar artista', 'Rimuovi artista', 'เลิกปักหมุดศิลปิน', 'Odepnij wykonawcę', 'Открепить исполнителя', 'Відкріпити виконавця'),
+    _t('Unpin an item first', '请先取消固定一项', '請先取消釘選一個項目', '先に項目の固定を解除してください', '먼저 항목 고정을 해제하세요', "Désépinglez d'abord un élément", 'Zuerst ein Element lösen',
+       'Quita primero un elemento', "Rimuovi prima un elemento", 'เลิกปักหมุดรายการก่อน', 'Najpierw odepnij element', 'Сначала открепите элемент', 'Спочатку відкріпіть елемент'),
+    # The pins file could not be read (the card errors, or the list is one this version does not understand): a pin or unpin refuses and leaves the file as it is (patch/pins.c pn_load).
+    _t("Can't update pins", '无法更新固定项', '無法更新釘選項目', 'ピン留めを更新できません', '고정 항목을 업데이트할 수 없음', 'Épingles non modifiables', 'Pins nicht änderbar',
+       'No se pueden actualizar los fijados', 'Impossibile aggiornare i fissati', 'อัปเดตรายการที่ปักหมุดไม่ได้', 'Nie można zaktualizować przypięć', 'Не удалось обновить закреплённое', 'Не вдалося оновити закріплене'),
     # A playlist's "..." > Clean Up Playlist (patch/songs.c sg_clean; docs/modules/playlists.md "Clean Up Playlist"): the card's row, the confirm text (the key by
     # 1 / more; ru, pl, uk, th and the CJK languages need no plural), the messages; "File not found" is the toast of a song whose file is not on the card that is in
     # (patch/songops.c so_missing). Machine translations, unreviewed.

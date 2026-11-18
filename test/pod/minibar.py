@@ -213,7 +213,7 @@ def run(ctx):
     # ------------------------------------------------------------------ the asset
     ui = awtk_ui.parse(open(menu_asset, 'rb').read())
     kids = [c.name for c in ui.children]
-    expect(kids == ['navigationbar_view', 'pod_listview', 'img_nb_fade', 'pod_cache_pill', 'pod_minibar'], f'the menu window: navbar, list, the fade, the cache pill, then the bar ({kids})')
+    expect(kids == ['navigationbar_view', 'pod_listview', 'img_nb_fade', 'pod_cache_pill', 'pod_minibar', 'rm_scrim', 'rm_card'], f'the menu window: navbar, list, the fade, the cache pill, the bar, then the Home pins\' long press sheet over everything ({kids})')
     bar = ui.find('pod_minibar')
     expect((bar.x, bar.y, bar.w, bar.h) == (O['MB_X'], O['MB_Y'], O['MB_W'], O['MB_H']) and bar.get('visible') == 'false' and bar.get('sensitive') == 'false',
            'pod_minibar is the card rectangle, hidden and insensitive in the asset')

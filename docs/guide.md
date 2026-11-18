@@ -15,7 +15,8 @@ After you add or move music on the card, run **Update Library** again so the pla
 ## Find your way around
 
 Home is where you choose what to listen to. It opens with Cover Flow, Albums, Artists, Songs,
-Playlists and Extras. Scroll down for Daily Mix and Recently Played.
+Playlists and Extras. Scroll down for Daily Mix and Recently Played. Anything you pin appears above
+Cover Flow.
 
 - **Tap** an item to open it. Drag a list up or down to scroll.
 - Tap **Back** at the top left to return to the previous page.
@@ -39,6 +40,12 @@ Now Playing, or use its buttons to pause and skip without leaving Home.
 
 To browse by artist, open **Artists** instead and choose an artist, then an album. In Cover Flow,
 drag through the covers and tap the centre cover to open its album.
+
+### Pin to Home
+
+Pin up to six playlists to the top of Home. Open a playlist, tap **…** and choose **Pin Playlist**
+(**Unpin Playlist** takes it away). Pinned items show as covers above Cover Flow; tap one to open it,
+or hold it for **Play**, **Shuffle** and **Unpin**. A new pin joins the end; to reorder, hold a tile until it lifts, drag it to another place (the others make room) and let go. The menu opens as soon as the tile lifts; start dragging and it closes, let go without moving and it stays open. Artists pin too: hold an artist on the Artists page, or tap **…** on the artist's page, and choose **Pin Artist**; an artist shows as a round photo, tap opens the artist's albums, hold gives **Play**, **Shuffle** and **Unpin Artist**. An artist stays pinned in the list it was pinned from (**Artists** or **Album Artists**): a tap on a pin from the other list switches the Artists page to it, as the Show setting does. Turning Split Artists off does not unpin a guest artist; its tile says "Can't play" until the setting is on again. Albums and songs pin too: hold an album on the Albums page, hold a Recently Played tile on Home, or tap **…** on the album's page, and choose **Pin Album**; on a song's **…** (or hold the song) choose **Pin Song**. A song tile shows its album's cover and the song's title; tap plays the album from that song; each track of a CUE image pins on its own. If the card cannot be read or written, pinning and unpinning say "Can't update pins", the tile stays and the list is left alone (a pin list that is damaged is never overwritten: delete `.m1plus/home-pins` to start again). With six pinned, unpin one before pinning another.
 
 ### Find a song
 

@@ -18,7 +18,7 @@ TEXT_X, TEXT_END, SEL = O['LIST_TEXT_X'], O['LIST_HAIR_END'] - O['SG_RAIL_INSET'
 RAIL_X, RAIL_W = O['SG_RAIL_X'], O['SG_RAIL_W']
 WIDGETS = ('btn_coverflow', 'btn_search', 'view_grid', 'sg_rail', 'sg_foot', 'sg_spin', 'sg_hname', 'btn_return', 'btn_backtoplayer', 'btn_more', 'btn_select', 'btn_selall', 'btn_play', 'btn_shuffle', 'hd_play', 'hd_shuffle', 'sg_glyph', 'sg_play_text', 'sg_add', 'sg_del',
            'label_title', 'sg_title', 'label_status', 'label_row_title', 'label_row_sub', 'label_row_dim', 'label_row_subdim', 'label_hdr', 'label_rail', 'label_rail_on', 'sg_bubble', 'sg_bubble_letter', 'sg_bar',
-           *VS_WIDGETS, 'vs_item8', 'vs_label8', 'vs_glyph8')   # (slot 8: a playlist's Clean Up Playlist row, only in this asset and the Playlists page's)
+           *VS_WIDGETS, 'vs_item8', 'vs_label8', 'vs_glyph8', 'vs_item9', 'vs_label9', 'vs_glyph9')   # (slots 8 and 9: a playlist's Clean Up Playlist and Pin / Unpin Playlist rows, only in this asset and the Playlists page's)
 
 
 def colour(i): return 0xff000000 | (i * 37 % 256) | (i * 59 % 256) << 8 | (i * 83 % 256) << 16
@@ -459,7 +459,7 @@ def asset_tests(ctx):
            and tree.children.index(scrim) > tree.children.index(barw) and tree.children.index(card) == tree.children.index(scrim) + 1 == len(tree.children) - 3,
            'the Sort card is the shared view-sort card (patch/viewsort.c, built at its widest and narrowed to a glass of its height at run time) under the 130/255 dim scrim, then only the rows menu (rm_scrim, rm_card)')
     labs = {i: f(f'vs_label{i}') for i in range(4)}
-    expect([labs[i].get('tr_text') for i in range(4)] == list(pod_pages.SONGS_SORT_KEYS) and [items[i].y for i in range(4)] == [150, 200, 250, 300]
+    expect([labs[i].get('tr_text') for i in range(4)] == list(pod_pages.SONGS_SORT_KEYS) and [items[i].y for i in range(4)] == [300] * 4
            and all(labs[i].get('sensitive') == 'false' and labs[i].x == 38 and f(f'vs_tick{i}').get('image') == 'sg_tick' and f(f'vs_sub{i}') is not None for i in range(4)),
            'the four sort rows carry the keys Title, File Name, Format, Recently Added, a tick and a second line (the direction)')
     import mod_icons
@@ -2455,9 +2455,10 @@ def clean_tests(ctx):
     f = ui().find
     import mod_icons
     xx = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/images/xx')
-    expect(f('vs_label8').get('tr_text') == 'Clean Up Playlist' and f('vs_glyph8').get('image') == 'pod_ic_vsclean' and f('vs_label7').get('tr_text') == 'Select' and f('vs_item9') is None
-           and f('vs_item8').get('enable') == 'true' and f('vs_label8').get('sensitive') == 'false' and f('vs_glyph8').get('sensitive') == 'false' and f('vs_tick8') is None,
-           'the Songs asset\'s card has a third action row, slot 8: Clean Up Playlist with the list-x glyph, no tick (no slot 9)')
+    expect(f('vs_label8').get('tr_text') == 'Clean Up Playlist' and f('vs_glyph8').get('image') == 'pod_ic_vsclean' and f('vs_label7').get('tr_text') == 'Select'
+           and f('vs_item8').get('enable') == 'true' and f('vs_label8').get('sensitive') == 'false' and f('vs_glyph8').get('sensitive') == 'false' and f('vs_tick8') is None
+           and f('vs_label9').get('tr_text') == 'Pin Playlist' and f('vs_glyph9').get('image') == 'pod_ic_vspin' and f('vs_item9').get('enable') == 'true' and f('vs_tick9') is None,
+           'the Songs asset\'s card has a third and a fourth action row: slot 8 Clean Up Playlist with the list-x glyph, slot 9 Pin Playlist with the pin glyph, no ticks')
     expect(mod_icons.SONGS_IMAGES['pod_ic_vsclean'] == ('list-x', mod_icons.WHITE, None, 20)
            and open(os.path.join(xx, 'pod_ic_vsclean.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, 'pod_ic_vsclean.png'), 'rb').read(),
            'pod_ic_vsclean is Lucide list-x on the cards\' 20 px canvas, the committed PNG in the package')
@@ -2467,16 +2468,16 @@ def clean_tests(ctx):
     m = page()
     m.click('btn_more', count=900000000)
     card = m.widgets['vs_card']
-    expect(vis(m, 'vs_card') == (1, 1) and [vis(m, f'vs_item{i}') for i in range(9)] == [(0, 0)] * 7 + [(1, 1)] * 2
-           and all(m.props.get((card, f'style:{st}:bg_image')) == 'vs_glass2' for st in ('normal', 'pressed', 'over'))
-           and ('widget_move', m.widgets['vs_item7'], 0, 0) in m.calls and ('widget_move', m.widgets['vs_item8'], 0, 50) in m.calls,
-           'a playlist\'s card: Select then Clean Up Playlist, two rows in vs_glass2')
+    expect(vis(m, 'vs_card') == (1, 1) and [vis(m, f'vs_item{i}') for i in range(10)] == [(0, 0)] * 7 + [(1, 1)] * 3
+           and all(m.props.get((card, f'style:{st}:bg_image')) == 'vs_glass3' for st in ('normal', 'pressed', 'over'))
+           and ('widget_move', m.widgets['vs_item7'], 0, 0) in m.calls and ('widget_move', m.widgets['vs_item8'], 0, 50) in m.calls and ('widget_move', m.widgets['vs_item9'], 0, 100) in m.calls,
+           'a playlist\'s card: Select, Clean Up Playlist, then Pin Playlist, three rows in vs_glass3')
     m.click('vs_scrim', count=900000000)
     expect(vis(m, 'vs_card') == (0, 0), 'the scrim closes it')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
     fav = O['CLASS_FAV']
     m = list_machine(titles, fav); m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000)
-    expect(vis(m, 'vs_item8') == (0, 0) and vis(m, 'btn_more') == (0, 0), 'Favorites keeps its Select button: no card, slot 8 hidden and insensitive')
+    expect(vis(m, 'vs_item8') == (0, 0) and vis(m, 'vs_item9') == (0, 0) and vis(m, 'btn_more') == (0, 0), 'Favorites keeps its Select button: no card, slots 8 and 9 hidden and insensitive')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
 
     # nothing missing; no card; a card that is in but not mounted

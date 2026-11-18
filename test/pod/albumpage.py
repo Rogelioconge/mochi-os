@@ -23,7 +23,7 @@ UI = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_album.bi
 ALBUM, ARTIST = 'Kind of Blue', 'Miles Davis'
 RED = (190, 50, 55)
 NAMES = ['So What', 'Freddie Freeloader', 'Blue in Green', 'All Blues', 'Flamenco Sketches', 'Flamenco Sketches (Alt)', 'So What (Alt)', 'Blue in Green (Alt)']
-WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel', 'btn_play', 'btn_shuffle', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
+WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel', 'btn_play', 'btn_shuffle', 'btn_pin', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
            'ab_title', 'ab_artist', 'ab_meta', 'ab_foot', 'ab_spin', 'ab_glyph', 'ab_play_text', 'label_title', 'img_ah_tint',
            'btn_more', 'vs_scrim', 'vs_card', 'vs_hair') + tuple(f'vs_item{i}' for i in range(8)) + tuple(f'vs_label{i}' for i in range(8)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_glyph{i}' for i in range(4, 8))
 NAV_BTNS = ('btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel')
@@ -40,6 +40,8 @@ class AM(SG.SongsMachine):
     playing = None        # (file name, url, cue start) is_playing answers 1 for
     na_at_open = None     # Continue with Next Album's state as Now Playing opened (the load happens there)
     load_on_open = False  # run the payload's na_on_load for the queue load the open makes (mclLoadPlayList's hook)
+    dead = None           # (address, bytes) of the album row the last loadAlbumdetailList freed
+    free_row = True       # loadAlbumdetailList frees the list the row is in (stock's loadLocalClassList clears *pdeq_showlist): the row is dead after the call
     scoped = ARTIST       # the artist an artist's / composer's album page was reached through (loadAlbumList left it in the record)
 
     def tracks_of(self, album): return list((self.album_tracks or {}).get(album, []))
@@ -56,6 +58,7 @@ class AM(SG.SongsMachine):
         name = self.handlers.get(address, '')
         a0, a1, a2, a3 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3))
         ret = 0
+        if name == 'loadAlbumList' and self.dead: self.u.mem_write(*self.dead); self.dead = None
         if name == 'is_playing':
             self.calls.append(('is_playing', a0, a1))
             ret = int(self.playing is not None and self.playing == (self.read_cstr(a2), self.read_cstr(a3), a1))
@@ -71,6 +74,8 @@ class AM(SG.SongsMachine):
                 self.u.mem_write(CI + (O['CLASSINFO_ARTIST_14'] if cls == COMP else O['CLASSINFO_ARTIST']), self.scoped.encode() + b'\0')
             self.setword(CI, cls)
             items = self.tracks_of(album)
+            if self.free_row:   # the query frees *pdeq_showlist, the list the row is in (ll_load clears it first): the record is dead until the list is read again (loadAlbumList)
+                self.dead = (a1, bytes(self.u.mem_read(a1, O['REC_SIZE']))); self.u.mem_write(a1, b'\xef\xbe\xad\xde' * (O['REC_SIZE'] // 4))
             self.setword(SHOWLIST, self.new_deque(items)); ret = len(items)
         elif name == 'loadLocalClassList' and a0 in (LIB, ART, COMP):
             self.calls.append(('loadLocalClassList', a0))
@@ -185,7 +190,7 @@ def asset_tests(ctx):
     kids = [c.name for c in root.children]
     expect(root.name == 'm1plus_album_page' == pod_pages.ALBUM_PAGE.name and pod_pages.ALBUM_PAGE in pod_pages.PAGES and pod_pages.ALBUM_PAGE.key == 'm1plus_album' == O.get('AB_ASSET', 'm1plus_album'),
            'the page is m1plus_album (window m1plus_album_page)')
-    expect(kids[0] == 'img_ah_tint' and kids[-5] == 'btn_cancel' and kids[-13] == 'label_title' and kids[-4:] == ['vs_scrim', 'vs_card', 'rm_scrim', 'rm_card'] and 'songs_listview' in kids, f'the gradient is the window\'s first child, the glass controls and the rows menu its last: {kids}')
+    expect(kids[0] == 'img_ah_tint' and kids[-5] == 'btn_cancel' and kids[-14] == 'label_title' and kids[-4:] == ['vs_scrim', 'vs_card', 'rm_scrim', 'rm_card'] and 'songs_listview' in kids, f'the gradient is the window\'s first child, the glass controls and the rows menu its last: {kids}')
     tint = f('img_ah_tint')
     expect((tint.x, tint.y, tint.w, tint.h) == (0, 0, 320, 450) and tint.get('image') == 'ah_tint' and tint.get('clickable') == 'false' and tint.get('sensitive') == 'false'
            and tint.get('visible') != 'false', 'img_ah_tint: ah_tint over the whole 320 x 450 window, insensitive (over a black page it changes nothing)')
@@ -220,7 +225,7 @@ def asset_tests(ctx):
     # the glass controls
     k = {c.name: c for c in root.children}
     expect('navigationbar_view' not in k, 'the controls are children of the window itself (no bar view over the list)')
-    want = {'btn_return': (7, 44, 'ah_nav_back', 1), 'btn_select': (214, 46, 'pod_nav_selectl', 1), 'btn_backtoplayer': (260, 60, 'ah_nav_play', 1),
+    want = {'btn_return': (7, 44, 'ah_nav_back', 1), 'btn_select': (168, 46, 'pod_nav_selectl', 1), 'btn_pin': (214, 46, 'pod_nav_moremid', 0), 'btn_backtoplayer': (260, 60, 'ah_nav_play', 1),
             'btn_selall': (0, 50, 'ah_nav_unsel', 0), 'sg_add': (116, 60, 'ah_nav_add', 0), 'sg_del': (191, 60, 'ah_nav_del', 0), 'btn_cancel': (268, 60, 'ah_nav_cancel', 0)}
     xx = os.path.join(WORK, 'rootfs', 'release', 'assets', 'default', 'raw', 'images', 'xx')
     for name, (x, w, icon, shown) in want.items():
@@ -228,7 +233,7 @@ def asset_tests(ctx):
         expect((b.x, b.y, b.w, b.h) == (x, 0, w, 50) and b.get('style:normal:icon') == icon and b.get('style:pressed:icon') == icon + '_down' and (b.get('visible') != 'false') == bool(shown)
                and (b.get('sensitive') != 'false') == bool(shown) and os.path.exists(os.path.join(xx, icon + '.png')) and os.path.exists(os.path.join(xx, icon + '_down.png')),
                f'{name}: {icon} at x {x} ({w} wide, 50 high), pressed {icon}_down, {"shown" if shown else "hidden and insensitive"}')
-    expect(k['btn_select'].x + k['btn_select'].w == k['btn_backtoplayer'].x, 'Select is flush left of Now Playing: one glass capsule (the genre songs list\'s: the left cap, then the right cap)')
+    expect(k['btn_select'].x + k['btn_select'].w == k['btn_pin'].x and k['btn_pin'].x + k['btn_pin'].w == k['btn_backtoplayer'].x, 'Select 168, "..." 214, Now Playing 260 are flush: one glass capsule as the Albums page\'s (the left cap, the middle piece, the right cap)')
     expect(k['label_title'].get('visible') == 'false' and not [c for c in root.walk() if c.name in ('sg_rail', 'sg_bubble', 'sg_card', 'sg_bar', 'img_nb_fade', 'sg_foot')],
            'the page has no title, no fade, no rail, no sort card, no bottom bar and no count: the controls float over the rows')
     for n in ('btn_return', 'btn_select', 'btn_backtoplayer', 'btn_play', 'btn_shuffle'):
@@ -238,8 +243,9 @@ def asset_tests(ctx):
     tree = asset_tree(UI)
     node(tree, 'view_grid').h = 3000
     for sel in ('btn_selall', 'sg_add', 'sg_del', 'btn_cancel'): node(tree, sel).flags = 0   # hidden and insensitive, as the payload leaves them outside select mode
+    node(tree, 'btn_pin').flags = node(tree, 'btn_select').flags   # shown by the payload for an album that can be pinned
     top = lambda x, y: stock_target(m, tree, x, y)[-1]
-    expect(top(29, 25) == 'btn_return' and top(8, 6) == 'btn_return' and top(237, 25) == 'btn_select' and top(290, 25) == 'btn_backtoplayer' and top(311, 45) == 'btn_backtoplayer',
+    expect(top(29, 25) == 'btn_return' and top(8, 6) == 'btn_return' and top(191, 25) == 'btn_select' and top(237, 25) == 'btn_pin' and top(290, 25) == 'btn_backtoplayer' and top(311, 45) == 'btn_backtoplayer',
            f'Back, Select and Now Playing are hit at the glass\'s centres and corners ({[top(29, 25), top(237, 25), top(290, 25)]})')
     expect(top(160, 25) == 'view_grid' and top(100, 8) == 'view_grid' and top(160, 150) == 'view_grid', f'the band between the controls takes no touch itself: a drag that starts there scrolls the list ({[top(160, 25), top(100, 8)]})')
     expect('img_ah_tint' not in stock_target(m, tree, 160, 300) and top(300, 25) != 'img_ah_tint', 'the gradient image takes no touch')
@@ -1220,6 +1226,7 @@ def nextalbum_tests(ctx):
     old = NA.state(m)['active']['ptr']
     m2 = m
     m2.present.discard('/mnt/mmc/m/0.flac'); m2.played = None
+    if m2.dead: m2.u.mem_write(*m2.dead); m2.dead = None   # (the Albums page reads its list again)
     NA.note(m2, m2.new_deque(m2.class_lists[ALBUMS]), order=[2, 1, 0])
     open_album(m2)
     click(m2, 'btn_play')
@@ -1242,8 +1249,8 @@ def more_tests(ctx):
     expect = ctx.expect
     LS_ACT_DOWNLOAD_ALL = 6
     f = ui().find
-    expect(f('btn_more') is not None and f('btn_more').get('visible') == 'false' and (f('btn_more').x, f('btn_more').w) == (f('btn_select').x, f('btn_select').w)
-           and f('btn_more').get('style:normal:icon') == 'pod_nav_more' and f('btn_more').get('style:pressed:icon') == 'pod_nav_more_down', 'the asset has a hidden "..." on Select\'s slot')
+    expect(f('btn_more') is not None and f('btn_more').get('visible') == 'false' and (f('btn_more').x, f('btn_more').w) == (f('btn_pin').x, f('btn_pin').w)
+           and f('btn_more').get('style:normal:icon') == 'pod_nav_more' and f('btn_more').get('style:pressed:icon') == 'pod_nav_more_down', 'the asset has a hidden source "..." on the capsule\'s middle slot (214, the left cap of a source\'s capsule)')
     expect(f('vs_card').get('visible') == 'false' and f('vs_label6').get('tr_text') == 'Download Album' and f('vs_glyph6').get('image') == 'pod_ic_vsdownload' and f('vs_item8') is None,
            'the card is hidden and its first action row is Download Album with the download glyph')
     m = album_machine()   # the stock page: Select as before, no "..."
@@ -1277,4 +1284,53 @@ def more_tests(ctx):
     m.call(PSYMS['ab_on_destroy'], count=4000000)
 
 
-SECTIONS = [asset_tests, open_tests, header_tests, cover_tests, rows_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests]   # tools/check.py runs each as its own task
+def pin_tests(ctx):
+    """13. The capsule's "..." on the library's page (docs/modules/pins.md): it shows with the album's title (else Select takes the 214 slot, no "..."), opens the three-row sheet Play / Shuffle / Pin Album (Unpin Album when pinned)
+    on the track sheet's card; Play and Shuffle do the pill's and the disc's work; Pin Album writes the album's line; Unpin Album removes it; select mode hides it; a source's page has none; the track sheet is whole again afterwards."""
+    expect = ctx.expect
+    import pod_pins_home as H
+    RM = sibling('rowmenu')
+    PINS = '/mnt/mmc/.m1plus/home-pins'
+    m = album_machine()
+    RM.with_menu(m, 0)
+    for n in ('rm_icon0', 'rm_icon1'):
+        if n not in m.widgets: Machine.widget(m, n)
+    r, calls = open_album(m)
+    card = m.widgets['rm_card']
+    shown = lambda n: vis(m, n)
+    expect(r == 0 and shown('btn_pin') == (1, 1) and shown('btn_select') == (1, 1) and ('widget_move', m.widgets['btn_select'], 214, 0) not in calls,
+           'an album with a title: Select (168), "..." (214), Now Playing (260)')
+    click(m, 'btn_pin')
+    expect(vis(m, 'rm_card') == (1, 1) and m.wtext[m.widgets['rm_label0']] == 'Play' and m.wtext[m.widgets['rm_label1']] == 'Shuffle' and m.wtext[m.widgets['rm_label2']] == 'Pin Album'
+           and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_pin' and vis(m, 'rm_item3')[0] == 0 and vis(m, 'rm_item4')[0] == 0 and vis(m, 'rm_item5')[0] == 0
+           and m.props.get((card, 'style:normal:bg_image')) == 'pc_sheet3', 'the "...": the three-row sheet (Play, Shuffle, Pin Album) on the three-row glass, the other rows hidden')
+    click(m, 'rm_item2')
+    got = H.parse(m.fs.get(PINS, b''))
+    expect(vis(m, 'rm_card') == (0, 0) and len(got) == 1 and got[0][0] == 'a' and got[0][3] == ALBUM and got[0][1] == H.identity(ALBUM) and got[0][2][0] == m.key and got[0][4] == '/mnt/mmc/m/0.flac',
+           f'Pin Album writes the album\'s line (title, cover key, a track) and closes the sheet ({got})')
+    click(m, 'btn_pin')
+    expect(m.wtext[m.widgets['rm_label2']] == 'Unpin Album' and m.props.get((m.widgets['rm_icon2'], 'image')) == 'rm_ic_unpin', 'a pinned album reads Unpin Album with the pin-off glyph')
+    click(m, 'rm_item2')
+    expect(H.parse(m.fs.get(PINS, b'')) == [], 'Unpin Album removes the line')
+    m.mode = 0
+    click(m, 'btn_pin'); calls = click(m, 'rm_item0')
+    expect(vis(m, 'rm_card') == (0, 0) and m.played[1] == 0 and m.played[0] == m.songs and [c for c in calls if c[0] == 'loadSongList'][0][1:] == ('0.flac', 0, LIB), 'Play: as the pill, the first track of the album, the sheet closed')
+    click(m, 'btn_pin'); calls = click(m, 'rm_item1')
+    expect(('mclSetPlayMode', 2) in calls and m.mode == 2 and m.played[0] == m.songs, 'Shuffle: as the disc, the stock Shuffle mode')
+    click(m, 'btn_select')
+    expect(shown('btn_pin') == (0, 0), 'select mode hides the "..."')
+    click(m, 'btn_cancel')
+    expect(shown('btn_pin') == (1, 1), 'and brings it back')
+    # the track sheet after the pins' sheet: its words and rows are back
+    tap(m, 288, row_y(1) + 20)
+    expect(vis(m, 'rm_card') == (1, 1) and m.wtext[m.widgets['rm_label0']] == 'Play Next' and m.wtext[m.widgets['rm_label1']] == 'Play After' and vis(m, 'rm_item3')[0] == 1 and vis(m, 'rm_item4')[0] == 1
+           and m.props.get((m.widgets['rm_icon0'], 'image')) == 'rm_ic_next' and m.props.get((m.widgets['rm_icon1'], 'image')) == 'rm_ic_after', 'a track\'s "..." after it: Play Next, Play After and the other rows as always')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+    # no title: no "...", Select takes its slot
+    m = album_machine(album='')
+    r, calls = open_album(m)
+    expect(r == 0 and vis(m, 'btn_pin') == (0, 0) and ('widget_move', m.widgets['btn_select'], 214, 0) in calls, 'an album without a title: no "...", Select moves to the 214 slot as before')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+
+
+SECTIONS = [asset_tests, open_tests, header_tests, cover_tests, rows_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests, pin_tests]   # tools/check.py runs each as its own task

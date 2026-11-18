@@ -37,6 +37,9 @@ Recently Played / Added, Hi-Res, Favourites; whatever `sg.cls` covers). Not cove
 
 ## Actions
 
+A sixth row, **Pin Song** / **Unpin Song**, shows for a song of the card (not a source's row, whose sheet keeps five rows and the five-row glass): `rm_pin_row`, `rowmenu_set_rows`; see `docs/modules/pins.md`.
+
+
 | Row | What it does |
 |---|---|
 | Play Next / Play After | `rowmenu_open_src` copies the row's `stSongInfo` into a one-row deque (`_create_deque("stSongInfo")`, `_deque_push_back`, as `albums_open_artist` builds its carrier), so a list read again under the open menu cannot pull the row away. The row calls `upnext_add(rows, after)` (0 Play Next, 1 Play After), destroys the deque, closes the menu, then toasts with `pod_toast`. |
@@ -71,7 +74,7 @@ row asks `ls_dsd_confirm` instead ("Download to Play?"). Get Info is `songinfo_o
 
 ## The Queue page's sheet
 
-The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next rows: same widgets, scrim, glass, row look and "..." painter, in a three-row form. The page's asset holds `row_menu(queue=True)`: `rm_card` 320 x 150 on `pc_sheet3` with `rm_item0..2`, rows **Play Next**, **Play After** and (under the one hairline) **Remove from Queue** (`rm_ic_remove`, `list-x`, bare 24 px, an accent glyph by the `rm_ic_` prefix). `rowmenu_bind_queue` binds those three (and sets `rowmenu_t.queued`), `rowmenu_open_queue(rm, row, fn)` shows the sheet with no row copy and no source, and a tapped row closes the sheet and calls `fn(row, RMQ_NEXT / RMQ_AFTER / RMQ_REMOVE)`: the page does the act (`pod_queue_move` / `pod_queue_remove`), not `upnext_add`. Everything else (close on the scrim, the "..." bitmap, `rowmenu_paint`) is shared.
+The Queue page ([queue](queue.md) "Row edit") reuses this menu for its Up Next rows: same widgets, scrim, glass, row look and "..." painter, in a three-row form. The page's asset holds `row_menu(queue=True)`: `rm_card` 320 x 150 on `pc_sheet3` with `rm_item0..2`, rows **Play Next**, **Play After** and (under the one hairline) **Remove from Queue** (`rm_ic_remove`, `list-x`, bare 24 px, an accent glyph by the `rm_ic_` prefix). `rowmenu_bind_queue` binds those three (and sets `rowmenu_t.queued`), `rowmenu_open_queue(rm, row, fn)` shows the sheet with no row copy and no source, and a tapped row closes the sheet and calls `fn(row, RMQ_NEXT / RMQ_AFTER / RMQ_REMOVE)`: the page does the act (`pod_queue_move` / `pod_queue_remove`), not `upnext_add`. Everything else (close on the scrim, the "..." bitmap, `rowmenu_paint`) is shared. The Home pins' long press sheet ([pins](pins.md)) is the same three-row form with the words Play, Shuffle and Unpin Album / Unpin Playlist (`row_menu(pins=True)`, callbacks `RMP_*`).
 
 ## Design notes
 

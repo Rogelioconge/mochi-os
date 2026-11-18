@@ -11,7 +11,7 @@ The M1+ Music Home menu and Extras: which rows exist, their order, and what the 
 
 | Instance | Layout |
 |---|---|
-| Home | No navbar; list y 10–440. Daily Mix, Recently Played and the mini player may be shown |
+| Home | No navbar; list y 10–440. Home pins, Daily Mix, Recently Played and the mini player may be shown |
 | Normal | 50 px navbar with Back, title and Now Playing; no Home-only sections or mini player |
 
 Both use stock `list_view > scroll_view` with `scroll_bar_m`, 52 px `list_item` rows and the
@@ -39,13 +39,14 @@ place when a page returns to the foreground. The scroll bar and hit tests follow
 
 ## Home content
 
-Child order is shown rows, Daily Mix section, Recently Played shelf, hidden rows, spacer.
-`menu_daily` and `menu_shelf` share `mn_section` to show/resize/hide their section and arrange
-again without losing scroll position. A hidden section contributes no height.
+Child order is the Home pins, shown rows, Daily Mix section, Recently Played shelf, hidden rows,
+spacer. The pins are first, so the rows sit below their height (`PIN_H`, 130 or 256 px; [pins](pins.md)).
+`menu_pins`, `menu_daily` and `menu_shelf` share `mn_section` to show/resize/hide their section and
+arrange again without losing scroll position. A hidden section contributes no height.
 
-The mini player is the window's last child: hidden/insensitive `pod_minibar`, at (8, 384),
-304 × 56. A queued track shows it and the 64 px `pod_pad` spacer, letting the final list item
-scroll above the floating pill. Details: [mini player](minibar.md), [Daily Mix](dailymix.md),
+The mini player is hidden/insensitive `pod_minibar`, at (8, 384), 304 × 56, followed only by the
+Home pins' long press sheet (`rm_scrim`, `rm_card`, [pins](pins.md)); it is the last child apart from those. A queued track shows it and the 64 px `pod_pad` spacer, letting the final list item
+scroll above the floating pill. Details: [mini player](minibar.md), [Home pins](pins.md), [Daily Mix](dailymix.md),
 [Recently Played](recent.md) and the [cover build line](homecover.md).
 
 ## Saved menu

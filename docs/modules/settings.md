@@ -234,6 +234,7 @@ touches none of these.
 | `.m1plus/artists/` | artist photo cache (`a<key>-44.jpg`, `-168.jpg`, `.pick`) | [artists](artists.md) |
 | `.m1plus/durations` | measured track durations (patch/durations.c) | [album-page](album-page.md#album-length) |
 | `.m1plus/recently-played` | Home's Recently Played albums (patch/recent.c) | [recent](recent.md) |
+| `.m1plus/home-pins` | the Home pins (patch/pins.c) | [pins](pins.md) |
 | `.m1plus/coverflow-position` | the Cover Flow position (patch/coverflow.c) | [coverflow](coverflow.md) |
 | `.m1plus/daily-mix/` | Daily Mix tracks and art | [dailymix](dailymix.md) |
 | `.m1plus/podcasts/` | `resume`, `speed`, `order`, `search/` (thumbnails) | [podcasts](podcasts.md) |

@@ -98,6 +98,10 @@
     CARD_DIR \
     "/recently-played" /* the albums played last, most recent first (patch/recent.c): on the card, like the keys and paths it holds; missing, malformed or no card = none */
 #define RECENT_TMP CARD_DIR "/recently-played.tmp"
+#define PINS_FILE \
+    CARD_DIR \
+    "/home-pins" /* the albums, playlists and songs pinned at the top of Home, newest first (patch/pins.c): on the card, like the keys and paths it holds; missing, malformed or no card = none */
+#define PINS_TMP CARD_DIR "/home-pins.tmp"
 #define SEARCH_RECENT_FILE \
     "/mnt/data/m1plus/search-history" /* the last searches, newest first, one UTF-8 line each (patch/search.c); missing or malformed = none */
 #define SEARCH_RECENT_TMP "/mnt/data/m1plus/search-history.tmp"
@@ -202,6 +206,11 @@ extern void menu_shelf(void *win,
                        int on); /* patch/menu.c: show or hide the shelf and move the rows (the list keeps its place) */
 extern void menu_daily(void *win,
                        int on); /* patch/menu.c: the same for the Daily Mix section, which sits above the shelf */
+
+extern void menu_pins(void *win,
+                      int on); /* patch/menu.c: the same for the Home pins (patch/pins.c), which sit above every row */
+extern void
+pins_start(void *win); /* patch/pins.c: the Home pins of the Home instance of the menu (called by home_menu_opened) */
 
 /* patch/dailymix.c: the Daily Mix card of the Home instance of the menu (dailymix_start, called by home_menu_opened) and its Settings > Home Screen rows */
 extern void dailymix_start(void *win);

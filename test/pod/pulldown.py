@@ -47,7 +47,10 @@ class SM(StockEventMachine):
             a0, a1, a2 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2))
             prop = self.read_cstr(a1)
             self.log.append(("prop", prop, struct.unpack("<i", struct.pack("<I", a2))[0]))
-            self.setword(a0 + {"virtual_h": 0x7c, "yoffset": 0x84}[prop], a2)
+            if prop == "yslidable":   # a byte of the struct (SC_YSLIDE 0x91): the stock MOVE and the payload's UP read it; props keeps it for widget_get_prop_int
+                self.u.mem_write(a0 + 0x91, bytes([a2 & 0xff])); self.props[(a0, prop)] = a2
+            else:
+                self.setword(a0 + {"virtual_h": 0x7c, "yoffset": 0x84}[prop], a2)
             u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
             return
         super()._hook(u, address, size, _)

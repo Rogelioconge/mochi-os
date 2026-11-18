@@ -198,5 +198,5 @@ def run(ctx):
     for kind in ('m', 'd', 'u'):
         c.setword(e, POINTER_EVT[kind]); c.call(PSYMS['m1plus_scroll_event'], a0=c.sv, a1=e, count=1000); cost[kind] = c.icount
         expect(c.calls == [], f'an idle {kind} event: the hook calls nothing')
-    expect(cost['m'] <= 16 and cost['d'] <= 40 and cost['u'] <= 20, f'hook cost per event, instructions: MOVE {cost["m"]}, idle DOWN {cost["d"]}, idle UP {cost["u"]}')
+    expect(cost['m'] <= 20 and cost['d'] <= 44 and cost['u'] <= 24, f'hook cost per event, instructions: MOVE {cost["m"]}, idle DOWN {cost["d"]}, idle UP {cost["u"]}')
     print(f'  hook cost per event (instructions, incl. call/return): MOVE {cost["m"]}, idle DOWN {cost["d"]}, idle UP {cost["u"]}')
