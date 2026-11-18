@@ -774,8 +774,12 @@ def own_tests(ctx):
     expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')], 'Settings already in front: left alone')
     m = PT([H]); m.swipe(b'a\n'); m.tap('pod_tile_eq'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_peq')], f'Equalizer: the Equalizer page the All Playback Settings row opens ({pages(calls)})')
+    m = PT([H, PEQ, 'm1plus_peqp_page', P_]); m.swipe(b'a\n'); m.tap('pod_tile_eq')
+    h = {n: w for n, w in m.stack}; m.call(PSYMS['pd_note_opener'], a0=h['m1plus_peqp_page'], a1=h[PEQ])   # (opened from the Equalizer page, as open_page notes it)
+    ret, calls = m.modal()
+    expect(pages(calls)[1:] == [('window_close', 'm1plus_peqp_page'), ('switch_to', P_, PEQ, 0)], f'Equalizer already in the stack: the sub-pages it opened are closed, brought to the front ({pages(calls)})')
     m = PT([H, PEQ, 'm1plus_peqp_page', P_]); m.swipe(b'a\n'); m.tap('pod_tile_eq'); ret, calls = m.modal()
-    expect(pages(calls)[1:] == [('window_close', 'm1plus_peqp_page'), ('switch_to', P_, PEQ, 0)], f'Equalizer already in the stack: sub-pages closed, brought to the front ({pages(calls)})')
+    expect(pages(calls)[1:] == [('switch_to', P_, PEQ, 0)] and 'm1plus_peqp_page' in m.names_(), f'a window above the Equalizer that it did not open is not closed ({pages(calls)})')
     m = PT([H]); m.swipe(b'a\n'); m.windows = {'m1plus_peq': 0}; m.tap('pod_tile_eq'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_peq')], 'a page of ours that will not open: no further call, no crash')
     # the same conditions as stock's tile handlers (0x4754c8): a tile does nothing while they hold

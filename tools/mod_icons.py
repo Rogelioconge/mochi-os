@@ -210,8 +210,29 @@ def wifi_spinner(i, px=WIFI_SPIN_PX, ss=8):
 
 # The device page's Headset Volume keys (patch/btpage.c, docs/modules/bluetooth.md "The device page"): a 38 x 34 dark pill with a white minus or plus (16 px), the pressed twin lighter; neutral greys, no accent.
 BT_VOL_PX, BT_VOL_GLYPH, BT_VOL_FILL, BT_VOL_DOWN = (38, 34), 16, (0x3A, 0x3A, 0x3C), (0x55, 0x55, 0x58)
-BT_VOL_IMAGES = ['pod_ic_btvol_dn', 'pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
+# The Volume page's bar (patch/volume.c vp_paint, docs/modules/volume.md): a capsule VOLBAR_W x VOLBAR_H, both ends half circles, the track (#3A3A3C) and the fill (white; the payload blits its left part up to the value, a straight cut), and the dark twin
+# of the Mono Audio glyph (pod_ci_volume, 24 px canvas) that is shown over the fill: the white one is shown over the track.
+VOLBAR_W, VOLBAR_H, VOLBAR_TRACK = 276, 52, (0x3A, 0x3A, 0x3C)
+VOLBAR_IMAGES = ['pod_vol_track', 'pod_vol_fill', 'pod_vol_ink']
+
+
+def vol_capsule(rgb, ss=8):
+    """VOLBAR_W x VOLBAR_H: a capsule of rgb filling the canvas, antialiased (8 x 8 samples per pixel), transparent outside."""
+    from PIL import Image, ImageDraw
+    big = Image.new('L', (VOLBAR_W * ss, VOLBAR_H * ss), 0)
+    ImageDraw.Draw(big).rounded_rectangle((0, 0, VOLBAR_W * ss - 1, VOLBAR_H * ss - 1), VOLBAR_H * ss // 2, fill=255)
+    im = Image.new('RGBA', (VOLBAR_W, VOLBAR_H), tuple(rgb) + (0,)); im.putalpha(big.resize((VOLBAR_W, VOLBAR_H), Image.LANCZOS)); return im
+
+
+def vol_ink():
+    """The Mono Audio glyph (pod_ci_volume, card_icon's canvas) in black, the same alpha."""
+    from PIL import Image
+    g = card_icon(CARD_GLYPHS['Mono Audio'])
+    im = Image.new('RGBA', g.size, (0, 0, 0, 0)); im.putalpha(g.getchannel('A')); return im
+
+
+BT_VOL_IMAGES = ['pod_ic_btvol_dn','pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + VOLBAR_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -825,6 +846,7 @@ def generate_all(sizes):
     f[CARD_CHECK[0]] = glyph_fit('check', CARD_CHECK[1], CARD_CHECK[1])
     for i, n in enumerate(SWATCHES): f[n] = swatch(i)
     f[SLIDER_THUMB[0]] = slider_thumb()
+    f['pod_vol_track'], f['pod_vol_fill'], f['pod_vol_ink'] = vol_capsule(VOLBAR_TRACK), vol_capsule(WHITE), vol_ink()
     f[DROP_GRABBER[0]] = pil_glyph('drop_grabber', DROP_GRABBER[1:], *NP_TONES['ghost'])   # the pull-down's grabber: Now Playing's pill (GRABBER, the ghost tone) on a canvas of just the pill
     for n, (g, px, rgb) in WIFI_GLYPHS.items(): f[n] = glyph_fit(g, px, px, rgb, 1, 2.0 if px >= 22 else 1.5)
     for n in range(4): f[f'wf_sig{n}'] = wifi_signal(n)

@@ -569,10 +569,29 @@ static int is_pick(const struct pod_row *row) { return pick_set_of(row->action) 
 static void *stock_front __attribute__((section(
     ".scratch"))); /* the window an ACT_STOCK row opened; forgotten when a Settings page is back in front (page_refresh) */
 
+/* The pages the Volume page's rows and the Settings rows both open: the window once, restacked when it is in the stack (pd_open_page, patch/pulldown.c). 1 when page is one of them. */
+static int open_shared(int page) {
+    if (page == POD_PSGAIN_PAGE)
+        pd_open_page("m1plus_psgain_page", pod_open_psgain, 0);
+    else if (page == POD_PEQ_PAGE)
+        pd_open_page("m1plus_peq_page", pod_open_peq, 0);
+    else if (page == POD_PSVOLUME_PAGE)
+        pd_open_page("m1plus_psvolume_page", pod_open_psvolume, 0);
+    else
+        return 0;
+    return 1;
+}
+
 static int on_row(void *ctx, void *e) {
     const struct pod_row *row = ctx;
     (void)e;
     if (!row) return RET_OK;
+    if (row >= POD_PAGES[POD_VOLUME_PAGE].rows &&
+        row < POD_PAGES[POD_VOLUME_PAGE].rows + POD_PAGES[POD_VOLUME_PAGE].count) {
+        volpage_go((int)(row - POD_PAGES[POD_VOLUME_PAGE]
+                                   .rows)); /* the Volume page's second card: its page restacked, not opened twice */
+        return RET_OK;
+    }
     if (row->action == ACT_HOME)
         home_open(row->arg);
     else if (row->action == ACT_NETTRANS) {
@@ -584,9 +603,10 @@ static int on_row(void *ctx, void *e) {
         row->action ==
         ACT_DTAPPLY) { /* Set Date / Set Time: stock's set_systime, then back to Date & Time, as stock's confirm does */
         if (dt_apply(row->arg) == 0) m1_on_back((void *)0, (void *)0);
-    } else if (row->action == ACT_PAGE || pick_value_of(row->action)) /* the value rows open their picker page */
-        open_page(row->arg, 0);
-    else if (row->action == ACT_PLAYER)
+    } else if (row->action == ACT_PAGE || pick_value_of(row->action)) { /* the value rows open their picker page */
+        /* Gain, Equalizer and Volume & Sound are also opened by the Volume page's rows: one window each, restacked when it is in the stack (patch/volume.c) */
+        if (!open_shared(row->arg)) open_page(row->arg, 0);
+    } else if (row->action == ACT_PLAYER)
         m1_open_now_playing();
     else if (row->action == ACT_COVER)
         coverflow_open(); /* patch/coverflow.c; its own page */
@@ -1213,7 +1233,8 @@ static int open_page(int index, int as_home) {
     int i, refresh = 0, pcrows = 0;
     if (index < 0 || index >= POD_PAGE_COUNT) return -1;
     page = &POD_PAGES[index];
-    win = window_open(page->asset);
+    win = pd_window_open(
+        page->asset); /* opened from the page in front: pd_open_page closes it with that page (patch/pulldown.c) */
     if (!win) return -1;
     for (i = 0; i < page->count; i++)
         if (page->rows[i].action == ACT_PCDIR)
@@ -1323,6 +1344,8 @@ static int open_page(int index, int as_home) {
         ps_vol_opened(win, PS_VOL_BOOT);
     else if (index == POD_PSBAL_PAGE)
         ps_vol_opened(win, PS_VOL_BAL);
+    else if (index == POD_VOLUME_PAGE)
+        volpage_opened(win); /* stock's volume handlers, bound to our widgets */
     { /* the Settings page is the way out to the grid; the menu may be the Home instance (no navbar) */
         int entry = as_home && index == POD_ENTRY_PAGE;
         if (index == POD_SETTINGS_PAGE || entry) home_menu_opened(win, index == POD_SETTINGS_PAGE, entry);
@@ -1349,6 +1372,13 @@ int pod_open_peq(void) { return open_page(POD_PEQ_PAGE, 0); }
 
 /* The Sleep Timer page, for Now Playing's More sheet row and the pull-down's Sleep Timer tile (patch/playmore.c, patch/pulldown.c): the normal instance, with Back. */
 int pod_open_sleeptimer(void) { return open_page(POD_SLEEPTIMER_PAGE, 0); }
+
+/* The Volume page, for the status bar tap (patch/volume.c vol_tap_open): the normal instance, with Back. */
+int pod_open_volume(void) { return open_page(POD_VOLUME_PAGE, 0); }
+
+/* The Gain picker and Volume & Sound, for the Volume page's rows (patch/volume.c volpage_go): the normal instance, with Back. */
+int pod_open_psgain(void) { return open_page(POD_PSGAIN_PAGE, 0); }
+int pod_open_psvolume(void) { return open_page(POD_PSVOLUME_PAGE, 0); }
 
 /* The Audio Codec picker, for the Bluetooth page's codec row (patch/btpage.c): the normal instance, with Back. */
 int pod_open_btcodec(void) { return open_page(POD_BTCODEC_PAGE, 0); }

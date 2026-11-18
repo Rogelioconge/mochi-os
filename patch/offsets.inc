@@ -1859,3 +1859,12 @@
 #define BHS_MARK_CY 20
 #define BHS_SUB_CY 42
 #define BHS_PCT_CY 30
+
+/* The Volume page's bar (patch/volume.c vp_paint, docs/modules/volume.md; test/pod/volume.py checks them against tools/mod_icons.py VOLBAR_* and tools/pod_ui.py): pod_volbar is VB_W x VB_H, painted from the images pod_vol_track and pod_vol_fill (capsules of that size) and the glyph pod_ci_volume / pod_vol_ink (VB_ICON px) centred VB_ICON_CX from the left end; the fill is cut straight at the value. The Max tick is VB_TICK_W wide, VB_TICK_INSET short of the top and bottom, colour #6A6A6E. */
+#define VB_W 276
+#define VB_H 52
+#define VB_ICON 24
+#define VB_ICON_CX 26
+#define VB_TICK_W 2
+#define VB_TICK_INSET 12
+#define VB_TICK 0xff6e6a6au

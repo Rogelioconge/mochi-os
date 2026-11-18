@@ -252,6 +252,7 @@ def rows_tests(expect):
     allowed.update(pod.fileoff(built, a) for a, _ in pod.LINEOUT_SITES)                                  # the jalr widget_set_text_utf8 of label_volume in show_sysbar_face and dropdown_showface (patch/lineout.c)
     allowed.add(pod.fileoff(built, pod.IDLE_SITE))                                                       # the timed open's navigator_to call (patch/bigcover.c bc_timed_open)
     allowed.add(pod.fileoff(built, pod.WIFIHUB_SITE))                                                  # the All System Settings Wi-Fi row's navigator_to call (patch/wifipage.c wifi_hub_open)
+    allowed.add(pod.fileoff(built, pod.VOLUME_SITE))                                                   # on_wm_tsup_fun's navigator_to_with_context call (patch/volume.c vol_tap_open)
     allowed.add(pod.fileoff(built, pod.BTHUB_SITE))                                                    # the All System Settings Bluetooth row's navigator_to call (patch/btpage.c bt_hub_open)
     allowed.add(pod.fileoff(built, pod.FORMAT_LAMP_SITE))                                                # on_wm_idle_status's mclGetPlayStatus call (patch/tracklamp.c tl_play_status)
     allowed.add(pod.fileoff(built, pod.PLAYREC_SITE))                                                    # on_wm_idle_status's add_playrecord call (patch/sbsrc.c sbs_play_record)

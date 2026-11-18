@@ -1327,7 +1327,7 @@ int keyboard_open(const char *title, const char *placeholder, const char *initia
     if (kb.win) return -1;
     memset(&kb, 0, sizeof kb);
     memset(&zh, 0, sizeof zh);
-    kb.win = window_open("m1plus_keyboard");
+    kb.win = pd_window_open("m1plus_keyboard"); /* (the page in front is its opener, patch/pulldown.c) */
     if (!kb.win) return -1;
     kb.done = on_done, kb.cancel = on_cancel, kb.flags = flags;
     kb.max = flags & KB_PASSWORD ? KB_PASS_MAX

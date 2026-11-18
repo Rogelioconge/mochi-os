@@ -170,6 +170,20 @@ void menu_plain_paint(void *sv);
 
 /* patch/pulldown.c */
 void pulldown_page_opened(void *win); /* the Pull-down page's switches and arrows */
+/* patch/pulldown.c: our page by its window name: left alone in front, else restacked (its sub-pages closed), else open_it(); 1 when it is up */
+int pd_open_own(const char *window, int (*open_it)(void));
+/* the same for a page several routes open (the Volume page, Gain, Equalizer, Volume & Sound): only the windows it opened (the opener table) are closed before it is restacked; the windows of the route the user came
+ * by stay. rooted: the route is a Control Center tile or the status bar tap (no opener); 0: a row tap on the page in front, which becomes its opener */
+int pd_open_page(const char *window, int (*open_it)(void), int rooted);
+/* the window in front, or NULL; and the opener table's entry for win: opened from `from` (NULL: by a tile or the status bar tap) */
+void *pd_front_window(void);
+void pd_note_opener(void *win, void *from);
+
+/* patch/volume.c */
+void volpage_opened(void *win); /* the Volume page's window is up: stock's volume handlers bound to its widgets */
+void volpage_go(
+    int k); /* the Volume page's second card: row k (0 Gain, 1 Equalizer, 2 Volume & Sound) opens its page without a second window */
+int vol_tap_open(const char *name, int ctx); /* payload hook 33: the status bar tap's open of the volume dialog */
 
 /* patch/display.c */
 int disp_light(void); /* stock's backlight time index, 0 never .. 4 five minutes */

@@ -41,8 +41,11 @@ class PM(Machine):
             u.mem_write(a0, text.encode() + b'\0')
             u.reg_write(UC_MIPS_REG_V0, len(text)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
             return
+        if name == 'window_manager_get_top_window':   # (the Gain, Equalizer and Volume & Sound rows ask whether their page is in front: no window is)
+            u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+            return
         if name not in SETTERS: return super()._hook(u, address, size, _)
-        a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+        a0, a1 =u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
         if name == 'mclSetGainMode':
             self.calls.append((name, a0, a1))
             if a1: self.setword(MCL_GAIN, a0)                 # (the word only when the second argument asks)

@@ -90,6 +90,7 @@ stock's own behaviour.
 | 30 | `on_wm_tsdown_fun` `0x4cd6e8` (every touch down) | [pulldown](pulldown.md) | two loads (`lockscreen_pageflag`, `dropdown_menu_state`), then stock; clears a stale nonzero word, nothing else |
 | 31 | `on_wm_idle_status` play-status call, call site `0x4ce968` | [display](display.md) | stock `mclGetPlayStatus` |
 | 32 | Bluetooth row of the All System Settings hub, call site `0x4b1428` | [bluetooth](bluetooth.md) | stock `navigator_to` |
+| 33 | status bar tap's open of the volume dialog, call site `0x4cd964` (`on_wm_tsup_fun`) | [volume](volume.md) | stock `navigator_to_with_context` |
 
 Sites without a number:
 
@@ -111,7 +112,7 @@ Rules for the table:
 - Hooks 26 and 28 sit on the main loop's idle path but run only at an album end or a track start
   (bounded work, stock's call on any refusal). Hook 31 runs on every idle pass and does one
   compare of a cached int when LED Light is not Dynamic.
-- Kill switch `/mnt/mmc/m1plus-off`: scope in [safety](safety.md#kill-switch). Hooks 5, 6, 16 and 22
+- Kill switch `/mnt/mmc/m1plus-off`: scope in [safety](safety.md#kill-switch). Hooks 5, 6, 16, 22 and 33
   never read it (bounded work or tap-only, stock fallback); 13 and 14 use stock's own switch.
 - `tools/reach.py` decides boot reachability; hooks not marked "boot" are reached only through the navigator's page-init dispatcher, a tap or the status bar, never from `main` / `platform_init`.
 - Credit: hooks 4, 5, 6, 9 - 12, 16 and 19 follow q2-pod's equivalents; hook 31's lamp pins came

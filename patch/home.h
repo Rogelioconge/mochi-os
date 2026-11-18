@@ -262,6 +262,13 @@ extern void pod_page_refresh(int index); /* patch/m1plus.c: the page's values ar
 extern int pod_open_lock(void); /* patch/m1plus.c */
 extern int pod_open_settings(void); /* patch/m1plus.c: open_page(POD_SETTINGS_PAGE); 0 once its window is up */
 extern int pod_open_peq(void); /* patch/m1plus.c: open_page(POD_PEQ_PAGE) */
+extern int
+pod_open_psgain(void); /* patch/m1plus.c: open_page(POD_PSGAIN_PAGE), the Gain picker; 0 once its window is up */
+extern int
+pod_open_psvolume(void); /* patch/m1plus.c: open_page(POD_PSVOLUME_PAGE), Volume & Sound; 0 once its window is up */
+extern int pod_open_volume(void); /* patch/m1plus.c: open_page(POD_VOLUME_PAGE); 0 once its window is up */
+extern void *
+pd_window_open(const char *asset); /* patch/pulldown.c: window_open, the page in front recorded as the opener */
 extern int pod_open_sleeptimer(void); /* patch/m1plus.c: open_page(POD_SLEEPTIMER_PAGE); 0 once its window is up */
 extern int pod_open_btcodec(
     void); /* patch/m1plus.c: open_page(POD_BTCODEC_PAGE), the Audio Codec picker; 0 once its window is up */

@@ -71,6 +71,12 @@ Tap the mini player's cover on Home, or tap the Now Playing button in a page's t
 - Swipe across the cover to see lyrics, then swipe again for song details.
 - Tap **…** for more options, including display modes and the Sleep Timer.
 
+### Change the volume
+
+Tap the status bar at the top of any page to open **Volume**. Use the **−** and **+** buttons, drag
+the bar, or press the volume keys. A small mark on the bar shows the **Max Volume** limit. Under
+the bar, shortcuts open **Gain**, **Equalizer** and **Volume & Sound**.
+
 ### Choose what plays next
 
 1. On an album or Songs list, tap a song's **…**, or touch and hold its row.

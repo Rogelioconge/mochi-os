@@ -31,6 +31,9 @@ HERO_TILE, HERO_TILE_Y, HERO_TILE_R, HERO_GLYPH = 64, 2, 16, 36   # a Hero's til
 HERO_TITLE_Y, HERO_TITLE_H, HERO_TITLE_PX = 76, 30, 22          # its title: 22 px white, centred, 10 px under the tile
 HERO_DESC_Y, HERO_DESC_PX, HERO_DESC_PITCH, HERO_END = 108, 14, 16, 14   # its description: grey, 14 px, wrapped rows 16 px apart (font + spacer 2), 14 px between its last row and the next card
 BIG_H, BIG_CARD_H, BIG_PX, BIG_FACE = 66, 60, 22, 'lyrics'   # a BigCard: the item, its card (the tall single piece, 60 px) and the text size; the text is in the bold face (mod_font lyric_face; digits and Latin only: the payload writes the address)
+VOLUME_CARD_H = 3 * ROW_H   # the Volume page's card (pod_pages.VolumeCard): a top, a mid and a bottom card piece stacked, the number and its info line over the first two, the 52 px bar in the last (patch/volume.c)
+VOLUME_GAP = 10             # the space under it, before the second card (Gain, Equalizer, Volume & Sound): part of the item, so the item is VOLUME_ITEM_H high
+VOLUME_ITEM_H = VOLUME_CARD_H + VOLUME_GAP
 GAP_H, END_H = 20, 10      # the space between two cards without a header or note; the list's bottom padding
 REGION_H = 30               # the 10-Band editor's region line box (pod_regionbox): the 18 px line centred, 6 px clear above and below it, between the graph and the slider card
 GRAPH_H = 170                # the preset page's graph card (patch/offsets.inc PG_H): a view the width of the list, the card (x CM, CARD_W wide, rounded) baked into the bitmap the payload paints
@@ -93,7 +96,7 @@ def item_h(item):
     """The height of a layout item: Hdr, Note, GAP, Row or TOP / END."""
     return (HDR_H if isinstance(item, pod_pages.Hdr) else cnote_h(item) if isinstance(item, pod_pages.Note) and item.center else NOTE_H + (item.lines - 1) * WRAP_LINE if isinstance(item, pod_pages.Note)
             else hero_h(item) if isinstance(item, pod_pages.Hero) else BIG_H if isinstance(item, pod_pages.BigCard) else GAP_H if item is pod_pages.GAP
-            else REGION_H if item is pod_pages.REGION else GRAPH_H if isinstance(item, pod_pages.Graph) else (HIST_LEVEL_H if item.kind == 'level' else HIST_ACT_H) if isinstance(item, pod_pages.HistChart) else HIST_SUMMARY_H if isinstance(item, pod_pages.HistSummary) else SLIDERS_H if isinstance(item, pod_pages.Sliders) else SEG_H if isinstance(item, pod_pages.Segment) else ROW_H if isinstance(item, (pod_pages.Brightness, pod_pages.VolCard)) else HSL_H if isinstance(item, pod_pages.HSliders) else CM if item == TOP else END_H if item == END else row_h(item))
+            else REGION_H if item is pod_pages.REGION else GRAPH_H if isinstance(item, pod_pages.Graph) else (HIST_LEVEL_H if item.kind == 'level' else HIST_ACT_H) if isinstance(item, pod_pages.HistChart) else HIST_SUMMARY_H if isinstance(item, pod_pages.HistSummary) else VOLUME_ITEM_H if isinstance(item, pod_pages.VolumeCard) else SLIDERS_H if isinstance(item, pod_pages.Sliders) else SEG_H if isinstance(item, pod_pages.Segment) else ROW_H if isinstance(item, (pod_pages.Brightness, pod_pages.VolCard)) else HSL_H if isinstance(item, pod_pages.HSliders) else CM if item == TOP else END_H if item == END else row_h(item))
 
 
 def layout(items):

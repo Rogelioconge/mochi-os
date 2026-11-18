@@ -853,7 +853,8 @@ static __attribute__((noinline)) int ae_stale(void) {
 int autoeq_open(void) {
     if (ae.win) return -1;
     memset(&ae, 0, sizeof ae);
-    ae.win = window_open("m1plus_autoeq");
+    ae.win =
+        pd_window_open("m1plus_autoeq"); /* (Presets is its opener: closed with it when the Equalizer is reopened) */
     if (!ae.win) {
         memset(&ae, 0, sizeof ae);
         return -1;

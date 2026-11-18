@@ -39,6 +39,7 @@ STATE = {
     'm1plus_psoutput': {'values': {'pod_value1': 'D2P', 'pod_value3': 'Variable'}, 'switches': {'pod_switch4': False}},
     'm1plus_psxfeed': {'shown': {'pod_check2'}},
     'm1plus_psmaxvol': {'vol_text': '80', 'vol': 80},
+    'm1plus_volume': {'volnum': '42', 'volinfo': 'Headphones \u00b7 Max 80', 'vol': 42},
     'm1plus_psbootvol': {'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}},
     'm1plus_psbal': {'vol_text': 'L3', 'vol': 7},
     'm1plus_psmode': {'shown': {'pod_check3'}},
@@ -102,6 +103,7 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
             draw_row(s, im, d, c, y, values, switches, shown, ink, img, pal, pal is not None and pressed is not None and s.shown(lab) == pressed)
         if c.name == 'pod_bright': draw_brightness(im, c, y, img, st.get('brightness', 60))
         elif c.name in ('pod_vsval', 'pod_vsctl'): draw_volcard(s, im, c, y, img, ink, st.get('vol_text', ''), st.get('vol', 0), st.get('vol_dim', False))
+        elif c.name == 'pod_volume': draw_volume(s, im, c, y, ink, img, st)
         elif c.name == 'pod_hero': draw_hero(s, im, c, y, ink, img)
         elif c.name.startswith('pod_big'): draw_bigcard(s, im, c, y, ink, img, values)
         else: draw_text_item(s, im, c, y, ink, st.get('texts'))
@@ -153,6 +155,47 @@ def draw_volcard(s, im, c, y, img, ink, text, value, dim=False):
             layer.alpha_composite(disc.resize((t.w, t.h), Image.LANCZOS), (t.x, y + t.y))
     if dim: layer.putalpha(layer.getchannel('A').point(lambda a: a * 153 // 255))
     im.alpha_composite(layer)
+
+
+def draw_volume(s, im, c, y, ink, img, st):
+    """The Volume page's card (tools/pod_ui.py cards_volume): the three card pieces, the number (the bold face) and the grey line at the state's 'volnum' / 'volinfo', the - and + discs and buttons, and the slider at the state's 'vol'."""
+    if not hasattr(s, 'bold'): s.bold = StbFont(os.path.join(s.tree, RAW, 'fonts/lyrics.ttf'))
+    for t in c.children:
+        if t.type == 'view' and t.name.startswith('pod_volcard'): im.alpha_composite(img(t.get('style:normal:bg_image')), (0, y + t.y))
+        elif t.type == 'view' and t.name != 'pod_volbar':   # a button's disc
+            disc = Image.new('RGBA', (t.w * 4, t.h * 4), (0, 0, 0, 0)); fill = style(t, 'bg_color').lstrip('#')
+            ImageDraw.Draw(disc).ellipse((0, 0, t.w * 4 - 1, t.h * 4 - 1), fill=ink(rgb(fill)) + (int(fill[6:8], 16),))
+            im.alpha_composite(disc.resize((t.w, t.h), Image.LANCZOS), (t.x, y + t.y))
+        elif t.name == 'pod_volnum':
+            px = int(style(t, 'font_size')); s.bold.draw(im, t.x, int(y + t.y + (t.h - px) / 2), st.get('volnum', '42'), px, ink(rgb(style(t, 'text_color'))) + (255,))
+        elif t.name == 'pod_volinfo':
+            px = int(style(t, 'font_size')); s.text(im, t.x, y + t.y + t.h / 2, st.get('volinfo', ''), px, ink(rgb(style(t, 'text_color'))))
+        elif t.type == 'button':
+            px = int(style(t, 'font_size')); s.text(im, t.x + t.w / 2, y + t.y + t.h / 2, t.get('text'), px, ink(rgb(style(t, 'text_color'))), anchor='m')
+        elif t.name == 'pod_volbar': draw_volbar(im, t, y, img, ink, st.get('vol', 42), st.get('vmax'))   # (vol_slider is invisible: the bar is the view over it)
+
+
+def VOLUME_STATES(tr):
+    """The Volume page's three samples: 42 with Max 80; 6 with Max 80 (the glyph split at the fill's edge, the tick); Bluetooth at 64 (no Max, no tick). Gain Low, Equalizer Off."""
+    rows = {'pod_value0': tr('Low'), 'pod_value1': tr('Off')}
+    return [{'volnum': '42', 'volinfo': tr('Headphones') + ' \u00b7 ' + tr('Max') + ' 80', 'vol': 42, 'vmax': 80, 'values': rows},
+            {'volnum': '6', 'volinfo': tr('Headphones') + ' \u00b7 ' + tr('Max') + ' 80', 'vol': 6, 'vmax': 80, 'values': rows},
+            {'volnum': '64', 'volinfo': tr('Bluetooth'), 'vol': 64, 'vmax': None, 'values': rows}]
+
+
+def draw_volbar(im, t, y, img, ink, value, vmax):
+    """The Volume page's bar (patch/volume.c vp_paint, the same arithmetic): the capsule track, the fill cut straight at the value, the Max tick (vmax: None on Bluetooth or at 100) and the speaker glyph split at the edge."""
+    fw = value * t.w // 100
+    im.alpha_composite(img('pod_vol_track'), (t.x, y + t.y))
+    if fw > 0: im.alpha_composite(img('pod_vol_fill').crop((0, 0, fw, t.h)), (t.x, y + t.y))
+    if vmax is not None:
+        tx = min(max(vmax * t.w // 100 - 1, 0), t.w - 2)
+        ImageDraw.Draw(im).rectangle((t.x + tx, y + t.y + 12, t.x + tx + 1, y + t.y + t.h - 13), fill=ink((0x6A, 0x6A, 0x6E)) + (255,))
+    ix, iy = 26 - 12, (t.h - 24) // 2
+    cut = min(max(fw - ix, 0), 24)
+    ink_g, glyph = img('pod_vol_ink'), img('pod_ci_volume')
+    if cut > 0: im.alpha_composite(ink_g.crop((0, 0, cut, 24)), (t.x + ix, y + t.y + iy))
+    if cut < 24: im.alpha_composite(glyph.crop((cut, 0, 24, 24)), (t.x + ix + cut, y + t.y + iy))
 
 
 def draw_centred(s, im, t, y, ink, text=None, font=None):
@@ -503,6 +546,9 @@ def main():
                ('Volume & Sound', draw_page(t, 'm1plus_psvolume', full=True, state={'values': {'pod_value0': tr('Low'), 'pod_value1': '80', 'pod_value2': tr('Memory'), 'pod_value3': tr('Off'), 'pod_value4': 'L3', 'pod_value6': tr('Medium')}, 'switches': {'pod_switch5': True}})),
                ('Output', draw_page(t, 'm1plus_psoutput', full=True, state={'values': {'pod_value1': tr('D2P'), 'pod_value3': tr('Variable')}, 'switches': {'pod_switch4': False}})),
                ('Max Volume', draw_page(t, 'm1plus_psmaxvol', state={'vol_text': '80', 'vol': 80})),
+               ('Volume (status bar tap): 42, Max 80', draw_page(t, 'm1plus_volume', full=True, state=VOLUME_STATES(tr)[0])),
+               ('Volume: 6, Max 80 (low fill)', draw_page(t, 'm1plus_volume', full=True, state=VOLUME_STATES(tr)[1])),
+               ('Volume: Bluetooth, no Max', draw_page(t, 'm1plus_volume', full=True, state=VOLUME_STATES(tr)[2])),
                ('Default Volume (Volume Memory off)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'switches': {'pod_switch0': False}})),
                ('Default Volume (Volume Memory on)', draw_page(t, 'm1plus_psbootvol', state={'vol_text': '30', 'vol': 30, 'vol_dim': True, 'switches': {'pod_switch0': True}})),
                ('Channel Balance', draw_page(t, 'm1plus_psbal', state={'vol_text': 'L3', 'vol': 7})),

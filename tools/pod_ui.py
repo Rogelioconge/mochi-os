@@ -2232,6 +2232,63 @@ def cards_volcard(card):
     return v
 
 
+VOLUME_NUM_PX, VOLUME_INFO_PX = 60, 16   # the Volume page's number (the bold face) and its grey line
+VOLUME_INNER_X, VOLUME_INNER_W = 22, 276   # the card's inner width: the 52 px capsule bar spans it (the card is x 10 .. 310)
+VOLUME_NUM_Y, VOLUME_NUM_H, VOLUME_INFO_Y, VOLUME_INFO_H, VOLUME_BAR_Y = 6, 66, 72, 22, 98   # item rows: the number, its info line, the bar (52 high, 6 px above the card's bottom)
+VOLUME_BTN_CY = 39   # the - / + buttons' centre: the number's
+
+
+def cards_volume():
+    """The Volume page's card (patch/volume.c): a top, a mid and a bottom card piece stacked (insensitive), and over them stock's vol_label (hidden), our number pod_volnum (60 px, the bold face, left) and grey line pod_volinfo,
+    the round - / + buttons (btn_dec, btn_add: VolCard's disc and transparent button) at the right of the number's row, and the stock slider vol_slider in the place of the bar (invisible: it keeps the touch and
+    the drag), under pod_volbar, the insensitive view the payload paints the capsule in. Stock's handlers are bound to the buttons and the slider, stock's refresh writes vol_label and sets the slider; the payload writes the
+    number and the line and repaints the bar."""
+    import pod_settings as ST
+    v = Widget('view', 0, 0, ST.LIST_W, ST.VOLUME_ITEM_H, [('name', 'pod_volume')])   # (the card is VOLUME_CARD_H high; the gap under it is part of the item)
+    for st in STATES: styled(v, (st,), 'bg_color', '#00000000')
+    for k, piece in enumerate(('top', 'mid', 'bot')):
+        p = Widget('view', 0, k * ST.ROW_H, ST.LIST_W, ST.ROW_H, [('name', f'pod_volcard{k}'), ('sensitive', 'false')])
+        for st in STATES:
+            styled(p, (st,), 'bg_color', '#00000000')
+            styled(p, (st,), 'bg_image', ST.piece_images(piece)[0])
+            styled(p, (st,), 'bg_image_draw_type', 'default')
+        v.children.append(p)
+
+    def label(name, y, h, px, rgb, text='', face=None, extra=()):
+        lab = Widget('label', VOLUME_INNER_X, y, 150 if name == 'pod_volnum' else VOLUME_INNER_W, h, [('name', name), ('text', text), ('sensitive', 'false')] + list(extra))
+        for st in ('normal', 'disable', 'focused'):
+            styled(lab, (st,), 'font_size', str(px)); styled(lab, (st,), 'text_color', rgb)
+            styled(lab, (st,), 'text_align_h', 'left'); styled(lab, (st,), 'text_align_v', 'middle')
+            if face: styled(lab, (st,), 'font_name', face)
+        return lab
+    v.children.append(label('vol_label', VOLUME_NUM_Y, 24, VOL_VALUE_PX, INK_RGB, extra=[('visible', 'false')]))   # stock's: its refresh writes "VOL: 42" here, nobody sees it
+    v.children.append(label('pod_volnum', VOLUME_NUM_Y, VOLUME_NUM_H, VOLUME_NUM_PX, INK_RGB, face=ST.BIG_FACE))
+    v.children.append(label('pod_volinfo', VOLUME_INFO_Y, VOLUME_INFO_H, VOLUME_INFO_PX, ST.GREY))
+    add_x = VOLUME_INNER_X + VOLUME_INNER_W + (VOL_BTN_W - VOL_DISC) // 2 - VOL_BTN_W
+    for name, x, text in (('btn_dec', add_x - VOL_BTN_W - 4, '−'), ('btn_add', add_x, '+')):
+        disc = Widget('view', x + (VOL_BTN_W - VOL_DISC) // 2, VOLUME_BTN_CY - VOL_DISC // 2, VOL_DISC, VOL_DISC, [('name', name.replace('btn', 'pod_vsdisc')), ('sensitive', 'false')])
+        for st in STATES:
+            styled(disc, (st,), 'bg_color', VOL_DISC_FILL); styled(disc, (st,), 'round_radius', str(VOL_DISC // 2))
+            styled(disc, (st,), 'border_width', '0'); styled(disc, (st,), 'border_color', '#00000000')
+        v.children.append(disc)
+        b = Widget('button', x, VOLUME_BTN_CY - (ST.ROW_H - 6) // 2, VOL_BTN_W, ST.ROW_H - 6, [('name', name), ('text', text)])
+        for st in STATES:
+            styled(b, (st,), 'bg_color', '#00000000')
+            styled(b, (st,), 'border_width', '0'); styled(b, (st,), 'border_color', '#00000000')
+            styled(b, (st,), 'text_color', '#8A8A8E' if st == 'pressed' else '#FFFFFF')
+            styled(b, (st,), 'font_size', str(VOL_BTN_PX))
+            styled(b, (st,), 'text_align_h', 'center'); styled(b, (st,), 'text_align_v', 'middle')
+        v.children.append(b)
+    s = Widget('slider', VOLUME_INNER_X, VOLUME_BAR_Y, VOLUME_INNER_W, ST.ROW_H, [('name', 'vol_slider'), ('max', '100'), ('step', '1'), ('slide_with_bar', 'true'), ('bar_size', '6'), ('dragger_size', '2'), ('dragger_adapt_to_icon', 'false'), ('value', '0'), ('visible', 'false')])   # drawn by nobody (hit testing ignores visible: the touch and the drag stay stock's); the bar over it is pod_volbar
+    for st in ('normal', 'pressed', 'over', 'disable', 'focused'):
+        styled(s, (st,), 'bg_color', '#00000000'); styled(s, (st,), 'fg_color', '#00000000')
+    v.children.append(s)
+    bar = Widget('view', VOLUME_INNER_X, VOLUME_BAR_Y, VOLUME_INNER_W, ST.ROW_H, [('name', 'pod_volbar'), ('sensitive', 'false')])   # the capsule: the payload paints it in its EVT_BEFORE_PAINT (patch/volume.c vp_paint)
+    for st in STATES: styled(bar, (st,), 'bg_color', '#00000000')
+    v.children.append(bar)
+    return v
+
+
 def cards_segment():
     """The band page's Peak / Low shelf / High shelf control (patch/peqband.c): a sensitive transparent view (the payload blits the container and the selected pill in its EVT_BEFORE_PAINT and takes the touch) with the three labels pod_seg_l<k> over it
     (white; the selected one is black on its pill, set by the payload), none sensitive."""
@@ -2443,6 +2500,7 @@ def build_cards_page(page):
         elif isinstance(it, pod_pages.HSliders): sv.children.append(cards_hsliders())
         elif isinstance(it, pod_pages.Brightness): sv.children.append(cards_brightness())
         elif isinstance(it, pod_pages.VolCard): sv.children.append(cards_volcard(it))
+        elif isinstance(it, pod_pages.VolumeCard): sv.children.append(cards_volume())
         elif isinstance(it, pod_pages.Hdr): sv.children.append(cards_text(f'pod_sec{n_hdr}', ST.HDR_LABEL_Y, ST.HDR_LABEL_H, it.text, ST.HDR_PX, ST.HDR_H)); n_hdr += 1
         elif isinstance(it, pod_pages.Hero): sv.children.append(cards_hero(it, n_note)); n_note += 1
         elif isinstance(it, pod_pages.BigCard): sv.children.append(cards_bigcard(n_big)); n_big += 1

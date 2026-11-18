@@ -50,6 +50,7 @@ Other hook sites (call-site words and two-word stubs):
 | 26 `mclNextSong` end branch | `0x5d5988` | resumes `0x5d5990` or re-enters `0x5d5950` |
 | 27 Tidal search focus | `0x4c2088` (callback `0x4c1f3c`) | `jalr edit_set_focus` |
 | 28 play-history call | `0x4ce930` | `jalr add_playrecord` `0x4efb08` |
+| 33 Volume page open | `0x4cd964` | `bal navigator_to_with_context("dialog/volume_dialog", 2)` in `on_wm_tsup_fun` `0x4cd8dc` |
 | 31 play-status call | `0x4ce968` | `jalr mclGetPlayStatus` `0x5d3640` |
 | Display page Lock Screen row | `0x4a5ca8` (row handler `0x4a5c10`) | resumes `0x4a5c88` or `0x4a5c94` |
 | Equalizer row | `0x4a0210` | resumes epilogue `0x4a0070` |

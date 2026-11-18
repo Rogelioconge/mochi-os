@@ -1371,3 +1371,32 @@ GPIO_LIB = 'usr/lib/libhardware2.so'
 GPIO_OPEN, GPIO_GET = 0x556c, 0x57bc
 GPIO_LIB_WORDS = ((0x5580, 0x24050002, 'gpio_open: addiu a1, zero, 2 (O_RDWR)'), (0x57d4, 0x3c052000, 'gpio_get_value: lui a1, 0x2000'), (0x57e8, 0x24a5477a, 'gpio_get_value: addiu a1, a1, 0x477a (delay slot)'))
 GPIO_NAME_ADDR = 0x74a8ec   # demo: the "PD17" string usb_detect passes (BATTERY_PINS)
+
+# The Volume page (patch/volume.c, docs/modules/volume.md, payload hook 33): the status bar tap's `bal navigator_to_with_context("dialog/volume_dialog", 2)` in on_wm_tsup_fun (0x4cd8dc; a0 comes in the delay slot,
+# a1 = 2 before it, `lw gp` after) becomes `jal vol_tap_open`. The page runs stock's own dialog code on its window: the refresh 0x47d664 (volume_showpage 0x97c790: 1 is the strip, otherwise the page: vol_label "VOL: n"
+# and the slider from volume, or btsource_volume while headset_output is 2), the - / + / slider / key handlers, and the stop 0x47d9f8 of the 3 s auto-close timer the handlers' reset 0x47de2c adds (the id in the
+# window property "timer_idex"); each entry, the dialog init's and the visitor's bindings and the timer words are pinned.
+VOLUME_SITE = 0x4cd964
+VOLUME_PINS = (   # (address, stock word, what it proves)
+    (0x4cd8dc, 0x3c1c0053, 'on_wm_tsup_fun prologue (1/3)'), (0x4cd8e0, 0x279c65f4, 'on_wm_tsup_fun prologue (2/3)'), (0x4cd8e4, 0x0399e021, 'on_wm_tsup_fun prologue (3/3)'),
+    (0x4cd920, 0x8ca20018, 'on_wm_tsup_fun: the event x'), (0x4cd924, 0x2442ffb0, 'on_wm_tsup_fun: x - 80'), (0x4cd928, 0x2c4200bf, 'on_wm_tsup_fun: x in 80 .. 269'),
+    (0x4cd934, 0x8ca2001c, 'on_wm_tsup_fun: the event y'), (0x4cd938, 0x2842002a, 'on_wm_tsup_fun: y < 42'), (0x4cd94c, 0x2842002a, 'on_wm_tsup_fun: pressdown_y < 42'),
+    (0x4cd958, 0x8f848020, 'on_wm_tsup_fun: lw a0, GOT page 0x750000'), (0x4cd95c, 0x24050002, 'on_wm_tsup_fun: a1 = 2 (the full page)'), (0x4cd960, 0x8f99a980, 'on_wm_tsup_fun: lw t9, GOT navigator_to_with_context'),
+    (VOLUME_SITE, 0x041110f8, 'on_wm_tsup_fun: bal navigator_to_with_context (the hook replaces it)'), (VOLUME_SITE + 4, 0x24849a94, 'its delay slot: a0 = "dialog/volume_dialog"'),
+    (VOLUME_SITE + 8, 0x8fbc0010, 'on_wm_tsup_fun: lw gp after the call'),
+    (0x534fa0, 0x24050103, 'home_page_init: widget_on(wm, 0x103 POINTER_UP, ...) (1/2)'), (0x534fa8, 0x8f86c1d8, 'home_page_init: ... handler on_wm_tsup_fun (2/2)'),
+    (0x4d1d48, 0x3c1c0053, 'navigator_to_with_context prologue (1/3)'), (0x4d1d4c, 0x279c2188, 'navigator_to_with_context prologue (2/3)'), (0x4d1d50, 0x0399e021, 'navigator_to_with_context prologue (3/3)'),
+    (0x47d664, 0x3c1c0058, 'volume refresh prologue (1/3)'), (0x47d668, 0x279c686c, 'volume refresh prologue (2/3)'), (0x47d66c, 0x0399e021, 'volume refresh prologue (3/3)'),
+    (0x47d9f8, 0x3c1c0058, 'volume timer stop prologue (1/3)'), (0x47d9fc, 0x279c64d8, 'volume timer stop prologue (2/3)'), (0x47da00, 0x0399e021, 'volume timer stop prologue (3/3)'),
+    (0x47de2c, 0x3c1c0058, 'volume timer reset prologue (1/3)'), (0x47de30, 0x279c60a4, 'volume timer reset prologue (2/3)'), (0x47de34, 0x0399e021, 'volume timer reset prologue (3/3)'),
+    (0x47dea8, 0x24050bb8, 'volume timer reset: timer_modify(id, 3000)'),
+    (0x47dc88, 0x3c1c0058, 'volume timer add prologue (1/3)'), (0x47dc8c, 0x279c6248, 'volume timer add prologue (2/3)'), (0x47dc90, 0x0399e021, 'volume timer add prologue (3/3)'),
+    (0x47dce8, 0x24060bb8, 'volume timer add: widget_add_timer(win, 0x47d630, 3000)'), (0x47dcdc, 0x24060064, 'volume timer add: the 100 ms variant'),
+    (0x47d630, 0x3c1c0058, 'volume timer callback prologue'), (0x47d650, 0x8c840024, 'volume timer callback: window_close(*(timer + 0x24))'),
+    (0x47e034, 0x3c1c0058, 'volume + handler prologue (1/3)'), (0x47e038, 0x279c5e9c, 'volume + handler prologue (2/3)'), (0x47e03c, 0x0399e021, 'volume + handler prologue (3/3)'),
+    (0x47e180, 0x3c1c0058, 'volume - handler prologue (1/3)'), (0x47e184, 0x279c5d50, 'volume - handler prologue (2/3)'), (0x47e188, 0x0399e021, 'volume - handler prologue (3/3)'),
+    (0x47e1b8, 0x3c1c0058, 'volume slider handler prologue (1/3)'), (0x47e1bc, 0x279c5d18, 'volume slider handler prologue (2/3)'), (0x47e1c0, 0x0399e021, 'volume slider handler prologue (3/3)'),
+    (0x47e330, 0x3c1c0058, 'volume key handler prologue (1/3)'), (0x47e334, 0x279c5ba0, 'volume key handler prologue (2/3)'), (0x47e338, 0x0399e021, 'volume key handler prologue (3/3)'),
+    (0x47dbc8, 0x2405010c, 'the dialog visitor: EVT_CLICK for the buttons'), (0x47dc1c, 0x24c6e034, 'the dialog visitor: btn_add -> 0x47e034'), (0x47dc48, 0x24c6e180, 'the dialog visitor: btn_dec -> 0x47e180'),
+    (0x47dc74, 0x2405011d, 'the dialog visitor: vol_slider EVT_VALUE_CHANGING'), (0x47dc7c, 0x24c6e1b8, 'the dialog visitor: vol_slider -> 0x47e1b8'),
+)

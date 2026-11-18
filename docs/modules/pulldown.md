@@ -111,6 +111,26 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
   either window as the Playback page; the hub's sub-pages (Volume & Sound, Output) and their pickers are windows above it, so the tile is disabled over them too. Before restacking, its sub-pages left in the stack are closed
   (`pd_close_subpages`), because a page of ours keeps one window and a second instance would leave
   the first without its refresh. The System tile is unchanged.
+- **Opener table** (`pd_op`, `patch/pulldown.c`): 16 `(window, opener)` pairs in `.scratch`, no
+  allocation. `open_page` (`patch/m1plus.c`) records the window in front as the opener of every page
+  it opens (a row tap is on the page in front); the Volume status bar tap and the Equalizer tile
+  record NULL ("rooted": opened by no page). An entry is cleared by its window's `EVT_DESTROY`,
+  which also turns the entries opened from it into orphans; a full table drops the entries of
+  windows that are gone first, and a window left without an entry is nobody's child (never closed).
+  `pd_open_page(window, open_it, rooted)` is the one policy for the Equalizer tile, the Volume tap,
+  the Volume page's rows and Settings' Gain / Equalizer / Volume & Sound rows: in front, left alone;
+  else every window whose opener chain leads to it is closed (wherever it sits in the stack, and
+  nothing else), then it is restacked, else opened. Restacking re-records the opener: the page in
+  front for a row tap, NULL for a tile or the status bar.
+  `pd_open_own` (Sleep Timer, Settings tiles) and the Playback tile (`pd_close_subpages`) still close
+  the windows above their page, as before, except a window that hangs from a rooted one (the Volume
+  page or Equalizer a tile or the status bar opened over it, and what those opened): reproducible
+  with Volume over Settings, so Back returns to it. `pd_open_own` records its page as rooted too:
+  a tile's page is not the sub-page of the window that was in front (Volume, then the Settings
+  tile, then the status bar keeps Settings); so does the Playback tile (`pd_open_settings`).
+  `pd_window_open` is `window_open` plus the opener record: `open_page`, the AutoEq page and the
+  keyboard open through it, so a window above a reopened page is closed with it (Equalizer >
+  Presets > Download from AutoEq, then the Equalizer tile).
 - No flag is touched on a Now Playing tap, in the main loop or on paint.
 
 ## Tiles of ours

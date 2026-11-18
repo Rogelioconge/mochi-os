@@ -63,6 +63,8 @@ static const char *const PD_LAB[PD_N] = {"label_wifi",      "label_bt",         
 
 static const char *pd_name(void *w);
 static void pd_close_subpages(const char *name);
+static void pd_close_children(const char *name);
+static void *pd_by_name(const char *name);
 
 /* The id of a file character ('0'-'9', 'a'-'d'), or PD_N. */
 static unsigned pd_id(char c) {
@@ -165,11 +167,160 @@ static int pd_front(const char *name) {
 }
 
 /* Our own page: when its window is already in the stack its sub-pages are closed and it is brought to the front, else it is opened afresh (a page of ours keeps one window, see pd_close_subpages);
- * a page already in front is left alone. */
-static int pd_open_own(const char *window, int (*open_it)(void)) {
+ * a page already in front is left alone. Its callers are tiles: the page is rooted (pd_note_opener), not the sub-page of the window that happened to be in front. */
+int pd_open_own(const char *window, int (*open_it)(void)) {
+    void *w;
     if (pd_front(window)) return 1;
     pd_close_subpages(window);
-    return m1_restack_window(window) || open_it() == 0;
+    w = m1_restack_window(window);
+    if (!w) {
+        if (open_it() != 0) return 0;
+        w = pd_by_name(window);
+    }
+    pd_note_opener(w, (void *)0);
+    return 1;
+}
+
+/* ---- who opened what
+ *
+ * A page of ours that more than one route opens (the Volume page and its rows, Settings' Gain / Equalizer / Volume & Sound rows, the Equalizer tile) must not close a window it did not open: its sub-pages are not
+ * "the windows above it" (a Settings page the Control Center opened over it, or the Equalizer opened from a tile over Volume, sit there too). pd_op records, for a window of ours, the window it was opened from:
+ * open_page (patch/m1plus.c) notes the window in front when a page opens (a row tap is on the page in front); the tile and status bar routes (pd_open_page, rooted) note NULL. Entries: 16 in .scratch, no
+ * allocation; an entry is cleared by its window's EVT_DESTROY (which also turns the entries opened from it into PD_ORPHAN: a freed address is never taken for an opener), and a full table first drops the
+ * entries of windows that are no longer open. A window with no entry (stock's, or a full table) is nobody's child and is never closed by pd_close_children.
+ * Reopening a page that is already in the stack: its entry follows the route that reopens it. A row tap makes the page in front its opener (Back returns there); a tile or the status bar makes it rooted. */
+#define PD_OPS 16
+#define PD_ORPHAN ((void *)1) /* the opener went away */
+static struct {
+    void *win, *from;
+} pd_op[PD_OPS] __attribute__((section(".scratch")));
+
+static int pd_find(void *w) {
+    int i;
+    for (i = 0; i < PD_OPS; i++)
+        if (w && pd_op[i].win == w) return i;
+    return -1;
+}
+
+void *pd_front_window(void) {
+    void *wm = window_manager();
+    return wm ? window_manager_get_top_window(wm) : (void *)0;
+}
+
+/* w is a window in the manager that is not closing. */
+static int pd_alive(void *w) {
+    void *wm = window_manager();
+    unsigned n;
+    if (!wm || !w) return 0;
+    for (n = widget_count_children(wm); n--;)
+        if (widget_get_child(wm, n) == w) return widget_is_window_opened(w) != 0;
+    return 0;
+}
+
+static int pd_op_gone(void *ctx, void *e) {
+    int i = pd_find(ctx);
+    (void)e;
+    if (i >= 0) pd_op[i].win = (void *)0;
+    for (i = 0; i < PD_OPS; i++)
+        if (pd_op[i].win && pd_op[i].from == ctx) pd_op[i].from = PD_ORPHAN;
+    return RET_OK;
+}
+
+/* win was opened from `from` (NULL: by a tile or the status bar). */
+void pd_note_opener(void *win, void *from) {
+    int i = pd_find(win);
+    if (!win) return;
+    if (i < 0) {
+        for (i = 0; i < PD_OPS && pd_op[i].win; i++) {
+        }
+        if (i == PD_OPS) { /* full: the entries of windows that are gone */
+            int k;
+            for (k = 0; k < PD_OPS; k++)
+                if (!pd_alive(pd_op[k].win)) pd_op[k].win = (void *)0;
+            for (i = 0; i < PD_OPS && pd_op[i].win; i++) {
+            }
+            if (i == PD_OPS) return;
+        }
+        if (!widget_on(win, EVT_DESTROY, pd_op_gone, win)) return;
+        pd_op[i].win = win;
+    }
+    pd_op[i].from = from;
+}
+
+/* window_open for a page a row or a button of the page in front opens: that page is recorded as its opener. Every window of ours that can sit above a page pd_open_page reopens is opened through here. */
+void *pd_window_open(const char *asset) {
+    void *from = pd_front_window(), *win = window_open(asset);
+    if (win && from) pd_note_opener(win, from);
+    return win;
+}
+
+/* w was opened by the window `of` or by a window that was (its chain of openers leads to `of`). */
+static int pd_under(void *w, void *of) {
+    int i, hops;
+    for (hops = 0; hops < PD_OPS; hops++) {
+        i = pd_find(w);
+        if (i < 0 || !pd_op[i].from || pd_op[i].from == PD_ORPHAN) return 0;
+        if (pd_op[i].from == of) return 1;
+        w = pd_op[i].from;
+    }
+    return 0;
+}
+
+/* w hangs from a window a tile or the status bar opened (a rooted entry) without passing through `of`. */
+static int pd_rooted(void *w, void *of) {
+    int i, hops;
+    for (hops = 0; hops < PD_OPS; hops++) {
+        i = pd_find(w);
+        if (i < 0 || pd_op[i].from == PD_ORPHAN) return 0;
+        if (!pd_op[i].from) return 1;
+        if (pd_op[i].from == of) return 0;
+        w = pd_op[i].from;
+    }
+    return 0;
+}
+
+/* The topmost window called name. */
+static void *pd_by_name(const char *name) {
+    void *wm = window_manager();
+    unsigned n;
+    if (!wm) return (void *)0;
+    for (n = widget_count_children(wm); n--;) {
+        const char *nm = pd_name(widget_get_child(wm, n));
+        if (nm && !strcmp(nm, name)) return widget_get_child(wm, n);
+    }
+    return (void *)0;
+}
+
+/* The windows the page `name` opened (the chain of openers leads to it), wherever they are in the stack, are closed, the topmost first; nothing else is. */
+static void pd_close_children(const char *name) {
+    void *wm = window_manager(), *page = pd_by_name(name), *sub[8];
+    unsigned n, i, k = 0;
+    if (!wm || !page) return;
+    n = widget_count_children(wm);
+    for (i = 0; i < n && k < 8; i++) {
+        void *w = widget_get_child(wm, i);
+        if (w && pd_under(w, page) && widget_is_window_opened(w)) sub[k++] = w;
+    }
+    while (k--) window_close(sub[k]);
+}
+
+/* A page of ours that more than one route opens: left alone in front; else the windows it opened are closed (pd_close_children), and it is restacked, else open_it()ed. Every route goes through here: the
+ * Control Center Equalizer tile and the Volume status bar tap (rooted), the Volume page's rows and Settings' Gain / Equalizer / Volume & Sound rows (not: the page in front is the opener). 1 when it is up. */
+int pd_open_page(const char *window, int (*open_it)(void), int rooted) {
+    void *from, *w;
+    if (pd_front(window)) return 1;
+    from = rooted ? (void *)0 : pd_front_window();
+    pd_close_children(window);
+    w = m1_restack_window(window);
+    if (!w) {
+        if (open_it() != 0) return 0;
+        w = pd_by_name(window);
+    }
+    if (rooted)
+        pd_note_opener(w, (void *)0);
+    else if (pd_alive(from))
+        pd_note_opener(w, from);
+    return 1;
 }
 
 /* Power Off: what the power key's long press does (on_wm_keylong_fun 0x4cdd9c), without the key: ignored while standby_mode is nonzero (a confirm is up, or poweroff_page has run) or the key's own
@@ -201,7 +352,7 @@ static void pd_run(unsigned id) {
     } else if (id == PD_SETTINGS)
         pd_open_own("m1plus_settings_page", pod_open_settings);
     else if (id == PD_EQ)
-        pd_open_own("m1plus_peq_page", pod_open_peq);
+        pd_open_page("m1plus_peq_page", pod_open_peq, 1);
 }
 
 /* The hook at on_wm_tsmove_fun's navigator_to("dialog/dropdown_dialog") (tools/pod.py PULLDOWN_DIALOG_SITE): the stock call, then, when the dialog was quit by one of our tiles (its result is
@@ -295,19 +446,21 @@ static void *pd_window(void *wm, const char *name, int *above) {
 
 /* Our page's sub-pages left in the stack (the windows right above it, up to the first that leaves settings: a picker or a slider page the top-right Now Playing button covered) are closed before the page is
  * restacked. A page of ours keeps one window (pod_fg, the slider pages' widgets): a sub-page left under the restacked page and opened again from it would be a second instance, and closing that one would
- * leave the first with no refresh and with the pointers of a destroyed window. */
+ * leave the first with no refresh and with the pointers of a destroyed window. A window that hangs from one a tile or the status bar opened (pd_rooted: the Volume page and the Equalizer, Gain and Volume & Sound
+ * pages reached by those routes, with what they opened) is not closed: the user came to it by another route, and Back must return to it. */
 static void pd_close_subpages(const char *name) {
-    void *wm = window_manager(), *sub[8];
+    void *wm = window_manager(), *sub[8], *page;
     unsigned n, i, k = 0;
     if (!wm) return;
     n = widget_count_children(wm);
     for (i = 0; i < n && (!pd_name(widget_get_child(wm, i)) || strcmp(pd_name(widget_get_child(wm, i)), name)); i++) {
     }
+    page = i < n ? widget_get_child(wm, i) : (void *)0;
     for (i++; i < n && k < 8; i++) {
         void *w = widget_get_child(wm, i);
         const char *nm = pd_name(w);
         if (nm && pd_leaves(nm)) break;
-        if (w && widget_is_window_opened(w)) sub[k++] = w;
+        if (w && !pd_rooted(w, page) && widget_is_window_opened(w)) sub[k++] = w;
     }
     while (k--) window_close(sub[k]); /* (the topmost first) */
 }
@@ -336,6 +489,7 @@ int pd_open_settings(const char *name) {
     }
     if (i < 2 && PD_SET[i].own) pd_close_subpages(PD_SET[i].own);
     if (i < 2 && PD_SET[i].own && (m1_restack_window(PD_SET[i].own) || pod_open_playset() == 0)) {
+        pd_note_opener(pd_by_name(PD_SET[i].own), (void *)0); /* a tile's page is rooted, as pd_open_own's */
         *PD_SET[i].flag = 1; /* our page replaces stock's list: restacked, else opened as the Settings row opens it */
         return RET_OK;
     }

@@ -317,6 +317,11 @@ class VolCard:
     def __init__(self, kind, part): self.kind, self.part = kind, part
 
 
+class VolumeCard:
+    """The Volume page's card (patch/volume.c, docs/modules/volume.md): three rows high, holding stock's widgets by stock's names (vol_label hidden, vol_slider, btn_dec, btn_add) and ours (pod_volnum, pod_volinfo); the payload
+    runs stock's volume handlers on them."""
+
+
 class HSliders:
     """The band page's card of three horizontal sliders, Frequency, Gain and Q (a view the payload paints; tools/pod_settings.py HSL_H high)."""
 
@@ -454,6 +459,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_btdevice',
     'm1plus_psvolume',
     'm1plus_psoutput',
+    'm1plus_volume',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -553,6 +559,7 @@ SCROBBLING_PAGE_INDEX = page_index('m1plus_scrobbling')   # Settings > Library >
 ASPLIT_PAGE_INDEX = page_index('m1plus_artistsplit')   # Settings > Library > Split Artists
 PLAYSET_PAGE_INDEX = page_index('m1plus_playset')   # Settings > Playback Settings (the hub), then its Play Mode, Resume and Continue Playing pickers and the two sub-pages below
 PSVOLUME_PAGE_INDEX = page_index('m1plus_psvolume')   # Playback Settings > Volume & Sound (the last two in PAGE_ORDER: no other page's number moved), with the Gain, ReplayGain and Crossfeed pickers and the three loudness pages
+VOLUME_PAGE_INDEX = page_index('m1plus_volume')   # the status bar's Volume page (patch/volume.c, docs/modules/volume.md; last in PAGE_ORDER: no other page's number moved)
 PSOUTPUT_PAGE_INDEX = page_index('m1plus_psoutput')   # Playback Settings > Output, with the Digital Filter, DSD Output Mode and USB Volume pickers and stock's USB Mode page
 PSMODE_PAGE_INDEX = page_index('m1plus_psmode')
 PSMEM_PAGE_INDEX = page_index('m1plus_psmem')
@@ -1217,6 +1224,7 @@ PSUSB_PAGE = Page('m1plus_psusb', 'm1plus_psusb_page', 'USB Volume', layout=[Row
 # Channel Balance's buttons say L and R: a step toward the left or the right). Default Volume: the Volume Memory switch, then the same two cards, dimmed and inert while the switch is on (stock hides its slider view).
 PSMAXVOL_PAGE = Page('m1plus_psmaxvol', 'm1plus_psmaxvol_page', 'Max Volume', layout=[VolCard('maxvol', 'value'), GAP, VolCard('maxvol', 'slider')])
 PSBOOTVOL_PAGE = Page('m1plus_psbootvol', 'm1plus_psbootvol_page', 'Default Volume', layout=[Row('Volume Memory', ACT_BOOTMEM), GAP, VolCard('bootvol', 'value'), GAP, VolCard('bootvol', 'slider')])
+VOLUME_PAGE = Page('m1plus_volume', 'm1plus_volume_page', 'Volume', layout=[VolumeCard(), Row('Gain', ACT_GAIN, PSGAIN_PAGE_INDEX), Row('Equalizer', ACT_PEQ, PEQ_PAGE_INDEX), Row('Volume & Sound', ACT_PAGE, PSVOLUME_PAGE_INDEX)])   # (the item holds a gap under the card; the rows are the second card: patch/volume.c volpage_go)
 PSBAL_PAGE = Page('m1plus_psbal', 'm1plus_psbal_page', 'Channel Balance', layout=[VolCard('balance', 'value'), GAP, VolCard('balance', 'slider')])
 # Settings > Library > Podcasts (docs/modules/settings.md, docs/modules/podcasts.md): the Podcast Discover switch in a card of its own; Directory (dimmed and inert while Discover is off) and Podcast Region in the next,
 # and the note under it. (Not PODCASTS, the Podcasts browser: this is the settings page.)

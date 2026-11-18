@@ -1370,7 +1370,7 @@ class Machine:
         # (doubles in $f12 / $f14, the result in $f0: the payload is -mfp64, so the machine needs FR set, fpu())
         elif name == 'set_equalizer_value':
             self.calls.append(('set_equalizer_value', a0, self.u.mem_read(pod.DATA['EQ_FLAG'][0], 1)[0]))
-        elif name == 'ferror':
+        elif name in ('ferror', 'window_manager_get_top_window'):   # (no window in front: the rows that open a shared page ask, patch/pulldown.c pd_open_page)
             ret = 0
         elif name in ('show_sysbar_face', 'window_manager_check_and_layout', 'window_manager_paint', 'toolSetBackLight'):   # patch/battery.c bp_light_on / bp_light_off: recorded with the argument
             self.calls.append((name, a0))
