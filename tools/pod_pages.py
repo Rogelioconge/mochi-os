@@ -838,14 +838,14 @@ HOMESET_PAGE = Page('m1plus_homeset', 'm1plus_homeset_page', 'Home Screen', layo
 MENUCFG_PAGE = Page('m1plus_mainmenu', 'm1plus_mainmenu_page', 'Main Menu', kind='menucfg')
 
 # Pull-down (patch/pulldown.c, docs/modules/pulldown.md): the eight tiles of the stock pull-down (ui/dialog/dropdown_dialog.bin, view_switchs) in the stock slot order, which is the
-# id of a tile ('0'..'7'), then the three tiles of ours: Sleep ('8', the Sleep Timer), Settings ('9') and Equalizer ('a') Power Off ('b', with a confirmation) and the two switches AirPlay ('c') and DLNA ('d'). The pull-down shows at most eight
+# id of a tile ('0'..'7'), then the three tiles of ours: Sleep ('8', the Sleep Timer), Settings ('9') and Equalizer ('a') Power Off ('b', with a confirmation) the two switches AirPlay ('c') and DLNA ('d') and Wi-Fi Transfer ('e', an action). The pull-down shows at most eight
 # (PULLDOWN_SLOTS); ours are hidden by default. The page is the Main Menu page's twin (a row per tile with a switch and, on the shown rows but the first, an up arrow). The row labels are
 # short texts of ours, not the tiles' stock captions: those ("Playback Setting", "Output Options"; far longer in Russian or Italian) do not fit the row's label beside the arrow.
-PULLDOWN_TILES = ('Wi-Fi', 'Bluetooth', 'Button Lock', 'Gain', 'USB Mode', 'Output', 'Playback', 'System', 'Sleep Timer', 'Settings', 'Equalizer', 'Power Off', 'AirPlay', 'DLNA')
+PULLDOWN_TILES = ('Wi-Fi', 'Bluetooth', 'Button Lock', 'Gain', 'USB Mode', 'Output', 'Playback', 'System', 'Sleep Timer', 'Settings', 'Equalizer', 'Power Off', 'AirPlay', 'DLNA', 'Transfer')
 PULLDOWN_STOCK = 8       # the first eight ids are the stock tiles: the default file shows them in this order
 PULLDOWN_SLOTS = 8       # the pull-down has room for eight tiles: a file that shows more is invalid
-PULLDOWN_CHARS = '0123456789abcd'
-PULLDOWN_FILE_MAX = 20   # patch/pulldown.c reads at most this many bytes (14 ids, the '-' and a newline are 16); longer is invalid
+PULLDOWN_CHARS = '0123456789abcde'
+PULLDOWN_FILE_MAX = 20   # patch/pulldown.c reads at most this many bytes (15 ids, the '-' and a newline are 17); longer is invalid
 PULLDOWN_PAGE = Page('m1plus_pulldown', 'm1plus_pulldown_page', 'Control Center', kind='pdcfg')
 
 

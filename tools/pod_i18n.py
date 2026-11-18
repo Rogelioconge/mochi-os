@@ -2098,6 +2098,7 @@ TEXT.update([
        'Servicios de red', 'Servizi di rete', 'บริการเครือข่าย', 'Usługi sieciowe', 'Сетевые службы', 'Мережеві служби'),
     _t('Wi-Fi Transfer', 'Wi-Fi 传输', 'Wi-Fi 傳輸', 'Wi-Fi 転送', 'Wi-Fi 전송', 'Transfert Wi-Fi', 'WLAN-Übertragung',
        'Transferencia Wi-Fi', 'Trasferimento Wi-Fi', 'โอนไฟล์ผ่าน Wi-Fi', 'Transfer Wi-Fi', 'Передача по Wi-Fi', 'Передача по Wi-Fi'),
+    _t('Transfer', '传输', '傳輸', '転送', '전송', 'Transfert', 'Übertragung', 'Transferencia', 'Trasferimento', 'โอนไฟล์', 'Przesyłanie', 'Передача', 'Передача'),   # the Control Center page's row for the Wi-Fi Transfer tile (the tile's caption is the full text above)
     _t('On the same Wi-Fi, open this address in a browser to manage your music.', '在同一 Wi-Fi 下，用浏览器打开此地址即可管理音乐。', '在同一 Wi-Fi 下，用瀏覽器開啟此位址即可管理音樂。',
        '同じ Wi-Fi で、このアドレスをブラウザで開くと音楽を管理できます。', '같은 Wi-Fi에서 이 주소를 브라우저로 열어 음악을 관리하세요.',
        'Sur le même Wi-Fi, ouvrez cette adresse dans un navigateur pour gérer la musique.', 'Öffne diese Adresse im Browser eines Geräts im selben WLAN.',

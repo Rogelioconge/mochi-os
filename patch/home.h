@@ -271,6 +271,7 @@ pod_open_psvolume(void); /* patch/m1plus.c: open_page(POD_PSVOLUME_PAGE), Volume
 extern int pod_open_volume(void); /* patch/m1plus.c: open_page(POD_VOLUME_PAGE); 0 once its window is up */
 extern void *
 pd_window_open(const char *asset); /* patch/pulldown.c: window_open, the page in front recorded as the opener */
+extern int pod_open_wifitransfer(void); /* patch/m1plus.c: open_page(POD_WIFITRANSFER_PAGE); 0 once its window is up */
 extern int pod_open_sleeptimer(void); /* patch/m1plus.c: open_page(POD_SLEEPTIMER_PAGE); 0 once its window is up */
 extern int pod_open_btcodec(
     void); /* patch/m1plus.c: open_page(POD_BTCODEC_PAGE), the Audio Codec picker; 0 once its window is up */

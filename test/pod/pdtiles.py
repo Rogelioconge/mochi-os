@@ -10,11 +10,11 @@ import cdefs
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 
 FILE, TMP = '/mnt/data/m1plus/pulldown-tiles', '/mnt/data/m1plus/pulldown-tiles.tmp'
-IMG = ('img_wifiswitch', 'img_btswitch', 'img_keylockswitch', 'img_gainswitch', 'img_usbmode', 'img_outputswitch', 'img_playset', 'img_sysset', 'pod_tile_sleep', 'pod_tile_settings', 'pod_tile_eq', 'pod_tile_power', 'pod_tile_airplay', 'pod_tile_dlna')
-LAB = ('label_wifi', 'label_bt', 'label_lock', 'label_gain', 'label_usbmode', 'label_outputway', 'label_playset', 'label_sysset', 'pod_cap_sleep', 'pod_cap_settings', 'pod_cap_eq', 'pod_cap_power', 'pod_cap_airplay', 'pod_cap_dlna')
+IMG = ('img_wifiswitch', 'img_btswitch', 'img_keylockswitch', 'img_gainswitch', 'img_usbmode', 'img_outputswitch', 'img_playset', 'img_sysset', 'pod_tile_sleep', 'pod_tile_settings', 'pod_tile_eq', 'pod_tile_power', 'pod_tile_airplay', 'pod_tile_dlna', 'pod_tile_transfer')
+LAB = ('label_wifi', 'label_bt', 'label_lock', 'label_gain', 'label_usbmode', 'label_outputway', 'label_playset', 'label_sysset', 'pod_cap_sleep', 'pod_cap_settings', 'pod_cap_eq', 'pod_cap_power', 'pod_cap_airplay', 'pod_cap_dlna', 'pod_cap_transfer')
 UI = os.path.join('rootfs', 'release/assets/default/raw/ui/dialog/dropdown_dialog.bin')
 N = 8    # the stock tiles (and the slots: the pull-down holds eight)
-NT = 14  # every tile: the stock ones and the six of ours
+NT = 15  # every tile: the stock ones and the seven of ours
 
 
 def geometry():
@@ -24,7 +24,7 @@ def geometry():
 
 
 class PD(Machine):
-    """The dialog's twenty-eight widgets (the tiles and captions, at the built asset's places; ours hidden and insensitive as the asset has them) and the stock init's resume point."""
+    """The dialog's thirty widgets (the tiles and captions, at the built asset's places; ours hidden and insensitive as the asset has them) and the stock init's resume point."""
 
     def __init__(self, fs=None, gone=()):
         super().__init__()
@@ -123,11 +123,11 @@ def hook_tests(ctx):
 
     # -- 2. the stock layout: no file, a bad file, the default, a missing widget, a failed stock init ------
     default = list(range(N))
-    for name, fs in (('no file', None), ('the default file', b'01234567\n'), ('without the newline', b'01234567'), ('the default with an empty hidden part', b'01234567-\n'), ('the default with ours listed as hidden', b'01234567-89abcd\n')):
+    for name, fs in (('no file', None), ('the default file', b'01234567\n'), ('without the newline', b'01234567'), ('the default with an empty hidden part', b'01234567-\n'), ('the default with ours listed as hidden', b'01234567-89abcde\n')):
         m = PD(fs=fs); ret = m.open()
         expect(ret == 0 and m.touched() == [] and check_layout(m, default) is None, f'{name}: the stock layout, nothing moved, hidden or restacked (stock\'s result {ret})')
     for name, fs in (('an unknown character', b'0123456x\n'), ('an id twice', b'0120\n'), ('an id twice across the parts', b'01-1\n'), ('a second dash', b'0-1-2\n'),
-                     ('an empty file', b''), ('too long', b'01234567-0123\n'), ('upper case', b'ABC\n'), ('a character out of range', b'e\n'), ('nine tiles shown', b'012345678\n'), ('nine shown, the rest listed', b'012345678-9a\n'), ('a space', b'01 2\n'), ('a second line', b'01\n23\n')):
+                     ('an empty file', b''), ('too long', b'01234567-0123\n'), ('upper case', b'ABC\n'), ('a character out of range', b'f\n'), ('nine tiles shown', b'012345678\n'), ('nine shown, the rest listed', b'012345678-9a\n'), ('a space', b'01 2\n'), ('a second line', b'01\n23\n')):
         m = PD(fs=fs); m.open()
         expect(m.touched() == [] and check_layout(m, default) is None, f'{name} ({fs!r}): the stock layout')
     m = PD(fs=b'3210\n'); m.init_ret = 0x10; ret = m.open()
@@ -151,12 +151,12 @@ def hook_tests(ctx):
         m = PD(fs=fs); m.open()
         expect(check_layout(m, []) is None and all(m.hidden(n) for n in IMG + LAB) and P.parse_pulldown(fs) == [], f'{name} ({fs!r}): all eight tiles and captions hidden and insensitive, none moved')
     m = PD(fs=b'3-0\n'); m.open()
-    expect(check_layout(m, [3]) is None and [c[1] for c in m.calls if c[0] == 'widget_set_visible'] == [m.widgets[n] for n in (IMG[0], LAB[0], IMG[1], LAB[1], IMG[2], LAB[2], IMG[4], LAB[4], IMG[5], LAB[5], IMG[6], LAB[6], IMG[7], LAB[7], IMG[8], LAB[8], IMG[9], LAB[9], IMG[10], LAB[10], IMG[11], LAB[11], IMG[12], LAB[12], IMG[13], LAB[13])]
+    expect(check_layout(m, [3]) is None and [c[1] for c in m.calls if c[0] == 'widget_set_visible'] == [m.widgets[n] for n in (IMG[0], LAB[0], IMG[1], LAB[1], IMG[2], LAB[2], IMG[4], LAB[4], IMG[5], LAB[5], IMG[6], LAB[6], IMG[7], LAB[7], IMG[8], LAB[8], IMG[9], LAB[9], IMG[10], LAB[10], IMG[11], LAB[11], IMG[12], LAB[12], IMG[13], LAB[13], IMG[14], LAB[14])]
            and all(c[2] == 0 for c in m.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive')),
            'every tile not listed is hidden, ours too (a listed hidden id adds nothing)')
     lookups = {c[1] for c in m.calls if c[0] == 'widget_lookup'}
     expect(lookups - {'view_bar_left'} == set(IMG + LAB) and not any(c[0] in ('widget_destroy_children', 'widget_set_prop_str', 'widget_set_text_utf8', 'widget_set_tr_text') for c in m.calls),
-           'only the twenty-eight tiles and captions are looked up; nothing is renamed, destroyed or re-labelled')
+           'only the thirty tiles and captions are looked up; nothing is renamed, destroyed or re-labelled')
 
     # -- 3b. the bar copy at the dialog's init: the Battery Percentage and the EQ mark are there in the first frame, not one timer tick later ---------
     bp, lo = (cdefs.defines(os.path.join(ROOT, 'patch', f), strings=True) for f in ('battery.h', 'lineout.h'))
@@ -190,10 +190,10 @@ def hook_tests(ctx):
     rnd = random.Random(11)
     for _ in range(600):
         n = rnd.choice((0, 1, 2, 3, 5, 8, 9, 10, 11, 12, 13, 15, 16, 17, 19, 20))
-        pool = b'0123456789abcd\n -x' if rnd.random() < 0.3 else b'0123456789abcd-' if rnd.random() < 0.6 else b'01234567'
+        pool = b'0123456789abcde\n -x' if rnd.random() < 0.3 else b'0123456789abcde-' if rnd.random() < 0.6 else b'01234567'
         data = bytes(rnd.choice(pool) for _ in range(n))
         if rnd.random() < 0.5:   # a valid-looking permutation with at most one '-'
-            ids = list(b'0123456789abcd'); rnd.shuffle(ids); ids = ids[:rnd.randrange(0, 15)]
+            ids = list(b'0123456789abcde'); rnd.shuffle(ids); ids = ids[:rnd.randrange(0, 16)]
             if rnd.random() < 0.8: ids.insert(rnd.randrange(0, len(ids) + 1), ord('-'))
             data = bytes(ids) + rnd.choice((b'', b'\n'))
         m = PD(fs=data); m.open()
@@ -203,13 +203,13 @@ def hook_tests(ctx):
     else: expect(True, 'the payload reads 600 random files as the Python model does (shown tiles in order at the slots, the rest hidden; more than eight shown is the default)')
     expect(P.parse_pulldown(None) == default and P.parse_pulldown(b'') == default and P.parse_pulldown(b'01234567\n') == default and P.parse_pulldown(b'\n') == [] and P.parse_pulldown(b'-') == []
            and P.parse_pulldown(b'20-1') == [2, 0] and P.parse_pulldown(b'0-0') == default and P.parse_pulldown(b'0-1-2') == default and P.parse_pulldown(b'8') == [8]
-           and P.parse_pulldown(b'a') == [10] and P.parse_pulldown(b'a98-01234567') == [10, 9, 8] and P.parse_pulldown(b'b') == [11] and P.parse_pulldown(b'c') == [12] and P.parse_pulldown(b'dc') == [13, 12] and P.parse_pulldown(b'e') == default and P.parse_pulldown(b'0123456-7890') == default and P.parse_pulldown('31\n') == [3, 1]
+           and P.parse_pulldown(b'a') == [10] and P.parse_pulldown(b'a98-01234567') == [10, 9, 8] and P.parse_pulldown(b'b') == [11] and P.parse_pulldown(b'c') == [12] and P.parse_pulldown(b'dc') == [13, 12] and P.parse_pulldown(b'e') == [14] and P.parse_pulldown(b'f') == default and P.parse_pulldown(b'0123456-7890') == default and P.parse_pulldown('31\n') == [3, 1]
            and P.parse_pulldown(b'01234567a') == default and P.parse_pulldown(b'0123456a') == [0, 1, 2, 3, 4, 5, 6, 10] and P.parse_pulldown(b'01234567-89a\n') == default
-           and P.parse_pulldown(b'-0123456789abcd') == [] and P.parse_pulldown(b'0123456789abcd-') == default and P.parse_pulldown(b'a' * 16) == default,
-           'the Python model: "<shown>[-<hidden>]" over the ids 0-9 and a-d, a bare newline or dash hides all, an invalid file (or more than eight shown) is the default')
-    expect(P.format_pulldown(default) == '01234567-89abcd\n' and P.format_pulldown([]) == '-0123456789abcd\n' and P.format_pulldown([3, 1]) == '31-02456789abcd\n' and P.format_pulldown([10, 8]) == 'a8-012345679bcd\n'
+           and P.parse_pulldown(b'-0123456789abcde') == [] and P.parse_pulldown(b'0123456789abcde-') == default and P.parse_pulldown(b'a' * 16) == default,
+           'the Python model: "<shown>[-<hidden>]" over the ids 0-9 and a-e, a bare newline or dash hides all, an invalid file (or more than eight shown) is the default')
+    expect(P.format_pulldown(default) == '01234567-89abcde\n' and P.format_pulldown([]) == '-0123456789abcde\n' and P.format_pulldown([3, 1]) == '31-02456789abcde\n' and P.format_pulldown([10, 8]) == 'a8-012345679bcde\n'
            and all(P.parse_pulldown(P.format_pulldown(o)) == o for o in ([], [0], [7, 6], [4, 0, 2], list(range(7, -1, -1)), [10, 9, 8, 0, 1, 2, 3, 4], [8], [11, 10, 9, 8, 7, 6, 5, 4], [13, 12, 11, 10, 9, 8, 7, 6])) and len(P.format_pulldown([3, 1])) < P.PULLDOWN_FILE_MAX
-           and P.PULLDOWN_FILE_MAX == 20 and len(P.format_pulldown([])) < P.PULLDOWN_FILE_MAX and P.PULLDOWN_SLOTS == 8 and len(P.PULLDOWN_TILES) == 14 and P.PULLDOWN_CHARS == '0123456789abcd',
+           and P.PULLDOWN_FILE_MAX == 20 and len(P.format_pulldown([])) < P.PULLDOWN_FILE_MAX and P.PULLDOWN_SLOTS == 8 and len(P.PULLDOWN_TILES) == 15 and P.PULLDOWN_CHARS == '0123456789abcde',
            'what the page saves is what the parser reads, and fits the file cap')
 
 
@@ -268,7 +268,7 @@ def page_tests(ctx):
     expect([c[2] for c in m.calls if c[0] == 'widget_restack'] == list(range(n)), 'the children are restacked in page order')
     m = open_page(b'6502-1347\n')
     labels, on, up = state(m)
-    expect(labels == [items[i] for i in (6, 5, 0, 2, 1, 3, 4, 7, 8, 9, 10, 11, 12, 13)] and on == [True] * 4 + [False] * 10 and up == [False, True, True, True] + [False] * 10,
+    expect(labels == [items[i] for i in (6, 5, 0, 2, 1, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14)] and on == [True] * 4 + [False] * 11 and up == [False, True, True, True] + [False] * 11,
            f'a saved file is laid out as saved: the shown tiles first, the hidden after them ({labels}, {on})')
     for bad in (b'xx', b'0120\n', b'012345678\n', b''):
         m = open_page(bad)
@@ -281,15 +281,15 @@ def page_tests(ctx):
     # a row's tap shows or hides; saved atomically; shown joins the end
     m = open_page()
     run(m, lambda: m.click('pod_row1'))
-    expect(m.fs.get(FILE) == b'0234567-189abcd\n' and ('rename', TMP, FILE) in m.calls and TMP not in m.fs, f'hide Bluetooth: saved atomically ({m.fs.get(FILE)!r})')
+    expect(m.fs.get(FILE) == b'0234567-189abcde\n' and ('rename', TMP, FILE) in m.calls and TMP not in m.fs, f'hide Bluetooth: saved atomically ({m.fs.get(FILE)!r})')
     labels, on, up = state(m)
-    expect(labels == [items[i] for i in (0, 2, 3, 4, 5, 6, 7, 1, 8, 9, 10, 11, 12, 13)] and on == [True] * 7 + [False] * 7 and up == [False] + [True] * 6 + [False] * 7, f'it moves to the hidden group, its switch off ({labels}, {on})')
+    expect(labels == [items[i] for i in (0, 2, 3, 4, 5, 6, 7, 1, 8, 9, 10, 11, 12, 13, 14)] and on == [True] * 7 + [False] * 8 and up == [False] + [True] * 6 + [False] * 8, f'it moves to the hidden group, its switch off ({labels}, {on})')
     run(m, lambda: m.click('pod_row1'))
-    expect(m.fs.get(FILE) == b'02345671-89abcd\n' and state(m)[0][7] == 'Bluetooth' and state(m)[1][7] is True, 'and shown again it joins the end')
+    expect(m.fs.get(FILE) == b'02345671-89abcde\n' and state(m)[0][7] == 'Bluetooth' and state(m)[1][7] is True, 'and shown again it joins the end')
     for i in range(n): run(m, lambda i=i: m.click(f'pod_row{i}') if P.PULLDOWN_CHARS[i].encode() in m.fs[FILE].split(b'-')[0] else None)
-    expect(m.fs.get(FILE) == b'-0123456789abcd\n' and state(m)[1] == [False] * n and not any(state(m)[2]), 'every tile can be hidden: "-0123456789abcd", no arrow shows')
+    expect(m.fs.get(FILE) == b'-0123456789abcde\n' and state(m)[1] == [False] * n and not any(state(m)[2]), 'every tile can be hidden: "-0123456789abcde", no arrow shows')
     for i in (7, 3, 0): run(m, lambda i=i: m.click(f'pod_row{i}'))
-    expect(m.fs.get(FILE) == b'730-1245689abcd\n' and state(m)[0][:3] == [items[7], items[3], items[0]], f'shown again in the order tapped ({m.fs.get(FILE)!r})')
+    expect(m.fs.get(FILE) == b'730-1245689abcde\n' and state(m)[0][:3] == [items[7], items[3], items[0]], f'shown again in the order tapped ({m.fs.get(FILE)!r})')
     m = open_page(); m.fail.add(('write', TMP))
     run(m, lambda: m.click('pod_row1'))
     expect(FILE not in m.fs and state(m)[0] == items and state(m)[1] == DEF_ON and TMP not in m.fs, 'a failed save is undone: the file, the order and the switches are as they were')
@@ -298,12 +298,12 @@ def page_tests(ctx):
     expect(FILE not in m.fs and state(m)[0] == items and state(m)[1] == DEF_ON, 'a failed rename is undone too')
 
     # ours: shown at the end like any tile; the ninth is refused with a toast, nothing saved or moved
-    m = open_page(b'0123456-789abcd\n')
+    m = open_page(b'0123456-789abcde\n')
     run(m, lambda: m.click('pod_row10'))
-    expect(m.fs.get(FILE) == b'0123456a-789bcd\n' and state(m)[0][7] == items[10] and state(m)[1][7] is True, f'Equalizer is shown at the end (the eighth) ({m.fs.get(FILE)!r})')
+    expect(m.fs.get(FILE) == b'0123456a-789bcde\n' and state(m)[0][7] == items[10] and state(m)[1][7] is True, f'Equalizer is shown at the end (the eighth) ({m.fs.get(FILE)!r})')
     for i in (8, 9): run(m, lambda i=i: m.click(f'pod_row{i}'))
     toasts = [c[1] for c in m.log if c[0] == 'toast']
-    expect(toasts == ['Up to 8 controls'] * 2 and m.fs.get(FILE) == b'0123456a-789bcd\n' and state(m)[1] == [True] * 8 + [False] * 6,
+    expect(toasts == ['Up to 8 controls'] * 2 and m.fs.get(FILE) == b'0123456a-789bcde\n' and state(m)[1] == [True] * 8 + [False] * 7,
            f'turning on a ninth tile (Sleep Timer, then Settings) is refused with the toast "Up to 8 controls": the file, the order and the switches stay ({toasts})')
     nine = P.format_pulldown([8, 9, 10, 0, 1, 2, 3, 4]).encode()
     m = open_page(nine)
@@ -322,14 +322,14 @@ def page_tests(ctx):
     # the arrow: one place up among the shown; saved at once; the first has none and its zone toggles
     m = open_page()
     run(m, lambda: arrow(m, 3))
-    expect(m.fs.get(FILE) == b'01324567-89abcd\n' and state(m)[0][:4] == [items[i] for i in (0, 1, 3, 2)], f'Gain up: swaps with Buttons lock ({m.fs.get(FILE)!r})')
+    expect(m.fs.get(FILE) == b'01324567-89abcde\n' and state(m)[0][:4] == [items[i] for i in (0, 1, 3, 2)], f'Gain up: swaps with Buttons lock ({m.fs.get(FILE)!r})')
     run(m, lambda: arrow(m, 3)); run(m, lambda: arrow(m, 3))
-    expect(m.fs.get(FILE) == b'30124567-89abcd\n' and state(m)[2][:2] == [False, True], 'up to the top: the arrow goes away and the next row gets one')
+    expect(m.fs.get(FILE) == b'30124567-89abcde\n' and state(m)[2][:2] == [False, True], 'up to the top: the arrow goes away and the next row gets one')
     run(m, lambda: arrow(m, 3))
-    expect(m.fs.get(FILE) == b'0124567-389abcd\n', 'the top row has no arrow: a tap on that spot is a toggle')
+    expect(m.fs.get(FILE) == b'0124567-389abcde\n', 'the top row has no arrow: a tap on that spot is a toggle')
     m = open_page(b'2-01\n')
     run(m, lambda: arrow(m, 5))
-    expect(m.fs.get(FILE) == b'25-01346789abcd\n', f'a hidden row has no arrow: a tap on that spot shows it at the end ({m.fs.get(FILE)!r})')
+    expect(m.fs.get(FILE) == b'25-01346789abcde\n', f'a hidden row has no arrow: a tap on that spot shows it at the end ({m.fs.get(FILE)!r})')
     m = open_page(); m.fail.add(('write', TMP))
     run(m, lambda: arrow(m, 5))
     expect(FILE not in m.fs and state(m)[0] == items and state(m)[2] == DEF_UP, 'a failed save of a move is undone')
@@ -343,7 +343,7 @@ def page_tests(ctx):
     m = open_page()
     run(m, lambda: m.click('pod_row2')); run(m, lambda: arrow(m, 6)); run(m, lambda: arrow(m, 6)); saved = m.fs[FILE]
     pm = PD(fs=saved); pm.open()
-    expect(saved == b'0136457-289abcd\n' and check_layout(pm, [0, 1, 3, 6, 4, 5, 7]) is None, f'the pull-down after the page ({saved!r}): the saved tiles in the saved order, Buttons lock hidden')
+    expect(saved == b'0136457-289abcde\n' and check_layout(pm, [0, 1, 3, 6, 4, 5, 7]) is None, f'the pull-down after the page ({saved!r}): the saved tiles in the saved order, Buttons lock hidden')
     again = open_page(saved)
     expect(state(again)[0][:7] == [items[i] for i in P.parse_pulldown(saved)], 'and the page opens with it again')
 
@@ -369,7 +369,7 @@ def page_tests(ctx):
                and upb.type == 'button' and upb.get('sensitive') == 'false' and (upb.x, upb.w, upb.h) == (ZX, ZW, ROW_H) and upb.x + upb.w == swi.x and lab.x + lab.w <= upb.x,
                f'row {i}: the switch (on for the stock tiles, off for ours), insensitive, 12 px from the right; the arrow zone left of it; the label clear of both')
     keys = {pod_i18n.key_for(t) or t for t in items}   # (AirPlay and DLNA are brands: no key, the same text in every language)
-    expect(keys == {'Wi-Fi', 'Bluetooth', 'Button Lock', 'Gain', 'USB Mode', 'Output', 'Playback', 'System', 'powerm_sleep', 'Settings', 'Equalizer', 'Power Off', 'AirPlay', 'DLNA'} and len(keys) == n,
+    expect(keys == {'Wi-Fi', 'Bluetooth', 'Button Lock', 'Gain', 'USB Mode', 'Output', 'Playback', 'System', 'powerm_sleep', 'Settings', 'Equalizer', 'Power Off', 'AirPlay', 'DLNA', 'Transfer'} and len(keys) == n,
            f'the row labels are our own short texts (Sleep Timer: the stock powerm_sleep), one per tile: {sorted(keys)}')
 
 
@@ -676,7 +676,7 @@ def playtile_tests(ctx):
 # ---------------------------------------------------------------------------------------------------------------------------------
 # The tiles of ours (Sleep Timer, Settings, Equalizer): the widgets in the asset, their place, and what a tap does (docs/modules/pulldown.md "Tiles of ours")
 
-OWN = (('pod_tile_sleep', 'pod_cap_sleep', 'drop_sleep', 'Sleep Timer', 8), ('pod_tile_settings', 'pod_cap_settings', 'drop_settings', 'Settings', 9), ('pod_tile_eq', 'pod_cap_eq', 'drop_equalizer', 'Equalizer', 10), ('pod_tile_power', 'pod_cap_power', 'drop_power', 'Power Off', 11))
+OWN = (('pod_tile_sleep', 'pod_cap_sleep', 'drop_sleep', 'Sleep Timer', 8), ('pod_tile_settings', 'pod_cap_settings', 'drop_settings', 'Settings', 9), ('pod_tile_eq', 'pod_cap_eq', 'drop_equalizer', 'Equalizer', 10), ('pod_tile_power', 'pod_cap_power', 'drop_power', 'Power Off', 11), ('pod_tile_transfer', 'pod_cap_transfer', 'drop_transfer', 'Wi-Fi Transfer', 14))
 QUIT = 0xd
 
 
@@ -694,6 +694,7 @@ class PT(SF):
         if name == 'dialog_quit':
             self.calls.append(('dialog_quit', a0, u.reg_read(UC_MIPS_REG_A1))); ret = self.quit_ret
         elif name == 'airplayGetFlag': ret = self.airplay
+        elif name in ('stop_player', 'switch_wifitransport'): self.calls.append((name, a0)); ret = 0   # (the Wi-Fi Transfer page's init: wt_opened)
         elif name in ('airplay_switch', 'dlna_switch'):   # stock's own switch: flip the setting byte (the ini write is its tail call, not modelled)
             addr = pod.DATA['AIRPLAY_FLAG' if name == 'airplay_switch' else 'DLNA_FLAG'][0]
             self.calls.append((name,)); self.u.mem_write(addr, bytes([self.u.mem_read(addr, 1)[0] ^ 1])); ret = 0
@@ -765,6 +766,29 @@ def own_tests(ctx):
     expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')] and m.names_() == [H, SL], 'the Sleep Timer page already in front is left alone')
     m = PT([H]); m.swipe(b'8\n'); m.windows = {'m1plus_sleeptimer': 0}; m.tap('pod_tile_sleep'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_sleeptimer')] and m.names_() == [H], 'a Sleep Timer page that will not open: nothing else happens, the result is the dialog\'s')
+    WT = 'm1plus_wifitransfer_page'
+    m = PT([H]); m.swipe(b'e\n'); m.net = 1; m.tap('pod_tile_transfer'); ret, calls = m.modal()
+    expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_wifitransfer')], f'Wi-Fi Transfer: with Wi-Fi up our Wi-Fi Transfer page opens, its init stops the player and starts the server once ({pages(calls)})')
+    expect([c[0] for c in calls if c[0] in ('stop_player', 'switch_wifitransport')] == ['stop_player', 'switch_wifitransport'], f'the page init ran once ({calls})')
+    m = PT([H]); m.swipe(b'e\n'); m.net = 0; m.tap('pod_tile_transfer'); ret, calls = m.modal()
+    expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')] and toasts(m) == ['Connect to Wi-Fi first'], f'Wi-Fi Transfer without Wi-Fi: the toast, no page ({pages(calls)})')
+    m = PT([H, WT, P_]); m.swipe(b'e\n'); m.net = 1; m.tap('pod_tile_transfer'); ret, calls = m.modal()
+    expect(pages(calls)[1:] == [('switch_to', P_, WT, 0)] and m.names_() == [H, P_, WT], f'a Wi-Fi Transfer page left behind the player is brought to the front, not stacked twice ({pages(calls)})')
+    expect(not [c for c in calls if c[0] == 'stop_player'], 'a restacked page does not run wt_opened (stop_player) again')
+    m = PT([H, WT]); m.swipe(b'e\n'); m.net = 1; m.tap('pod_tile_transfer'); ret, calls = m.modal()
+    expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')], 'the Wi-Fi Transfer page already in front is left alone')
+    # the Network Services row and the tile share one window: the tile opens it, Now Playing comes in front (the server stops), the row restacks it (no second open, wt_opened once) and the server is up again
+    m = PT([H]); m.swipe(b'e\n'); m.net = 1; m.widgets['btn_backtoplayer'] = 0x31000000; m.tap('pod_tile_transfer'); m.modal(); log = list(m.calls)
+    m.push(WT)   # (the harness's window_open does not stack the page: an entry of that name stands for it)
+    m.click('btn_backtoplayer'); log += m.calls; m.push(P_)   # Now Playing: wt_on_player stops the server
+    row = m.alloc(12); m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, pod_pages.ACT_NETTRANS); m.setword(row + 8, pod_pages.WIFITRANSFER_PAGE_INDEX)
+    m.call(PSYMS['on_row'], a0=row, count=6000000); calls = list(m.calls); log += calls   # (each call starts a fresh list)
+    expect(m.names_().count(WT) == 1 and m.names_() == [H, P_, WT] and ('window_open', 'm1plus_wifitransfer') not in calls and ('switch_to', P_, WT, 0) in pages(calls),
+           f'Network Services > Wi-Fi Transfer with the page behind the player: restacked, never a second window ({pages(calls)}, {m.names_()})')
+    expect([c[0] for c in log].count('stop_player') == 1 and not [c for c in calls if c[0] in ('stop_player', 'switch_wifitransport')], 'wt_opened ran once (the player is not stopped again by the restack)')
+    m.fire(0x12d, m.window); log += m.calls   # the window manager's EVT_WINDOW_TO_FG to the restacked page
+    sw = [c for c in log if c[0] == 'switch_wifitransport']
+    expect(sw == [('switch_wifitransport', 1), ('switch_wifitransport', 0), ('switch_wifitransport', 1)], f'the file server is up again after the restack (wt_front) ({sw})')
     m = PT([H]); m.swipe(b'9\n'); m.tap('pod_tile_settings'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_settings')], f'Settings: our Settings page is opened (open_page(POD_SETTINGS_PAGE)) ({pages(calls)})')
     m = PT([H, SET, 'm1plus_display_page', P_]); m.swipe(b'9\n'); m.tap('pod_tile_settings'); ret, calls = m.modal()
@@ -834,7 +858,7 @@ def own_tests(ctx):
     # -- AirPlay and DLNA (ids c and d): switches, not actions. The tap calls stock's own switch and the picture follows the byte; the dialog stays open
     SW = (('pod_tile_airplay', 'pod_cap_airplay', 'drop_airplay', 'drop_airplayopen', 'AirPlay', 12, 'AIRPLAY_FLAG', 'airplay_switch'), ('pod_tile_dlna', 'pod_cap_dlna', 'drop_dlna', 'drop_dlnaopen', 'DLNA', 13, 'DLNA_FLAG', 'dlna_switch'))
     expect(pod.FUNCTIONS['airplay_switch'][2] == 0x5076a8 and pod.FUNCTIONS['dlna_switch'][2] == 0x507674 and pod.DATA['AIRPLAY_FLAG'][0] == 0xa05abd and pod.DATA['DLNA_FLAG'][0] == 0xa05abe
-           and pod_pages.PULLDOWN_TILES[12:] == ('AirPlay', 'DLNA') and pod_pages.PULLDOWN_CHARS[12:] == 'cd', 'the switches and setting bytes are stock\'s (0x5076a8 / 0xa05abd, 0x507674 / 0xa05abe); ids c and d are AirPlay and DLNA')
+           and pod_pages.PULLDOWN_TILES[12:14] == ('AirPlay', 'DLNA') and pod_pages.PULLDOWN_CHARS[12:14] == 'cd', 'the switches and setting bytes are stock\'s (0x5076a8 / 0xa05abd, 0x507674 / 0xa05abe); ids c and d are AirPlay and DLNA')
     for img, cap, off, on, label, tid, flag, fn in SW:
         wi, wc = tree.find(img), tree.find(cap)
         expect(wi in view.children and wc in view.children and (wi.w, wi.h) == (56, 56) and wi.get('image') == off and wi.get('clickable') == 'true' and (wi.get('visible'), wi.get('sensitive')) == ('false', 'false')

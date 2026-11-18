@@ -604,8 +604,8 @@ static int on_row(void *ctx, void *e) {
     if (row->action == ACT_HOME)
         home_open(row->arg);
     else if (row->action == ACT_NETTRANS) {
-        if (ns_transfer_ok())
-            open_page(row->arg, 0); /* Wi-Fi Transfer: the page starts the server (patch/netservice.c) */
+        /* Wi-Fi Transfer: one window with the Control Center tile; the page starts the server (patch/netservice.c) */
+        if (ns_transfer_ok()) pd_open_page("m1plus_wifitransfer_page", pod_open_wifitransfer, 0);
     } else if (row->action == ACT_LUNOW)
         lu_update_now(); /* patch/libupdate.c: stock's scan dialog, a full scan */
     else if (row->action == ACT_LUFOLDERS)
@@ -1403,6 +1403,9 @@ int pod_open_peq(void) { return open_page(POD_PEQ_PAGE, 0); }
 
 /* The Sleep Timer page, for Now Playing's More sheet row and the pull-down's Sleep Timer tile (patch/playmore.c, patch/pulldown.c): the normal instance, with Back. */
 int pod_open_sleeptimer(void) { return open_page(POD_SLEEPTIMER_PAGE, 0); }
+
+/* The Wi-Fi Transfer page, for the pull-down's Wi-Fi Transfer tile (patch/pulldown.c): the normal instance, with Back. */
+int pod_open_wifitransfer(void) { return open_page(POD_WIFITRANSFER_PAGE, 0); }
 
 /* The Volume page, for the status bar tap (patch/volume.c vol_tap_open): the normal instance, with Back. */
 int pod_open_volume(void) { return open_page(POD_VOLUME_PAGE, 0); }

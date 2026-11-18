@@ -7,7 +7,7 @@ dropdown_dialog.bin) carries its own copy of the status bar (view_sysbar) and th
   view_sysbar    laid out from the table the real bar (ui/system_bar.bin) uses, tools/statusbar.py: left group
                  at x 10, 4 px spacing, the volume number 16 px middle in 30 px, the clock 104..194 at 18 px, the
                  right group 4 px spacing and clear of the battery; the bar black as the real one
-  pod_tile_*,    the six tiles of ours (Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA: patch/pulldown.c shows them in the slots the saved file names): an
+  pod_tile_*,    the seven tiles of ours (Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA, Wi-Fi Transfer: patch/pulldown.c shows them in the slots the saved file names): an
   pod_cap_*      image and a caption in view_switchs, added hidden and insensitive, the caption a copy of label_playset with the tile's text
   label_*        the eight tile captions (Wi-Fi, Bluetooth, Buttons lock, gain, USB mode, output,
                  Playback / System Setting): 71 x 32 boxes (stock 57 x 40) 5 px under the disc, top aligned, word-wrapped,
@@ -69,7 +69,8 @@ TILE_KEYS = ('wifiset_wifi', 'wifiset_bt', 'system_keylock', 'gain_high', 'gain_
 # the tiles of ours: (image, caption, the image's picture, the caption's English text), after the stock tile it follows (the places are patch/pulldown.c's: a shown tile takes a slot)
 OWN = (('pod_tile_sleep', 'pod_cap_sleep', 'drop_sleep', 'Sleep Timer'), ('pod_tile_settings', 'pod_cap_settings', 'drop_settings', 'Settings'),
        ('pod_tile_eq', 'pod_cap_eq', 'drop_equalizer', 'Equalizer'), ('pod_tile_power', 'pod_cap_power', 'drop_power', 'Power Off'),
-       ('pod_tile_airplay', 'pod_cap_airplay', 'drop_airplay', 'AirPlay'), ('pod_tile_dlna', 'pod_cap_dlna', 'drop_dlna', 'DLNA'))
+       ('pod_tile_airplay', 'pod_cap_airplay', 'drop_airplay', 'AirPlay'), ('pod_tile_dlna', 'pod_cap_dlna', 'drop_dlna', 'DLNA'),
+       ('pod_tile_transfer', 'pod_cap_transfer', 'drop_transfer', 'Wi-Fi Transfer'))
 MUST_FIT = ('en_US', 'zh_CN')
 VOLUME_MAX, CLOCK_MAX = '100', '12:59 PM'
 TILE_W = 71                              # caption box width (stock 57)
@@ -133,7 +134,7 @@ def resize(w, table, states=STATES):
 
 
 def add_own(root):
-    """Our six tiles in view_switchs after the stock widgets: the image (56 x 56, the stock tiles' new size, picture of the flat disc style, clickable) and its caption (a copy of label_playset
+    """Our seven tiles in view_switchs after the stock widgets: the image (56 x 56, the stock tiles' new size, picture of the flat disc style, clickable) and its caption (a copy of label_playset
     with the tile's text), at the first slot and its caption offset; hidden and insensitive. A tile not shown stays so; patch/pulldown.c moves, shows and binds the shown ones."""
     from awtk_ui import Widget
     view, img, cap = root.find('view_switchs'), root.find('img_wifiswitch'), root.find('label_playset')

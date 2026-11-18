@@ -232,7 +232,7 @@ def vol_ink():
 
 
 BT_VOL_IMAGES = ['pod_ic_btvol_dn','pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + VOLBAR_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + VOLBAR_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'drop_transfer', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -254,11 +254,11 @@ POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': (
             'USB Mode': ('pod_ic_usbmode', 'usb'), 'Output': ('pod_ic_output', 'headphones'), 'Playback': ('pod_ic_prefs', 'sliders-horizontal'), 'System': ('pod_ic_sysset', 'settings'),
             # the Control Center's own tiles (docs/modules/pulldown.md "Tiles of ours"): Sleep Timer is the More sheet's row above; Equalizer and Settings have glyphs the other tiles do not (Playback is sliders-horizontal, System the gear)
             'Equalizer': ('pod_ic_eq', 'sliders-vertical'), 'Control Center Settings': ('pod_ic_ccsettings', 'layout-grid'), 'Power Off': ('pod_ic_poweroff', 'power'),
-            'AirPlay': ('pod_ic_airplay', 'airplay'), 'DLNA': ('pod_ic_dlna', '+dlna:filled')}
+            'AirPlay': ('pod_ic_airplay', 'airplay'), 'DLNA': ('pod_ic_dlna', '+dlna:filled'), 'Transfer': ('pod_ic_transfer', 'folder-sync')}
 # a row label that has another glyph on one page: (page, label) -> the POD_ROWS key (the Control Center's Settings tile is not the Pod menu's Settings row, which shares Playback's glyph)
 ROW_ALIAS = {('m1plus_pulldown', 'Settings'): 'Control Center Settings'}
 # the pull-down tiles of ours (tools/mod_pulldown.py adds their widgets to the dialog, patch/pulldown.c shows them): the same ring as the stock tiles, in the off look (an action, no on state)
-PD_OWN = {'drop_sleep': 'moon', 'drop_settings': 'layout-grid', 'drop_equalizer': 'sliders-vertical', 'drop_power': 'power', 'drop_airplay': 'airplay', 'drop_dlna': '+dlna:filled'}
+PD_OWN = {'drop_sleep': 'moon', 'drop_settings': 'layout-grid', 'drop_equalizer': 'sliders-vertical', 'drop_power': 'power', 'drop_airplay': 'airplay', 'drop_dlna': '+dlna:filled', 'drop_transfer': 'folder-sync'}
 # the two switch tiles of ours (AirPlay, DLNA) are lit like the stock Wi-Fi tile when their setting is on: the white disc and dark glyph (ACCENT_DISC takes the accent)
 PD_OWN_ON = {'drop_airplayopen': 'airplay', 'drop_dlnaopen': '+dlna:filled'}
 # The Folders page's row glyphs (patch/folders.c): the menu rows' bare white 24 px glyph for what POD_ROWS has no row for: an audio file, the SD card, a USB drive (folders, playlist files, the CD Library and the wave are pod_ic_folders, pod_ic_playlists, pod_ic_cdripper, pod_ic_nowplaying)

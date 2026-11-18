@@ -5,7 +5,7 @@
 `PULLDOWN_FLAG_PINS`, `TSDOWN_PINS` in `tools/pod_pins.py`.
 
 The stock pull-down (`dialog/dropdown_dialog`) restyled, with tiles the user can hide, show and
-reorder, six tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
+reorder, seven tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
 dialog's init and one on touch down ([payload](payload.md)).
 
 ## Look
@@ -45,7 +45,7 @@ dialog's init and one on touch down ([payload](payload.md)).
 ## Tiles: hide, show and reorder
 
 Settings > Appearance > **Control Center** (`m1plus_pulldown`) edits the eight stock tiles and the
-six of ours (fourteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md)):
+seven of ours (fifteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md)):
 one row per tile with a switch and, on every shown row but the first, an up arrow. The row takes
 every tap: the arrow moves the tile one place up, elsewhere shows or hides it, and a tile shown joins
 the end. Each change is saved at once and atomically; a failed save is undone. The code is a copy of
@@ -60,7 +60,7 @@ the end. Each change is saved at once and atomically; a failed save is undone. T
 **File** `/mnt/data/m1plus/pulldown-tiles`: `<shown ids in order>[-<hidden ids>]`, optional newline.
 Ids `0`-`7` are the stock slots in order (Wi-Fi, Bluetooth, button lock, gain, USB mode, output,
 playback settings, system settings); ours are `8` Sleep Timer, `9` Settings, `a` Equalizer,
-`b` Power Off, `c` AirPlay, `d` DLNA. A tile not in the shown part is hidden.
+`b` Power Off, `c` AirPlay, `d` DLNA, `e` Wi-Fi Transfer. A tile not in the shown part is hidden.
 
 - Invalid or missing means the default: the eight stock tiles in stock order, ours hidden. Invalid
   is an unknown character, an id twice, a second `-`, an empty file, 20 bytes or more
@@ -116,7 +116,7 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
   record NULL ("rooted": opened by no page). An entry is cleared by its window's `EVT_DESTROY`,
   which also turns the entries opened from it into orphans; a full table drops the entries of
   windows that are gone first, and a window left without an entry is nobody's child (never closed).
-  `pd_open_page(window, open_it, rooted)` is the one policy for the Equalizer tile, the Volume tap,
+  `pd_open_page(window, open_it, rooted)` is the one policy for the Equalizer and Wi-Fi Transfer tiles (and the Wi-Fi Transfer row), the Volume tap,
   the Volume page's rows and Settings' Gain / Equalizer / Volume & Sound rows: in front, left alone;
   else every window whose opener chain leads to it is closed (wherever it sits in the stack, and
   nothing else), then it is restacked, else opened. Restacking re-records the opener: the page in
@@ -134,7 +134,7 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
 
 ## Tiles of ours
 
-Six tiles can take any of the eight slots (hidden by default): four are actions, two are switches.
+Seven tiles can take any of the eight slots (hidden by default): five are actions, two are switches.
 
 | Id | Tile | Art (`mod_icons.PD_OWN`) | Action |
 |---|---|---|---|
@@ -144,8 +144,9 @@ Six tiles can take any of the eight slots (hidden by default): four are actions,
 | `b` | Power Off | `drop_power` (`power`) | the power key's long-press confirm, then `poweroff_page` ([Power Off](#power-off)) |
 | `c` | AirPlay | `drop_airplay` / `drop_airplayopen` | a switch ([AirPlay and DLNA](#airplay-and-dlna)) |
 | `d` | DLNA | `drop_dlna` / `drop_dlnaopen` (Simple Icons mark) | a switch |
+| `e` | Wi-Fi Transfer | `drop_transfer` (`folder-sync`) | Wi-Fi Transfer page ([wifi-transfer](wifi-transfer.md)): `ns_transfer_ok()` (a toast "Connect to Wi-Fi first" and nothing else when offline), then `pd_open_page` (rooted) with `pod_open_wifitransfer`, as Network Services' row does, so both open one window; a page behind the player is restacked, and its `EVT_WINDOW_TO_FG` (`wt_front`) restarts the file server without a second `wt_opened` |
 
-Captions are keys of ours in 13 languages; AirPlay and DLNA are brand text. Sleep Timer is too long
+Captions are keys of ours in 13 languages; AirPlay and DLNA are brand text. Wi-Fi Transfer's caption is the Network Services row's full text; its row on the Control Center page is the shorter `Transfer` (the full text is too long for the row label in six languages). Sleep Timer is too long
 for the row label in ja, fr, pl and ru (it ends in an ellipsis and scrolls when focused) and for the
 caption box in ru; both are accepted. Our other captions fit the 71 x 32 box in every language.
 
@@ -155,9 +156,9 @@ caption box in ru; both are accepted. Our other captions fit the 71 x 32 box in 
   widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes),
   moves a shown tile with its caption, binds a tap and makes it visible. Stock's tile visitor knows
   tiles by name and ignores ours.
-- Art is the flat disc, off look only for the four actions: an action has no on state because the
+- Art is the flat disc, off look only for the five actions: an action has no on state because the
   dialog closes on the tap.
-- **The page** has fourteen rows (`pod_row0..13`) with glyphs from `POD_ROWS`.
+- **The page** has fifteen rows (`pod_row0..14`) with glyphs from `POD_ROWS`.
 - **Tap** (`pd_on_tile`, `pd_open_dialog`, payload hook 22). Stock's tiles never open a page from
   their click handler. They check three words (`DROPDOWN_BUSY`, `POWER_USBSTATE`,
   `airplayGetFlag()`; any equal to 2 = do nothing), call `dialog_quit(dialog, 0xd)` and set a flag.

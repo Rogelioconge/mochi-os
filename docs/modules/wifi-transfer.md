@@ -22,8 +22,9 @@ stock's own pages. The state is stock's own bytes; nothing of ours is saved.
 - **Switches** call stock's `airplay_switch` / `dlna_switch` and show the byte. There is no
   AirPlay-playing guard, as on stock's page (the Control Center tiles do refuse; [pulldown](pulldown.md)).
   Turning one on without Wi-Fi shows the toast "Connect to Wi-Fi first"; the byte is still stored.
-- **The row** opens our page only while Wi-Fi is connected; otherwise the toast and no window (stock opens
-  a message dialog).
+- **The row** and the Control Center tile ([pulldown](pulldown.md)) open the page only while Wi-Fi is
+  connected; otherwise the toast and no window (stock opens a message dialog). Both go through
+  `pd_open_page`, so there is one window: one left behind the player is restacked, never opened twice.
 - **Start on open.** In stock's order: bind a key filter, the close handler and a destroy handler, then
   `stop_player()` and `switch_wifitransport(1)` (the `thttpd` command above). A refused bind starts
   nothing. The key filter swallows the media keys `0xd5`..`0xd7` as stock does; volume keys work.
