@@ -296,7 +296,7 @@ NAV_VIEW_POS = {'pod_nav_grid': 'middle', 'pod_nav_list': 'middle', 'pod_nav_gri
                 'pod_nav_bprev': 'left', 'pod_nav_bnext': 'middle'}
 NAV_PX = 24
 # The Playlists page's "..." card's action rows (tools/pod_ui.py build_playlists_page: the shared view-sort card's slots 6..9, in row order): a bare white glyph left of the label, as on Now
-# Playing's More sheet's rows, drawn at PL_MENU_PX (20: the 24 px of the sheet's rows looked big beside the 18 px labels; the stroke stays 2 px).
+# Playing's More sheet's rows, drawn at PL_MENU_PX (20, smaller than the More sheet's 24 px row glyphs, tools/mod_lists.py; the stroke stays 2 px).
 # New, Import, Export, Delete.
 PL_MENU_PX = 20
 PL_MENU_ICONS = (('pl_ic_new', 'list-plus'), ('pl_ic_import', 'file-input'), ('pl_ic_export', 'file-output'), ('pl_ic_delete', 'trash'))
@@ -992,9 +992,9 @@ PC_LIB_TILE = 'pod_ic_subtile'                           # the Subscriptions row
 PA_PLAYB_X, PA_PLAYB_Y, PA_PLAYB_PX, PA_PLAYB_RIM_A, PA_PLAYB_GLYPH = 48, 112, 28, 90, 12   # Continue Listening's play disc: 28 px, a white 26 px disc inside a 1 px black rim (35 %, so it reads on a white cover too), the dark play triangle (12 px) nudged 1 px right to look centred
 PC_ATLAS = 'pc_atlas'
 PC_SHEET_ICONS = (('pc_ic_import', 'file-input', WHITE), ('pc_ic_speed', 'gauge', WHITE), ('pc_ic_refresh', 'refresh-cw', WHITE), ('pc_ic_select', 'list-checks', WHITE), ('pc_ic_check', '+check', WHITE),
-                  ('pc_ic_unsub', 'x', PA_RED), ('pc_ic_down', 'arrow-down', WHITE), ('pc_ic_trash', 'trash', WHITE), ('pc_ic_undo', 'rotate-ccw', WHITE),
+                  ('pc_ic_unsub', 'x', PA_RED), ('pc_ic_down', 'arrow-down', WHITE), ('pc_ic_trash', 'trash', WHITE), ('pod_ic_trash_red', 'trash', PA_RED), ('pc_ic_undo', 'rotate-ccw', WHITE),
                   ('pod_ic_export', 'file-output', WHITE), ('pod_ic_save', 'bookmark', WHITE), ('pod_ic_order', 'arrow-down-wide-narrow', WHITE), ('pod_ic_filter', 'list-filter', WHITE), ('pod_ic_pause', 'pause', WHITE), ('pod_ic_play', 'play', WHITE), ('pod_ic_cancel', 'x', WHITE),
-                  ('pod_ic_rd_add', 'plus', WHITE), ('pod_ic_rd_remove', 'minus', WHITE), ('pod_ic_rd_import', 'import', WHITE))   # the Radio sheets: Add to / Remove from Stations and Station Info (Now Playing), Import from Card (Stations; its Recently Played sheet's Clear row uses pc_ic_trash)   # (pod_ic_ names: the images the stock pages' digest test ignores, test/pod/navbars.py NEW_IMAGES; a new pc_ image would change test/navbars-stock.sha256 in every branch)
+                  ('pod_ic_rd_add', 'plus', WHITE), ('pod_ic_rd_remove', 'minus', WHITE), ('pod_ic_rd_import', 'import', WHITE))   # the Radio sheets: Add to / Remove from Stations and Station Info (Now Playing), Import from Card (Stations; the red pod_ic_trash_red is the destructive rows' trash: Delete Book, Delete Played Episodes, Clear Recently Played)   # (pod_ic_ names: the images the stock pages' digest test ignores, test/pod/navbars.py NEW_IMAGES; a new pc_ image would change test/navbars-stock.sha256 in every branch)
 PC_SHEET_PX = BARE_PX   # the sheets' glyphs: the size of the track rows' menu's and of Now Playing's More sheet's own rows (24 px)
 PC_SHEETS = (('pc_sheet1', 50), ('pc_sheet2', 100), ('pc_sheet3', 150), ('pc_sheet4', 200), ('pc_sheet5', 250), ('pc_sheet6', 300), ('pc_sheet7', 350))   # the sheets' glass for 1..7 rows (one family for every bottom sheet: the Podcasts and Radio sheets, the track rows' menu's pc_sheet5, Now Playing's More sheet's pc_sheet6)
 PC_GLYPHS = ('arrow-down', 'download', 'chevron-right', 'file-input', 'podcast', 'compass', 'file-output', 'plus', 'minus', 'import', 'list-filter')                                 # the Lucide glyph the set adds to the sources (the download symbol of the pill, the badge and the sheet)

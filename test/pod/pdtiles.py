@@ -118,8 +118,8 @@ def hook_tests(ctx):
            and sl.get('bar_size') == '6' and sl.get('max') is None and sl.get('value') == '60' and {v for k, v in sl.props if k.endswith(':icon')} == {'pod_sl_thumb'}
            and sl.get('style:normal:bg_image') == 'drop_bg' and sl.get('style:normal:fg_image') == 'drop_fg',
            'the stock slider (name, value, no range of its own) keeps its screen y 266 .. 316 and is laid out as the Display page\'s: suns at x 14 and 266, slider x 48 .. 248 in the card, 6 px track and fill, the capsule thumb')
-    expect(all(cards.find(n).get(f'style:{st}:font_size') == '16' and cards.find(n).get(f'style:{st}:text_color') == ('#555555' if st == 'disable' else '#B0B0B0') and cards.find(n).get(f'style:{st}:text_align_v') == 'top' for n in LAB[:8] for st in ('normal', 'disable', 'focused')),
-           'every stock caption is 16 px #B0B0B0 (disabled #555555), top aligned')
+    expect(all(cards.find(n).get(f'style:{st}:font_size') == '16' and cards.find(n).get(f'style:{st}:text_color') == ('#555555' if st == 'disable' else '#AAAAAA') and cards.find(n).get(f'style:{st}:text_align_v') == 'top' for n in LAB[:8] for st in ('normal', 'disable', 'focused')),
+           'every stock caption is 16 px #AAAAAA (disabled #555555), top aligned')
 
     # -- 2. the stock layout: no file, a bad file, the default, a missing widget, a failed stock init ------
     default = list(range(N))

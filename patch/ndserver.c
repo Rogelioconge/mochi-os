@@ -32,7 +32,7 @@
 #define NS_TICK_MS 500 /* the Server page re-reads the sync state (the root page's tick) */
 #define NS_FORCE_TICKS 8 /* and, anyway, every 4 s (the age text moves on) */
 #define NS_SPIN_PX 14 /* the Sync Now row's spinner (tools/pod_ndserver.py SYNC_SPIN_PX) and the gap after it */
-#define NS_SPIN_GAP 6
+#define NS_SPIN_GAP PS_SPIN_GAP
 
 enum { NS_URL, NS_USER, NS_PASS, NS_SYNC, NS_OUT };
 

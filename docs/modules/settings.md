@@ -76,8 +76,8 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   `wrap_notes` field and `open_page` turns the wrap on, so no page or note number is hardcoded. Three layout
   items serve the Wi-Fi Transfer page ([wifi-transfer](wifi-transfer.md)): `Hero(glyph, title, text)` (a
   rounded tile with a white glyph, a 22 px title and a wrapping 14 px grey description, all centred),
-  `BigCard()` (one tall card with a large centred label the payload fills) and `Note(center=True)` (a 13 px
-  centred wrapping footer).
+  `BigCard()` (one tall card with a large centred label the payload fills) and `Note(center=True)` (a centred
+  wrapping footer at the note size).
 
 ## Page notes
 

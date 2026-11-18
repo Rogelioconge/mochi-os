@@ -65,15 +65,17 @@ Role names live in `tools/pod_roles.py`; page constants take them.
 | rest surface (`SURFACE_RGB`: Settings cards, cache pill, fields, flat pills, dialog buttons, EQ cards) | `#1C1C1E` |
 | raised surface (`RAISED_RGB`) | `#2C2C2E` |
 | line (`LINE_RGB`) | `#333333` |
-| thumbnail placeholder (`THUMB_RGB`) | `#2B2B2B` |
+| thumbnail placeholder (`THUMB_RGB`: grids, cover flow, a logo-less station) | `#2B2B2B` |
 | secondary text (`SUB_RGB`, `HINT_RGB`: sub lines, footers, values, keys, credits, hints) | `#AAAAAA` |
 | album page meta line (15 px; least that passes 4.5:1 scan on a pressed row) | `#9C9C9C` |
 | field placeholder (`PLACEHOLDER_RGB`) | `#8E8E93` |
 | list chevron (`CHEV_RGB`) | `#8A8A8A` |
+| a row that cannot be chosen (`DIM_RGB`: title and sub line) | `#7A7A7A` |
 | a row's "..." and the muted partner / pressed glyph grey | `#8C8C8C` |
-| the one red (`RED_RGB`: destructive row's label and glyph) | `#FF6B6B` |
+| the one red (`RED_RGB`: a row that deletes or loses data: label and glyph, with or without a confirm) | `#FF6B6B` |
 
-- **Pressed surfaces `#333333`** (rows, keys, queue drawer's bottom button), stored as role colour
+- **Pressed surfaces `#333333`** (list rows on black, keys, queue drawer's bottom button); a row
+  on a `SURFACE_RGB` card (Settings, Wi-Fi, Bluetooth) presses to `RAISED_RGB`. Stored as role colour
   `#333334` so the accent can map it ([accent](accent.md)). `#3A3A3A` = edge colour (hairline
   borders, index letter); `#555555` = pressed disc and inactive dot.
 - **Toggles:** on = light grey pill with black glyph/knob; off = dark grey with white or grey

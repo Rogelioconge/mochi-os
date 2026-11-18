@@ -21,7 +21,7 @@ from awtk_ui import Widget
 import pod_i18n, pod_pages
 import pod_keyboard as PK
 import pod_search as PS
-from pod_roles import INK_RGB, SUB_RGB, HINT_RGB, RED_RGB, PLACEHOLDER_RGB, CHEV_RGB, RAISED_RGB, SURFACE_RGB, LINE_RGB, SECTION_PX, CAPTION_LABEL_Y, CAPTION_LABEL_H, CAPTION_PX
+from pod_roles import INK_RGB, SUB_RGB, HINT_RGB, RED_RGB, PLACEHOLDER_RGB, CHEV_RGB, DIM_RGB, RAISED_RGB, SURFACE_RGB, LINE_RGB, SECTION_PX, CAPTION_LABEL_Y, CAPTION_LABEL_H, CAPTION_PX
 
 UI = 'release/assets/default/raw/ui'   # relative to a rootfs dir
 SCREEN_W, SCREEN_H = 320, 480
@@ -507,14 +507,14 @@ def build_podcasts_page(page):
 # The header's title (22 px white, centred, as the Show page's name), its grey line (15 px, centred), the capsule's word (18 px black on the white capsule),
 # and the title of a played part (the row title's size in the played grey of the Show page).
 BK_STYLES = (('label_bk_title', 22, '#FFFFFF', 'center'), ('label_bk_sub', 15, '#AAAAAA', 'center'), ('label_bk_btn', 18, '#000000', 'center'),
-             ('label_bk_dim', LIST_TITLE_PX, '#A6A6A6', 'left'),
+             ('label_bk_dim', LIST_TITLE_PX, SUB_RGB, 'left'),
              # the LibriVox level (patch/bkfind.c): the grey section line (the Podcasts levels' meta line, 15 px) and the status line (their 20 px grey hint)
              ('label_bk_meta', 15, SUB_RGB, 'left'), ('label_bk_hint', 20, SUB_RGB, 'left'),
              # the Library's Continue Listening shelf (the Podcasts Shows level's text styles, the same labels) and the See All row's title
              *(r if len(r) == 4 else (*r, 'left') for r in PS_STYLES if r[0] in ('label_ps_sech', 'label_ps_stitle', 'label_ps_sleft', 'label_ps_ctitle')))
 # The Book level's "..." sheet (patch/bkpage.c): the Podcasts sheets' widget set (sheet_widgets), four fixed rows: Playback Speed (every book; a grey value, a tap cycles), then for a LibriVox book Pause Download or Resume Download by the download's state and Delete Book (red as Unsubscribe is)
 BK_SHEET = 'bk_sh'
-BK_SHEET_ROWS = (('speed', 'pc_ic_speed', 'Playback Speed', True, False), ('pause', 'pod_ic_pause', 'Pause Download', False, False), ('resume', 'pod_ic_play', 'Resume Download', False, False), ('delete', 'pc_ic_trash', 'Delete Book', False, True))
+BK_SHEET_ROWS = (('speed', 'pc_ic_speed', 'Playback Speed', True, False), ('pause', 'pod_ic_pause', 'Pause Download', False, False), ('resume', 'pod_ic_play', 'Resume Download', False, False), ('delete', 'pod_ic_trash_red', 'Delete Book', False, True))
 
 
 def build_books_page(page):
@@ -544,10 +544,10 @@ def build_books_page(page):
     sv.children.append(grid)
     root.children.append(lv)
     root.children.append(nav_fade(shown=False))   # patch/bkpage.c shows it while yoffset > 0
-    status = hidden(label('label_status', 20, 180, SCREEN_W - 40, 90, '', 18, '#FFFFFF'))
+    status = hidden(label('label_status', 20, 180, SCREEN_W - 40, 90, '', 18, HINT_RGB))
     styled(status, ('normal',), 'text_align_v', 'middle')
     root.children.append(status)
-    for name, px, colour in (('label_row_title', LIST_TITLE_PX, '#FFFFFF'), ('label_row_sub', LIST_SUB_PX, '#AAAAAA')):
+    for name, px, colour in (('label_row_title', LIST_TITLE_PX, INK_RGB), ('label_row_sub', LIST_SUB_PX, SUB_RGB)):
         lab = hidden(label(name, 0, 0, 10, 10, '', px, colour, 'left'))
         styled(lab, ('normal',), 'text_align_v', 'middle')
         root.children.append(lab)
@@ -568,7 +568,7 @@ PS_SHEET_ROWS = (('speed', 'pc_ic_speed', 'Playback Speed', True, False), ('refr
                  ('markall', 'pc_ic_check', 'Mark All as Played', False, False), ('unsub', 'pc_ic_unsub', 'Unsubscribe', False, True),
                  ('dl', 'pc_ic_down', 'Download', False, False), ('rm', 'pc_ic_trash', 'Remove Download', False, False),
                  ('mark', 'pc_ic_check', 'Mark as Played', False, False), ('unmark', 'pc_ic_undo', 'Mark as Unplayed', False, False),
-                 ('import', 'pc_ic_import', 'Import from Card', False, False), ('delplayed', 'pc_ic_trash', 'Delete Played Episodes', False, False),
+                 ('import', 'pc_ic_import', 'Import from Card', False, False), ('delplayed', 'pod_ic_trash_red', 'Delete Played Episodes', False, True),
                  ('export', 'pod_ic_export', 'Export OPML', False, False), ('save', 'pod_ic_save', 'Save Episode', False, False), ('order', 'pod_ic_order', 'Episode Order', True, False), ('filter', 'pod_ic_filter', 'Filter', True, False),
                  ('dlpause', 'pod_ic_pause', 'Pause', False, False), ('dlresume', 'pod_ic_play', 'Resume', False, False), ('dlretry', 'pc_ic_undo', 'Retry', False, False), ('dlcancel', 'pod_ic_cancel', 'Cancel Download', False, False))   # an In Progress row's sheet: the first of dlpause / dlresume / dlretry by the download's state, then dlcancel; id, glyph, label, has a value, red; import is the Shows level's sheet, select (relabelled Select, or Select Shows) and delplayed the Downloads page's, select and export the Subscriptions page's, save (relabelled Unsave Episode when it is saved) an episode's
 PS_SHEET_ICON_X, PS_SHEET_TEXT_X, PS_SHEET_VALUE_R, PS_SHEET_VALUE_W, PS_SHEET_GAP = (OFFSETS[k] for k in ('PS_SHEET_ICON_X', 'PS_SHEET_TEXT_X', 'PS_SHEET_VALUE_R', 'PS_SHEET_VALUE_W', 'PS_SHEET_GAP'))   # patch/offsets.inc
@@ -1348,7 +1348,7 @@ def build_songs_page(page):
     root.children.append(nav_fade(shown=False))   # patch/songs.c shows it while yoffset > 0 (at rest it would darken the large title)
     root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
     root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB), ('label_row_sub', LIST_SUB_PX, SUB_RGB),
-                                   ('label_row_dim', LIST_TITLE_PX, '#7A7A7A'), ('label_row_subdim', LIST_SUB_PX, '#7A7A7A'),   # a source's rows that cannot play
+                                   ('label_row_dim', LIST_TITLE_PX, DIM_RGB), ('label_row_subdim', LIST_SUB_PX, DIM_RGB),   # a source's rows that cannot play
                                    ('label_grid_title', GRID_ALBUM_PX, INK_RGB), ('label_grid_sub', GRID_ARTIST_PX, SUB_RGB)))   # the last two: Recently Added's album grid
     root.children.extend(azlist_labels())
     root.children.extend(azlist_rail())
@@ -1367,7 +1367,7 @@ def build_songs_page(page):
 # transparent. The glass controls are the window's last child, so they paint and take touches over the rows: Back, Select | Now Playing as one capsule (the genre songs list's), and
 # in select mode the close x (Back), "N Selected" and Select All in the navbar and the bottom bar with Add to Playlist and Delete. Two hidden labels carry the rows' text styles (the number, the title; the playing row's number is the ah_wave image); label_title (hidden) is the page's title for the i18n and asset tests.
 AB_STYLES = (('label_row_num', OFFSETS['AB_NUM_PX'], SUB_RGB, 'right'), ('label_row_title', LIST_TITLE_PX, INK_RGB),   # the number (the grey line's colour) and the title (white) at the list title size like every list
-             ('label_row_dim', LIST_TITLE_PX, '#7A7A7A'))   # a source's rows: the title of a row that cannot play (the dim grey, the lowest that keeps 4.5:1 on black)
+             ('label_row_dim', LIST_TITLE_PX, DIM_RGB))   # a source's rows: the title of a row that cannot play
 AB_META = (('ab_title', 'AH_TITLE_Y', 'AH_TITLE_H', 22, INK_RGB), ('ab_artist', 'AH_ARTIST_Y', 'AH_ARTIST_H', 18, SUB_RGB), ('ab_meta', 'AH_META_Y', 'AH_META_H', 15, '#9C9C9C'))   # srlabel_ah{title,artist,meta}_style
 AB_FOOT_RGB = SUB_RGB   # the footer's grey: the artist line's (not the meta line's #9C9C9C)
 AB_PLAY_TEXT_W = OFFSETS['AB_PLAY_TEXT_W']   # the English "Play" at 18 px, where the payload cannot measure it; the payload centres the pair for the language
@@ -2018,7 +2018,7 @@ def cards_row(i, row, piece, last, icon=True):
     if two_lines:
         for st in ('normal', 'disable', 'focused'): styled(item.children[-1], (st,), 'font_size', str(ST.BAND_TITLE_PX))
     if kind in ('preamp', 'band'): item.children[-1].set('sensitive', 'false')   # (a label takes no touch: the row does, or for the Preamp row nothing does)
-    if kind == 'delete':   # the destructive row: its label in the red of the Songs trash (PA_RED)
+    if kind == 'delete' or row.action in (pod_pages.ACT_SFDELALL, pod_pages.ACT_RESETALL):   # the destructive row: its label in the red of the Songs trash (PA_RED)
         for st in ('normal', 'disable', 'focused'): styled(item.children[-1], (st,), 'text_color', PS_SHEET_RED)
     if kind == 'lib':   # the Presets page's row: the grey line under the name, the chevron's room on its right
         sub = Widget('hscroll_label', x, sy, w, sh, [('name', f'pod_sub{i}'), ('text', ''), ('only_parent_focus', 'true'), ('ellipses', 'true'), ('sensitive', 'false')])
@@ -2094,7 +2094,7 @@ def cards_row(i, row, piece, last, icon=True):
 
 
 GR_W, GR_H, GR_X0, GR_W0, GR_Y0, GR_H0, GR_DECADE = (OFFSETS[k] for k in ('GR_W', 'GR_H', 'GR_PX0', 'GR_PW', 'GR_PY0', 'GR_PH', 'GR_DECADE'))
-GR_LABEL_PX, GR_LABEL_RGB = 15, CHEV_RGB
+GR_LABEL_PX, GR_LABEL_RGB = 15, CHEV_RGB   # every graph's labels (PEQ curve, 10-Band, Battery History): one chart-label grey
 assert GR_H == _ST.GRAPH_H and GR_W == _ST.CARD_W and GR_W0 == 3 * GR_DECADE and GR_X0 + GR_W0 < GR_W and GR_Y0 + GR_H0 + 19 <= GR_H   # (the labels under the plot fit in the card)
 
 
@@ -2232,7 +2232,7 @@ def cards_volcard(card):
         for st in STATES:
             styled(b, (st,), 'bg_color', '#00000000')
             styled(b, (st,), 'border_width', '0'); styled(b, (st,), 'border_color', '#00000000')   # the theme's default button style draws a square border when the widget's own style names none
-            styled(b, (st,), 'text_color', '#8A8A8E' if st == 'pressed' else '#FFFFFF')
+            styled(b, (st,), 'text_color', '#8C8C8C' if st == 'pressed' else '#FFFFFF')
             styled(b, (st,), 'font_size', str(VOL_BTN_PX))
             styled(b, (st,), 'text_align_h', 'center')
             styled(b, (st,), 'text_align_v', 'middle')
@@ -2289,7 +2289,7 @@ def cards_volume():
         for st in STATES:
             styled(b, (st,), 'bg_color', '#00000000')
             styled(b, (st,), 'border_width', '0'); styled(b, (st,), 'border_color', '#00000000')
-            styled(b, (st,), 'text_color', '#8A8A8E' if st == 'pressed' else '#FFFFFF')
+            styled(b, (st,), 'text_color', '#8C8C8C' if st == 'pressed' else '#FFFFFF')
             styled(b, (st,), 'font_size', str(VOL_BTN_PX))
             styled(b, (st,), 'text_align_h', 'center'); styled(b, (st,), 'text_align_v', 'middle')
         v.children.append(b)
@@ -2484,7 +2484,7 @@ def cards_bigcard(n):
 
 
 def cards_cnote(name, note):
-    """A centred note (Note.center): a view holding the 13 px grey wrapping label pod_note<n>_t, centred on the card column."""
+    """A centred note (Note.center): a view holding the note-size grey wrapping label pod_note<n>_t, centred on the card column."""
     import pod_settings as ST
     v = cards_spacer(name, ST.cnote_h(note))
     v.children.append(_centred_label(name + '_t', ST.CM + ST.CENTRE_INSET, ST.NOTE_LABEL_Y, ST.CARD_W - 2 * ST.CENTRE_INSET, ST.cnote_label_h(note), pod_i18n.text_prop(note.text), ST.CNOTE_PX, ST.GREY, 'top'))
@@ -2818,7 +2818,7 @@ def build_folders_page(page):
     root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))
     root.children.extend(view_sort_card(sort_keys=pod_pages.FOLDERS_SORT_KEYS))   # the "..." card: Select, then Name, Date Modified, Type (patch/folders.c offers rows 0..2; Search and the view rows stay hidden)
     return root
-LP_DIM_RGB = '#8E8E93'   # a covered row's name (patch/lupick.c): the placeholder grey
+LP_DIM_RGB = DIM_RGB   # a covered row's name (patch/lupick.c): the grey of a row that cannot be chosen
 
 
 def build_lupick_page(page):
@@ -2860,7 +2860,7 @@ RD_FIELD_W = SCREEN_W - 2 * PS.SE_FIELD_X   # the Radio search field's width (pa
 RD_TEXT_W = RD_FIELD_W - PS.SE_TEXT_X - PS.SE_CLEAR_W
 RD_CREDIT_PX = 14   # the credit line's size (patch/radiopage.c RP_CREDIT_PX)
 RD_SHEET_ROWS = (('add', 'pod_ic_rd_add', 'Add to My Stations', False, False), ('info', 'rm_ic_info', 'Station Info', False, False))   # Radio Now Playing's sheet: two rows, the first's glyph and label swapped for Remove from My Stations by the payload (patch/radionp.c)
-RS_SHEET_ROWS = (('import', 'pod_ic_rd_import', 'Import from Card', False, False), ('clear', 'pc_ic_trash', 'Clear Recently Played', False, False))   # the "..." sheets (patch/radiopage.c): My Stations has Import from Card, Recently Played Clear Recently Played (the payload shows one row)
+RS_SHEET_ROWS = (('import', 'pod_ic_rd_import', 'Import from Card', False, False), ('clear', 'pod_ic_trash_red', 'Clear Recently Played', False, True))   # the "..." sheets (patch/radiopage.c): My Stations has Import from Card, Recently Played Clear Recently Played (the payload shows one row)
 
 
 def build_radio_page(page):
@@ -2986,8 +2986,8 @@ def build_radionp_page(page):
 
 
 # Station Info (patch/radioinfo.c, docs/modules/radio.md "Station Info"): the Release Notes page's structure (the stock navbar over a stock list holding one content view the payload paints the heading and the
-# label / value pairs on, wrapped by the Podcasts episode page's wrapper). Three hidden labels only carry the text styles: the station's name (28 px white), a pair's label (14 px grey), its value (18 px white).
-SI_HEAD_PX, SI_KEY_PX, SI_VAL_PX = 28, 14, 18
+# label / value pairs on, wrapped by the Podcasts episode page's wrapper). Three hidden labels only carry the text styles: the station's name (22 px white), a pair's label (14 px grey), its value (18 px white).
+SI_HEAD_PX, SI_KEY_PX, SI_VAL_PX = 22, 14, 18
 
 
 def build_radioinfo_page(page):
@@ -3207,9 +3207,9 @@ def build_wifiinfo_page(page):
     sv = lv.children[0]
     sv.set('name', 'wifiinfo_scrollview')
     x = ST.CM + ST.PAD
-    centred = lambda name, english: wi_text(name, x, ST.CARD_W - 2 * ST.PAD, english, 21, INK_RGB, 'center')
+    centred = lambda name, english, rgb=INK_RGB: wi_text(name, x, ST.CARD_W - 2 * ST.PAD, english, 21, rgb, 'center')
     forget = hidden(wf_row('wi_row_forget', 'single'))
-    forget.children = [centred('wi_forget_t', 'Forget This Network')]
+    forget.children = [centred('wi_forget_t', 'Forget This Network', RED_RGB)]
     auto = hidden(wf_row('wi_row_auto', 'single'))
     ax, ay, aw, ah = ST.accessory('switch')
     auto.children = [wf_label('wi_auto_t', x, ST.accessory('switch')[0] - 8 - x, 'Auto-Join'), wf_image('wi_auto_img', ax, ay, aw, ah, 'sset_on', 'default')]
@@ -3260,7 +3260,7 @@ def build_btdevice_page(page):
     sv = lv.children[0]
     sv.set('name', 'btdevice_scrollview')
     x = ST.CM + ST.PAD
-    centred = lambda name, english: wi_text(name, x, ST.CARD_W - 2 * ST.PAD, english, 21, INK_RGB, 'center')
+    centred = lambda name, english, rgb=INK_RGB: wi_text(name, x, ST.CARD_W - 2 * ST.PAD, english, 21, rgb, 'center')
     link = hidden(wf_row('bd_row_link', 'single'))
     link.children = [centred('bd_link_t', 'Connect')]
     vol = hidden(wf_row('bd_row_vol', 'single'))   # not a tap target itself: the keys are; its pressed picture is its normal one
@@ -3269,7 +3269,7 @@ def build_btdevice_page(page):
     dn_x = up_x - BD_KEY_GAP - BD_KEY_PX[0]
     vol.children = [wf_label('bd_vol_t', x, dn_x - BD_KEY_PAD - 4 - x, 'Headset Volume'), hidden(bd_key('bd_vol_dn', dn_x, 'pod_ic_btvol_dn')), hidden(bd_key('bd_vol_up', up_x, 'pod_ic_btvol_up'))]
     forget = hidden(wf_row('bd_row_forget', 'single'))
-    forget.children = [centred('bd_forget_t', 'Forget This Device')]
+    forget.children = [centred('bd_forget_t', 'Forget This Device', RED_RGB)]
     sv.children.append(cards_spacer('pod_top', ST.CM))
     for k in range(2):   # the whole name's lines (patch/wifipage.c wf_name_lines)
         nm = hidden(cards_spacer(f'bd_nm{k}', WI_NAME_H))

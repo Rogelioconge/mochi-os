@@ -1023,16 +1023,16 @@ def asset_tests(ctx):
            and rows2[1].y == O['PM_ROW_H'] and g('rd_sh_info_ic').get('image') == 'rm_ic_info' and g('rd_sh_info_tx').get('text') in ('Station Info', None) and g('rd_sh_info_tx').get('style:normal:text_color') == '#FFFFFF',
            "Radio Now Playing's sheet has two rows: Add to / Remove from My Stations, Station Info (Lucide info), white, the card two rows high")
     cr_ = f('rd_sh_card')
-    expect([c.name for c in cr_.children] == ['rd_sh_import', 'rd_sh_clear'] and f('rd_sh_clear_ic').get('image') == 'pc_ic_trash' and f('rd_sh_clear_tx').get('style:normal:text_color') == '#FFFFFF'
-           and f('rd_sh_import_ic').get('image') == 'pod_ic_rd_import', "the stations page's sheet has Import from Card and Clear Recently Played (the trash glyph of the other delete rows, neutral white), the payload shows one")
+    expect([c.name for c in cr_.children] == ['rd_sh_import', 'rd_sh_clear'] and f('rd_sh_clear_ic').get('image') == 'pod_ic_trash_red' and f('rd_sh_clear_tx').get('style:normal:text_color') == '#FF6B6B'
+           and f('rd_sh_import_ic').get('image') == 'pod_ic_rd_import', "the stations page's sheet has Import from Card and Clear Recently Played (the red trash glyph and label), the payload shows one")
     ri = ui('m1plus_radioinfo'); h = ri.find
     expect(ri.name == 'm1plus_radioinfo_page' == P.RADIOINFO.name and P.RADIOINFO.kind == 'radioinfo' and P.RADIOINFO.title == 'Station Info' and all(h(n) is not None for n in SI_WIDGETS + ('ri_scrollview', 'btn_return', 'label_title'))
            and ri.get('style:normal:bg_color') == '#000000' and h('ri_view').get('style:normal:bg_color') == '#000000' and h('ri_listview').type == 'list_view' and h('ri_scrollview').type == 'scroll_view' and h('scroll_bar_m') is not None
            and (h('ri_listview').y, h('ri_listview').h, h('ri_view').w) == (50, 400, 320) and h('img_nb_fade').get('visible') == 'false' and h('img_nb_fade').get('sensitive') == 'false',
            'Station Info: a black page, the stock navbar (Back, Now Playing) over a stock list holding one content view, the fade hidden at rest')
     expect(all(h(n).get('visible') == 'false' and h(n).get('sensitive') == 'false' for n in ('label_head', 'label_key', 'label_val'))
-           and [h(n).get(f'style:normal:{k}') for n, k in (('label_head', 'font_size'), ('label_key', 'font_size'), ('label_val', 'font_size'))] == ['28', '14', '18']
-           and [h(n).get('style:normal:text_color') for n in ('label_head', 'label_key', 'label_val')] == ['#FFFFFF', '#AAAAAA', '#FFFFFF'], 'the three text styles: a 28 px white heading, the 14 px grey (#AAAAAA) label, the 18 px white value')
+           and [h(n).get(f'style:normal:{k}') for n, k in (('label_head', 'font_size'), ('label_key', 'font_size'), ('label_val', 'font_size'))] == ['22', '14', '18']
+           and [h(n).get('style:normal:text_color') for n in ('label_head', 'label_key', 'label_val')] == ['#FFFFFF', '#AAAAAA', '#FFFFFF'], 'the three text styles: a 22 px white heading, the 14 px grey (#AAAAAA) label, the 18 px white value')
     expect(h('rd_sh_card') is None, 'the page has no sheet of its own')
     expect(all(g(n).get('sensitive') == 'false' for n in ('rn_art','rn_art_ic', 'img_np_shadow', 'rn_title', 'rn_artist', 'rn_live', 'img_np_tint')),
            'decoration and text are insensitive: only the grabber, the "..." and the play button take touches')
@@ -1199,7 +1199,7 @@ def levels_tests(ctx):
     expect(ts == [(12, TOP + 148, 144, 22), (164, TOP + 148, 144, 22), (12, TOP + 348, 144, 22)] and ss[0] == (12, TOP + 170, 144, 20), f"the Albums grid's text: the name 4 px under the cover (22 px), the caption under it (20 px) ({ts}, {ss})")
     ph = m.bitmaps[next(b[0] for b in blits if b[2][2] == 144)]
     px = lambda x, y: struct.unpack('<I', bytes(m.u.mem_read(ph[0] + 4 * (y * ph[1] + x), 4)))[0]
-    expect((px(0, 0), px(20, 20), px(72, 72)) == (0xff000000, 0xff2e2c2c, 0xff938e8e), f'a station without a logo: a #2C2C2E card, the radio glyph in the middle, the corners blended into black ({px(0, 0):#x} {px(20, 20):#x} {px(72, 72):#x})')
+    expect((px(0, 0), px(20, 20), px(72, 72)) == (0xff000000, 0xff2b2b2b, 0xff938e8e), f'a station without a logo: a #2B2B2B card, the radio glyph in the middle, the corners blended into black ({px(0, 0):#x} {px(20, 20):#x} {px(72, 72):#x})')
     # a tap plays it and opens Now Playing; the page stays under it
     np_widgets(m)
     m.proc = []
@@ -2213,9 +2213,9 @@ def view_tests(ctx):
     # the logo-less tile: the grey card with the radio glyph, 52 px, the corners cut in the alpha (the pressed fill shows behind them)
     ph = next(b[0] for b in blits if b[2][2] == 52)
     px = struct.unpack('<%dI' % (52 * 52), m.u.mem_read(m.word(ph + 0x14), 52 * 52 * 4))
-    glyph_px = [v for v in px[20 * 52 + 10: 20 * 52 + 42] if v != 0xff000000 | 0x2e2c2c]
-    expect(px[0] >> 24 == 0 and px[51] >> 24 == 0 and px[52 * 51] >> 24 == 0 and px[52 * 52 - 1] >> 24 == 0 and px[26 * 52 + 26] >> 24 == 255 and px[4 * 52 + 4] == 0xff000000 | 0x2e2c2c
-           and px[8 * 52 + 26] == 0xff000000 | 0x2e2c2c and glyph_px, 'the placeholder is the grey card with the glyph in its middle third, corners transparent')
+    glyph_px = [v for v in px[20 * 52 + 10: 20 * 52 + 42] if v != 0xff000000 | 0x2b2b2b]
+    expect(px[0] >> 24 == 0 and px[51] >> 24 == 0 and px[52 * 51] >> 24 == 0 and px[52 * 52 - 1] >> 24 == 0 and px[26 * 52 + 26] >> 24 == 255 and px[4 * 52 + 4] == 0xff000000 | 0x2b2b2b
+           and px[8 * 52 + 26] == 0xff000000 | 0x2b2b2b and glyph_px, 'the placeholder is the grey card with the glyph in its middle third, corners transparent')
     # ---- hit testing
     np_widgets(m)
     calls = tap(m, 300, TOP + 64 + 30)

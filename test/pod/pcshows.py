@@ -164,7 +164,7 @@ def layout_tests(ctx):
             ('Subscriptions', 'label_row_title', (o['PP_DL_TEXT_X'], L['y_sub'] - LO + o['LIST_TITLE_Y'], o['PP_DL_TEXT_W'], o['LIST_TITLE_H'])), ('3 shows', 'label_row_sub', (o['PP_DL_TEXT_X'], L['y_sub'] - LO + o['LIST_SUB_Y'], o['PP_DL_TEXT_W'], o['LIST_SUB_H'])),
             ('Saved', 'label_row_title', (o['PP_DL_TEXT_X'], L['y_sav'] - LO + o['LIST_TITLE_Y'], o['PP_DL_TEXT_W'], o['LIST_TITLE_H'])), ('No saved episodes', 'label_row_sub', (o['PP_DL_TEXT_X'], L['y_sav'] - LO + o['LIST_SUB_Y'], o['PP_DL_TEXT_W'], o['LIST_SUB_H']))]
     expect(sorted(rows) == sorted(want), f'their titles (21 px) and grey lines (18 px) from x 72 ({rows})')
-    expect(all((o['LIST_HAIR'], o['PP_DL_TEXT_X'], L[k] - LO + o['PC_ROW_H'] - 1, 320 - o['PP_DL_TEXT_X'], 1) in fills for k in ('y_srch', 'y_dl', 'y_sub', 'y_sav')), 'a hairline under each from its text')
+    expect(all((o['LIST_HAIR'], o['PP_DL_TEXT_X'], L[k] - LO + o['PC_ROW_H'] - 1, o['LIST_HAIR_END'] - o['PP_DL_TEXT_X'], 1) in fills for k in ('y_srch', 'y_dl', 'y_sub', 'y_sav')), 'a hairline under each from its text')
     # the grid: cover, title and grey line of each cell where the model puts them
     got = grid(m)
     expect([t for t, _ in got] == ORDER, f'the grid lists every show, most recently updated first ({got})')

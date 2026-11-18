@@ -189,7 +189,7 @@ def library_tests(ctx):
         got = [(x, s) for x, r, s in texts(m, off)]
         expect(('LibriVox', 'label_row_title') in got and ('Public domain audiobooks', 'label_row_sub') in got and ('Discover', 'label_ps_sech') in got and y == L['lv_row'], f'{what}: the row says LibriVox over the grey line "Public domain audiobooks", under the header Discover ({y})')
         bl, _, _, fills = PCP.paint(m, off)
-        expect(any(b[2] == (O['PP_DL_TILE_X'], y - off + O['PP_DL_TILE_Y'], O['PA_TILE_PX'], O['PA_TILE_PX']) for b in bl) and (O['LIST_HAIR'], O['PP_DL_TEXT_X'], y - off + ROW - 1, 320 - O['PP_DL_TEXT_X'], 1) in fills,
+        expect(any(b[2] == (O['PP_DL_TILE_X'], y - off + O['PP_DL_TILE_Y'], O['PA_TILE_PX'], O['PA_TILE_PX']) for b in bl) and (O['LIST_HAIR'], O['PP_DL_TEXT_X'], y - off + ROW - 1, O['LIST_HAIR_END'] - O['PP_DL_TEXT_X'], 1) in fills,
                f'{what}: the Discover row\'s tile and the hairline from the text')
         m.setword(m.sv + PCP.SC_YOFF, off); m.setword(m.view + 4, -off & 0xffffffff)
         m.touch('down', 100, BKP.SCREEN_Y0 + y - off + 20, 1000, fn='bk_on_down')
@@ -546,7 +546,7 @@ def preview_tests(ctx):
     expect(len(parts) >= 5 and parts[0][0] == got[0][1] and subs[0] == pod_books.line_text(0, got[0][2], got[0][3]) and parts[0][1] == O['LIST_TITLE_Y'], f'a part row: its title and "duration · size" ({parts[0]}, {subs[0]})')
     expect(all(any(c in ' ·' for c in s) or s for s in subs) and all(re.fullmatch(r'\d+m · \d+ MB', s) for s in subs), f'every part line has a running time and a size ({subs})')
     bl, _, _, fills = PCP.paint(m, off)
-    expect(all((O['LIST_HAIR'], BK['BK_PART_X'], i * ROW + ROW - 1, 320 - BK['BK_PART_X'], 1) in fills for i in range(5)) and not [f_ for f_ in fills if f_[0] == O['LIST_PRESS']], 'a hairline from the text, no chevron')
+    expect(all((O['LIST_HAIR'], BK['BK_PART_X'], i * ROW + ROW - 1, O['LIST_HAIR_END'] - BK['BK_PART_X'], 1) in fills for i in range(5)) and not [f_ for f_ in fills if f_[0] == O['LIST_PRESS']], 'a hairline from the text, no chevron')
     reqs.clear()
     BKP.tap(m, 150, H['row'](0) + 20)
     BKP.tap(m, 10, H['y_btn'] + 20)
@@ -904,7 +904,7 @@ def row_tests(ctx):
     y0 = L['row'](0) - L['y_list'] + O['LIST_SUB_Y']
     expect(sub[y0][1][0] == X0 + PX + GAP and sub[y0][1][2] == BK['BK_PART_W'] - PX - GAP and sub[y0 + ROW][1][0] == X0,
            f'the grey line of the ring row starts a ring and a gap right, the others at the text column ({sub[y0][1]})')
-    expect((O['LIST_HAIR'], BK['BK_PART_X'], ROW - 1, 320 - BK['BK_PART_X'], 1) in fills and not [f_ for f_ in fills if f_[0] not in (O['LIST_HAIR'], O['LIST_PRESS'], 0xff000000) and f_[2] == ROW - 1],
+    expect((O['LIST_HAIR'], BK['BK_PART_X'], ROW - 1, O['LIST_HAIR_END'] - BK['BK_PART_X'], 1) in fills and not [f_ for f_ in fills if f_[0] not in (O['LIST_HAIR'], O['LIST_PRESS'], 0xff000000) and f_[2] == ROW - 1],
            'plain rows: the hairline from the text, no other colour')
     step(m, total=70000, got=31500)
     tick(m)

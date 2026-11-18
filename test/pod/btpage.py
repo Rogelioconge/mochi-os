@@ -709,7 +709,7 @@ def dev_asset_tests(ctx):
     expect(all(c.get('sensitive') == 'false' for n in ('bd_row_link', 'bd_row_forget') for c in by[n].children) and by['bd_vol_t'].get('sensitive') == 'false', 'the labels are insensitive: the row takes the tap')
     # the Forget row is the Wi-Fi page's Forget row: the same centred 21 px label in the same ink
     prop = lambda n, w=by: tuple(w[n].get(k) for k in ('style:normal:font_size', 'style:normal:text_color', 'style:normal:text_align_h', 'style:normal:text_align_v')) + geo(w[n])[::2]
-    expect(prop('bd_forget_t') == prop('wi_forget_t', wby) and prop('bd_link_t') == prop('wi_forget_t', wby) and prop('bd_forget_t')[1] == '#FFFFFF' and prop('bd_forget_t')[2] == 'center', f'Connect and Forget This Device are centred in the ink Forget This Network has: {prop("bd_forget_t")} / {prop("wi_forget_t", wby)}')
+    expect(prop('bd_forget_t') == prop('wi_forget_t', wby) and prop('bd_link_t')[:1] + prop('bd_link_t')[2:] == prop('wi_forget_t', wby)[:1] + prop('wi_forget_t', wby)[2:] and prop('bd_forget_t')[1] == '#FF6B6B' and prop('bd_link_t')[1] == '#FFFFFF' and prop('bd_forget_t')[2] == 'center', f'Connect and Forget This Device are centred in the ink Forget This Network has: {prop("bd_forget_t")} / {prop("wi_forget_t", wby)}')
     expect([by[n].get('tr_text') for n in ('bd_link_t', 'bd_forget_t', 'bd_vol_t')] == [pod_i18n.key_for(t) for t in ('Connect', 'Forget This Device', 'Headset Volume')], 'the texts, in every language (tools/pod_i18n.py)')
     # the rows' pieces: one card each; the volume row is not a tap target, so its pressed picture is its normal one
     st = lambda n, k: by[n].get(f'style:{k}:bg_image')

@@ -88,7 +88,7 @@ ACCENT_DISC = ('drop_wifiopen', 'drop_btopen', 'drop_keylockopen', 'drop_eqopen'
 # GLYPH, by name prefix: every row glyph is white art, tinted at decode: every colour becomes the accent, alpha kept. The M1+ Music rows' (the main menu, Shuffle, Extras and Main Menu pages), the Folders list's own
 # (fo_ic_sd, pod_ic_usbmode, fo_ic_file), the track rows' "..." sheet's (rm_ic_*: Play Next, Play After, Add to Playlist, Favorite, Undo Favorite, Get Info; patch/rowmenu.c: a prefix, cheaper through the hook than six exact names) and the Settings cards' (pod_ci_*, tools/mod_icons.py CARD_GLYPHS; the accent swatches pod_sw* are not). The two tiles (a rounded square with its own colour behind the glyph,
 # patch/podcasts.c) are not glyphs. GLYPH_STOCK, by exact name (plain white art, alpha kept): the More sheet's stock row glyphs (Look up album, Look up artist, Add to playlist, Speed, A-B repeat; patch/playmore.c),
-# the Podcasts sheets' (pc_ic_*: all but pc_ic_unsub, already red; pc_ic_trash is Radio's Clear row's too), the Playlists "..." menu's (pl_ic_new, pl_ic_import, pl_ic_export, pl_ic_delete),
+# the Podcasts sheets' (pc_ic_*: all but pc_ic_unsub, already red; pc_ic_trash is the Remove Download row's), the Playlists "..." menu's (pl_ic_new, pl_ic_import, pl_ic_export, pl_ic_delete),
 # the multi-select Add dialog's (batchadd_fav, batchadd_playlist) and the selection checks: the Songs sort card's tick (sg_tick) and the stock Select All navbar button's checked state (mulselected). So every
 # row of those sheets is the accent, the destructive rows' glyphs too (their labels do not change: Delete Song's stays red). Not p_onlinesearch (never shown) and not selected (also the Delete dialog's "also delete the file" checkbox).
 ACCENT_GLYPH = ('pod_ic_', 'fo_ic_', 'pod_ci_', 'rm_ic_', 'pod_sb_download')
@@ -104,7 +104,8 @@ ACCENT_TILE = ('pod_ic_dltile', 'pod_ic_subtile', 'pod_ic_savetile', 'pod_ic_dis
 # GLYPH_STOCK names below: the solid accent. Dark flat pills (Songs / Folders Play and Shuffle) and the Queue's off buttons press through the roles ROLE_PRESS_PILL / ROLE_PRESS_QPILL (colours, not images).
 ACCENT_SHUFDOWN = ('ah_shuffle_down',)
 # pod_ic_rd_art (a muted grey #8E8E93 radio set: secondary art, the logo-less station tile, Radio Now Playing's art box and the mini bar) also keeps the prefix out of the glyph rule: placeholders stay neutral.
-ACCENT_GLYPH_NOT = ACCENT_TILE + ('pod_ic_rd_art', 'pod_ic_ar_art')
+# pod_ic_trash_red (the destructive rows' red trash) stays red like its label and the stock pc_ic_unsub.
+ACCENT_GLYPH_NOT = ACCENT_TILE + ('pod_ic_rd_art', 'pod_ic_ar_art', 'pod_ic_trash_red')
 ACCENT_ALL = ACCENT_FILL + ACCENT_SWITCH + ACCENT_PRESS + ACCENT_DISC + ACCENT_TILE + ACCENT_SHUFDOWN
 
 

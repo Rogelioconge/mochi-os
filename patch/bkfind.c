@@ -729,7 +729,7 @@ static void bf_paint_pre(void *canvas) {
     bf_span(bk.y_list, bf.pn, &r0, &r1);
     for (r = r0; r <= r1; ++r) {
         int y = bk.y_list + r * PC_ROW_H - off;
-        az_fill(canvas, BK_PART_X, y + PC_ROW_H - 1, y + PC_ROW_H, BK_W - BK_PART_X, LIST_HAIR);
+        az_fill(canvas, BK_PART_X, y + PC_ROW_H - 1, y + PC_ROW_H, LIST_HAIR_END - BK_PART_X, LIST_HAIR);
     }
     for (pass = 0; pass < 2; ++pass) { /* the titles, then the grey lines */
         widget_prepare_text_style(pass ? bk.st_sub : bk.st_title, canvas);

@@ -715,7 +715,7 @@ static void bk_paint_lv_row(void *canvas, int off) {
     if (bk.ltile)
         grid_blit_from(canvas, bk.ltile, 0, 0, PA_TILE_PX, PA_TILE_PX, PP_DL_TILE_X, y + PP_DL_TILE_Y, GRID_VIEW_H);
     bk_chevron(canvas, PP_DL_CHEV_X, y + (PC_ROW_H - 1 - POD_CHEV_H) / 2);
-    az_fill(canvas, PP_DL_TEXT_X, y + PC_ROW_H - 1, y + PC_ROW_H, BK_W - PP_DL_TEXT_X, LIST_HAIR);
+    az_fill(canvas, PP_DL_TEXT_X, y + PC_ROW_H - 1, y + PC_ROW_H, LIST_HAIR_END - PP_DL_TEXT_X, LIST_HAIR);
     bk_text_utf8(canvas, bk.st_title, TR("LibriVox"), PP_DL_TEXT_X, y + LIST_TITLE_Y, PP_DL_TEXT_W, LIST_TITLE_H);
     bk_text_utf8(canvas, bk.st_sub, TR("Public domain audiobooks"), PP_DL_TEXT_X, y + LIST_SUB_Y, PP_DL_TEXT_W,
                  LIST_SUB_H);
@@ -821,7 +821,7 @@ static void bk_paint_book(void *canvas) {
     for (r = r0; r <= r1; ++r) {
         int y = bk.y_list + r * PC_ROW_H - off;
         if (bk.press == r + 1) az_fill(canvas, 0, y, y + PC_ROW_H - 1, BK_W, LIST_PRESS);
-        az_fill(canvas, BK_PART_X, y + PC_ROW_H - 1, y + PC_ROW_H, BK_W - BK_PART_X, LIST_HAIR);
+        az_fill(canvas, BK_PART_X, y + PC_ROW_H - 1, y + PC_ROW_H, LIST_HAIR_END - BK_PART_X, LIST_HAIR);
     }
     for (pass = 0; pass < 3; ++pass) { /* titles of the parts to play, titles of played parts, grey lines */
         widget_prepare_text_style(pass == 0 ? bk.st_title : pass == 1 ? bk.st[BS_DIM] : bk.st_sub, canvas);

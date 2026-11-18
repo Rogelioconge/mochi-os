@@ -1672,7 +1672,7 @@ static void pg_paint_home(void *canvas) {
                               : pg_dltile(),
                      0, 0, PA_TILE_PX, PA_TILE_PX, PP_DL_TILE_X, y + PP_DL_TILE_Y);
         pg_chev(canvas, PP_DL_CHEV_X, y + (PC_ROW_H - 1 - POD_CHEV_H) / 2);
-        az_fill(canvas, PP_DL_TEXT_X, y + PC_ROW_H - 1, y + PC_ROW_H, PG_W - PP_DL_TEXT_X, LIST_HAIR);
+        az_fill(canvas, PP_DL_TEXT_X, y + PC_ROW_H - 1, y + PC_ROW_H, LIST_HAIR_END - PP_DL_TEXT_X, LIST_HAIR);
     }
     if (pg.y_all && pg.press == 5 && !pg.select)
         az_fill(canvas, 0, pg.y_all - off, pg.y_all - off + PS_MORE_H, PG_W, 0x30ffffffu);

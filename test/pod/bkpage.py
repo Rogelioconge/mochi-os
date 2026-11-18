@@ -207,7 +207,7 @@ def open_tests(ctx):
     expect(sorted(got) == sorted([('LibriVox', (O['PP_DL_TEXT_X'], y + O['LIST_TITLE_Y'], O['PP_DL_TEXT_W'], O['LIST_TITLE_H']), 'label_row_title'),
                                   ('Public domain audiobooks', (O['PP_DL_TEXT_X'], y + O['LIST_SUB_Y'], O['PP_DL_TEXT_W'], O['LIST_SUB_H']), 'label_row_sub')])
            and tile == [(O['PP_DL_TILE_X'], y + O['PP_DL_TILE_Y'], O['PA_TILE_PX'], O['PA_TILE_PX'])]
-           and (O['LIST_HAIR'], O['PP_DL_TEXT_X'], y + ROW - 1, 320 - O['PP_DL_TEXT_X'], 1) in fills
+           and (O['LIST_HAIR'], O['PP_DL_TEXT_X'], y + ROW - 1, O['LIST_HAIR_END'] - O['PP_DL_TEXT_X'], 1) in fills
            and [tuple(b[2]) for b in bl if tuple(b[2][2:]) == (mod_icons.POD_CHEV_W, mod_icons.POD_CHEV_H)][-1][:2] == (O['PP_DL_CHEV_X'], y + (ROW - 1 - mod_icons.POD_CHEV_H) // 2),
            f'the LibriVox row is under the books, in the Discover row\'s place: the same tile, text x, title LibriVox, grey line "Public domain audiobooks", chevron and hairline ({got}, {tile})')
     # the covers: one a tick, only Alpha has a picture

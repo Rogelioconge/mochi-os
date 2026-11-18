@@ -40,7 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import statusbar, pod_i18n, awtk_strings
 from modlib import clone_workdir, edit_ui
 from awtk_text import Ttf, awtk_width
-from pod_roles import SURFACE_RGB
+from pod_roles import SURFACE_RGB, SUB_RGB
 
 RAW = 'rootfs/release/assets/default/raw'
 DIALOG = 'ui/dialog/dropdown_dialog.bin'
@@ -49,7 +49,7 @@ STATES = ('normal', 'disable', 'focused')
 # old -> new inline font sizes: every caption 16 px (stock 18, disabled and focused 16; main's pull-down uses 16 / 14)
 CAPTION_PX = 16
 TILE = {18: CAPTION_PX, 16: CAPTION_PX}
-CAPTION_RGB, CAPTION_DIS_RGB = '#B0B0B0', '#555555'     # secondary text; a disabled tile's caption
+CAPTION_RGB, CAPTION_DIS_RGB = SUB_RGB, '#555555'     # secondary text; a disabled tile's caption
 PANEL_RGB, PANEL_ALPHA = '#000000', 0.92                # the dialog's background: black at this opacity (stock #141414); the cards and discs are opaque
 PANEL_BG = f'{PANEL_RGB}{round(255 * PANEL_ALPHA):02X}'
 CARD_X = 10                                             # the brightness card's x

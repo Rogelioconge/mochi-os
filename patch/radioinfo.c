@@ -20,7 +20,7 @@
 #define SINFO_X 16 /* the text's left edge and width */
 #define SINFO_W 288
 #define SINFO_TOP 12
-#define SINFO_HEAD_PITCH 34 /* the heading (28 px), at most three lines */
+#define SINFO_HEAD_PITCH 26 /* the heading (22 px), at most three lines */
 #define SINFO_HEAD_LINES 3
 #define SINFO_HEAD_GAP 18
 #define SINFO_KEY_PITCH 20 /* a pair's label (14 px) */

@@ -6,6 +6,7 @@ HINT_RGB = SUB_RGB            # a page's empty-state hint (label_status): one li
 RED_RGB = '#FF6B6B'           # the one red: a destructive row's label and glyph
 PLACEHOLDER_RGB = '#8E8E93'   # a field's placeholder and its unit
 CHEV_RGB = '#8A8A8A'          # the list chevron's grey
+DIM_RGB = '#7A7A7A'           # a row that cannot be chosen (a source's rows that cannot play, a covered Update Library row): the lowest grey that keeps 4.5:1 on black
 THUMB_RGB = '#2B2B2B'         # a thumbnail's placeholder grey
 RAISED_RGB = '#2C2C2E'        # a raised dark surface: a pressed row, an off mode button, a rule, an input well
 SURFACE_RGB = '#1C1C1E'       # the one near-black rest fill: Settings cards, the cache pill, keyboard and search fields, flat pills, a dialog button, the Library tiles' square, the dark ink on a light pill

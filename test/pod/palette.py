@@ -668,8 +668,8 @@ def accent_image_tests(ctx):
     expect(len(GLYPHS) >= 60 and sum(g.startswith('pod_ci_') for g in GLYPHS) >= 30, f'{len(GLYPHS)} pod_ic_/fo_ic_/pod_ci_ glyph images in the tree ({sum(g.startswith("pod_ci_") for g in GLYPHS)} Settings card glyphs)')
     expect(not [g for g in GLYPHS if g.startswith('pod_sw')] and all(L.accent_kind(f'pod_sw{k}') is None for k in range(7)), 'the accent swatches pod_sw* are not glyphs (never tinted)')
     expect({'fo_ic_sd', 'pod_ic_usbmode', 'fo_ic_file'} <= set(GLYPHS), 'the Folders list\'s own glyphs are in the tinted set')
-    expect(all(g in GLYPHS and os.path.exists(os.path.join(d, g + '.png')) for g in L.ACCENT_GLYPH_STOCK) and not {'pc_ic_unsub', 'selected'} & set(GLYPHS) and {'pc_ic_trash', 'pl_ic_delete', 'p_delete'} <= set(GLYPHS),
-           'every stock glyph named for the accent is an image of the tree and in the tinted set, the delete rows\' glyphs too; the red unsubscribe glyph and the stock selected check are not')
+    expect(all(g in GLYPHS and os.path.exists(os.path.join(d, g + '.png')) for g in L.ACCENT_GLYPH_STOCK) and not {'pc_ic_unsub', 'pod_ic_trash_red', 'selected'} & set(GLYPHS) and {'pc_ic_trash', 'pl_ic_delete', 'p_delete'} <= set(GLYPHS),
+           'every stock glyph named for the accent is an image of the tree and in the tinted set, the delete rows\' glyphs too; the red unsubscribe and trash glyphs and the stock selected check are not')
     bad, n, costs = tint_check(d, L.ACCENT_ALL + GLYPHS, None, 'black')
     expect(not bad, f'{n} tinted images (every accent) through the C match tools/palette.py pixel for pixel ({bad[:4]})')
     worst = max(costs, key=costs.get)
@@ -1080,6 +1080,7 @@ def rest_glyph_tests(ctx):
     expect(all(LM(acc=b'%d\n' % i).image(nm, 8, 8, glyph) == [L.accent_pixel('glyph', p, ac) for p in glyph] for i, ac in enumerate(L.ACCENTS[1:], 1) for nm in ('fo_ic_sd', 'pod_ic_usbmode', 'fo_ic_file')), 'each accent: the Folders glyphs are the accent')
     m = LM(acc=b'1\n')
     expect(L.accent_kind('pod_ic_rd_art') is None and all(LM(acc=b'%d\n' % i).image('pod_ic_rd_art', 8, 8, glyph) == glyph for i in range(1, 7)), 'the Radio placeholder art pod_ic_rd_art stays neutral under every accent')
+    expect(L.accent_kind('pod_ic_trash_red') is None and all(LM(acc=b'%d\n' % i).image('pod_ic_trash_red', 8, 8, glyph) == glyph for i in range(1, 7)), 'the destructive rows\' red trash pod_ic_trash_red stays red under every accent')
     expect(all(m.image(nm, 8, 8, glyph) == glyph for nm in ('pod_sw0', 'pod_sw3', 'pod_chev')), 'the swatches and the chevron stay as they are at rest')
     # the Library tiles: the #1C1C1E square stays exactly, white is the accent, the antialiased glyph edge and the square's alpha edge blend
     tp = [(28, 28, 30, 255), (255, 255, 255, 255), (142, 142, 142, 255), (28, 28, 30, 90), (28, 28, 30, 0), (255, 255, 255, 128), (29, 29, 31, 255), (200, 200, 200, 255)]

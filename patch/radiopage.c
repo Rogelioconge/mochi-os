@@ -47,14 +47,14 @@
 #define RP_TEXT_X 56 /* root rows: after the glyph */
 #define RP_LIST_X 16 /* a genre's rows: no glyph */
 #define RP_TEXT_END 296
-#define RP_CHEV_X 289
+#define RP_CHEV_X LIST_CHEV_X
 #define RP_AZ_TEXT_X 24 /* the countries: the Genres page's numbers (patch/artists.c AR_*) */
 #define RP_AZ_TEXT_END (LIST_TEXT_X + LIST_TEXT_W_CHEV) /* the list-row spec, less az_inset while the rail is shown */
 #define RP_AZ_CHEV_X LIST_CHEV_X
 #define RP_AZ_TEXT_Y ((RP_ROW_ROOT - LIST_TITLE_H) / 2)
 #define RP_GLYPH 96 /* the radio glyph of a logo-less tile (pod_ic_rd_art) */
 #define RP_INK 147 /* its ink's brightest channel (#8E8E93 is 0x93) */
-#define RP_CARD 0x2e2c2cu /* #2C2C2E as a pixel word (R in the low byte): the card of a station without a logo */
+#define RP_CARD 0x2b2b2bu /* THUMB_RGB #2B2B2B, the placeholder grey: the card of a station without a logo */
 #define RP_AHEAD 2 /* the list mode loads two rows beyond the view in the scroll direction (the Albums list's) */
 #define RP_WAIT_LOGO 32 /* 250 ms ticks a directory fetch waits for our own logo job to end (about 8 s) */
 #define RP_WAIT_POD 80 /* and for a podcast job (about 20 s) */

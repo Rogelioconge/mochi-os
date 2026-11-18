@@ -183,7 +183,7 @@ def page_tests(ctx):
     fon = Ttf(os.path.join(WORK, 'rootfs/release/assets/default/raw/fonts/lyrics.ttf'))
     worst = max(awtk_width(fon, f'{a}.{a}.{a}.{a}:8888', 22) for a in ('255', '888', '192', '100'))
     expect(worst + 2 * 12 <= lab.w - 4, f'the worst case address (255.255.255.255:8888) is {worst} px in the bold 22 px face: one line with 12 px side padding in the 300 px card')
-    expect(foot.children[0].get('style:normal:font_size') == '13' and foot.children[0].get('style:normal:text_align_h') == 'center' and foot.children[0].get('tr_text') == P.WT_NOTE and foot.children[0].type == 'label', 'the footer: a wrapping label, 13 px grey, centred')
+    expect(foot.children[0].get('style:normal:font_size') == '15' and foot.children[0].get('style:normal:text_align_h') == 'center' and foot.children[0].get('tr_text') == P.WT_NOTE and foot.children[0].type == 'label', 'the footer: a wrapping label, 15 px grey (the note size), centred')
     expect(ST.layout(P.WIFITRANSFER_PAGE.layout)[1] <= 400, f'the page does not scroll ({ST.layout(P.WIFITRANSFER_PAGE.layout)[1]} px of 400)')
 
 
