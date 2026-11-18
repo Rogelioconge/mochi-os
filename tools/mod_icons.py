@@ -350,8 +350,8 @@ NAV_K, DIALOG_K, MARK_K, GLYPH_SW = 20 / 22, 0.88, 0.88, 2.0
 SMALL_GLYPHS = {'add', 'cancel', 'delete', 'mulselect', 'songsort', 'tidal_sort', 'search', 'return', 'right_arrow',
                 'list_more', 'p_more', 'dac_set', 'rippersystem', 'expansion', 'expansion_2', 'albumsinger', 'songsinger',
                 'p_random', 'p_cycle', 'p_cycle1', 'p_order'}
-DIALOG_GLYPHS = {'rename', 'bt_del', 'bt_scan', 'datetime', 'wifi_add', 'kb_visible', 'kb_invisible', 'p_abrepeat', 'p_add',
-                 'p_delete', 'p_multiple', 'p_onlinesearch', 'player_albuminfo', 'player_songerinfo', 'batchadd_fav', 'batchadd_playlist'}
+DIALOG_GLYPHS = {'rename', 'bt_del', 'bt_scan', 'datetime', 'wifi_add', 'kb_visible', 'kb_invisible', 'batchadd_fav', 'batchadd_playlist'}
+SHEET_GLYPHS = {'p_abrepeat', 'p_add', 'p_delete', 'p_multiple', 'p_onlinesearch', 'player_albuminfo', 'player_songerinfo'}   # Now Playing's More sheet's stock rows: the bare 24 px glyph of the sheet's own rows (bare_icon), centred in the stock 28 px canvas
 MARK_GLYPHS = {'mulselected', 'selected', 'screensaver_selected', 'unselect', 'screensaver_unselect', 'cdselected', 'selecting'}
 CHEVRONS = {'right_arrow', 'expansion', 'expansion_2'}      # the grey list chevrons (CHEVRON, pressed CHEVRON_DOWN)
 # 40 x 40 images (Folders rows, Playlists page, the CD ripper's track dialog): bare glyphs, as the settings icons
@@ -860,6 +860,7 @@ def generate_all(sizes):
         def make(size, rgb, n=n, g=g):
             if n in SMALL_GLYPHS: return glyph_box(g, size, NAV_K, rgb)
             if n in DIALOG_GLYPHS: return glyph_box(g, size, DIALOG_K, rgb)
+            if n in SHEET_GLYPHS: return tint(bare_icon(g, size[0]), rgb) if rgb != WHITE else bare_icon(g, size[0])
             if n in MARK_GLYPHS: return glyph_mark(g, size, MARK_K, rgb)
             return glyph_fit(g, *size, rgb, 6 if min(size) >= 48 else 1)
         if n == 'right_arrow':      # the shared list chevron, its right edge on the stock canvas' (a 13 x 22 button at x 285 lands the glyph at 288..298)
