@@ -98,7 +98,7 @@ def select_tests(ctx):
     m.calls = []
     start_select(m)
     t, back = m.widgets['label_title'], m.widgets['btn_return']
-    expect(('widget_set_text_utf8', t, '0 Selected') in m.calls and ('widget_resize', t, O['SG_SELALL_X'] - O['NAV_TITLE_X'], 22) in m.calls and flags(m, 'pg_sh_card') == (0, 0), 'Select Episodes: the sheet closes, the title reads 0 Selected and runs to Select All')
+    expect(('widget_set_text_utf8', t, 'Select Items') in m.calls and ('widget_resize', t, O['SG_SELALL_X'] - O['NAV_TITLE_X'], 22) in m.calls and flags(m, 'pg_sh_card') == (0, 0), 'Select Episodes: the sheet closes, the title reads 0 Selected and runs to Select All')
     expect(flags(m, 'btn_selall') == (1, 1) and flags(m, 'pg_bar') == (1, 1) and flags(m, 'btn_more') == (0, 0) and flags(m, 'btn_backtoplayer') == (0, 0),
            'Select All and the bar show; the "..." and Now Playing go (hidden and insensitive)')
     expect(m.props.get((t, 'visible')) == 1, 'the title shows (in select mode it is "N Selected", not the collapsing show title)')
@@ -124,13 +124,13 @@ def select_tests(ctx):
     expect(len({b for _, b in all_marks(m).values()}) == 2, 'the marked cell has the selected image')
     m.calls = []
     PCP.act(m, 0)   # the pill: in select mode the whole cell is its body
-    expect(m.ring() is None and ('widget_set_text_utf8', t, '0 Selected') in m.calls, 'a tap on the pill unmarks (in select mode it does not play, and nothing is toggled played)')
+    expect(m.ring() is None and ('widget_set_text_utf8', t, 'Select Items') in m.calls, 'a tap on the pill unmarks (in select mode it does not play, and nothing is toggled played)')
     m.calls = []
     PCP.click(m, 'btn_selall')
     expect(('widget_set_text_utf8', t, '3 Selected') in m.calls, 'Select All marks the three that can be marked')
     m.calls = []
     PCP.click(m, 'btn_selall')
-    expect(('widget_set_text_utf8', t, '0 Selected') in m.calls, 'Select All again: none')
+    expect(('widget_set_text_utf8', t, 'Select Items') in m.calls, 'Select All again: none')
     m.calls = []
     PCP.body(m, 0, move=40)
     expect(not [c_ for c_ in m.calls if c_[0] == 'widget_set_text_utf8' and c_[1] == t], 'a drag marks nothing')

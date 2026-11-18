@@ -144,7 +144,9 @@ reverses it.
   ends the mode.
 - Marks are a bitset by record on folders and audio files (not storages, not `.m3u8` files). A tap
   on a folder row toggles its mark instead of entering. Marks drop when the level is reloaded.
-  "N Selected", Select All, the Songs page's bar.
+  The chrome (title "Select Items" / "N Selected", Select All / Deselect All, the bar with its
+  pills dead until a mark, the faint fill of a marked row) is [selmode](selmode.md); the page's
+  `fo_can` says which records can be marked (folders and audio files shown, not dot names).
 - **Delete** follows the stock handler: a kind 1 confirm with `msg_delfile`, or, when any marked
   record is a folder (stock removes it with `rm -rf`), "Delete folder and everything in it?"; the
   m3u check; `batch_delete_file(1, list, vector, 0, 1)` on the stock vector filled by

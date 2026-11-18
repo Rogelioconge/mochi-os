@@ -26,6 +26,7 @@
  *             page: marks, a bar with the Delete pill, the stock delete handler's sequence on the stock selection vector; the stock Playlists page only where the page
  *             cannot), then Grid / List, then Name. No hook.
  */
+#include "selmode.h"
 #include "offsets.inc"
 #include "stock.h"
 #include "home.h"
@@ -78,9 +79,7 @@ static struct {
     void *win, *view, *sv, *status, *btn_more;
     void *title, *back, *np, *btn_selall, *bar,
         *del; /* the navbar's title, Back and Now Playing; the select mode's Select All text, bar and Delete pill (the last three optional: no select mode without them) */
-    void *mark[2]; /* the select marks (unselect, selected): bitmaps */
-    unsigned char *sel; /* the select mode's bitset: (count + 7) / 8 bytes */
-    unsigned nsel;
+    m1_sel_t sel; /* the select mode's marks and chrome (patch/selmode.c); pill: pl.del */
     int select; /* select mode (Delete Playlists in the menu) */
     void *st_ltitle, *st_lsub; /* the hidden labels whose styles are the list mode's two text styles */
     int list; /* 1 list mode, 0 grid */
@@ -275,12 +274,10 @@ static tile_t *pl_tile_of(void *ctx, int a) {
 /* ---------------------------------------------------------------------------
  * Paint (the cell paint is the grid's)
  */
-static int pl_is_sel(int i) { return pl.sel && (pl.sel[i >> 3] >> (i & 7) & 1); }
-
 /* The select mark of playlist a: the list's rows have a column left of the cover (the cover and the texts move right by SG_SEL_COL, as the Songs page's); a grid cell
  * has it at the bottom right of its cover (SG_MARK px, 6 px in). Drawn only when wholly inside the window. */
 static void pl_mark(void *canvas, int a, int x, int y) {
-    grid_mark_draw(canvas, pl.mark[pl_is_sel(a)], x, y, GRID_VIEW_H);
+    grid_mark_draw(canvas, pl.sel.mark[m1_sel_is(&pl.sel, a)], x, y, GRID_VIEW_H);
 }
 
 /* The picker's New playlist row: a dark rounded square over the placeholder disc and a plus (two 2 px bars, as Lucide's plus at this size) in the art box. Only when
@@ -363,18 +360,18 @@ static int pl_on_paint(void *ctx, void *e) {
         off; /* the window's top is 0: the rows are placed by co (their offset from the first row) */
     pl_span(&r0, &r1);
     if (r1 >= r0 && pl.list) {
+        for (a = r0; pl.select && a <= r1; ++a) /* (the fill and the mark, under the cover and text) */
+            m1_sel_paint(&pl.sel, canvas, a, a * LIST_ROW_H - co, LIST_ROW_H, 320,
+                         LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2, GRID_VIEW_H);
         grid_list_paint(canvas, &pl.g, pl.st_ltitle, pl.st_lsub, r0, r1, co, GRID_VIEW_H, pl.select ? 0 : pl.press,
                         pl.select ? SG_SEL_COL : 0, !pl.select && !pl_v(), pl_tile_of, (void *)0);
         if (pl_v() && r0 == 0) pl_plus(canvas, LIST_ART_Y - co);
         if (pl_v() && r0 <= 1 && r1 >= 1) pl_star(canvas, LIST_ROW_H + LIST_ART_Y - co);
-        for (a = r0; pl.select && pl.mark[0] && a <= r1; ++a)
-            pl_mark(canvas, a, LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2,
-                    a * LIST_ROW_H - co + (LIST_ROW_H - SG_MARK) / 2);
     } else if (r1 >= r0) {
         last = (r1 + 1) * GRID_COLS;
         if (last > (int)pl.count) last = (int)pl.count;
         grid_paint(canvas, &pl.g, r0 * GRID_COLS, last, GRID_ROW_GAP - co, GRID_VIEW_H, pl_tile_of, (void *)0);
-        for (a = r0 * GRID_COLS; pl.select && pl.mark[0] && a < last; ++a)
+        for (a = r0 * GRID_COLS; pl.select && pl.sel.mark[0] && a < last; ++a)
             pl_mark(canvas, a, grid_cell_x(a) + GRID_COVER - SG_MARK - 6,
                     grid_cell_y(a, GRID_ROW_GAP - co) + GRID_COVER - SG_MARK - 6);
     }
@@ -700,8 +697,7 @@ static void pl_load(void) {
      * tile composed again, by the loader. Complete scans (every album had its file or none) stay: no query, no decode. */
     for (oldn = 0; keep && oldn < pl.count; ++oldn)
         if (pl.info[oldn].scanned == PL_SCAN_MISS) pl.info[oldn].scanned = 0;
-    free(pl.sel);
-    pl.sel = (unsigned char *)0, pl.nsel = 0;
+    m1_sel_reset(&pl.sel, 0);
     if (!keep) {
         pl.ord = (unsigned *)0; /* (pl_sort frees the order it is given: the old one is kept here for pl_carry) */
         pl_sort();
@@ -721,8 +717,7 @@ static void pl_load(void) {
     if (old) deque_destroy(old);
     pl.have_sig = have;
     memcpy(pl.sig, sig, sizeof pl.sig);
-    pl.sel = pl.count ? calloc((pl.count + 7) / 8, 1)
-                      : (unsigned char *)0; /* none: no select mode (the menu's Delete opens the stock page) */
+    m1_sel_reset(&pl.sel, pl.count); /* none: no select mode (the menu's Delete opens the stock page) */
     {
         int st = pl.src && !pl.count && pl.src->state ? pl.src->state(pl.src, LS_PLAYLISTS, (void *)0) : LS_ST_READY;
         m1_show(pl.view,
@@ -850,20 +845,18 @@ static void pl_open(int i) {
  * stock selection vector, which the page fills from its own marks at that moment.
  */
 static void pl_head(void) { /* the navbar's title: "N Selected" in select mode, else Playlists */
-    char buf[64];
     if (!pl.title) return;
     if (!pl.select) {
         widget_set_tr_text(pl.title, pl_v() ? "Add to Playlist" : "Playlists");
         return;
     }
-    m1_fmt(buf, sizeof buf, TR("%d Selected"), (int)pl.nsel);
-    widget_set_text_utf8(pl.title, buf);
+    m1_sel_head(&pl.sel);
 }
 
 /* The select mode is there when the asset has its widgets, the marks decoded and the selection bitset exists. */
 static int pl_select_ok(void) {
     if (pl.src) return 0;
-    return pl.btn_selall && pl.bar && pl.del && pl.mark[0] && pl.mark[1] && pl.sel && pl.count;
+    return pl.btn_selall && pl.bar && pl.del && pl.sel.mark[0] && pl.sel.mark[1] && pl.sel.bits && pl.count;
 }
 
 static void pl_select(int on) {
@@ -871,18 +864,11 @@ static void pl_select(int on) {
     void *nav[3];
     if (on == pl.select) return;
     pl.select = on;
-    pl.nsel = 0;
-    if (pl.sel) memset(pl.sel, 0, (pl.count + 7) / 8);
     pl.press = pl.down = 0;
     nav[0] = pl.btn_more, nav[1] = pl.np;
     for (i = 0; i < 2; ++i) m1_show(nav[i], !on);
     m1_show(pl.btn_plactions, !on);
-    m1_show(pl.btn_selall, on);
-    m1_show(pl.bar, on);
-    if (pl.title) grid_title_end(pl.title, on ? SG_SELALL_X : NAV_CF_X);
-    if (pl.back) {
-        grid_icons(pl.back, on ? "ah_nav_close" : "ah_nav_back", on ? "ah_nav_close_down" : "ah_nav_back_down");
-    }
+    m1_sel_enter(&pl.sel, on, NAV_CF_X);
     pl_head();
     pl_retext();
     pl_size();
@@ -893,9 +879,7 @@ static void pl_select(int on) {
 }
 
 static void pl_toggle(int i) {
-    if (i < 0 || i >= (int)pl.count || !pl.sel) return;
-    pl.sel[i >> 3] ^= (unsigned char)(1 << (i & 7));
-    pl.nsel += pl_is_sel(i) ? 1 : (unsigned)-1;
+    if (!m1_sel_toggle(&pl.sel, i)) return;
     pl_head();
     pl_redraw();
 }
@@ -903,8 +887,8 @@ static void pl_toggle(int i) {
 static int pl_on_selall(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (!pl.select || !pl.sel) return RET_OK;
-    pl.nsel = m1_sel_all(pl.sel, pl.count, pl.nsel);
+    if (!pl.select || !pl.sel.bits) return RET_OK;
+    m1_sel_toggle_all(&pl.sel);
     pl_head();
     pl_redraw();
     return RET_OK;
@@ -1061,7 +1045,7 @@ static int pl_stock_selection(void) {
             return 0; /* (stock positions: the page may show them in the name order) */
     select_recordinit((int)n);
     for (i = 0; i < pl.count && i < n; ++i)
-        if (pl_is_sel((int)i))
+        if (m1_sel_is(&pl.sel, (int)i))
             set_selectindex((int)pl_slot(i)); /* the mark of a displayed row is of its stock playlist */
     return 1;
 }
@@ -1073,7 +1057,7 @@ static int pl_on_delete(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!pl.select) return RET_OK;
-    if (!pl.nsel) {
+    if (!pl.sel.nsel) {
         pl_toast(TR("msg_delplaylistfailed"));
         return RET_OK;
     }
@@ -1245,10 +1229,8 @@ static int pl_on_destroy(void *ctx, void *e) {
     if (pl.albums) deque_destroy(pl.albums);
     free(pl.info);
     free(pl.ord);
-    free(pl.sel);
+    m1_sel_free(&pl.sel);
     free(pl.tmp);
-    if (pl.mark[0]) bitmap_destroy(pl.mark[0]);
-    if (pl.mark[1]) bitmap_destroy(pl.mark[1]);
     memset(&pl, 0, sizeof pl);
     m1_timer_stop(&pick.timer);
     if (pick.star) bitmap_destroy(pick.star);
@@ -1321,7 +1303,8 @@ static int pl_open_page(const lib_src_t *src) {
         pl.g.st_title = st_title, pl.g.st_sub = st_sub;
         if (pl.src) pl.g.url = sbs_cover_url; /* (a source's mosaic keys are its cover files' hashes) */
     }
-    m1_make_marks(pl.win, pl.mark); /* all or none (no marks: no select mode) */
+    m1_sel_init(&pl.sel, pl.win, pl.back, pl.title, pl.btn_selall, pl.bar, pl.del, (void *)0, (void *)0,
+                (void *)0); /* the marks: all or none (no marks: no select mode) */
     if (pl_v() && !pick.star) pick.star = pl_make_star();
     pl.list = pl_v() || !pl_use_grid(); /* the picker is always the list (the saved choice is the page's own) */
     pl_shape(pl.list);

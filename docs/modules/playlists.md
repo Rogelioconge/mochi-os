@@ -75,7 +75,10 @@ Name is the one sort row; a tap on the ticked row reverses it (A-Z / Z-A).
 
 ### Select mode
 
-Started by the card's Delete Playlists, in the Songs page's manner ([songs](songs.md) "Select").
+Started by the card's Delete Playlists, on the shared select module ([selmode](selmode.md): `pl.sel`,
+`m1_sel_*`; "Select Items" at 0 marked, "Deselect All", the pill dim at 0). List rows get the faint
+fill and the mark through `m1_sel_paint`; grid cells keep the page's own mark (`pl_mark`, bottom
+right of the cover) and no fill.
 It exists for deleting (stock's multi-select only exports and deletes; export stays the menu row).
 
 - Back becomes the glass x, the title reads "N Selected", Select All is at the right, "..." and

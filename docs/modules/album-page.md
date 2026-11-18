@@ -30,7 +30,7 @@ list so an enclosing view cannot intercept the whole navigation band.
 
 | Element | Geometry / appearance |
 |---|---|
-| Navigation | Back; the capsule Select 168 / "..." 214 / Now Playing 260 (46 / 46 / 60 px, the Albums page's); selection mode hides the "..." and adds All/None, Add, Delete, Cancel. The "..." (`btn_pin`, library pages only, an album with a title) opens the pins' three-row sheet: **Play** and **Shuffle** (the Play pill's and Shuffle disc's work, `ab_play_at`) and **Pin Album** / **Unpin Album** ([pins](pins.md)); the sheet is the track menu's own card reworded (`rowmenu_open_pins`: rows past the third hidden, `pc_sheet3`; the next track menu puts the words and rows back). An album without a title ("Unknown Album") has no "...": Select moves to 214 as before. A source's page keeps its capsule: its own "..." (Download Album) at 214, no Select |
+| Navigation | Back; the capsule Select 168 / "..." 214 / Now Playing 260 (46 / 46 / 60 px, the Albums page's); selection mode hides the capsule, turns Back into the close x and adds the title and Select All (the shared [select mode](selmode.md)). The "..." (`btn_pin`, library pages only, an album with a title) opens the pins' three-row sheet: **Play** and **Shuffle** (the Play pill's and Shuffle disc's work, `ab_play_at`) and **Pin Album** / **Unpin Album** ([pins](pins.md)); the sheet is the track menu's own card reworded (`rowmenu_open_pins`: rows past the third hidden, `pc_sheet3`; the next track menu puts the words and rows back). An album without a title ("Unknown Album") has no "...": Select moves to 214 as before. A source's page keeps its capsule: its own "..." (Download Album) at 214, no Select |
 | Cover | 160 × 160 at (80, 50), 10 px corners |
 | Album | Centered 22 px white at y 224 |
 | Artist | Centered 18 px grey at y 247 |
@@ -68,7 +68,7 @@ that one). `.iso` images are never opened, as stock never reads their properties
   title's, so it does not depend on the track count). `ab_foot` is a label of the content view (it scrolls with the rows),
   insensitive, 15 px `#AAAAAA`, left-aligned, 20 px high, `AB_FOOT_GAP` 14 px under the last row, `AB_FOOT_R` from the right
   edge. It shows only when the duration is known; otherwise it is hidden and no band is kept. It is not a row (`ab_at`), so
-  select mode, All and None never count it, and it takes no touch or press fill. The content (`virtual_h`, `ab_max_scroll`)
+  select mode and Select All never count it, and it takes no touch or press fill. The content (`virtual_h`, `ab_max_scroll`)
   is 52 px longer (`AB_FOOT_GAP + AB_FOOT_TEXT_H + AB_FOOT_PAD` = 14 + 20 + 18) while it shows, so the last row is never
   hidden; when the measurement finishes the content grows at the bottom and the scroll offset does not change. The header
   line is unchanged: the stock song table keeps only a year, which the header already shows.
@@ -113,7 +113,14 @@ and changes no play mode.
 Play sets an in-order mode: Shuffle and Repeat one become List play; List play and
 Repeat all are retained. Shuffle chooses a random starting track and sets the stock
 Shuffle mode for this album queue. Mode changes use the stock notification/config path.
-Selection shares Add/Delete operations with [Songs](songs.md).
+Selection shares Add/Delete operations with [Songs](songs.md) and the chrome with every list page ([selmode](selmode.md)): Back
+is the glass close x (`ab_on_back` leaves the mode), the title reads "Select Items" / "N Selected" from `NAV_TITLE_X`, Select All /
+Deselect All is the text at the right, and the marked rows have the faint fill. The bottom bar (`sg_bar`, `SG_BAR_H` 64 px at the
+window's foot; Add to Playlist and Delete as `sg_add` / `sg_del`, dim until a track is marked) is in the page's tone: `ab_bar_colors`
+sets its fill to the cover tone at 3/4 brightness (`ab_sel_base`) and the pills to that colour with white at alpha 0x1E (0x30
+pressed) as opaque fills (a translucent round fill renders square on the device); `ab_paint_fade` paints `AB_SEL_FADE` (24) one-pixel
+rows above it, the same colour with alpha rising to the bar, over the rows' text. The content is `SG_BAR_H` longer while the mode
+is on, so the last track clears the bar. Device-unverified: the bar colour and the fade over the tinted gradient.
 
 `pod_open_player` follows the stock row handler's navigation sequence. With
 `songerinfoflag` (`0xa04737`) set, it removes windows above an existing

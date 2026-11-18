@@ -88,8 +88,11 @@ the widest label in each language.
 
 ### Select
 
-The card's Select row: the navbar becomes the glass x (cancel), "N Selected" from x 58 and the text
-button Select All (all, or none when all are marked). Each row gets a 26 px mark in a 30 px column
+The chrome, marks and bar are the shared module [selmode](selmode.md); this page keeps its own
+nav buttons, sizes, rail and actions. The card's Select row: the navbar becomes the glass x
+(cancel), "Select Items" from x 58 ("N Selected" once a row is marked) and the text button Select
+All (all, or none when all are marked; it reads Deselect All while every row is marked). The bar's
+pills are dim and dead until a row is marked, and a marked row has a faint white fill. Each row gets a 26 px mark in a 30 px column
 left of the cover (cover and text move right by 30, text width 192); the pills dim. A 64 px bottom
 bar holds two flat 145 px pills, **Add to Playlist** (`list-plus`) and **Delete** (`trash`, glyph
 `#FF6B6B`). The rail stays, centred on the 336 px the bar leaves; the content is 64 px longer. A tap

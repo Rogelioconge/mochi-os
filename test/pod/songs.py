@@ -1104,8 +1104,8 @@ def collapse_and_select_tests(ctx):
            'the Select row of the card enters select mode: the "..." and Now Playing hide, Select All and the bar show')
     back = m.widgets['btn_return']
     expect(m.props[(back, 'style:normal:icon')] == 'ah_nav_close' and m.props[(back, 'style:pressed:icon')] == 'ah_nav_close_down', 'Back becomes the x (cancel), a glass disc like it')
-    expect(m.wtext[m.widgets['label_title']] == '0 Selected' and ('widget_set_visible', m.widgets['label_title'], 1) in m.calls
-           and ('widget_resize', m.widgets['label_title'], 150, 22) in m.calls, 'the title reads "0 Selected", from x 58 to Select All')
+    expect(m.wtext[m.widgets['label_title']] == 'Select Items' and ('widget_set_visible', m.widgets['label_title'], 1) in m.calls
+           and ('widget_resize', m.widgets['label_title'], 150, 22) in m.calls, 'the title reads "Select Items", from x 58 to Select All')
     expect(('widget_set_sensitive', m.widgets['btn_play'], 0) in m.calls and ('widget_set_sensitive', m.widgets['btn_shuffle'], 0) in m.calls
            and vis(m, 'btn_play')[0] == 1 and vis(m, 'btn_shuffle')[0] == 1 and vis(m, 'hd_play') == (0, 0) and vis(m, 'hd_shuffle') == (0, 0) and vis(m, 'sg_glyph')[0] == 0,
            'the pills are disabled (their dim style), and the playlist header\'s set stays hidden and insensitive')
@@ -1149,8 +1149,14 @@ def collapse_and_select_tests(ctx):
     expect(m.wtext[m.widgets['label_title']] == '1 Selected', 'a second tap unmarks')
     click(m, 'btn_selall')
     expect(m.wtext[m.widgets['label_title']] == f'{n_songs} Selected', 'Select All marks everything')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Deselect All' and m.props.get((m.widgets['sg_add'], 'sensitive')) == 1 and m.props.get((m.widgets['sg_del'], 'sensitive')) == 1
+           and m.props.get((m.widgets['sg_add'], 'enable')) == 1 and m.props.get((m.widgets['sg_del'], 'enable')) == 1,
+           'every row marked: the button reads Deselect All, the bar pills are live')
     click(m, 'btn_selall')
-    expect(m.wtext[m.widgets['label_title']] == '0 Selected', 'and again none')
+    expect(m.wtext[m.widgets['label_title']] == 'Select Items', 'and again none')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Select All' and ('widget_set_sensitive', m.widgets['sg_add'], 0) in m.calls and ('widget_set_sensitive', m.widgets['sg_del'], 0) in m.calls
+           and m.props.get((m.widgets['sg_add'], 'enable')) == 0 and m.props.get((m.widgets['sg_del'], 'enable')) == 0,
+           'nothing marked: the button reads Select All, the bar pills are dead')
     # Delete: nothing selected -> the stock message; a selection -> confirm, the stock selection vector, batch_delete_file, the message, the list read again
     m.calls = []
     calls = click(m, 'sg_del')
@@ -1197,7 +1203,7 @@ def collapse_and_select_tests(ctx):
     calls = click(m, 'btn_return')
     expect(('navigator_back',) in calls, 'Back outside select mode goes back')
     pick(m, 'select')
-    expect(m.wtext[m.widgets['label_title']] == '0 Selected', 'select mode starts with nothing marked')
+    expect(m.wtext[m.widgets['label_title']] == 'Select Items', 'select mode starts with nothing marked')
     # the rail stays in select mode, centred on the shorter list
     p2, sel_h = RAIL_P, VIEW_H - O['SG_BAR_H']
     expect(rail_geometry(m) == (RAIL_X, 50 + (sel_h - n * p2) // 2 - RAIL_PAD, RAIL_W, n * p2 + 2 * RAIL_PAD) and 50 + (sel_h - n * p2) // 2 + n * p2 + RAIL_PAD <= 50 + sel_h,

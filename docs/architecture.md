@@ -26,6 +26,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Software Update](modules/update.md) | Wi-Fi update from GitHub releases |
 | [UI rules](modules/ui-rules.md) | Rules every UI step follows |
 | [Navbars](modules/navbar.md) | One reference for every page navbar |
+| [Select mode](modules/selmode.md) | Shared multi-select: marks, navbar, bottom bar |
 | [Overlays](modules/overlays.md) | Dialogs, popups and sheets |
 | [Theme](modules/theme.md) | Config clamp and theme assets |
 | [Accent and palette](modules/accent.md) | Three paint hooks, background, accent |

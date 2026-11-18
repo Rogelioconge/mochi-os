@@ -26,6 +26,7 @@ only the module doc of the feature you are changing. Symbols are given instead o
 | Settings previews (page state in the `STATE` dict near the top) | `tools/preview/preview_settings.py` |
 | Hook inventory (numbered) | [payload](modules/payload.md) "Hook sites" |
 | Stock addresses table | [addresses](modules/addresses.md) |
+| Multi-select on a list page (`m1_sel_*`) | `patch/selmode.c`, [select mode](modules/selmode.md) |
 | Module doc index | [architecture](architecture.md) |
 
 `uv run python -I tools/check.py --list` lists every test section. Run the sections named below.

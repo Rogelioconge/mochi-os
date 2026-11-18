@@ -23,10 +23,10 @@ UI = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_album.bi
 ALBUM, ARTIST = 'Kind of Blue', 'Miles Davis'
 RED = (190, 50, 55)
 NAMES = ['So What', 'Freddie Freeloader', 'Blue in Green', 'All Blues', 'Flamenco Sketches', 'Flamenco Sketches (Alt)', 'So What (Alt)', 'Blue in Green (Alt)']
-WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel', 'btn_play', 'btn_shuffle', 'btn_pin', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
+WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_bar', 'sg_add', 'sg_del', 'btn_play', 'btn_shuffle', 'btn_pin', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
            'ab_title', 'ab_artist', 'ab_meta', 'ab_foot', 'ab_spin', 'ab_glyph', 'ab_play_text', 'label_title', 'img_ah_tint',
            'btn_more', 'vs_scrim', 'vs_card', 'vs_hair') + tuple(f'vs_item{i}' for i in range(8)) + tuple(f'vs_label{i}' for i in range(8)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_glyph{i}' for i in range(4, 8))
-NAV_BTNS = ('btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel')
+NAV_BTNS = ('btn_return', 'btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del')
 BAR_BLACK = O['NP_BAR_STOCK']
 
 
@@ -99,6 +99,7 @@ def album_machine(n=8, album=ALBUM, artist=ARTIST, rgb=RED, cover='file', titles
     m = AM(); m.real_album = True
     m.load_image = 0
     for w in WIDGETS: Machine.widget(m, w)
+    for w, t in (('sg_add', 'Add to Playlist'), ('sg_del', 'Delete')): m.wtext[m.widgets[w]] = t   # the texts the asset gives the bar pills (m1_centre_pill measures them)
     m.canvas = m.alloc(0x80); m.oy_canvas = m.canvas
     m.images = {'p_default': (24, 24, bytes((0x40, 0x40, 0x40, 255)) * (24 * 24)), 'unselect': (26, 26, struct.pack('<I', 0xff111111) * 676), 'selected': (26, 26, struct.pack('<I', 0xff2222ee) * 676),
                 'ah_wave': (12, 12, b''.join(struct.pack('<I', 0xff0000ee if 4 <= x < 7 else 0xff000000) for y in range(12) for x in range(12)))}   # (a bar at columns 4..6, flattened over black as cc_decode gives it)
@@ -190,7 +191,7 @@ def asset_tests(ctx):
     kids = [c.name for c in root.children]
     expect(root.name == 'm1plus_album_page' == pod_pages.ALBUM_PAGE.name and pod_pages.ALBUM_PAGE in pod_pages.PAGES and pod_pages.ALBUM_PAGE.key == 'm1plus_album' == O.get('AB_ASSET', 'm1plus_album'),
            'the page is m1plus_album (window m1plus_album_page)')
-    expect(kids[0] == 'img_ah_tint' and kids[-5] == 'btn_cancel' and kids[-14] == 'label_title' and kids[-4:] == ['vs_scrim', 'vs_card', 'rm_scrim', 'rm_card'] and 'songs_listview' in kids, f'the gradient is the window\'s first child, the glass controls and the rows menu its last: {kids}')
+    expect(kids[0] == 'img_ah_tint' and kids[-5] == 'btn_selall' and kids[-11] == 'label_title' and kids[-12] == 'sg_bar' and kids[-4:] == ['vs_scrim', 'vs_card', 'rm_scrim', 'rm_card'] and 'songs_listview' in kids, f'the gradient is the window\'s first child, the glass controls and the rows menu its last: {kids}')
     tint = f('img_ah_tint')
     expect((tint.x, tint.y, tint.w, tint.h) == (0, 0, 320, 450) and tint.get('image') == 'ah_tint' and tint.get('clickable') == 'false' and tint.get('sensitive') == 'false'
            and tint.get('visible') != 'false', 'img_ah_tint: ah_tint over the whole 320 x 450 window, insensitive (over a black page it changes nothing)')
@@ -225,8 +226,7 @@ def asset_tests(ctx):
     # the glass controls
     k = {c.name: c for c in root.children}
     expect('navigationbar_view' not in k, 'the controls are children of the window itself (no bar view over the list)')
-    want = {'btn_return': (7, 44, 'ah_nav_back', 1), 'btn_select': (168, 46, 'pod_nav_selectl', 1), 'btn_pin': (214, 46, 'pod_nav_moremid', 0), 'btn_backtoplayer': (260, 60, 'ah_nav_play', 1),
-            'btn_selall': (0, 50, 'ah_nav_unsel', 0), 'sg_add': (116, 60, 'ah_nav_add', 0), 'sg_del': (191, 60, 'ah_nav_del', 0), 'btn_cancel': (268, 60, 'ah_nav_cancel', 0)}
+    want = {'btn_return': (7, 44, 'ah_nav_back', 1), 'btn_select': (168, 46, 'pod_nav_selectl', 1), 'btn_pin': (214, 46, 'pod_nav_moremid', 0), 'btn_backtoplayer': (260, 60, 'ah_nav_play', 1)}
     xx = os.path.join(WORK, 'rootfs', 'release', 'assets', 'default', 'raw', 'images', 'xx')
     for name, (x, w, icon, shown) in want.items():
         b = k[name]
@@ -234,15 +234,19 @@ def asset_tests(ctx):
                and (b.get('sensitive') != 'false') == bool(shown) and os.path.exists(os.path.join(xx, icon + '.png')) and os.path.exists(os.path.join(xx, icon + '_down.png')),
                f'{name}: {icon} at x {x} ({w} wide, 50 high), pressed {icon}_down, {"shown" if shown else "hidden and insensitive"}')
     expect(k['btn_select'].x + k['btn_select'].w == k['btn_pin'].x and k['btn_pin'].x + k['btn_pin'].w == k['btn_backtoplayer'].x, 'Select 168, "..." 214, Now Playing 260 are flush: one glass capsule as the Albums page\'s (the left cap, the middle piece, the right cap)')
-    expect(k['label_title'].get('visible') == 'false' and not [c for c in root.walk() if c.name in ('sg_rail', 'sg_bubble', 'sg_card', 'sg_bar', 'img_nb_fade', 'sg_foot')],
-           'the page has no title, no fade, no rail, no sort card, no bottom bar and no count: the controls float over the rows')
+    expect(k['label_title'].get('visible') == 'false' and not [c for c in root.walk() if c.name in ('sg_rail', 'sg_bubble', 'sg_card', 'img_nb_fade', 'sg_foot')],
+           'the page has no fade, no rail, no sort card and no count: the controls float over the rows; its title is hidden until select mode')
+    bar, sa = k['sg_bar'], k['btn_selall']
+    expect((bar.x, bar.y, bar.w, bar.h) == (0, 450 - O['SG_BAR_H'], 320, O['SG_BAR_H']) and bar.get('visible') == 'false' and [c.name for c in bar.children] == ['sg_add', 'sg_del']
+           and (sa.x, sa.w) == (O['SG_SELALL_X'], 104) and sa.get('visible') == 'false' and all(os.path.exists(os.path.join(xx, n + '.png')) for n in ('sg_listplus_off', 'sg_trash_off')),
+           'select mode: the SG_BAR_H bar at the window\'s foot (no hairline; its colour is the page\'s, set at run time) with Add to Playlist and Delete, and the Select All text at the right, all hidden')
     for n in ('btn_return', 'btn_select', 'btn_backtoplayer', 'btn_play', 'btn_shuffle'):
         expect(f(n).get('style') == 'img_btn_style', f'{n} draws its picture only (img_btn_style)')
     # demo's own hit test on the built page with the list's rows under the controls
     m = AM(); m.real_album = True
     tree = asset_tree(UI)
     node(tree, 'view_grid').h = 3000
-    for sel in ('btn_selall', 'sg_add', 'sg_del', 'btn_cancel'): node(tree, sel).flags = 0   # hidden and insensitive, as the payload leaves them outside select mode
+    for sel in ('btn_selall', 'sg_bar', 'label_title'): node(tree, sel).flags = 0   # hidden and insensitive, as the payload leaves them outside select mode
     node(tree, 'btn_pin').flags = node(tree, 'btn_select').flags   # shown by the payload for an album that can be pinned
     top = lambda x, y: stock_target(m, tree, x, y)[-1]
     expect(top(29, 25) == 'btn_return' and top(8, 6) == 'btn_return' and top(191, 25) == 'btn_select' and top(237, 25) == 'btn_pin' and top(290, 25) == 'btn_backtoplayer' and top(311, 45) == 'btn_backtoplayer',
@@ -263,12 +267,12 @@ def open_tests(ctx):
            f'the Albums row: loadAlbumList(0xf003), loadAlbumdetailList(0xf003, the row\'s record), our window, the tracks\' query; the stock page and its cover thread are not started ({seq})')
     expect(m.word(G_CLASS) == LIB and m.word(CI) == LIB and m.read_cstr(CI + O['CLASSINFO_ALBUM']) == ALBUM and m.read_cstr(CI + O['CLASSINFO_ARTIST']) == ARTIST,
            'the browsing class is the album tracks\' (0xff10), as albuminfo_page_init leaves it')
-    expect(all((m.widgets[n], O['EVT_CLICK']) in m.bound for n in NAV_BTNS[:1] + ('btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_cancel', 'btn_play', 'btn_shuffle'))
+    expect(all((m.widgets[n], O['EVT_CLICK']) in m.bound for n in NAV_BTNS[:1] + ('btn_backtoplayer', 'btn_select', 'btn_selall', 'sg_add', 'sg_del', 'btn_play', 'btn_shuffle'))
            and all((m.view, O[e]) in m.bound for e in ('EVT_POINTER_DOWN', 'EVT_POINTER_UP', 'EVT_POINTER_ABORT', 'EVT_AFTER_PAINT'))
            and all((m.window, O[e]) in m.bound for e in ('EVT_WINDOW_TO_FG', 'EVT_WINDOW_TO_BG', 'EVT_DESTROY')), 'the buttons, the content view\'s touch and paint events and the window\'s events are bound')
     sizes = [c for c in calls if c[0] == 'widget_resize' and c[1] == m.view]
     expect(sizes and sizes[-1][2:] == (320, HDR + 8 * ROW) and m.props[(m.sv, 'virtual_h')] == HDR + 8 * ROW, f'the content is the {HDR} px header and 8 rows of {ROW}: {HDR + 8 * ROW} px, the scroll_view is told (no footer without a known duration)')
-    expect(vis(m, 'view_grid') == (1, 1) and vis(m, 'label_status') == (0, 0) and not any(c[0] == 'widget_set_visible' and c[1] in [m.widgets[n] for n in ('btn_selall', 'sg_add', 'sg_del', 'btn_cancel')] for c in calls),
+    expect(vis(m, 'view_grid') == (1, 1) and vis(m, 'label_status') == (0, 0) and not any(c[0] == 'widget_set_visible' and c[1] in [m.widgets[n] for n in ('btn_selall', 'sg_bar', 'label_title')] for c in calls),
            'the list shows, the status line is hidden, the select mode\'s buttons stay as the asset has them (hidden)')
     expect(not [c for c in calls if c[0] == 'widget_load_image' and c[1] not in ('p_default', 'unselect', 'selected', 'ah_wave') and not c[1].endswith('.jpg')], 'only the cover file is decoded (no cover per row)')
     m.call(PSYMS['ab_on_destroy'], count=4000000)
@@ -657,11 +661,14 @@ def select_tests(ctx):
     ty = lambda i: row_y(i) - OFF + 20   # the tap point on row i
     m = opened()
     click(m, 'btn_select')
-    expect(all(vis(m, n) == (0, 0) for n in ('btn_return', 'btn_select', 'btn_backtoplayer')) and all(vis(m, n) == (1, 1) for n in ('btn_selall', 'sg_add', 'sg_del', 'btn_cancel')),
-           'Select hides Back and the capsule and shows the toggle, Add, Delete and Cancel (glass, in the places the stock builder gave them)')
+    expect(all(vis(m, n) == (0, 0) for n in ('btn_select', 'btn_backtoplayer')) and vis(m, 'btn_return') == (1, 1) and all(vis(m, n) == (1, 1) for n in ('btn_selall', 'sg_bar', 'label_title')),
+           'Select hides the capsule and shows the title, Select All and the bar; Back stays (as the close x)')
+    expect(m.props[(m.widgets['btn_return'], 'style:normal:icon')] == 'ah_nav_close' and m.wtext[m.widgets['label_title']] == 'Select Items' and m.wtext[m.widgets['btn_selall']] == 'Select All'
+           and m.props.get((m.widgets['sg_add'], 'sensitive')) == 0 and m.props.get((m.widgets['sg_del'], 'sensitive')) == 0
+           and m.props.get((m.widgets['sg_add'], 'enable')) == 0 and m.props.get((m.widgets['sg_del'], 'enable')) == 0, 'Back is the close x, the title reads "Select Items", Select All, the pills are dead and drawn disabled')
+    expect(all(any(w == m.widgets[n] and k == 'normal:icon_at' and v == 1 for w, k, v in m.styled) for n in ('sg_add', 'sg_del')),
+           'the bar pills: glyph beside the label (m1_centre_pill), as the Songs bar')
     expect(('widget_set_sensitive', m.widgets['btn_play'], 0) in m.calls and ('widget_set_sensitive', m.widgets['btn_shuffle'], 0) in m.calls, 'the header\'s buttons are dead')
-    tg = m.widgets['btn_selall']
-    expect(m.props[(tg, 'style:normal:icon')] == 'ah_nav_unsel' and m.props[(tg, 'style:pressed:icon')] == 'ah_nav_unsel_down', 'the toggle is the open circle')
     scroll_to(m, OFF)
     blits, texts, fills = paint(m)
     marks = [b for b in blits if b[2][2] == O['SG_MARK']]
@@ -680,13 +687,18 @@ def select_tests(ctx):
     expect(marks[row_y(1) + MK - OFF] != off_mark and marks[row_y(3) + MK - OFF] != off_mark and marks[row_y(0) + MK - OFF] == off_mark and marks[row_y(2) + MK - OFF] == off_mark,
            'the two marked rows show the selected mark')
     expect(not any(f_[0] == O['AB_PRESS'] for f_ in fills), 'no press fill in select mode')
+    expect(sum(f_[0] == O['LIST_SEL_FILL'] for f_ in fills) == 2, 'the two marked rows have the faint fill')
+    fade = [f_ for f_ in fills if 450 - O['SG_BAR_H'] - O['AB_SEL_FADE'] <= f_[2] < 450 - O['SG_BAR_H'] and f_[0] & 0xffffff != 0xffffff]
+    expect(len(fade) == O['AB_SEL_FADE'] and [f_[2] for f_ in fade] == sorted(f_[2] for f_ in fade) and [f_[0] >> 24 for f_ in fade] == sorted(f_[0] >> 24 for f_ in fade) and fade[0][0] >> 24 > 0 and fade[-1][0] >> 24 < 255
+           and len({f_[0] & 0xffffff for f_ in fade}) == 1, 'the fade above the bar: one row per step, the alpha rising, all in the bar\'s colour')
+    expect(m.wtext[m.widgets['label_title']] == '2 Selected', 'the title counts the marks')
     tap(m, 150, ty(1))
     click(m, 'btn_selall')
-    expect(m.props[(tg, 'style:normal:icon')] == 'ah_nav_sel' and m.props[(tg, 'style:pressed:icon')] == 'ah_nav_sel', 'Select all marks everything: the toggle is the checked circle')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Deselect All' and m.wtext[m.widgets['label_title']] == '8 Selected' and m.props.get((m.widgets['sg_del'], 'sensitive')) == 1, 'Select All marks everything: Deselect All, the pills live')
     tap(m, 150, ty(2))
-    expect(m.props[(tg, 'style:normal:icon')] == 'ah_nav_unsel', 'a track unmarked: the open circle again')
+    expect(m.wtext[m.widgets['btn_selall']] == 'Select All' and m.wtext[m.widgets['label_title']] == '7 Selected', 'a track unmarked: Select All again')
     click(m, 'btn_selall'); click(m, 'btn_selall')
-    expect(m.props[(tg, 'style:normal:icon')] == 'ah_nav_unsel', 'all, then none: the open circle')
+    expect(m.wtext[m.widgets['label_title']] == 'Select Items' and m.props.get((m.widgets['sg_del'], 'sensitive')) == 0, 'all, then none: nothing marked, the pills dead')
     # Delete
     calls = click(m, 'sg_del')
     expect(any(c[0] == 'toast' and c[1] == 'msg_delsongfailed' for c in calls) and not any(c[0] == 'confirm' for c in calls), 'Delete with nothing marked: the stock "failed" message, no dialog')
@@ -702,7 +714,7 @@ def select_tests(ctx):
     expect(bd and bd[0][1:6] == (LIB, list_h, m.word(SEL_VEC), 0, 0) and bd[0][6] == [1, 4] and ('select_recordinit', 8) in calls and [c[1] for c in calls if c[0] == 'set_selectindex'] == [1, 4]
            and any(c[0] == 'toast' and c[1] == 'msg_delsongsuccess' for c in calls) and [c[1] for c in calls if c[0] == 'loadLocalClassList'] == [LIB],
            'Yes: batch_delete_file(0xff10, the album\'s list, the stock vector, 0, 0) on the marked rows, the message, the tracks read again')
-    expect(all(vis(m, n) == (1, 1) for n in ('btn_return', 'btn_select', 'btn_backtoplayer')) and all(vis(m, n) == (0, 0) for n in ('btn_selall', 'sg_add', 'sg_del', 'btn_cancel')), 'and select mode is over')
+    expect(all(vis(m, n) == (1, 1) for n in ('btn_return', 'btn_select', 'btn_backtoplayer')) and all(vis(m, n) == (0, 0) for n in ('btn_selall', 'sg_bar', 'label_title')), 'and select mode is over')
     scroll_to(m, 0)
     click(m, 'btn_select'); tap(m, 150, row_y(0) + 20)
     m.confirm_answer = O['CONFIRM_DELETE_FILE']
@@ -721,18 +733,18 @@ def select_tests(ctx):
            'Add fills the stock vector and opens the stock playlist picker with 1 << 16 | 0xff10')
     m.u.mem_write(NAV_TITLE, b'Mix\0'); m.setword(G_CLASS, 0xf00b)
     m.fire(O['EVT_WINDOW_TO_FG'])
-    expect(m.word(G_CLASS) == LIB and m.read_cstr(NAV_TITLE) == 'Album title' and vis(m, 'sg_add') == (0, 0) and 'loadLocalClassList' in m.names(),
+    expect(m.word(G_CLASS) == LIB and m.read_cstr(NAV_TITLE) == 'Album title' and vis(m, 'sg_bar') == (0, 0) and 'loadLocalClassList' in m.names(),
            'back from the picker: the class and the title are put back, select mode is over, the tracks are read again')
     # Cancel leaves select mode
     click(m, 'btn_select')
-    calls = click(m, 'btn_cancel')
-    expect(vis(m, 'sg_del') == (0, 0) and vis(m, 'btn_return') == (1, 1) and not any(c[0] == 'navigator_back' for c in calls), 'Cancel leaves select mode (and does not go back)')
+    calls = click(m, 'btn_return')
+    expect(vis(m, 'sg_bar') == (0, 0) and vis(m, 'btn_return') == (1, 1) and not any(c[0] == 'navigator_back' for c in calls), 'the close x leaves select mode (and does not go back)')
     # the stock list replaced under select mode: nothing is acted on, the page reads its tracks again
     click(m, 'btn_select'); tap(m, 150, row_y(1) + 20)
     m.setword(SHOWLIST, m.new_deque(m.songs[:3]))
     m.confirm_answer = O['CONFIRM_DELETE_LIBRARY']
     calls = click(m, 'sg_del')
-    expect(not any(c[0] == 'batch_delete_file' for c in calls) and vis(m, 'sg_del') == (0, 0) and 'loadLocalClassList' in [c[0] for c in calls],
+    expect(not any(c[0] == 'batch_delete_file' for c in calls) and vis(m, 'sg_bar') == (0, 0) and 'loadLocalClassList' in [c[0] for c in calls],
            'the stock list is not the page\'s any more: Delete deletes nothing and the page reads its tracks again')
     m.confirm_answer = None
     m.call(PSYMS['ab_on_destroy'], count=4000000)
@@ -1319,7 +1331,7 @@ def pin_tests(ctx):
     expect(('mclSetPlayMode', 2) in calls and m.mode == 2 and m.played[0] == m.songs, 'Shuffle: as the disc, the stock Shuffle mode')
     click(m, 'btn_select')
     expect(shown('btn_pin') == (0, 0), 'select mode hides the "..."')
-    click(m, 'btn_cancel')
+    click(m, 'btn_return')
     expect(shown('btn_pin') == (1, 1), 'and brings it back')
     # the track sheet after the pins' sheet: its words and rows are back
     tap(m, 288, row_y(1) + 20)

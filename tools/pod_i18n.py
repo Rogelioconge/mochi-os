@@ -1548,6 +1548,11 @@ TEXT = dict([
     # Delete pill. The count goes where %d is (the payload puts the number there). Add to playlist is the stock key (STOCK). The Play pill's text, "Play", is below (the album, playlist and Daily Mix pages, and the Songs, Folders and artist pages' flat pills).
     _t('Select All', '全选', '全選', 'すべて選択', '모두 선택', 'Tout choisir', 'Alle wählen',
        'Todo', 'Tutti', 'เลือกทั้งหมด', 'Wszystko', 'Выбрать все', 'Вибрати все'),
+    # The select mode's title with nothing marked and the Select All button once every row is marked (patch/selmode.c; the button holds 96 px of 18 px text). Machine translations, unreviewed.
+    _t('Select Items', '选择项目', '選擇項目', '項目を選択', '항목 선택', 'Choisir', 'Auswählen',
+       'Elegir', 'Seleziona', 'เลือกรายการ', 'Wybierz', 'Выберите', 'Виберіть'),
+    _t('Deselect All', '取消全选', '取消全選', '選択解除', '선택 해제', 'Aucun', 'Keine',
+       'Ninguno', 'Nessuno', 'ไม่เลือกเลย', 'Odznacz', 'Снять все', 'Зняти все'),
     _t('Add to Playlist', '加入歌单', '加入歌單', 'リストに追加', '목록에 추가', 'Ajouter', 'Hinzufügen',
        'Añadir', 'Aggiungi', 'เพิ่ม', 'Dodaj', 'Добавить', 'Додати'),   # (the stock key's texts are longer than the select bar's 145 px pill holds beside its glyph: German 30 characters, Japanese 144 px)
     _t('Delete', '删除', '刪除', '削除', '삭제', 'Supprimer', 'Löschen',

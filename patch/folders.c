@@ -37,6 +37,7 @@
 #include "songops.h"
 #include "viewsort.h"
 #include "entries.h"
+#include "selmode.h"
 
 #define ROW POD_ROW_H /* the menu rows' pitch (52): one line a row */
 #define FO_ASSET "m1plus_folders"
@@ -96,7 +97,6 @@ static struct {
     int *vis; /* the records shown, in order: the stock list without the dot names */
     unsigned nvis;
     int nfile; /* audio files among them */
-    int nmark; /* the rows select mode can mark: folders and audio files */
     int first_file; /* the record of the first one in the order shown, -1 for none */
     vs_t vs; /* the "..." card (patch/viewsort.c): Select, Name, Date Modified, Type */
     int menu; /* the card is open */
@@ -105,8 +105,7 @@ static struct {
         eff_rev; /* the order this level is shown in: the saved one, or Name when the level is too big for Date Modified */
     int *mt; /* the modification times by record while Date Modified shows (count ints), else NULL */
     unsigned *rk; /* the queue's play ranks while fo_reorder runs */
-    unsigned char *sel; /* the select mode's bitset, by record: (count + 7) / 8 bytes */
-    unsigned nsel;
+    m1_sel_t sel; /* the select mode's marks (by record) and chrome (patch/selmode.c); can: fo_can */
     int select; /* select mode */
     int press; /* the row under the finger, + 1 */
     int down; /* the row a press began on, + 1 */
@@ -116,7 +115,6 @@ static struct {
     int picker; /* the stock playlist picker is open over this page */
     unsigned stale_timer;
     char title_save[0x200]; /* nagvation_title across the picker */
-    void *mark[2]; /* the select marks: unselect, selected */
     void *chev; /* the chevron */
     void *ic[FO_ICONS]; /* the glyphs, FO_ICON px */
     grid_t g; /* the rows' texts: the ring (a tile holds a name cut to its width and, with covers on, its cover) */
@@ -141,6 +139,12 @@ static int fo_valid(void) {
 
 static int fo_type(int rec) { return I(deque_at(fo.list, (unsigned)rec), REC_TYPE); }
 static int fo_markable(int type) { return type == T_FILE || type == T_DIR; }
+static int fo_type(int rec);
+/* The rows select mode marks: the folders and audio files shown (not the dot names). */
+static int fo_can(void *ctx, int rec) {
+    (void)ctx;
+    return fo_markable(fo_type(rec)) && *cc_str(deque_at(fo.list, (unsigned)rec), REC_NAME) != '.';
+}
 static int fo_root(void) { return *(int *)FOLDER_LAYER <= 1; } /* the list of storages: nothing to select there */
 
 /* ---------------------------------------------------------------------------
@@ -175,8 +179,6 @@ static void fo_span(int *r0, int *r1) {
 /* The select mode moves the row's content right by one column. */
 static int fo_shift(void) { return fo.select ? SG_SEL_COL : 0; }
 static int fo_tx(void) { return FO_TEXT_X + fo_shift(); }
-
-static int fo_is_sel(int rec) { return fo.sel && (fo.sel[rec >> 3] >> (rec & 7) & 1); }
 
 /* ---------------------------------------------------------------------------
  * The order (docs/modules/folders.md "Order"): the stock list is never reordered; `vis` (the records shown) is sorted. Folders come before files in every order. Name: the lists' name order
@@ -516,10 +518,7 @@ static void fo_paint_rows(void *canvas) {
         grid_tile_t *t = fo.cov ? fo_tile(r) : (grid_tile_t *)0;
         if (fo_playing(rec)) playing |= 1u << (r - r0);
         if (fo.press == r + 1 && !fo.select) az_fill(canvas, 0, y, y + rh - 1, FO_W, LIST_PRESS);
-        if (fo.select && fo.mark[0] && fo_markable(type)) {
-            void *m = fo.mark[fo_is_sel(rec)];
-            grid_mark_draw(canvas, m, (SG_SEL_COL - SG_MARK) / 2, y + (rh - SG_MARK) / 2, GRID_VIEW_H);
-        }
+        m1_sel_paint(&fo.sel, canvas, rec, y, rh, FO_W, (SG_SEL_COL - SG_MARK) / 2, GRID_VIEW_H);
         if (t && t->art == 1) /* the cover, its corners cut in the bitmap */
             fo_blit(canvas, t->bmp, FO_COVER, FO_COVER, FO_COVER_X + fo_shift(), y + FO_COVER_Y);
         else
@@ -573,14 +572,13 @@ static void fo_title_update(void) {
     }
 }
 
-static void fo_head(void) { /* the navbar's title: "N Selected" in select mode, else the level's name cut to its room */
-    char buf[64];
+static void
+fo_head(void) { /* the navbar's title: the select mode's (patch/selmode.c), else the level's name cut to its room */
     if (!fo.select) {
         az_fit(fo.title, fo_text());
         return;
     }
-    m1_fmt(buf, sizeof buf, TR("%d Selected"), (int)fo.nsel);
-    widget_set_text_utf8(fo.title, buf);
+    m1_sel_head(&fo.sel);
 }
 
 /* The scroll_view's EVT_SCROLL (every change of its offset) and scroll end. */
@@ -619,19 +617,14 @@ static void fo_load(int keep) {
         fo.g.tiles && *(unsigned char *)FOLDER_COVER != 0; /* stock's Folder cover switch, read as each level is read */
     m1_timer_stop(&fo.more_timer);
     free(fo.vis);
-    free(fo.sel);
     free(fo.mt);
-    fo.vis = (int *)0, fo.sel = (unsigned char *)0, fo.mt = (int *)0, fo.list = fo.first = (void *)0;
-    fo.count = fo.nvis = fo.nsel = 0, fo.nfile = fo.nmark = 0, fo.first_file = -1, fo.press = fo.down = 0;
+    m1_sel_reset(&fo.sel, 0);
+    fo.vis = (int *)0, fo.mt = (int *)0, fo.list = fo.first = (void *)0;
+    fo.count = fo.nvis = 0, fo.nfile = 0, fo.first_file = -1, fo.press = fo.down = 0;
     if (list) fo.count = deque_size(list);
     if (fo.count) {
         fo.vis = calloc(fo.count, sizeof(int));
-        fo.sel = calloc((fo.count + 7) / 8, 1);
-        if (!fo.vis || !fo.sel) {
-            free(fo.vis);
-            free(fo.sel);
-            fo.vis = (int *)0, fo.sel = (unsigned char *)0, fo.count = 0, nomem = 1;
-        }
+        if (!fo.vis) fo.count = 0, nomem = 1;
     }
     if (fo.count) {
         fo.list = list, fo.first = deque_at(list, 0);
@@ -640,8 +633,10 @@ static void fo_load(int keep) {
             if (*cc_str(rec, REC_NAME) == '.') continue; /* a dot name (a hidden folder or file) is not shown */
             fo.vis[fo.nvis++] = (int)i;
             if (I(rec, REC_TYPE) == T_FILE) ++fo.nfile;
-            if (fo_markable(I(rec, REC_TYPE))) ++fo.nmark;
         }
+        if (!m1_sel_reset(&fo.sel, fo.count))
+            free(fo.vis), fo.vis = (int *)0, fo.list = fo.first = (void *)0, fo.count = fo.nvis = fo.nfile = 0,
+                          nomem = 1;
     }
     fo_order();
     if (!fo_root()) vs_offer(&fo.vs, fo_offers()); /* (the root has no card) */
@@ -767,14 +762,10 @@ static void fo_cap(void) {
 static void fo_select(int on) {
     if (on == fo.select) return;
     fo.select = on;
-    fo.nsel = 0;
-    if (fo.sel) memset(fo.sel, 0, (fo.count + 7) / 8);
     fo.press = fo.down = 0;
-    fo_cap();
-    m1_show(fo.btn_selall, on);
-    m1_show(fo.bar, on);
+    m1_sel_enter(&fo.sel, on, NAV_VIEW_X);
+    fo_cap(); /* (the title's end of the page's own states, after the mode's) */
     fo_pills();
-    grid_icons(fo.back, on ? "ah_nav_close" : "ah_nav_back", on ? "ah_nav_close_down" : "ah_nav_back_down");
     fo.title_on = -1;
     fo_head();
     fo_title_update();
@@ -790,10 +781,7 @@ static void fo_changed(void) {
 }
 
 static void fo_toggle(int rec) {
-    if (rec < 0 || rec >= (int)fo.count || !fo.sel || !fo_markable(fo_type(rec))) return;
-    fo.sel[rec >> 3] ^= (unsigned char)(1 << (rec & 7));
-    fo.nsel += fo_is_sel(rec) ? 1 : (unsigned)-1;
-    fo_changed();
+    if (m1_sel_toggle(&fo.sel, rec)) fo_changed();
 }
 
 /* ---------------------------------------------------------------------------
@@ -845,17 +833,8 @@ static int fo_on_item(void *ctx, void *e) {
 static int fo_on_selall(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (!fo.select || !fo.sel) return RET_OK;
-    memset(fo.sel, 0, (fo.count + 7) / 8);
-    if ((int)fo.nsel < fo.nmark) { /* every folder and audio file, unless all are marked: then none */
-        unsigned r;
-        fo.nsel = 0;
-        for (r = 0; r < fo.nvis; ++r) {
-            int rec = fo.vis[r];
-            if (fo_markable(fo_type(rec))) fo.sel[rec >> 3] |= (unsigned char)(1 << (rec & 7)), ++fo.nsel;
-        }
-    } else
-        fo.nsel = 0;
+    if (!fo.select || !fo.sel.bits) return RET_OK;
+    m1_sel_toggle_all(&fo.sel); /* every folder and audio file shown (fo_can), unless all are marked: then none */
     fo_changed();
     return RET_OK;
 }
@@ -877,7 +856,7 @@ static int fo_ask(const char *text) {
 static int fo_marked_dir(void) {
     int rec;
     for (rec = 0; rec < (int)fo.count; ++rec)
-        if (fo_is_sel(rec) && fo_type(rec) == T_DIR) return 1;
+        if (m1_sel_is(&fo.sel, rec) && fo_type(rec) == T_DIR) return 1;
     return 0;
 }
 
@@ -887,7 +866,7 @@ static int fo_on_delete(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!fo.select) return RET_OK;
-    if (!fo.nsel) {
+    if (!fo.sel.nsel) {
         pod_toast(TR("msg_delfilefailed"));
         return RET_OK;
     }
@@ -896,7 +875,7 @@ static int fo_on_delete(void *ctx, void *e) {
         pod_toast(TR("msg_notsupportdel"));
         return RET_OK;
     }
-    if (!fo_valid() || !so_selection(fo.count, fo.sel)) {
+    if (!fo_valid() || !so_selection(fo.count, fo.sel.bits)) {
         fo_select(0);
         folder_reload();
         fo_load(1);
@@ -917,7 +896,7 @@ static int fo_on_add(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!fo.select) return RET_OK;
-    r = so_add(FO_CLASS, fo.count, fo.sel, fo.nsel, fo_valid(), fo.title_save, &fo.picker);
+    r = so_add(FO_CLASS, fo.count, fo.sel.bits, fo.sel.nsel, fo_valid(), fo.title_save, &fo.picker);
     if (r < 0) {
         fo_select(0);
         folder_reload();
@@ -1030,13 +1009,11 @@ static int fo_on_destroy(void *ctx, void *e) {
     m1_timer_stop(&fo.more_timer);
     cc_cmap_free(fo.cmap);
     grid_free(&fo.g);
-    for (i = 0; i < 2; ++i)
-        if (fo.mark[i]) bitmap_destroy(fo.mark[i]);
+    m1_sel_free(&fo.sel);
     if (fo.chev) bitmap_destroy(fo.chev);
     for (i = 0; i < FO_ICONS; ++i)
         if (fo.ic[i]) bitmap_destroy(fo.ic[i]);
     free(fo.vis);
-    free(fo.sel);
     free(fo.mt);
     memset(&fo, 0, sizeof fo);
     return RET_OK;
@@ -1110,7 +1087,8 @@ static int fo_open_page(void) {
     m1_centre_pill(fo.btn_shuffle, SG_PILL_W);
     m1_centre_pill(fo.btn_add, SG_BAR_PILL_W);
     m1_centre_pill(fo.btn_del, SG_BAR_PILL_W);
-    m1_make_marks(fo.win, fo.mark); /* all or none */
+    m1_sel_init(&fo.sel, fo.win, fo.back, fo.title, fo.btn_selall, fo.bar, fo.btn_add, fo.btn_del, fo_can,
+                (void *)0); /* the marks: all or none */
     fo.chev = m1_make_chevron();
     for (i = 0; i < FO_ICONS; ++i) fo.ic[i] = fo_bitmap(fo.win, FO_ICON_NAME[i]);
     fo.noscroll = grid_scroll_bind(fo.sv, fo_on_scroll, fo.title, &fo.title_on);

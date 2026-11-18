@@ -98,8 +98,9 @@ typedef struct {
 } m1_tap_t;
 void m1_tap_at(m1_tap_t *t, void *e);
 int m1_tap_near(const m1_tap_t *t, void *e);
-/* Select All on a page's mark bits (count rows, nsel marked): all of them, unless all are: then none. Returns the new number marked. */
-unsigned m1_sel_all(unsigned char *sel, unsigned count, unsigned nsel);
+/* Select All on a page's mark bits (count rows, nsel marked) over the rows can(ctx, i) accepts (NULL: all): nmark of them; all marked when nsel >= nmark, then none. Returns the new number marked. */
+unsigned m1_sel_all_can(unsigned char *sel, unsigned count, unsigned nsel, unsigned nmark, int (*can)(void *ctx, int i),
+                        void *ctx);
 static inline int m1_abs(int v) { return v < 0 ? -v : v; }
 void m1_title_set(void *w, int *cur, int on);
 /* The translated text f ("%d tracks") with n where it has its %d, into out (size bytes). */

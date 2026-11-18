@@ -319,8 +319,8 @@
  * header numbers (AH_*: the cover at (AH_ART_X, AH_ART_Y) with AH_CORNER px corners, the lines at AH_TITLE_Y / AH_ARTIST_Y / AH_META_Y, the Shuffle disc and the Play pill at
  * AH_BTN_Y, the rows from AH_HDR_H) in a list that is the whole window (AH_WIN_H, the glass controls float over it). A row is AB_ROW_H high: the track's number (right aligned in
  * ROW_NUM_W, ROW_NUM_W3 from 100) from x AB_NUM_X, the title AB_NUM_GAP after it to AB_TEXT_END, both in a AB_TEXT_H high line AB_TEXT_Y down the row; the press fill and the 1 px
- * hairline are translucent white over the tint (AB_PRESS, AB_HAIR) across AB_ROW_W (the list less its scroll bar). The select mode's glass buttons (the all / none toggle at
- * AB_SELALL_X, AB_SELALL_W wide; Add, Delete, Cancel AB_BTN_W wide) take the places the stock builder gave them. The Play pill's text label is AB_TEXT_SLACK wider than its text.
+ * hairline are translucent white over the tint (AB_PRESS, AB_HAIR) across AB_ROW_W (the list less its scroll bar). The select mode is the shared one (patch/selmode.c): the close x for
+ * Back, the title and Select All in the navbar, the SG_BAR_H bar in the page's tone with an AB_SEL_FADE row fade above it. The Play pill's text label is AB_TEXT_SLACK wider than its text.
  * AB_COVER_MS: the poll of the cache worker that makes a missing cover. AB_ASSET: the window resource. */
 #define AB_ASSET "m1plus_album"
 #define AB_WINDOW "m1plus_album_page" /* the root widget's name (tools/pod_pages.py ALBUM_PAGE): what navigator_close and the window manager know it by */
@@ -339,12 +339,7 @@
 #define AB_WAVE_COLOR 0x00ECEEEEu /* its colour #EEEEEC as a RGBA8888 word (red in the low byte), the rows' wave */
 #define AB_PRESS 0x33ffffffu
 #define AB_HAIR 0x22ffffffu
-#define AB_SELALL_X 0
-#define AB_SELALL_W 50
-#define AB_ADD_X 116
-#define AB_DEL_X 191
-#define AB_CANCEL_X 268
-#define AB_BTN_W 60
+#define AB_SEL_FADE 24         /* the select bar's fade above it, rows (patch/albumpage.c ab_paint_fade) */
 #define AB_TEXT_SLACK 4
 #define AB_PLAY_TEXT_W 32      /* the English "Play" at 18 px: where the payload cannot measure the translated text, the pill's pair is centred for this width */
 #define AB_COVER_MS 200
@@ -451,6 +446,7 @@
 #define LIST_SUB_H 20
 #define LIST_HAIR 0xff222222u
 #define CARD_HAIR 0xff333333u /* a Settings card's hairline (pod_roles LINE_RGB, baked into the pod_cd_* pieces): code-painted cards (patch/lupick.c) draw it; not a role, nothing maps it */
+#define LIST_SEL_FILL 0x12ffffffu /* a marked row in select mode (patch/selmode.c): white at alpha 0x12 over the row (on black #121212) */
 #define LIST_PRESS 0xff343333u /* ROLE_PRESS_ROW #333334 as a color_t word: a pressed row, unique so the accent can find it */
 
 /* ---------------------------------------------------------------------------

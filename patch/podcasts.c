@@ -42,6 +42,7 @@
 #include "libsrc.h"
 #include "songops.h"
 #include "scrobble.h"
+#include "selmode.h"
 
 #define P(w, off) (*(void **)((char *)(w) + (off)))
 
@@ -251,11 +252,11 @@ static struct {
     void *
         unsubp; /* the select bar's Unsubscribe pill: a second pill in the Delete pill's place (the Subscriptions level shows it instead) */
     unsigned dgen; /* pn_dl_gen() the Show level's lines were made at */
-    void *back, *btn_selall, *bar, *del,
-        *mark
-            [2]; /* select mode: the navbar's Back (its x), Select, Select All, the bottom bar and its Delete pill, the unselect / selected marks */
+    void *back, *btn_selall, *bar,
+        *del; /* select mode: the navbar's Back (its x), Select All, the bottom bar and its Delete pill */
+    m1_sel_t
+        msel; /* the select mode's marks (pg.pick) and chrome (patch/selmode.c); pill[0]: Delete, or Unsubscribe on the Subscriptions level */
     int select; /* select mode (the Show and Downloads levels: marks, Select All, a Delete bar) */
-    unsigned npick, ncan; /* rows marked, rows that can be */
     unsigned char pick[PG_PICK_BYTES], can[PG_PICK_BYTES]; /* the marks, and the rows that may be marked */
     struct pg_dl *dls; /* the Downloads level's slots (PG_DLS_MAX) */
     unsigned short *ord,
@@ -1082,13 +1083,11 @@ static void pg_latest(pg_pill_t *p) {
 /* ---------------------------------------------------------------------------
  * Paint
  */
-static int pg_is_pick(int i) { return pg.pick[i >> 3] >> (i & 7) & 1; }
+static int pg_is_pick(int i) { return m1_sel_is(&pg.msel, i); }
 static int pg_can_pick(int i) { return pg.can[i >> 3] >> (i & 7) & 1; }
-
-/* The select mark of a row that can be marked, wholly inside the window (as the Playlists page's). */
-static void pg_mark(void *canvas, int i, int x, int y) {
-    if (!pg.mark[0] || !pg_can_pick(i)) return;
-    grid_mark_draw(canvas, pg.mark[pg_is_pick(i)], x, y, GRID_VIEW_H);
+static int pg_can_cb(void *ctx, int i) { /* the module's can(): the rows pg_select found markable */
+    (void)ctx;
+    return pg_can_pick(i);
 }
 
 /* The search level (docs/modules/podcasts.md "Search"): the field is widgets of the content view (ps_field); the result rows are the Downloads rows' look, a show's thumbnail, its name and its author in grey, from PQ_TOP.
@@ -1361,7 +1360,9 @@ static void pg_paint_eps(void *canvas) {
         pg_pill_of(e, &pill[i]);
         if (pg.press == r + 1 && !pg.select) az_fill(canvas, 0, y, y + pg_cell_h() - 1, PG_W, 0x30ffffffu);
         az_fill(canvas, PS_CELL_X, y + pg_cell_h() - 1, y + pg_cell_h(), PG_W - PS_CELL_X, 0x22ffffffu);
-        if (pg.select) pg_mark(canvas, r, PS_CELL_X + (SG_SEL_COL - 6 - SG_MARK) / 2, y + (pg_cell_h() - SG_MARK) / 2);
+        if (pg.select)
+            m1_sel_paint(&pg.msel, canvas, r, y, pg_cell_h(), PG_W, PS_CELL_X + (SG_SEL_COL - 6 - SG_MARK) / 2,
+                         GRID_VIEW_H);
         if (played[i]) { /* the date line's badges: a check when played, the disc when the file is on the card */
             pg_glyph(canvas, PA_CHECK, x - 1, y + PS_DATE_Y + PS_DATE_H / 2 - PA_G_PX / 2);
             x += PS_BADGE_CHECK_W;
@@ -1799,6 +1800,9 @@ static void pg_paint_dls(void *canvas) {
         grid_tile_t *t = pg_tile(r);
         int y = pg_dy(r) - off;
         if (!pg.select && pg.press == pg.ord[r] + 1) az_fill(canvas, 0, y, y + PC_ROW_H - 1, PG_W, LIST_PRESS);
+        if (pg.select)
+            m1_sel_paint(&pg.msel, canvas, r, y, PC_ROW_H, PG_W, LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2,
+                         GRID_VIEW_H);
         grid_blit(canvas, &pg.g, t, LIST_ART_X + shift, y + LIST_ART_Y, GRID_VIEW_H);
         az_fill(canvas, 0, y + PC_ROW_H - 1, y + PC_ROW_H, PG_W, LIST_HAIR);
     }
@@ -1824,7 +1828,6 @@ static void pg_paint_dls(void *canvas) {
         if (pg_is_ip(r) && !pg.select)
             pg_sprite(canvas, 0, PA_DOTS_Y, PA_DOTS_PX, PA_DOTS_PX, PS_DOTS_CX - PA_DOTS_PX / 2,
                       y + (PC_ROW_H - 1) / 2 - PA_DOTS_PX / 2);
-        if (pg.select) pg_mark(canvas, r, LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2, y + (PC_ROW_H - SG_MARK) / 2);
     }
 }
 
@@ -3769,7 +3772,6 @@ static void pg_det_refind(void) {
  * right, a mark on every row that can be marked, a bottom bar with one Delete pill and a confirm before anything is removed.
  */
 static void pg_head(void) { /* the navbar's title: "N Selected" in select mode, else the level's */
-    char buf[64];
     if (!pg.title) return;
     if (!pg.select) {
         if (pg.level == L_EPS)
@@ -3784,32 +3786,28 @@ static void pg_head(void) { /* the navbar's title: "N Selected" in select mode, 
                      (const char *)0);
         return;
     }
-    pc_fmt(buf, sizeof buf, TR("%d Selected"), pg.npick);
-    widget_set_text_utf8(pg.title, buf);
+    m1_sel_head(&pg.msel);
 }
 
 static void pg_select(int on) {
     int max;
     if (on == pg.select) return;
-    if (on && !(pg.btn_selall && pg.bar && pg.del && pg.mark[0] && pg.mark[1])) return;
+    if (on && !(pg.btn_selall && pg.bar && pg.del && pg.msel.mark[0] && pg.msel.mark[1])) return;
     pg.select = on;
-    pg.npick = 0;
-    memset(pg.pick, 0, sizeof pg.pick);
-    pg.ncan = on ? pg_sel_scan(1) : 0;
+    if (on)
+        pg_sel_scan(1);
+    else
+        memset(pg.can, 0, sizeof pg.can);
+    m1_sel_bind(&pg.msel, pg.pick, PG_PICK_MAX); /* (clears the marks, counts the rows pg.can lets) */
+    pg.msel.pill[0] = pg.level == L_DLS && pg.subs ? pg.unsubp : pg.del; /* the bar's one pill */
     pg.press = pg.down = 0;
     m1_show(pg.btn_more, 0);
     m1_show(pg.find, 0); /* (the Show page's search inside the show: back with pg_nav) */
     m1_show(pg.np, !on);
-    m1_show(pg.btn_selall, on);
-    m1_show(pg.bar, on);
+    m1_sel_enter(&pg.msel, on, NAV_CF_X); /* (leaving select mode, pg_nav sets the width of the level) */
     m1_show(pg.del, on && !(pg.level == L_DLS &&
                             pg.subs)); /* the bar's one pill: Delete, or on the Subscriptions page Unsubscribe */
     m1_show(pg.unsubp, on && pg.level == L_DLS && pg.subs);
-    if (pg.title && on)
-        grid_title_end(pg.title, SG_SELALL_X); /* (leaving select mode, pg_nav sets the width of the level) */
-    if (pg.back) {
-        grid_icons(pg.back, on ? "ah_nav_close" : "ah_nav_back", on ? "ah_nav_close_down" : "ah_nav_back_down");
-    }
     pg_head();
     if (!on) pg_nav();
     pg_title_show();
@@ -3824,24 +3822,16 @@ static void pg_select(int on) {
 }
 
 static void pg_toggle_pick(int i) {
-    if (i < 0 || i >= pg_count() || !pg_can_pick(i)) return;
-    pg.pick[i >> 3] ^= (unsigned char)(1 << (i & 7));
-    pg.npick += pg_is_pick(i) ? 1 : (unsigned)-1;
+    if (i < 0 || i >= pg_count() || !m1_sel_toggle(&pg.msel, i)) return;
     pg_head();
     pg_redraw();
 }
 
 static int pg_on_selall(void *ctx, void *e) {
-    int i, all;
     (void)ctx;
     (void)e;
     if (!pg.select) return RET_OK;
-    all = pg.npick < pg.ncan; /* all that can be, unless all are: then none */
-    memset(pg.pick, 0, sizeof pg.pick);
-    pg.npick = 0;
-    if (all)
-        for (i = 0; i < pg_count() && i < PG_PICK_MAX; ++i)
-            if (pg_can_pick(i)) pg.pick[i >> 3] |= (unsigned char)(1 << (i & 7)), ++pg.npick;
+    m1_sel_toggle_all(&pg.msel); /* all that can be, unless all are: then none */
     pg_head();
     pg_redraw();
     return RET_OK;
@@ -4441,7 +4431,7 @@ static int pg_on_delete(void *ctx, void *e) {
     unsigned char gone[PG_PICK_MAX]; /* the Downloads level's rows taken off the list */
     (void)ctx;
     (void)e;
-    if (!pg.select || !pg.npick) return RET_OK;
+    if (!pg.select || !pg.msel.nsel) return RET_OK;
     for (i = 0; pg.level == L_DLS && i < pg.nrows && i < PG_DLS_MAX; ++i)
         files |= pg_is_dld(i) && pg_is_pick(i); /* (a Downloaded row among the marks: the files go) */
     if (!pod_confirm(pg.level == L_DLS && !files ? TR("Remove the selected downloads?")
@@ -4865,7 +4855,7 @@ static int pg_on_unsubs(void *ctx, void *e) {
     int i, failed = 0;
     (void)ctx;
     (void)e;
-    if (!pg.win || !pg.select || !pg.npick || pg.level != L_DLS || !pg.subs || pn_busy()) return RET_OK;
+    if (!pg.win || !pg.select || !pg.msel.nsel || pg.level != L_DLS || !pg.subs || pn_busy()) return RET_OK;
     if (!pod_confirm(TR("Unsubscribe from these shows?"))) return RET_OK;
     for (i = 0; i < pg.nrows && i < PG_DLS_MAX; ++i)
         if (pg_is_pick(i) && pg_can_pick(i) && !pn_unsubscribe_show(pg.root, &pg.shows[pg_row(i)->si])) ++failed;
@@ -5380,8 +5370,7 @@ static int pg_on_destroy(void *ctx, void *e) {
     free(pg.cells);
     free(pg.hdr);
     free(pg.pd);
-    if (pg.mark[0]) bitmap_destroy(pg.mark[0]);
-    if (pg.mark[1]) bitmap_destroy(pg.mark[1]);
+    m1_sel_free(&pg.msel);
     free(pg.shows);
     free(pg.eps);
     free(pg.dls);
@@ -5489,9 +5478,8 @@ int podcasts_open(void) {
     if (pg.del) m1_centre_pill(pg.del, PL_BAR_PILL_W);
     if (pg.unsubp) m1_centre_pill(pg.unsubp, PL_BAR_PILL_W);
     pc_root(pg.root);
-    pg.mark[0] = m1_make_mark(pg.win, "unselect");
-    pg.mark[1] = m1_make_mark(pg.win, "selected");
-    if (!pg.mark[1] && pg.mark[0]) bitmap_destroy(pg.mark[0]), pg.mark[0] = (void *)0;
+    m1_sel_init(&pg.msel, pg.win, pg.back, pg.title, pg.btn_selall, pg.bar, pg.del, pg.unsubp, pg_can_cb,
+                (void *)0); /* the marks: all or none */
     pg.fg = 1;
     widget_on(pg.sv, EVT_SCROLL, pg_on_scroll, (void *)0);
     widget_on(pg.sv, EVT_SCROLL_END, pg_on_scroll, (void *)0);

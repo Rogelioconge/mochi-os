@@ -71,6 +71,7 @@
 #include "artsplit.h"
 #include "search.h"
 #include "pins.h"
+#include "selmode.h"
 
 #define ROW LIST_ROW_H
 #define SG_MARK_UP \
@@ -126,16 +127,13 @@ static struct {
     void *first; /* its first record: with the size, tells a list another query replaced */
     unsigned count;
     song_t *idx; /* count entries */
-    unsigned char *sel; /* the select mode's bitset: (count + 7) / 8 bytes */
-    unsigned nsel;
+    m1_sel_t sel; /* the select mode's marks and chrome (patch/selmode.c) */
     int select; /* select mode */
     int sort; /* sort_flag as the page last read it */
     int rev; /* the library's Title, File Name and Format orders run Z-A (SONGS_SORT_FILE): the stock list is reversed in place after the query */
     az_t al; /* the sections and the rail (patch/azlist.c); al.nsec is 0 for a plain list */
     void *albums; /* the library's albums (cc_albums), for the cover lookup */
     int albums_tried;
-    /* the select marks (SG_MARK px): bitmaps */
-    void *mark[2]; /* unselect, selected */
     int press; /* the row under the finger, + 1 */
     int seen, dir, noscroll;
     int down; /* the row a press began on, + 1 */
@@ -359,8 +357,6 @@ static int sg_edge(void) {
 static int sg_more(void) { return !sg.select && rowmenu_on(&sg.rm); }
 static int sg_text_end(void) { return sg.select ? az_end(&sg.al) : sg_edge(); }
 
-static int sg_is_sel(int i) { return sg.sel && (sg.sel[i >> 3] >> (i & 7) & 1); }
-
 /* The tile of song a, made from the stock record (the caller has checked sg_valid). */
 static void sg_prep(tile_t *t, int a) {
     void *rec = deque_at(sg.list, (unsigned)a);
@@ -510,11 +506,7 @@ static void sg_paint_rows(void *canvas) {
             if (sg.st_dim && sg.st_subdim && xr[r - r0].offline) dim |= 1u << (r - r0);
         }
         if (sg.press == r + 1 && !sg.select) az_fill(canvas, 0, y, y + ROW - 1, SG_W, LIST_PRESS);
-        if (sg.select && sg.mark[0]) {
-            void *m = sg.mark[sg_is_sel(r)];
-            grid_mark_draw(canvas, m, LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2, y + (ROW - SG_MARK) / 2,
-                           GRID_VIEW_H);
-        }
+        m1_sel_paint(&sg.sel, canvas, r, y, ROW, SG_W, LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2, GRID_VIEW_H);
         grid_blit(canvas, &sg.g, t, sg_art_x(), y + LIST_ART_Y, GRID_VIEW_H);
         az_fill(canvas, tx, y + ROW - 1, y + ROW, hair, LIST_HAIR);
         if (sg_more()) rowmenu_paint(canvas, &sg.rm, sg_more_right(), az_inset(&sg.al) > 0, y, ROW, GRID_VIEW_H);
@@ -860,14 +852,12 @@ static void sg_head_prep(void) {
 }
 
 static void sg_head(
-    void) { /* the navbar's title: "N Selected" in select mode, else "Songs" or the list's name, cut to its room with an ellipsis */
-    char buf[64];
+    void) { /* the navbar's title: the select mode's (patch/selmode.c), else "Songs" or the list's name, cut to its room with an ellipsis */
     if (!sg.select) {
         az_fit(sg.title, sg_lib() ? TR("Songs") : sg_name_text());
         return;
     }
-    m1_fmt(buf, sizeof buf, TR("%d Selected"), (int)sg.nsel);
-    widget_set_text_utf8(sg.title, buf);
+    m1_sel_head(&sg.sel);
 }
 
 /* The rail's widget: centred on the list the select bar leaves (docs/modules/songs.md). */
@@ -925,9 +915,8 @@ static void sg_load(int keep) {
     m1_timer_stop(&sg.more_timer);
     sg_build_end();
     rowmenu_close(&sg.rm); /* (a menu's row is an index of the list that is read again) */
-    free(sg.sel);
-    sg.idx = (song_t *)0, sg.sel = (unsigned char *)0, sg.list = sg.first = (void *)0, sg.count = sg.nsel = 0,
-    sg.al.count = 0, sg.al.nsec = 0, sg.press = sg.down = 0, sg.wait = 0;
+    sg.idx = (song_t *)0, sg.list = sg.first = (void *)0, sg.count = 0, m1_sel_reset(&sg.sel, 0), sg.al.count = 0,
+    sg.al.nsec = 0, sg.press = sg.down = 0, sg.wait = 0;
     if (!sg.albums_tried && !sg.src) {
         sg.albums_tried = 1;
         sg.albums = cc_albums();
@@ -958,11 +947,10 @@ static void sg_load(int keep) {
     if (sg.src) sg_pills(); /* (the pills come with the rows) */
     if (sg.count) {
         sg.idx = calloc(sg.count, sizeof(song_t));
-        sg.sel = calloc((sg.count + 7) / 8, 1);
-        if (!sg.idx || !sg.sel) {
+        if (!sg.idx || !m1_sel_reset(&sg.sel, sg.count)) {
             free(sg.idx);
-            free(sg.sel);
-            sg.idx = (song_t *)0, sg.sel = (unsigned char *)0, sg.count = 0;
+            m1_sel_reset(&sg.sel, 0);
+            sg.idx = (song_t *)0, sg.count = 0;
         }
     }
     sg.al.count = (int)sg.count;
@@ -1242,18 +1230,13 @@ static void sg_select(int on) {
     void *nav[2];
     if (on == sg.select) return;
     sg.select = on;
-    sg.nsel = 0;
-    if (sg.sel) memset(sg.sel, 0, (sg.count + 7) / 8);
     sg.press = sg.down = 0;
     nav[0] = sg.btn_more, nav[1] = sg.np;
     for (i = 0; i < 2; ++i) m1_show(nav[i], !on);
     if (sg.btn_cf) m1_show(sg.btn_cf, !on && sg_artist());
     if (sg.btn_search) m1_show(sg.btn_search, !on && sg_searches());
-    m1_show(sg.btn_selall, on);
-    m1_show(sg.bar, on);
     sg_pills(); /* the pills stay in the content, dim and dead (the library's) or dead (a playlist's) */
-    grid_title_end(sg.title, on ? SG_SELALL_X : sg_title_end());
-    grid_icons(sg.back, on ? "ah_nav_close" : "ah_nav_back", on ? "ah_nav_close_down" : "ah_nav_back_down");
+    m1_sel_enter(&sg.sel, on, sg_title_end());
     sg.title_on = -1;
     sg_head();
     sg_title_update();
@@ -1270,17 +1253,14 @@ static void sg_count_changed(void) {
 }
 
 static void sg_toggle(int i) {
-    if (i < 0 || i >= (int)sg.count || !sg.sel) return;
-    sg.sel[i >> 3] ^= (unsigned char)(1 << (i & 7));
-    sg.nsel += sg_is_sel(i) ? 1 : (unsigned)-1;
-    sg_count_changed();
+    if (m1_sel_toggle(&sg.sel, i)) sg_count_changed();
 }
 
 static int sg_on_selall(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (!sg.select || !sg.sel) return RET_OK;
-    sg.nsel = m1_sel_all(sg.sel, sg.count, sg.nsel);
+    if (!sg.select || !sg.sel.bits) return RET_OK;
+    m1_sel_toggle_all(&sg.sel);
     sg_count_changed();
     return RET_OK;
 }
@@ -1290,7 +1270,7 @@ static int sg_on_delete(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!sg.select || sg.src) return RET_OK; /* (a source's tracks are not deleted from here) */
-    if (so_delete(sg.cls, sg.list, sg.count, sg.sel, sg.nsel, sg_valid())) {
+    if (so_delete(sg.cls, sg.list, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid())) {
         sg_select(0);
         sg_load(1);
     }
@@ -1303,7 +1283,7 @@ static int sg_on_add(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!sg.select || sg.src) return RET_OK; /* (a source's sheet has no Add to Playlist) */
-    r = so_add(sg.cls, sg.count, sg.sel, sg.nsel, sg_valid(), sg.title_save, &sg.picker);
+    r = so_add(sg.cls, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid(), sg.title_save, &sg.picker);
     if (r < 0) {
         sg_select(0);
         sg_load(1);
@@ -1357,10 +1337,10 @@ static int sg_in_zone(void *e) {
 /* Add to Playlist for one row (the menu's third row): the page's picker with a selection of that row alone. */
 static void sg_add_one(int row) {
     int r;
-    if (!sg.sel || row < 0 || row >= (int)sg.count || sg.src) return;
-    sg.sel[row >> 3] |= (unsigned char)(1 << (row & 7));
-    r = so_add(sg.cls, sg.count, sg.sel, 1, sg_valid(), sg.title_save, &sg.picker);
-    memset(sg.sel, 0, (sg.count + 7) / 8); /* (the picker and the stock vector have their own copies) */
+    if (!sg.sel.bits || row < 0 || row >= (int)sg.count || sg.src) return;
+    sg.sel.bits[row >> 3] |= (unsigned char)(1 << (row & 7));
+    r = so_add(sg.cls, sg.count, sg.sel.bits, 1, sg_valid(), sg.title_save, &sg.picker);
+    memset(sg.sel.bits, 0, (sg.count + 7) / 8); /* (the picker and the stock vector have their own copies) */
     if (r < 0) sg_load(1);
 }
 
@@ -1527,7 +1507,7 @@ static void sg_search(void);
  * so_marked_ids / so_keep_ids) and are still missing are removed: a file that went under the dialog is left for the next clean-up. */
 static unsigned sg_gone(void) {
     unsigned checked;
-    return sg.count && sg.sel && sg_valid() ? so_gone_mark(sg.list, sg.count, sg.sel, &checked) : 0;
+    return sg.count && sg.sel.bits && sg_valid() ? so_gone_mark(sg.list, sg.count, sg.sel.bits, &checked) : 0;
 }
 
 static void sg_clean(void) {
@@ -1546,11 +1526,11 @@ static void sg_clean(void) {
         return;
     }
     if (!m1_card_mounted()) {
-        memset(sg.sel, 0, (sg.count + 7) / 8);
+        memset(sg.sel.bits, 0, (sg.count + 7) / 8);
         pod_toast(TR("Card not readable, nothing removed"));
         return;
     }
-    fixed = so_relink(sg.list, sg.count, sg.sel);
+    fixed = so_relink(sg.list, sg.count, sg.sel.bits);
     if (fixed) sg_load(1); /* the rows with their new paths (the marks go with the old list) */
     gone = sg_gone();
     if (gone) {
@@ -1558,13 +1538,13 @@ static void sg_clean(void) {
                TR(gone == 1 ? "Remove %d missing song from this playlist?"
                             : "Remove %d missing songs from this playlist?"),
                (int)gone);
-        int *ids = so_marked_ids(sg.list, sg.count, sg.sel, gone); /* the rows the dialog's count is of */
+        int *ids = so_marked_ids(sg.list, sg.count, sg.sel.bits, gone); /* the rows the dialog's count is of */
         if (ids && pod_confirm(buf) && so_card() && m1_card_mounted() && sg_gone() &&
-            so_keep_ids(sg.list, sg.count, sg.sel, ids, gone))
-            done = so_clean(sg.list, sg.count, sg.sel);
+            so_keep_ids(sg.list, sg.count, sg.sel.bits, ids, gone))
+            done = so_clean(sg.list, sg.count, sg.sel.bits);
         free(ids);
     }
-    if (sg.sel && sg.count) memset(sg.sel, 0, (sg.count + 7) / 8);
+    if (sg.sel.bits && sg.count) memset(sg.sel.bits, 0, (sg.count + 7) / 8);
     if (done) {
         pod_toast(TR("Playlist cleaned up"));
         sg_load(1);
@@ -1684,7 +1664,6 @@ static int sg_on_bg(void *ctx, void *e) {
 }
 
 static int sg_on_destroy(void *ctx, void *e) {
-    int i;
     (void)ctx;
     (void)e;
     m1_timer_stop(&sg.more_timer);
@@ -1702,10 +1681,8 @@ static int sg_on_destroy(void *ctx, void *e) {
     free(sg.htmp);
     if (sg.albums) deque_destroy(sg.albums);
     az_free(&sg.al);
-    for (i = 0; i < 2; ++i)
-        if (sg.mark[i]) bitmap_destroy(sg.mark[i]);
+    m1_sel_free(&sg.sel);
     free(sg.idx);
-    free(sg.sel);
     rowmenu_free(&sg.rm);
     memset(&sg, 0, sizeof sg);
     if (sg_under) memcpy(&sg, sg_under, sizeof sg), free(sg_under), sg_under = (void *)0;
@@ -1867,7 +1844,8 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     m1_centre_pill(sg.btn_add, SG_BAR_PILL_W);
     m1_centre_pill(sg.btn_del, SG_BAR_PILL_W);
     az_make_disc(&sg.al);
-    m1_make_marks(sg.win, sg.mark); /* all or none */
+    m1_sel_init(&sg.sel, sg.win, sg.back, sg.title, sg.btn_selall, sg.bar, sg.btn_add, sg.btn_del, (void *)0,
+                (void *)0); /* the marks: all or none */
     sg.noscroll = grid_scroll_bind(sg.sv, sg_on_scroll, sg.title, &sg.title_on);
     widget_on(sg.win, EVT_WINDOW_TO_FG, sg_on_fg, (void *)0);
     widget_on(sg.win, EVT_WINDOW_TO_BG, sg_on_bg, (void *)0);

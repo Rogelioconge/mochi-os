@@ -38,7 +38,7 @@ uses demo's libcurl. Shared request and download layer facts are in [network](ne
 - **Show sheet rows:** Playback Speed (a tap cycles), **Episode Order** (Newest / Oldest First;
   saved at once, loaded rows reversed in place; a failed save toasts `Storage unavailable`),
   **Filter** (below; the row is there while the show has an episode or a Filter is on), Refresh Feed, Select Episodes, Mark All as Played, Unsubscribe.
-- **Select mode** supports bulk deletion; the playing file is kept. Deleting an episode clears
+- **Select mode** (the shared module, [selmode](selmode.md): `pg.msel` over `pg.pick`; the bar's pill is Delete or, on Subscriptions, Unsubscribe) supports bulk deletion; the playing file is kept. Deleting an episode clears
   its resume and played state. Unsubscribing keeps local files.
 - **Saved episodes** are stock `myfav` records; there is no separate database. The Now Playing
   favourite becomes a bookmark for podcast paths, and its More sheet can return to the show.

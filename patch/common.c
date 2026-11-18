@@ -382,12 +382,14 @@ char *m1_read_file(const char *path, unsigned cap, unsigned *n) {
     return buf;
 }
 
-unsigned m1_sel_all(unsigned char *sel, unsigned count, unsigned nsel) {
-    unsigned i;
+unsigned m1_sel_all_can(unsigned char *sel, unsigned count, unsigned nsel, unsigned nmark, int (*can)(void *ctx, int i),
+                        void *ctx) {
+    unsigned i, n = 0;
     memset(sel, 0, (count + 7) / 8);
-    if (nsel >= count) return 0;
-    for (i = 0; i < count; ++i) sel[i >> 3] |= (unsigned char)(1 << (i & 7));
-    return count;
+    if (nsel >= nmark) return 0;
+    for (i = 0; i < count; ++i)
+        if (!can || can(ctx, (int)i)) sel[i >> 3] |= (unsigned char)(1 << (i & 7)), ++n;
+    return n;
 }
 
 void m1_timer_stop(unsigned *t) {

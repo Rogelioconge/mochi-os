@@ -909,7 +909,7 @@ def ah_tint_alpha(y):
 DARK_GLYPH = (0x14, 0x14, 0x14)
 SONGS_IMAGES = {'sg_play': ('play:filled', WHITE, 14, 16), 'sg_shuffle': ('shuffle', WHITE, 16, 16), 'sg_repeat': ('repeat', WHITE, 16, 16), 'sg_repeat1': ('repeat-1', WHITE, 16, 16), 'sg_listplus': ('list-plus', WHITE, 16, 16),
                 'sg_shuffle_on': ('shuffle', DARK_GLYPH, 16, 16), 'sg_repeat_on': ('repeat', DARK_GLYPH, 16, 16), 'sg_repeat1_on': ('repeat-1', DARK_GLYPH, 16, 16),   # the Queue page's lit buttons (#C8C8C8): a near black glyph
-                'sg_trash': ('trash', (0xFF, 0x6B, 0x6B), 16, 16), 'sg_tick': ('+check', WHITE, 14, 14),
+                'sg_trash': ('trash', (0xFF, 0x6B, 0x6B), 16, 16), 'sg_listplus_off': ('list-plus', (0x59, 0x59, 0x59), 16, 16), 'sg_trash_off': ('trash', (0x59, 0x25, 0x25), 16, 16), 'sg_tick': ('+check', WHITE, 14, 14),
                 'pod_ic_vslist': ('list', WHITE, None, 20), 'pod_ic_vsgrid': ('layout-grid', WHITE, None, 20), 'pod_ic_vssearch': ('search', WHITE, None, 20), 'pod_ic_vsselect': ('T:circle-check', WHITE, None, 20),
                 'pod_ic_vsartist': ('mic-vocal', WHITE, None, 20), 'pod_ic_vsalbumartist': ('user-star', WHITE, None, 20),
                 'pod_ic_vsrefresh': ('refresh-cw', WHITE, None, 20), 'pod_ic_vsserver': ('server', WHITE, None, 20),   # the Subsonic root's "..." card (patch/ndroot.c): Sync Now, Server Settings
@@ -1292,13 +1292,11 @@ def capsule_piece(position, glyph, pressed=False):
     return glass_piece(w, x0, x1, glyph, cx, pressed, cap)
 
 # image -> (width, glass columns, glyph centre, glyph, capsule columns or None): the lone discs. Back (the Pod pages' 44 px button centres it: x 8 .. 50),
-# Now Playing's disc (Pod pages, button x 260: glass 269 .. 311), the USB mode page's settings disc, and the album page's select mode (add / delete 146 / 221
-# centred in their 60 px buttons at 116 / 191, cancel 290 in the one at 268, the all / unselect toggle 29 in its 50 px one at 0).
+# Now Playing's disc (Pod pages, button x 260: glass 269 .. 311) and the USB mode page's settings disc.
 AH_NAV_PIECES = {'ah_nav_back': (42, 0, 42, 21, 'chevron-left', None), 'ah_nav_close': (42, 0, 42, 21, 'x', None), 'ah_nav_np': (NAV_PLAY_W, 9, 51, 30, 'audio-lines', None),
                  'ah_nav_set': (NAV_PLAY_W, 9, 51, 30, 'settings', None),   # the USB mode page's DAC settings (tools/mod_ipodrows.py edit_usbmode), on Now Playing's disc
-                 'ah_nav_add': (NAV_PLAY_W, 9, 51, 30, 'plus', None), 'ah_nav_del': (NAV_PLAY_W, 9, 51, 30, 'trash', None), 'ah_nav_cancel': (NAV_PLAY_W, 1, 43, 22, 'x', None),
-                 'ah_nav_unsel': (50, 8, 50, 29, 'circle', None)}
-AH_NAV_SELECTED = ('ah_nav_sel', 'T:circle-check:filled')    # the select-all toggle's "all selected" state (a 50 px disc; no pressed image: stock has none)
+                 'ah_nav_unsel': (50, 8, 50, 29, 'circle', None)}   # the Update Library folder picker's select-all toggle (patch/lupick.c)
+AH_NAV_SELECTED = ('ah_nav_sel', 'T:circle-check:filled')    # the toggle's "all selected" state (a 50 px disc; no pressed image: stock has none)
 AH_NAV_RIGHT = 'ah_nav_play'                                 # Now Playing as the capsule's right cap (Pod pages)
 AH_NAV_NAMES = sorted([n + s for n in [*AH_NAV_PIECES, AH_NAV_RIGHT] for s in ('', '_down')] + [AH_NAV_SELECTED[0]])
 

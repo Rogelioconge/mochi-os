@@ -64,6 +64,12 @@ in the Songs page's top bar and type a title, artist or album.
 On Albums, Artists, Songs or Playlists, tap **…** for the options available on that page. For
 example, in Albums you can switch between grid and list or sort by title, artist, date added or year.
 
+### Select several items
+
+On Songs, Folders, Playlists, Podcasts or an album, choose **Select**, then tap items to mark them.
+**Select All** marks everything. The bar at the bottom acts on the marked items, for example
+**Add to Playlist** or **Delete**. Tap **×** to leave.
+
 ## Control playback
 
 ![Now Playing, lyrics and an album](screenshots/playback.jpg)

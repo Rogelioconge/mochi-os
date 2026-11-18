@@ -480,7 +480,7 @@ def select_tests(ctx):
            f'the "..." sheet: Select (nothing is played yet, so no Delete Played Episodes) ({shown})')
     PCP.click(m, 'pg_sh_select')
     t = m.widgets['label_title']
-    expect(title(m) == '0 Selected' and flags(m, 'btn_selall') == (1, 1) and flags(m, 'pg_bar') == (1, 1) and flags(m, 'btn_more') == (0, 0) and flags(m, 'pg_sh_card') == (0, 0)
+    expect(title(m) == 'Select Items' and flags(m, 'btn_selall') == (1, 1) and flags(m, 'pg_bar') == (1, 1) and flags(m, 'btn_more') == (0, 0) and flags(m, 'pg_sh_card') == (0, 0)
            and m.props.get((m.widgets['btn_return'], 'style:normal:icon')) == 'ah_nav_close', 'Select: the x, 0 Selected, Select All, the bar; the sheet closes')
     L = lay(4, 7, True)
     expect(m.props.get((m.sv, 'virtual_h')) == L['h'], 'the content is the bar\'s height longer')
@@ -498,7 +498,7 @@ def select_tests(ctx):
     tap_row(m, 4, 4, 7, move=40)
     expect(title(m) == '3 Selected', 'a drag marks nothing')
     PCP.click(m, 'btn_selall'); PCP.click(m, 'btn_selall')
-    expect(title(m) == '0 Selected', 'Select All twice: all, then none')
+    expect(title(m) == 'Select Items', 'Select All twice: all, then none')
     PCP.click(m, 'btn_selall')
     expect(title(m) == '10 Selected', 'Select All marks the ten rows that can be marked')
     PCP.click(m, 'btn_selall')

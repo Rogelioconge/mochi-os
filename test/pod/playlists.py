@@ -330,7 +330,7 @@ def select_tests(expect, lists):
            'the menu closes; Select All and the bar show; the list-plus button, "..." and Now Playing go (hidden and insensitive)')
     expect(vis(m, 'btn_return') != (0, 0) and m.props.get((back, 'style:normal:icon')) == 'ah_nav_close' and m.props.get((back, 'style:pressed:icon')) == 'ah_nav_close_down',
            'Back becomes the glass x')
-    expect(('widget_set_text_utf8', t, '0 Selected') in calls and ('widget_resize', t, O['SG_SELALL_X'] - O['NAV_TITLE_X'], 22) in calls, 'the title reads 0 Selected and runs to Select All')
+    expect(('widget_set_text_utf8', t, 'Select Items') in calls and ('widget_resize', t, O['SG_SELALL_X'] - O['NAV_TITLE_X'], 22) in calls, 'the title reads 0 Selected and runs to Select All')
     expect('stock_resume' not in [c[0] for c in calls], 'the stock Playlists page is not opened')
     expect(m.props.get((m.sv, 'virtual_h')) == R0 + 3 * PITCH + O['SG_BAR_H'], 'the content is the bar\'s height longer, so the last row scrolls clear of it')
     blits, texts, styles = paint(m)
@@ -354,7 +354,7 @@ def select_tests(expect, lists):
     m.click('btn_selall')
     expect(('widget_set_text_utf8', t, f'{len(lists)} Selected') in m.calls, 'Select All marks every playlist')
     m.click('btn_selall')
-    expect(('widget_set_text_utf8', t, '0 Selected') in m.calls, 'and a second tap marks none')
+    expect(('widget_set_text_utf8', t, 'Select Items') in m.calls, 'and a second tap marks none')
     # Back (the x) leaves select mode first; the title and navbar are restored
     tap(m, *centre(1)); m.calls = []
     m.click('btn_return')
