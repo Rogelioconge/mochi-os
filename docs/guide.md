@@ -6,11 +6,13 @@ installed M1+ Music yet, start with [Install](install.md).
 ## Start listening
 
 1. Turn off the player, copy your music to the microSD card, then insert it in the player.
-2. On Home, open **Extras → Update Library** and follow the prompts to scan the card.
+2. On Home, open **Extras → Update Library** and tap **Update Now** to scan the card.
 3. Go back to Home and open **Albums**, **Artists** or **Songs**.
 4. Tap a song to play it.
 
-After you add or move music on the card, run **Update Library** again so the player can find it.
+After you add or move music on the card, run **Update Now** again so the player can find it. To add
+only new music in a few folders, use **Choose Folders**, tick the folders and tap **Scan**. Update
+Library shows how many songs you have and when the library was last updated. The page shows when the library was last updated; **Auto Update** does it for you after a card is inserted or a USB transfer ends.
 
 ## Find your way around
 

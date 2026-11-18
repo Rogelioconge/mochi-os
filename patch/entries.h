@@ -229,6 +229,20 @@ void wt_opened(
     void *win); /* the page's window is up: stop_player, switch_wifitransport(1), and the exits that stop it */
 void wt_front(void); /* back in front after the player: the server again */
 
+/* patch/libupdate.c: Settings > Library > Update Library (stock's autoscan_flag, scan dialog and folder page; the Last Updated record) */
+int lu_auto(void);
+int lu_auto_toggle(void); /* stock's switch: the byte xor 1, then [SYSSET] AUTOSCAN; the new state */
+void lu_update_now(void); /* stock's Update Now: the scan dialog with a zero context */
+void lu_folders(void); /* stock's Choose Folders row: the card check, then the folder picker (lupick_open) */
+int lupick_open(
+    void); /* patch/lupick.c: the folder picker; 0 up, -1 would not open (stock's page is the fallback), -2 an asset that is not ours */
+void lp_scan_done(void); /* the picker's scan deque, freed once the scan's worker has returned (lu_scan_finish) */
+void lu_songs_text(char *buf, unsigned n); /* the songtable's row count with a comma; empty when the query fails */
+void lu_when_text(
+    char *buf,
+    unsigned n); /* the last completed scan (Today 09:41, Yesterday, Nov 14, a date); empty when none is recorded */
+int lu_scan_finish(void *win, int done); /* the hook at the scan dialog's finish branch (payload hook 34) */
+
 /* patch/playset.c: Settings > Playback Settings. A getter answers the shown state, a setter 0 or -1 (refused), a toggle the new state. */
 enum {
     PS_CTL_MODE,

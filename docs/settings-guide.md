@@ -76,7 +76,7 @@ Settings tile opens its hub and is dimmed on the hub and its Volume & Sound and 
 
 | Setting | What it does |
 |---|---|
-| Update Library | Scan the card for music. |
+| Update Library | Opens the Update Library page: the number of songs and when the library was last updated, **Update Now** (scans the whole card, and removes songs you deleted), **Choose Folders** (a list of the card's folders: tick the circle of each folder to scan, open a folder with a chevron to pick inside it, **Select All** ticks the folders of the level you are in, and **Scan N Folders** adds their new music) and the **Auto Update** switch (scans after a card is inserted or a USB transfer ends). |
 | Rebuild Covers / Rebuild Artist Photos | Rebuild cached artwork; see [artist photos](library-guide.md#artist-photos). |
 | Split Artists | List songs under each tagged artist; choose separators. See [Split Artists](library-guide.md#split-artists). |
 | Index Rail / Section Headers | Show the rail and section letters on supported lists; both are on by default. Albums in Year order use a decades rail in the list. |

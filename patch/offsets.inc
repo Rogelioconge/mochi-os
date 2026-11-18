@@ -18,6 +18,7 @@
  * 13 0xf009: recently added        14 playlist_page   15 cdripper_page (sets GPIO PA11 first)
  * 16 playset/playset_page          17 systemset/sysset_page.  The ids tools/pod_pages.py uses are the same. */
 #define HOME_ALBUM 5
+#define HOME_UPDATE 2 /* systemset/updatemusic_page: Update Library (our page opens in its place, patch/m1plus.c home_open and m1plus_home_click) */
 
 /* The Home grid, as the stock page builder 0x534064 / icon builder 0x533d8c lay it out (patch/home.c adds one
  * icon the same way): a slide_view "home_sview" of 320x364 page views, six icons each in two columns and three
@@ -449,6 +450,7 @@
 #define LIST_SUB_Y 35
 #define LIST_SUB_H 20
 #define LIST_HAIR 0xff222222u
+#define CARD_HAIR 0xff333333u /* a Settings card's hairline (pod_roles LINE_RGB, baked into the pod_cd_* pieces): code-painted cards (patch/lupick.c) draw it; not a role, nothing maps it */
 #define LIST_PRESS 0xff343333u /* ROLE_PRESS_ROW #333334 as a color_t word: a pressed row, unique so the accent can find it */
 
 /* ---------------------------------------------------------------------------

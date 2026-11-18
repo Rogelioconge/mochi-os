@@ -197,14 +197,17 @@ ACT_SLEEPLEFT = 171   # information row (the Sleep Timer page, a card of its own
 ACT_BATTHIST = 188     # switch row (Battery History page): Battery History, off by default; records the last 24 hours of battery level and use (patch/batthist.c bh_toggle, /mnt/data/m1plus/battery-history)
 ACT_BHPAGE = 190      # value row (Settings > Battery): Battery History, On or Off as the switch on its page; opens the Battery History page (arg = its page index; patch/batthist.c bh_setting)
 ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page): choose the preferred codec (arg = stock's btcoding 0 .. 7; patch/btpage.c bp_codec_set: the init guard, stock's confirm while a device is connected, then stock's Quality choice)
+ACT_LUNOW = 193       # action row (Settings > Library > Update Library): Update Now, stock's scan dialog with no context, a full scan (patch/libupdate.c lu_update_now)
+ACT_LUFOLDERS = 194   # link row (Update Library): Choose Folders: the card check, then our folder picker (patch/libupdate.c lu_folders, patch/lupick.c)
+ACT_LUAUTO = 195      # switch row (Update Library): Auto Update, stock's switch (the byte autoscan_flag saved as [SYSSET] AUTOSCAN; patch/libupdate.c lu_auto_toggle)
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
 SWITCH_ACTIONS = (ACT_ASPLIT,) + ASSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_FR, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO, ACT_BATTHIST, ACT_NPPOS)
-SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA)
+SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA, ACT_LUAUTO)
 NO_CHEVRON_ACTIONS = (ACT_PLAYER, ACT_SHUFFLE, ACT_REGEN)   # rows that play or act in place (a switch or a value row has none either)
 VALUE_ACTIONS = (ACT_ASPAGE, ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_BHPAGE, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
 CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, ACT_ACCENTSET, ACT_LOCKSET, ACT_REGIONSET, ACT_CHGLIMSET, ACT_PEQ_PICK, ACT_PEQ_CPICK, ACT_PEQ_PAUTO, ACT_PEQ_PVAL, ACT_IDLESET, ACT_LYRSIZESET, ACT_NASET, ACT_LIGHTSET, ACT_LEDSET, ACT_KEYLOCKSET, ACT_SHUTDOWNSET, ACT_RGBTHEME, ACT_PLAYMODESET, ACT_MEMPLAYSET, ACT_GAINSET, ACT_RGSET, ACT_FILTERSET, ACT_DSDSET, ACT_USBVOLSET, ACT_XFEEDSET, ACT_SLEEPSET)   # picker rows: a check at the right of the chosen one (the image pod_check<row>), no icon
-ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron (Update Library, an ACT_HOME row, is one too: row_kind)
+ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_LUNOW, ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron
 VALUE_INIT = {ACT_ASPAGE: 'Off', ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_BHPAGE: 'Off', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
 VALUE_ACTIONS += (ACT_LANG,)
 CHECK_ACTIONS += (ACT_LANGSET, ACT_BTCODECSET)
@@ -258,7 +261,7 @@ def row_kind(row):
     if row.action in VALUE_ACTIONS or (row.action == ACT_STOCK and STOCK_PAGES[row.arg][1]): return 'value'
     if row.action in CHECK_ACTIONS: return 'check'
     if row.action in (ACT_INFO, ACT_SFDEL, ACT_SLEEPLEFT): return 'info'
-    if row.action in ACTION_ACTIONS or (row.action == ACT_HOME and row.arg == HOME_UPDATE): return 'action'
+    if row.action in ACTION_ACTIONS: return 'action'
     return 'link'
 
 
@@ -460,6 +463,8 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_psvolume',
     'm1plus_psoutput',
     'm1plus_volume',
+    'm1plus_libupdate',
+    'm1plus_lupick',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -521,6 +526,7 @@ ACCENT_PAGE_INDEX = page_index('m1plus_accent')
 APPEARANCE_PAGE_INDEX = page_index('m1plus_appearance')
 GENERAL_PAGE_INDEX = page_index('m1plus_general')
 NETSERVICE_PAGE_INDEX = page_index('m1plus_netservice')
+LIBUPDATE_PAGE_INDEX = page_index('m1plus_libupdate')
 WIFITRANSFER_PAGE_INDEX = page_index('m1plus_wifitransfer')
 PULLDOWN_PAGE_INDEX = page_index('m1plus_pulldown')
 REGION_PAGE_INDEX = page_index('m1plus_podcastregion')
@@ -748,6 +754,7 @@ INFO_DUR = INFO_CC_STATUS + 58  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asse
 INFO_APHOTOS, INFO_ANONE = INFO_DUR + 1, INFO_DUR + 2   # patch/m1plus.c: the Artist Photos card's counts (homecover_stat 7, 8)
 INFO_LBACCT = INFO_DUR + 3   # patch/m1plus.c: the ListenBrainz page's Account row (patch/scrobpage.c lb_account_text)
 INFO_LFACCT = INFO_DUR + 4   # ... and the Last.fm page's
+INFO_LUSONGS, INFO_LUWHEN = INFO_DUR + 5, INFO_DUR + 6   # patch/m1plus.c: the Update Library page's Songs and Last Updated rows (patch/libupdate.c lu_songs_text, lu_when_text)
 CACHE_PAGE_INDEX = page_index('m1plus_cache')
 CACHE_PAGE = Page('m1plus_cache', 'm1plus_cache_page', 'Cache', layout=[
     Hdr('Covers'),
@@ -918,11 +925,11 @@ EXTRAS_PAGE = Page('m1plus_extras', 'm1plus_extras_page', 'Extras', rows=[Row(r.
 # an item in the menu (Main Menu) turns it on again, so an item hidden from the menu later is back on Extras.
 EXTRASCFG_PAGE = Page('m1plus_extrascfg', 'm1plus_extrascfg_page', 'Extras', kind='extrascfg')
 
-# Settings > Library: one card of Update Library (the stock page, as the Update Library item), Rebuild Covers (the stock confirm dialog, then Home's cover build extracts every
+# Settings > Library: one card of Update Library (our page, as the Update Library item), Rebuild Covers (the stock confirm dialog, then Home's cover build extracts every
 # cover again), then the List Navigation card (Index Rail and Section Headers, the A-Z lists of patch/azlist.c), Cover Flow's Landscape switch (the album order is the Albums "..." card's),
 # and the last card of two rows: Podcasts (opens the Podcasts page) and Scrobbling (On or Off), which opens the Scrobbling page.
 LIBRARY_PAGE = Page('m1plus_library', 'm1plus_library_page', 'Library', layout=[
-    Row('Update Library', ACT_HOME, HOME_UPDATE),
+    Row('Update Library', ACT_PAGE, LIBUPDATE_PAGE_INDEX),
     Row('Rebuild Covers', ACT_REBUILD),
     Row('Rebuild Artist Photos', ACT_AREBUILD),
     Hdr('Artists'),
@@ -1482,6 +1489,18 @@ NETSERVICE_PAGE = Page('m1plus_netservice', 'm1plus_netservice_page', 'Network S
 WT_INFO = 'On the same Wi-Fi, open this address in a browser to manage your music.'
 WT_NOTE = 'Playback is paused while this page is open. Leave the page to turn it off.'
 WIFITRANSFER_PAGE = Page('m1plus_wifitransfer', 'm1plus_wifitransfer_page', 'Wi-Fi Transfer', layout=[Hero('wifi', 'Wi-Fi Transfer', WT_INFO), BigCard(), Note(WT_NOTE, lines=3, center=True)])
+
+# Settings > Library > Update Library (patch/libupdate.c, docs/modules/libupdate.md): what the library holds and when it was last scanned, the two scans of stock's scan dialog, and stock's Auto Update switch. The rows have no glyphs (NOGLYPH_ACTIONS).
+LU_NOTE1 = 'Choose Folders only adds new music. To remove deleted songs, use Update Now.'
+LU_NOTE2 = 'Updates after a card is inserted or USB transfer ends.'
+LIBUPDATE_PAGE = Page('m1plus_libupdate', 'm1plus_libupdate_page', 'Update Library', layout=[
+    Row('Songs', ACT_INFO, INFO_LUSONGS), Row('Last Updated', ACT_INFO, INFO_LUWHEN), GAP,
+    Row('Update Now', ACT_LUNOW), Row('Choose Folders', ACT_LUFOLDERS), Note(LU_NOTE1, lines=2),
+    Row('Auto Update', ACT_LUAUTO), Note(LU_NOTE2, lines=2),
+])
+# Update Library > Choose Folders (patch/lupick.c, docs/modules/libupdate.md "The folder picker"): our picker in place of stock's systemset/specfolder_page; no rows (the payload paints them)
+LUPICK_PAGE = Page('m1plus_lupick', 'm1plus_lupick_page', 'Choose Folders', kind='lupick')
+NOGLYPH_ACTIONS = (ACT_LUNOW, ACT_LUFOLDERS, ACT_LUAUTO)   # rows with no glyph: the Update Library page's (tools/pod_ui.py cards_row)
 
 # PAGES[0] is the entry page. The order is PAGE_ORDER's; a key with no page, or a page missing from PAGE_ORDER, stops the import.
 _missing = [k for k in PAGE_ORDER if k not in _REGISTRY]

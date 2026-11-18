@@ -37,6 +37,9 @@ IDLE_SITE = (pod.IDLE_SITE, 4)  # the timed open's jalr navigator_to, now jal bc
 TIDALKB_SITE = (pod.TIDALKB_SITE, 4)  # the stock Tidal search page's edit_set_focus call, now jal tidal_kb_focus (patch/tidalkb.c, docs/modules/payload.md hook 27)
 BTHUB_SITE = (pod.BTHUB_SITE, 4)  # the Bluetooth row of the same hub: its jalr navigator_to, now jal bt_hub_open (patch/btpage.c, docs/modules/payload.md hook 32)
 VOLUME_SITE = (pod.VOLUME_SITE, 4)  # on_wm_tsup_fun's `bal navigator_to_with_context("dialog/volume_dialog", 2)`, now jal vol_tap_open (patch/volume.c, docs/modules/payload.md hook 33)
+LIBUPDATE_BATCH_SITE = pod.LIBUPDATE_BATCH_SITE  # toolsInsertDbTable's batch COMMIT call, now jal lu_batch_exec (hook 34)
+LIBUPDATE_COMMIT_SITES = pod.LIBUPDATE_COMMIT_SITES  # both scan functions' jalr toolsDatabaseCommit, now jal lu_commit (hook 34)
+LIBUPDATE_SITE = (pod.LIBUPDATE_SITE, 4)  # the scan dialog timer's finish refresh: its bal 0x47b604, now jal lu_scan_finish (patch/libupdate.c, docs/modules/payload.md hook 34)
 WIFIHUB_SITE = (pod.WIFIHUB_SITE, 4)  # the Wi-Fi row of the All System Settings hub: the jalr navigator_to, now jal wifi_hub_open (patch/wifipage.c, docs/modules/payload.md hook 21)
 PULLDOWN_OPEN = tuple(pod.PULLDOWN_OPEN_SITES) + (pod.PULLDOWN_DIALOG_SITE,)  # on_wm_tsmove_fun: the two `bal navigator_to` that open the page a pull-down tile chose, now jal pd_open_settings (patch/pulldown.c, docs/modules/payload.md hook 22)
 BATTERY_SITE = (0x5450f8, 4)  # show_sysbar_face: the jalr get_battery_capacity, now jal bp_capacity (patch/battery.c, docs/modules/payload.md hook 8)
@@ -110,6 +113,8 @@ def main():
     for q in PULLDOWN_OPEN: allow(va_to_off(s, q), 4, 'pull-down settings tile hook')
     allow(va_to_off(s, WIFIHUB_SITE[0]), WIFIHUB_SITE[1], 'Wi-Fi hub row hook')
     allow(va_to_off(s, BTHUB_SITE[0]), BTHUB_SITE[1], 'Bluetooth hub row hook')
+    allow(va_to_off(s, LIBUPDATE_SITE[0]), LIBUPDATE_SITE[1], 'scan dialog finish hook')
+    for a in LIBUPDATE_COMMIT_SITES + (LIBUPDATE_BATCH_SITE,): allow(va_to_off(s, a), 4, 'scan commit hook')
     allow(va_to_off(s, VOLUME_SITE[0]), VOLUME_SITE[1], 'Volume page hook (the status bar tap)')
     allow(va_to_off(s, IDLE_SITE[0]), IDLE_SITE[1], 'idle view hook (the timed open)')
     allow(va_to_off(s, TIDALKB_SITE[0]), TIDALKB_SITE[1], 'Tidal search keyboard hook')
@@ -229,6 +234,15 @@ def main():
     good = sw == 0x041110f8 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
     print(f'Volume page hook {VOLUME_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
     ok = ok and good
+    o = va_to_off(s, LIBUPDATE_SITE[0]); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]
+    good = sw == 0x0411fec5 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
+    print(f'scan dialog finish hook {LIBUPDATE_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
+    ok = ok and good
+    for a in LIBUPDATE_COMMIT_SITES + (LIBUPDATE_BATCH_SITE,):
+        o = va_to_off(s, a); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]
+        good = sw == 0x0320f809 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
+        print(f'scan commit hook {a:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
+        ok = ok and good
     o = va_to_off(s, IDLE_SITE[0]); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]
     good = sw == 0x0320f809 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
     print(f'idle view hook {IDLE_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')

@@ -27,6 +27,8 @@ Adding a hook:
   - Library query hooks: rewrite only the documented songtable / myfav cases, pass other SQL
     untouched; album queries use track order so the first track supplies row and cover.
   - Scan hook: skips dot-folders (not on the boot path).
+  - Scan finish hook: runs stock's refresh first, then writes one small record when the scan was not
+    cancelled ([libupdate](libupdate.md)); not on the boot path.
   - Battery hook: runs stock first from the first status refresh. Only an enabled percentage setting
     changes capacity and label; only a set Charge Limit writes the charger switch, releasing only its
     own hold ([charging](charging.md)). Both off: one `access` and two cached flags.

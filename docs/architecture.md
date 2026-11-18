@@ -98,6 +98,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Subsonic](modules/subsonic.md) | Remote library, streaming, downloads |
 | [Wi-Fi](modules/wifi.md) | hostap 2.12, own Wi-Fi page |
 | [Wi-Fi Transfer](modules/wifi-transfer.md) | Web server, api.cgi, thttpd limits |
+| [Update Library](modules/libupdate.md) | Own page, scan time record, scan-finish hook |
 | [Bluetooth](modules/bluetooth.md) | Own page, codec picker, devices |
 
 ### Settings and system

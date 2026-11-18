@@ -17,7 +17,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Bluetooth | our Bluetooth page | [bluetooth](bluetooth.md) |
 | | Network Services | AirPlay and DLNA switches, SyncLink, Wi-Fi Transfer; stock's page stays under All System Settings | [wifi-transfer](wifi-transfer.md) |
 | | Home Screen | Recent Albums, Daily Mix, Main Menu / Extras, Regenerate Daily Mix | [dailymix](dailymix.md), [menu](menu.md) |
-| | Library | Update Library, Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
+| | Library | [Update Library](libupdate.md), Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
 | | Now Playing | Cassette Theme, Lyrics Text Size, Idle Display, Track Position | [tape](tape.md), [bigcover](bigcover.md) |
 | **Playback** | EQ | our Equalizer page | [peq](peq.md) |
 | | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [nextalbum](nextalbum.md) |
@@ -94,7 +94,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   the charts ([batthist](batthist.md) "History page": hidden items the payload shows, names `pod_sec0..2`,
   `pod_note0..3`, `pod_hist0..2`).
 - **Library.**
-  - Update Library (stock's updatemusic page), then **Rebuild Covers** and **Rebuild Artist Photos**
+  - Update Library (our page, a link row: [libupdate](libupdate.md)), then **Rebuild Covers** and **Rebuild Artist Photos**
     ([Rebuild rows](#rebuild-rows)).
   - **Artists:** a value row **Split Artists** (On / Off) opening its page (below).
   - **List Navigation:** **Index Rail** and **Section Headers** switches, note "Songs, Artists, Albums and

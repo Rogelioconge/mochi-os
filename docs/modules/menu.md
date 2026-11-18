@@ -81,7 +81,7 @@ rereads the file when foregrounded. Both pages use `extras_display`/`extras_layo
 equivalents; stock relayout is tested with headers and variable-height sections.
 
 Stock destinations retain Home-dispatch fallback. Collection rows use the Songs page;
-Genres/Composers use the Artists page; Update Library, Tidal and CD Ripper use stock pages.
+Genres/Composers use the Artists page; Update Library uses [our page](libupdate.md); Tidal and CD Ripper use stock pages.
 See [Songs](songs.md), [Artists](artists.md) and [settings](settings.md).
 
 ## Other page assets

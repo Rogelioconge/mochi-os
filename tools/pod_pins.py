@@ -1251,6 +1251,48 @@ NETSERVICE_PINS = (   # (address, stock word, what it proves)
     (0x4ce668, 0x8f82b340, 'to_poweroptions: lw v0, GOT wifitransport_flag'), (0x4ce670, 0x1440001a, 'to_poweroptions: bnez: no countdown while the byte is set'),
 )
 
+# Settings > Library > Update Library (patch/libupdate.c, docs/modules/libupdate.md): systemset/updatemusic_page as stock's code does it, and the scan dialog's finish. Update Now (0x4af070) is
+# navigator_to_with_context("dialog/scanmusic_dialog", a context of four zero words); Auto Update (0x4af0bc) stores byte ^ 1 in autoscan_flag (0xa05aa9, in the delay slot of write_int_config) and swaps the
+# switch image; Choose Folders (0x4af1f4) asks toolsCheckMount("/mnt/mmc"): nonzero navigator_to("systemset/specfolder_page"), else getFormatString("msg_nottf") in a msginfo context (kind 1, 2000 ms, the text).
+# The dialog's timer callback (0x47bab0) calls the refresh 0x47b604 with done = 1 at the first tick that sees the state word 0xa03a40 above 0 (state 1; the call is `bal` at LIBUPDATE_SITE, a0 = the
+# dialog in its delay slot), then adds 1 (2: one more finished tick; 3: the dialog quits, 0x47bb04). The workers (0x47b410 full, 0x47b470 folders) store 1 when the scan returns, cancelled or not; Cancel (0x47b5ac)
+# calls toolsStopUpdateMusic (the byte 0xa0b088 = 1) while the state is below 3; toolsGetUserStop reads that byte; the dialog's init (0x47bba8) clears the byte (toolsClearDbCount, 0x5efcfc) and the state (0x47bca0).
+LIBUPDATE_SITE = 0x47baec   # the dialog timer's `bal 0x47b604` (done = 1) becomes jal lu_scan_finish (patch/libupdate.c, docs/modules/payload.md hook 34)
+LIBUPDATE_COMMIT_SITES = (0x4e9e70, 0x4e9f9c)   # scanAllMusicFile's and scanSpecFolder's `jalr t9` (toolsDatabaseCommit) become jal lu_commit (docs/modules/payload.md hook 34)
+LIBUPDATE_BATCH_SITE = 0x5ee090   # toolsInsertDbTable's batch COMMIT (every 100 rows inside a scan): its `jalr t9` (sqlite3_exec) becomes jal lu_batch_exec (docs/modules/payload.md hook 34)
+LIBUPDATE_PINS = (   # (address, stock word, what it proves)
+    (0x4af070, 0x3c1c0055, 'Update Now 0x4af070: prologue'), (0x4af090, 0x248488a4, 'Update Now: a0 = "dialog/scanmusic_dialog"'), (0x4af098, 0xafa00018, 'Update Now: context word 0 = 0'),
+    (0x4af09c, 0xafa0001c, 'Update Now: context word 1 = 0'), (0x4af0a0, 0xafa00020, 'Update Now: context word 2 = 0'), (0x4af0a4, 0x0320f809, 'Update Now: jalr navigator_to_with_context'),
+    (0x4af0a8, 0xafa00024, 'Update Now: context word 3 = 0 (delay slot)'), (0x4af084, 0x27a50018, 'Update Now: a1 = the context'),
+    (0x4af0f0, 0x8f90b09c, 'Auto Update 0x4af0bc: lw s0, GOT autoscan_flag (0xa05aa9)'), (0x4af0f8, 0x92020000, 'Auto Update: lbu v0, (s0)'), (0x4af0fc, 0x38440001, 'Auto Update: xori a0, v0, 1'),
+    (0x4af100, 0x0320f809, 'Auto Update: jalr write_int_config("SYSSET", "AUTOSCAN")'), (0x4af104, 0xa2040000, 'Auto Update: sb a0, (s0) (the byte, in the delay slot)'), (0x4af0dc, 0x24c68cf4, 'Auto Update: a2 = "AUTOSCAN"'),
+    (0x4af1f4, 0x3c1c0055, 'Choose Folders 0x4af1f4: prologue'), (0x4af214, 0x0320f809, 'Choose Folders: jalr toolsCheckMount'), (0x4af218, 0x24844bd0, 'Choose Folders: a0 = "/mnt/mmc"'),
+    (0x4af21c, 0x14400009, 'Choose Folders: bnez: a mounted card goes on to navigator_to'), (0x4af1c4, 0x04117694, 'Choose Folders: bal getFormatString'), (0x4af1c8, 0x24844bdc, 'Choose Folders: a0 = "msg_nottf"'),
+    (0x4af1dc, 0x0320f809, 'Choose Folders: jalr navigator_to_with_context(msginfo)'), (0x4af1e0, 0x248445c4, 'Choose Folders: a0 = "dialog/msginfo_dialog"'),
+    (0x4af24c, 0x0320f809, 'Choose Folders: jalr navigator_to'), (0x4af250, 0x24848d00, 'Choose Folders: a0 = "systemset/specfolder_page"'),
+    (0x47bad0, 0x2739b604, 'scan timer 0x47bab0: t9 = 0x47b604 (the refresh)'), (0x47badc, 0x8e223a40, 'scan timer: lw v0, state'), (0x47bae0, 0x18400026, 'scan timer: blez: still scanning'),
+    (0x47bae8, 0x24050001, 'scan timer: a1 = 1 (done)'), (LIBUPDATE_SITE, 0x0411fec5, 'scan timer: bal 0x47b604 (the finish refresh)'), (0x47baf0, 0x02002025, 'scan timer: a0 = the dialog (delay slot)'),
+    (0x47baf4, 0x8e223a40, 'scan timer: lw v0, state'), (0x47bafc, 0x24420001, 'scan timer: state + 1'), (0x47bb00, 0xae223a40, 'scan timer: sw state'), (0x47bb04, 0x28420003, 'scan timer: slti v0, 3'),
+    (0x47bb80, 0x0411fea0, 'scan timer: bal 0x47b604 with a1 = 0 (still scanning; not hooked)'), (0x47b604, 0x3c1c0059, 'refresh 0x47b604: prologue'), (0x47b608, 0x279c88cc, 'refresh: prologue'),
+    (0x47b60c, 0x0399e021, 'refresh: prologue'), (0x47b6d4, 0x0320f809, 'refresh: jalr widget_set_tr_text("scaning_finish") when done'),
+    (0x47b460, 0xac433a40, 'full-scan worker 0x47b410: state = 1 when scanAllMusicFile returns'), (0x47b4c0, 0xac433a40, 'folder-scan worker 0x47b470: state = 1 when scanSpecFolder returns'),
+    (0x47b42c, 0x0320f809, 'full-scan worker: jalr toolsGetUserStop'), (0x47b448, 0x0320f809, 'full-scan worker: jalr scanAllMusicFile("/mnt/mmc", 1)'), (0x47b4a8, 0x0320f809, 'folder-scan worker: jalr scanSpecFolder(list, 0)'),
+    (0x47b5c8, 0x8c423a40, 'Cancel 0x47b5ac: lw v0, state'), (0x47b5cc, 0x28420003, 'Cancel: slti v0, 3'), (0x47b5d0, 0x14400008, 'Cancel: below 3 stops the scan, else quits'),
+    (0x5ed944, 0x8f8280b4, 'toolsStopUpdateMusic 0x5ed938: lw v0, GOT'), (0x5ed950, 0xa043b088, 'toolsStopUpdateMusic: sb 1, the stop byte 0xa0b088'), (0x5ed968, 0x9042b088, 'toolsGetUserStop 0x5ed954: lbu the stop byte'),
+    (0x5efcfc, 0xa040b088, 'toolsClearDbCount: the stop byte = 0'), (0x47bca0, 0xac403a40, 'scan dialog init: state = 0'),
+    (0x4e9e3c, 0x1443000e, 'scanAllMusicFile 0x4e9df4: bne v0, 1: a failed toolsInitDatabase skips the scan and the commit'), (0x4e9ee4, 0x1443002f, 'scanSpecFolder 0x4e9e90: bne v0, 1: the same'),
+    (0x4e9e6c, 0x8f99ba54, 'scanAllMusicFile: t9 = toolsDatabaseCommit (GOT)'), (0x4e9e70, 0x0320f809, 'scanAllMusicFile: jalr toolsDatabaseCommit (the site)'), (0x4e9e74, 0, 'scanAllMusicFile: nop (delay slot)'),
+    (0x4e9f98, 0x8f99ba54, 'scanSpecFolder: t9 = toolsDatabaseCommit (GOT)'), (0x4e9f9c, 0x0320f809, 'scanSpecFolder: jalr toolsDatabaseCommit (the site)'), (0x4e9fa0, 0, 'scanSpecFolder: nop (delay slot)'),
+    (0x5ed990, 0x8e22b080, 'toolsDatabaseCommit 0x5ed96c: lw v0, the transaction word 0xa0b080'), (0x5ed994, 0x1840000c, 'toolsDatabaseCommit: blez v0: no COMMIT while the word is 0'),
+    (0x5ed9ac, 0x8e04ac74, 'toolsDatabaseCommit: a0 = the handle 0xa0ac74'), (0x5ed9b4, 0x24a57c9c, 'toolsDatabaseCommit: a1 = "COMMIT;"'), (0x757c9c, 0x4d4d4f43, 'the string starts "COMM"'),
+    (0x5ed9b8, 0x0320f809, 'toolsDatabaseCommit: jalr sqlite3_exec (result dropped)'), (0x5ed9c4, 0xae20b080, 'toolsDatabaseCommit: the transaction word = 0'),
+    (0x5ed9dc, 0xae00ac74, 'toolsDatabaseCommit: the handle = 0 after sqlite3_close'), (0x5ee038, 0x8e22b080, 'the insert path: lw the transaction word'), (0x5ee044, 0xae22b080, 'the insert path: sw word + 1 (rows since the last COMMIT)'),
+    (0x5ee070, 0x8f99f944, 'toolsInsertDbTable 0x5ee2fc: t9 = sqlite3_exec (GOT)'), (0x5ee084, 0xafa20010, 'insert path batch COMMIT: the fifth argument (errmsg) on the stack, 0x10($sp)'), (0x5ee08c, 0x24a57c9c, 'insert path batch COMMIT: a1 = "COMMIT;"'),
+    (LIBUPDATE_BATCH_SITE, 0x0320f809, 'insert path batch COMMIT: jalr sqlite3_exec (result dropped; the site)'), (0x5ee094, 0, 'insert path batch COMMIT: nop (delay slot)'), (0x5ee098, 0xae20b080, 'insert path batch COMMIT: the transaction word = 0'),
+    (0x5e25b0, 0x3c1c0042, 'toolsCheckMount 0x5e25b0: prologue'), (0x5efb68, 0x3c1c0041, 'toolsGetDbTableNumber 0x5efb68: prologue'), (0x5efb6c, 0x279c4368, 'toolsGetDbTableNumber: prologue'),
+    (0x758010, 0x656c6573, 'toolsGetDbTableNumber: the format starts "sele" ("select count(1) from %s")'), (0x4ee0c0, 0x0320f809, 'stock calls toolsGetDbTableNumber(table, "/mnt/data/database.db")'),
+)
+
 # Settings > Bluetooth (patch/btset.c, docs/modules/bluetooth.md "Control layer"): every stock sequence the control layer repeats, as runs of consecutive words (the stock handler's own code, so a different demo fails
 # the build). 0x4a3b64 is stock's `beqz` here (tools/coex.py turns it into a branch later in the build: Wi-Fi stays on; test/pod/btset.py checks the built demo); the codec table 0x97ca08 holds the eight tr keys get_bluetoothcoding_text copies.
 BLUETOOTH_RUNS = (   # (first address, what the words prove, the stock words from there on; one word each, 4 bytes apart)

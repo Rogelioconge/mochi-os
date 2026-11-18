@@ -128,9 +128,9 @@ def entry_tests(ctx):
     for i, (name, hid) in enumerate(want):
         m = Machine()
         m.call(on_row, a0=rows_ex + 12 * (n_items + i), count=5000000)
-        if name in lists or name == 'Composers':
-            win = 'm1plus_artists' if name == 'Composers' else 'm1plus_songs'
-            expect(('window_open', win) in m.calls and (win == 'm1plus_songs' or 'window_open' in m.names()), f'Extras > {name} opens our {"Artists" if name == "Composers" else "Songs"} page')
+        if name in lists or name == 'Composers' or name == 'Update Library':
+            win = 'm1plus_artists' if name == 'Composers' else 'm1plus_libupdate' if name == 'Update Library' else 'm1plus_songs'
+            expect(('window_open', win) in m.calls and (win == 'm1plus_songs' or 'window_open' in m.names()), f'Extras > {name} opens our {"Artists" if name == "Composers" else "Update Library" if name == "Update Library" else "Songs"} page')
             m = Machine(); m.windows[win] = 0
             m.call(on_row, a0=rows_ex + 12 * (n_items + i), count=5000000)
             expect(('stock_resume', str(hid)) in m.calls, f'Extras > {name}: a window that will not open leaves Home id {hid}')
@@ -1250,9 +1250,9 @@ def library_tests(ctx, on_row):
     vk_i = next(i for i, r in enumerate(C.rows) if r.action == P.ACT_VOLKEYS)
     vsw, VK = f'pod_switch{vk_i}', '/mnt/data/m1plus/coverflow-volume-keys'
     sw = f'pod_switch{land_i}'
-    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_HOME), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE)]
-           and C.title == 'Library' and C.rows[0].arg == P.HOME_UPDATE and P.row_kind(C.rows[0]) == 'action',
-           'the Library page: one card of Update Library (the stock page, no chevron), Rebuild Covers, Rebuild Artist Photos, then the List Navigation switches (Index Rail, Section Headers), Folder Album Cover (a switch) under Folders, Landscape and Volume Buttons (switches, the second with its note) under Cover Flow, and the last card of two rows: Podcasts (a plain page link, no value) and Scrobbling (a value, On or Off)')
+    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_PAGE), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE)]
+           and C.title == 'Library' and C.rows[0].arg == P.LIBUPDATE_PAGE_INDEX and P.row_kind(C.rows[0]) == 'link',
+           'the Library page: one card of Update Library (our page, a chevron), Rebuild Covers, Rebuild Artist Photos, then the List Navigation switches (Index Rail, Section Headers), Folder Album Cover (a switch) under Folders, Landscape and Volume Buttons (switches, the second with its note) under Cover Flow, and the last card of two rows: Podcasts (a plain page link, no value) and Scrobbling (a value, On or Off)')
 
     def open_lib(land=None, language=None, vk=None):
         m = Machine()

@@ -21,7 +21,7 @@ from awtk_ui import Widget
 import pod_i18n, pod_pages
 import pod_keyboard as PK
 import pod_search as PS
-from pod_roles import INK_RGB, SUB_RGB, HINT_RGB, RED_RGB, PLACEHOLDER_RGB, CHEV_RGB, RAISED_RGB, SURFACE_RGB, LINE_RGB, SECTION_PX, CAPTION_LABEL_Y, CAPTION_LABEL_H
+from pod_roles import INK_RGB, SUB_RGB, HINT_RGB, RED_RGB, PLACEHOLDER_RGB, CHEV_RGB, RAISED_RGB, SURFACE_RGB, LINE_RGB, SECTION_PX, CAPTION_LABEL_Y, CAPTION_LABEL_H, CAPTION_PX
 
 UI = 'release/assets/default/raw/ui'   # relative to a rootfs dir
 SCREEN_W, SCREEN_H = 320, 480
@@ -1981,7 +1981,7 @@ def cards_row(i, row, piece, last, icon=True):
     from mod_icons import CARD_GLYPHS, card_name, CARD_CHEVRON, CARD_CHECK
     kind = pod_pages.row_kind(row)
     swatch = row.action == pod_pages.ACT_ACCENTSET   # the Accent picker's rows show the accent's round swatch where a glyph goes (never tinted: docs/modules/accent.md)
-    has_icon = swatch or (icon and kind not in ('check', 'info', 'preset', 'preamp', 'band', 'lib', 'delete', 'plain', 'wvalue') and row.action not in (pod_pages.ACT_CCLIST, pod_pages.ACT_SFOLD, pod_pages.ACT_REGION, pod_pages.ACT_PCDIR, pod_pages.ACT_RGBROW, pod_pages.ACT_LEDFOLLOW, *pod_pages.ASSEP_ACTIONS, pod_pages.ACT_PEQ_PRESETS, pod_pages.ACT_PEQ_TENBAND))   # (the Cache counts, Unsupported Files, the Podcast Region row, LED Light's Theme and Follow Screen rows and the Presets count have no glyph, like the rows around them)
+    has_icon = swatch or (icon and kind not in ('check', 'info', 'preset', 'preamp', 'band', 'lib', 'delete', 'plain', 'wvalue') and row.action not in (pod_pages.ACT_CCLIST, pod_pages.ACT_SFOLD, pod_pages.ACT_REGION, pod_pages.ACT_PCDIR, pod_pages.ACT_RGBROW, pod_pages.ACT_LEDFOLLOW, *pod_pages.ASSEP_ACTIONS, *pod_pages.NOGLYPH_ACTIONS, pod_pages.ACT_PEQ_PRESETS, pod_pages.ACT_PEQ_TENBAND))   # (the Cache counts, Unsupported Files, the Podcast Region row, LED Light's Theme and Follow Screen rows and the Presets count have no glyph, like the rows around them)
     h = ST.row_h(row)
     item = Widget('list_item', 0, 0, ST.LIST_W, h, [('name', f'pod_row{i}'), ('style', 'list_item_style')] + ([('sensitive', 'false')] if kind in ('info', 'preamp') and row.action != pod_pages.ACT_SFDEL else []))
     normal, down = ST.piece_images(piece, h != ST.ROW_H)
@@ -2805,6 +2805,39 @@ def build_folders_page(page):
                                                               ('sg_del', o['SG_BAR_PILL_X1'], 'Delete', 'sg_trash', o['SG_BAR_PILL_W'])]))
     root.children.extend(view_sort_card(sort_keys=pod_pages.FOLDERS_SORT_KEYS))   # the "..." card: Select, then Name, Date Modified, Type (patch/folders.c offers rows 0..2; Search and the view rows stay hidden)
     return root
+LP_DIM_RGB = '#8E8E93'   # a covered row's name (patch/lupick.c): the placeholder grey
+
+
+def build_lupick_page(page):
+    """Update Library > Choose Folders (patch/lupick.c, docs/modules/libupdate.md "The folder picker"): the Folders page's structure with no large title: the glass navbar (Back, the title, the Select All
+    disc, Now Playing), a stock list holding one view the payload paints (a card of rows with select circles), the text styles of the rows and the caption, and the bottom bar with the Scan pill."""
+    o = OFFSETS
+    root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
+    styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
+    nb = navbar(page.title)
+    nb.children[0].w = NAV_VIEW_X - NAV_TITLE_X   # the title runs to the Select All disc
+    nb.children.append(ab_nav_button('btn_selall', NAV_VIEW_X, NAV_VIEW_W, 'ah_nav_unsel', 'ah_nav_unsel_down'))
+    root.children.append(nb)
+    lv = stock_list([], True)
+    lv.set('name', 'lupick_listview')
+    sv = lv.children[0]
+    sv.set('name', 'lupick_scrollview')
+    grid = Widget('view', 0, 0, SCREEN_W, GRID_VIEW_H, [('name', 'view_grid')])
+    styled(grid, ('normal',), 'bg_color', '#000000')
+    sv.children.append(grid)
+    root.children.append(lv)
+    root.children.append(nav_fade(shown=False))
+    root.children.append(hidden(label('label_status', 10, room_y(30), SCREEN_W - 20, 30, '', 20, HINT_RGB)))
+    root.children += style_labels((('label_row_title', LIST_TITLE_PX, INK_RGB), ('label_row_dim', LIST_TITLE_PX, LP_DIM_RGB), ('label_cap', CAPTION_PX, SUB_RGB, 'left')))
+    bar = Widget('view', 0, CLIENT_H - o['SG_BAR_H'], SCREEN_W, o['SG_BAR_H'], [('name', 'lp_bar')])
+    for st in STATES: styled(bar, (st,), 'bg_color', '#000000')
+    pill = Widget('button', 16, (o['SG_BAR_H'] - o['SG_PILL_H']) // 2, SCREEN_W - 32, o['SG_PILL_H'], [('name', 'lp_scan'), ('enable', 'true'), pod_i18n.text_prop('Scan Folders')])
+    flat_pill(pill, LP_PILL_RGB, LP_PILL_DOWN_RGB, o['SG_PILL_R'], RAISED_RGB, '#000000', SG_PILL_PX, LP_PILL_DIM_RGB)   # live: a light grey pill with black text (the toggle rule); dimmed: dark grey with grey text
+    bar.children = [pill]
+    root.children.append(bar)
+    return root
+LP_PILL_RGB, LP_PILL_DOWN_RGB, LP_PILL_DIM_RGB = '#E5E5EA', '#C7C7CC', '#98989D'   # pod_search CHIP_ON_RGB: the light grey of the selected chip
+
 RD_FIELD_W = SCREEN_W - 2 * PS.SE_FIELD_X   # the Radio search field's width (patch/radiopage.c RP_TEXT_W is its text's)
 RD_TEXT_W = RD_FIELD_W - PS.SE_TEXT_X - PS.SE_CLEAR_W
 RD_CREDIT_PX = 14   # the credit line's size (patch/radiopage.c RP_CREDIT_PX)
@@ -3405,6 +3438,8 @@ def build_page(page):
         return build_radionp_page(page)
     if page.kind == 'folders':
         return build_folders_page(page)
+    if page.kind == 'lupick':
+        return build_lupick_page(page)
     if page.kind == 'cards':
         return build_cards_page(page)
     if page.kind == 'keyboard':

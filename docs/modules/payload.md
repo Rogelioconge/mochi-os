@@ -90,6 +90,7 @@ stock's own behaviour.
 | 31 | `on_wm_idle_status` play-status call, call site `0x4ce968` | [display](display.md) | stock `mclGetPlayStatus` |
 | 32 | Bluetooth row of the All System Settings hub, call site `0x4b1428` | [bluetooth](bluetooth.md) | stock `navigator_to` |
 | 33 | status bar tap's open of the volume dialog, call site `0x4cd964` (`on_wm_tsup_fun`) | [volume](volume.md) | stock `navigator_to_with_context` |
+| 34 | scan dialog timer's finish refresh, call site `0x47baec` (`bal 0x47b604`; `lu_scan_finish` records a completed scan) and the commit calls `0x4e9e70`, `0x4e9f9c` (`lu_commit` flags it) and the insert path's batch COMMIT `0x5ee090` (`lu_batch_exec` flags a failure) | [libupdate](libupdate.md) | stock refresh and commit, no record |
 
 Sites without a number:
 

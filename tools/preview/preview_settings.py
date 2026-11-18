@@ -59,6 +59,7 @@ STATE = {
     'm1plus_about': {'values': {'pod_value0': 'V2.1pM', 'pod_value1': 'V2.1', 'pod_value2': 'Shanling M1 Plus', 'pod_value3': 'M1P2305A01234', 'pod_value4': '98:b3:ec:4a:7c:1e',
                                 'pod_value5': '192.168.1.42', 'pod_value6': '119.25 GB', 'pod_value7': '87.41 GB'}},
     'm1plus_keyboards': {'switches': {'pod_switch0': True, 'pod_switch1': False}},
+    'm1plus_libupdate': {'values': {'pod_value0': '4,812', 'pod_value1': 'Today 09:41'}, 'switches': {'pod_switch4': True}},   # Update Library: the songs, the last scan, Auto Update on
     'm1plus_cache': {'values': {'pod_value0': '840', 'pod_value1': '812', 'pod_value2': '9', 'pod_value3': '19', 'pod_value4': '3', 'pod_value5': '14.2 MB', 'pod_value6': 'Idle'}},
 }
 
@@ -574,7 +575,7 @@ def main():
                      ('datetime-manual', draw_page(s, 'm1plus_datetime')), ('datetime-auto', draw_page(s, 'm1plus_datetime', state=on)), ('timezone', draw_page(s, 'm1plus_timezone', state={'shown': {'pod_check0'}})),
                      ('dtdate', draw_page(s, 'm1plus_dtdate', state={'values': {'pod_value0': '2026', 'pod_value1': '11', 'pod_value2': '15'}})),
                      ('dttime', draw_page(s, 'm1plus_dttime', state={'values': {'pod_value0': '14', 'pod_value1': '05'}})), ('dtyear', draw_page(s, 'm1plus_dtyear', state={'shown': {'pod_check4'}})),
-                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('psvolume', draw_page(s, 'm1plus_psvolume', full=True)), ('psoutput', draw_page(s, 'm1plus_psoutput', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
+                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('psvolume', draw_page(s, 'm1plus_psvolume', full=True)), ('psoutput', draw_page(s, 'm1plus_psoutput', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('libupdate', draw_page(s, 'm1plus_libupdate', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
         os.makedirs(s2, exist_ok=True); im.save(os.path.join(s2, name + '.png')); print('wrote', os.path.join(s2, name + '.png'))
     for loc, tag in (('ge_DE', 'de'), ('ru_RU', 'ru'), ('zh_CN', 'zh'), ('th_TH', 'th'), ('fr_FR', 'fr')):   # the Wi-Fi Transfer page in the long languages (out/preview/stock2/wifitransfer-<tag>.png)
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None

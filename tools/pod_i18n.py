@@ -19,6 +19,7 @@ artist = 歌手 / Künstler ...).
 """
 
 LOCALES = ['en_US', 'zh_CN', 'zh_HK', 'ja_JP', 'ko_KR', 'fr_FR', 'ge_DE', 'sp_ES', 'it_IT', 'th_TH', 'po_PL', 'ru_RU', 'uk_UK']
+COUNT_PREFIXES = ('%d', 'Added %d', 'Downloading %d', 'See All (', 'Remove %d ', 'Scan %d ')   # keys whose text holds the count as %d (the checks of tools/mod_strings.py and test/pod/i18n.py)
 TWINS = {'de_DE': 'ge_DE', 'es_ES': 'sp_ES', 'pl_PL': 'po_PL'}      # unreachable stub tables -> the table that holds their language
 ALL_TABLES = sorted(LOCALES + list(TWINS))
 
@@ -2103,6 +2104,48 @@ TEXT.update([
        'La reproducción se pausa mientras esta página está abierta. Sal de la página para desactivarlo.', 'La riproduzione è in pausa finché questa pagina è aperta. Esci dalla pagina per disattivarlo.',
        'การเล่นจะหยุดชั่วคราวขณะเปิดหน้านี้ ออกจากหน้านี้เพื่อปิด', 'Odtwarzanie jest wstrzymane, gdy ta strona jest otwarta. Wyjdź ze strony, aby wyłączyć.',
        'Пока эта страница открыта, воспроизведение приостановлено. Покиньте страницу, чтобы выключить.', 'Поки ця сторінка відкрита, відтворення призупинено. Залиште сторінку, щоб вимкнути.'),
+])
+# Settings > Library > Update Library (patch/libupdate.c, docs/modules/libupdate.md). The page title and the row are stock's sset_updatemusic. Machine translations, checked for fit only.
+TEXT.update([
+    _t('Last Updated', '上次更新', '上次更新', '最終更新', '마지막 업데이트', 'Dernière mise à jour', 'Zuletzt aktualisiert',
+       'Última actualización', 'Ultimo aggiornamento', 'อัปเดตล่าสุด', 'Ostatnia aktualizacja', 'Обновлено', 'Оновлено'),
+    _t('Update Now', '立即更新', '立即更新', '今すぐ更新', '지금 업데이트', 'Mettre à jour', 'Jetzt aktualisieren',
+       'Actualizar ahora', 'Aggiorna ora', 'อัปเดตตอนนี้', 'Aktualizuj teraz', 'Обновить сейчас', 'Оновити зараз'),
+    _t('Choose Folders', '选择文件夹', '選擇資料夾', 'フォルダを選択', '폴더 선택', 'Choisir les dossiers', 'Ordner wählen',
+       'Elegir carpetas', 'Scegli cartelle', 'เลือกโฟลเดอร์', 'Wybierz foldery', 'Выбрать папки', 'Вибрати папки'),
+    # The folder picker (patch/lupick.c): the pill (the count goes where %d is; one folder and none have their own texts), the root's caption and the empty level.
+    _t('Scan %d Folders', '扫描 %d 个文件夹', '掃描 %d 個資料夾', '%d 個のフォルダをスキャン', '폴더 %d개 스캔', 'Analyser %d dossiers', '%d Ordner scannen',
+       'Escanear %d carpetas', 'Scansiona %d cartelle', 'สแกน %d โฟลเดอร์', 'Skanuj foldery: %d', 'Сканировать папки: %d', 'Сканувати папки: %d'),
+    _t('Scan 1 Folder', '扫描 1 个文件夹', '掃描 1 個資料夾', '1 個のフォルダをスキャン', '폴더 1개 스캔', 'Analyser 1 dossier', '1 Ordner scannen',
+       'Escanear 1 carpeta', 'Scansiona 1 cartella', 'สแกน 1 โฟลเดอร์', 'Skanuj 1 folder', 'Сканировать 1 папку', 'Сканувати 1 папку'),
+    _t('Scan Folders', '扫描文件夹', '掃描資料夾', 'フォルダをスキャン', '폴더 스캔', 'Analyser les dossiers', 'Ordner scannen',
+       'Escanear carpetas', 'Scansiona cartelle', 'สแกนโฟลเดอร์', 'Skanuj foldery', 'Сканировать папки', 'Сканувати папки'),
+    _t('MUSIC CARD', '音乐卡', '音樂卡', 'ミュージックカード', '뮤직 카드', 'CARTE MUSIQUE', 'MUSIKKARTE',
+       'TARJETA DE MÚSICA', 'SCHEDA MUSICA', 'การ์ดเพลง', 'KARTA MUZYCZNA', 'КАРТА С МУЗЫКОЙ', 'КАРТКА З МУЗИКОЮ'),
+    _t('You can choose up to 256 folders.', '最多可选择 256 个文件夹。', '最多可選擇 256 個資料夾。', '選択できるフォルダは 256 個までです。', '폴더는 최대 256개까지 선택할 수 있습니다.',
+       'Vous pouvez choisir 256 dossiers au maximum.', 'Es sind höchstens 256 Ordner wählbar.', 'Puedes elegir hasta 256 carpetas.', 'Puoi scegliere fino a 256 cartelle.',
+       'เลือกได้สูงสุด 256 โฟลเดอร์', 'Można wybrać do 256 folderów.', 'Можно выбрать не более 256 папок.', 'Можна вибрати не більше 256 папок.'),
+    _t('No folders', '没有文件夹', '沒有資料夾', 'フォルダがありません', '폴더 없음', 'Aucun dossier', 'Keine Ordner',
+       'Sin carpetas', 'Nessuna cartella', 'ไม่มีโฟลเดอร์', 'Brak folderów', 'Нет папок', 'Немає папок'),
+    _t('Auto Update', '自动更新', '自動更新', '自動更新', '자동 업데이트', 'Mise à jour auto', 'Auto-Update',
+       'Actualizar auto', 'Aggiorna auto', 'อัปเดตอัตโนมัติ', 'Auto-aktualizacja', 'Автообновление', 'Автооновлення'),
+    _t('Choose Folders only adds new music. To remove deleted songs, use Update Now.', '“选择文件夹”只会添加新音乐。要移除已删除的歌曲，请使用“立即更新”。',
+       '「選擇資料夾」只會新增音樂。要移除已刪除的歌曲，請使用「立即更新」。', '「フォルダを選択」は新しい曲の追加のみです。削除した曲は「今すぐ更新」で除かれます。',
+       '“폴더 선택”은 새 음악만 추가합니다. 삭제한 곡을 제거하려면 “지금 업데이트”를 사용하세요.',
+       'Choisir les dossiers n’ajoute que du neuf. Titres supprimés : Mettre à jour.',
+       'Ordner wählen fügt nur Neues hinzu. Gelöschte Titel entfernt Jetzt aktualisieren.',
+       'Elegir carpetas solo añade música nueva. Para quitar las borradas: Actualizar ahora.',
+       'Scegli cartelle aggiunge solo musica nuova. Per togliere i brani eliminati: Aggiorna ora.',
+       'เลือกโฟลเดอร์จะเพิ่มเฉพาะเพลงใหม่ หากต้องการลบเพลงที่ถูกลบแล้ว ให้ใช้อัปเดตตอนนี้',
+       'Wybierz foldery tylko dodaje muzykę. Usunięte utwory znikną po Aktualizuj teraz.',
+       '«Выбрать папки» лишь добавляет музыку. Удалённые песни уберёт «Обновить».',
+       '«Вибрати папки» лише додає музику. Видалені пісні прибере «Оновити зараз».'),
+    _t('Updates after a card is inserted or USB transfer ends.', '插入存储卡或 USB 传输结束后自动更新。', '插入記憶卡或 USB 傳輸結束後自動更新。',
+       'カードの挿入後や USB 転送の終了後に更新します。', '카드를 넣거나 USB 전송이 끝나면 업데이트합니다.',
+       'Se met à jour après l’insertion d’une carte ou la fin d’un transfert USB.', 'Aktualisiert nach dem Einsetzen einer Karte oder nach einer USB-Übertragung.',
+       'Se actualiza al insertar una tarjeta o al terminar una transferencia USB.', 'Si aggiorna dopo l’inserimento di una scheda o al termine di un trasferimento USB.',
+       'อัปเดตหลังใส่การ์ดหรือเมื่อการโอนผ่าน USB สิ้นสุด', 'Aktualizuje po włożeniu karty lub zakończeniu transferu USB.',
+       'Обновляется после установки карты или окончания передачи по USB.', 'Оновлюється після встановлення картки або завершення передачі через USB.'),
 ])
 DPAGE_KEYS = ('Updated today', 'Updated yesterday', 'Updated just now', 'Updated %s', 'Play', 'Songs you love and some to rediscover, made fresh every day.')   # the Daily Mix page's keys
 DAILY_KEYS =('Made for You', 'Daily Mix', 'Regenerate Daily Mix', '%s and more', '%s, %s')     # the card's keys (tools/pod_dailymix.py TEXT)

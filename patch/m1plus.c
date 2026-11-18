@@ -190,7 +190,10 @@ enum {
     ACT_BATTHIST = 188, /* Battery History page: the switch (patch/batthist.c) */
     ACT_BHPAGE = 190, /* Settings > Battery: Battery History, a value row (On or Off) opening its page */
     ACT_KB_FR = 191, /* Settings > General > Keyboards: French (AZERTY), a switch (patch/keyboard.c) */
-    ACT_NPPOS = 192 /* Settings > Now Playing: Track Position, a switch (patch/nowplaying.c) */
+    ACT_NPPOS = 192, /* Settings > Now Playing: Track Position, a switch (patch/nowplaying.c) */
+    ACT_LUNOW = 193, /* Update Library: Update Now, stock's scan dialog (patch/libupdate.c) */
+    ACT_LUFOLDERS = 194, /* Update Library: Choose Folders (stock's folder page for now) */
+    ACT_LUAUTO = 195 /* Update Library: Auto Update, stock's autoscan switch */
 };
 
 struct pod_row {
@@ -233,7 +236,9 @@ enum {
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
     INFO_ANONE = INFO_DUR + 2,
     INFO_LBACCT = INFO_DUR + 3, /* the ListenBrainz page's Account row: lb_account_text (patch/scrobpage.c) */
-    INFO_LFACCT = INFO_DUR + 4 /* the Last.fm page's: lf_account_text */
+    INFO_LFACCT = INFO_DUR + 4, /* the Last.fm page's: lf_account_text */
+    INFO_LUSONGS = INFO_DUR + 5, /* the Update Library page's Songs and Last Updated rows (patch/libupdate.c) */
+    INFO_LUWHEN = INFO_DUR + 6
 };
 
 enum {
@@ -329,9 +334,13 @@ static const char HOME_NAMES[18][3] = {"0", "1",  "2",  "3",  "4",  "5",  "6",  
 #include "scrobpage.h"
 static int pod_off(void) { return home_off(); } /* the SD file and the flash one */
 
+static int open_page(int index, int as_home);
+
 static int home_open(int id) {
     struct fake_icon icon;
     int i;
+    if (id == HOME_UPDATE && open_page(POD_LIBUPDATE_PAGE, 0) == 0)
+        return RET_OK; /* Update Library: our page (patch/libupdate.c); stock's where it will not open */
     for (i = 0; i < W_NAME; i++) icon.pad[i] = 0;
     if (id < 0 || id >= HOME_IDS) return -1;
     icon.name = HOME_NAMES[id];
@@ -340,8 +349,6 @@ static int home_open(int id) {
 
 /* A stock Home destination through the dispatcher (the Albums toggle opens the stock list this way). */
 int pod_home_open(int id) { return home_open(id); }
-
-static int open_page(int index, int as_home);
 
 /* The Extras page's Settings button: the page a Settings row opens (ACT_PAGE), over the Extras page (patch/home.c knows it for the Shanling Home exit). */
 static int on_settings(void *ctx, void *e) {
@@ -597,7 +604,11 @@ static int on_row(void *ctx, void *e) {
     else if (row->action == ACT_NETTRANS) {
         if (ns_transfer_ok())
             open_page(row->arg, 0); /* Wi-Fi Transfer: the page starts the server (patch/netservice.c) */
-    } else if (row->action == ACT_SCROBUP)
+    } else if (row->action == ACT_LUNOW)
+        lu_update_now(); /* patch/libupdate.c: stock's scan dialog, a full scan */
+    else if (row->action == ACT_LUFOLDERS)
+        lu_folders(); /* patch/libupdate.c: stock's folder page, until the folder picker */
+    else if (row->action == ACT_SCROBUP)
         lb_upload_tap(); /* the scrobble log to the services now: a toast, no page */
     else if (
         row->action ==
@@ -695,6 +706,8 @@ static int on_row(void *ctx, void *e) {
  * by name (pod_row<i>), its switch image is pod_switch<i>, its value label pod_value<i> (the row's own label pod_label<i>), a picker row's check pod_check<i>. page_refresh sets all of them from
  * the saved or stock state when the page opens and each time it is back in front (a stock page or a picker may have changed what it shows). */
 static void *pod_fg[POD_PAGE_COUNT] __attribute__((section(".scratch")));
+/* The window pod_fg[i] replaced when a second window of the same page opened (Home tile, then Settings by the Control Center: two Update Library windows): it takes the slot back when the newer one closes. */
+static void *pod_fg_prev[POD_PAGE_COUNT] __attribute__((section(".scratch")));
 
 static void switch_show(void *img, int on) {
     if (img) image_base_set_image(img, on ? "sset_on" : "sset_off");
@@ -766,6 +779,7 @@ static const struct pod_switch {
     {ACT_CARMODE, kp_car, kp_car_toggle},
     {ACT_NETAIR, ns_airplay, ns_airplay_toggle}, /* Network Services (patch/netservice.c) */
     {ACT_NETDLNA, ns_dlna, ns_dlna_toggle},
+    {ACT_LUAUTO, lu_auto, lu_auto_toggle}, /* Update Library (patch/libupdate.c) */
 
     {ACT_SCROBBLE, scrobble_setting, scrobble_toggle},
     {ACT_ASPLIT, as_setting, as_toggle},
@@ -998,7 +1012,11 @@ static void info_text(void *label, int kind) {
         widget_set_text_utf8(label, buf);
         return;
     }
-    if (kind == INFO_APHOTOS || kind == INFO_ANONE)
+    if (kind == INFO_LUSONGS)
+        lu_songs_text(buf, sizeof buf);
+    else if (kind == INFO_LUWHEN)
+        lu_when_text(buf, sizeof buf);
+    else if (kind == INFO_APHOTOS || kind == INFO_ANONE)
         homecover_stat(kind == INFO_APHOTOS ? 7 : 8, buf, sizeof buf);
     else if (kind == INFO_DUR)
         dur_stat(buf, sizeof buf);
@@ -1213,10 +1231,20 @@ static int on_page_fg(void *ctx, void *e) {
 }
 
 static int on_page_gone(void *ctx, void *e) {
-    long i = (long)ctx;
+    void *win = ctx;
+    long i;
     int k;
     (void)e;
-    pod_fg[i] = (void *)0;
+    for (i = 0; i < POD_PAGE_COUNT && pod_fg[i] != win; i++) {
+    }
+    if (i == POD_PAGE_COUNT) { /* not the slot's window: the older one of two, or one that never had a slot */
+        for (i = 0; i < POD_PAGE_COUNT; i++)
+            if (pod_fg_prev[i] == win) pod_fg_prev[i] = (void *)0;
+        return RET_OK;
+    }
+    pod_fg[i] = pod_fg_prev[i]; /* the older window of the page keeps refreshing */
+    pod_fg_prev[i] = (void *)0;
+    if (pod_fg[i]) return RET_OK;
     if (i == POD_BATTHIST_PAGE) bhpage_gone(); /* its refresh timer goes with the window */
     if (i == POD_SLEEPTIMER_PAGE) st_gone(); /* its refresh timer goes with the window */
     for (k = 0; k < POD_PAGES[i].count; k++)
@@ -1287,10 +1315,11 @@ static int open_page(int index, int as_home) {
         refresh =
             1; /* back in front: the address and the file server again (on_page_fg, patch/netservice.c wt_front) */
     if (refresh) { /* the state the page shows, now and each time it is back in front */
+        pod_fg_prev[index] = pod_fg[index] == win ? pod_fg_prev[index] : pod_fg[index];
         pod_fg[index] = win;
         page_refresh(win, page);
         widget_on(win, EVT_WINDOW_TO_FG, on_page_fg, (void *)(long)index);
-        widget_on(win, EVT_DESTROY, on_page_gone, (void *)(long)index);
+        widget_on(win, EVT_DESTROY, on_page_gone, win);
     }
     if (index == POD_WIFITRANSFER_PAGE)
         wt_opened(win); /* stock's page init: the player stops, the file server starts (patch/netservice.c) */
@@ -1410,6 +1439,10 @@ int m1plus_home_click(void *icon, void *e) {
         home_restore_failed(restored);
     } else if (recovery_tap(id) && !pod_off()) {
         if (open_page(POD_ENTRY_PAGE, 0) == 0) return RET_OK;
+    } else if (
+        id == HOME_UPDATE &&
+        !pod_off()) { /* the stock grid's Update Library tile: our page, stock's with a page that will not open */
+        if (open_page(POD_LIBUPDATE_PAGE, 0) == 0) return RET_OK;
     }
     return stock_home_click_trampoline(icon, e);
 }

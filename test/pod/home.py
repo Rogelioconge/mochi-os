@@ -448,8 +448,8 @@ def home_tests(expect, page):
            'the bad note: a tap on Tidal opens the M1+ Music menu')
     expect(('widget_set_visible', m.widgets.get(NAVBAR, -1), 0) not in m.calls and 'widget_move' not in m.names(),
            'and it is the normal instance (navbar and Back kept, not the Home layout)')
-    m = Machine(); m.fs[BAD] = b'1\n'; m.call(entry, a0=m.icon('2'))
-    expect(('stock_resume', '2') in m.calls and 'window_open' not in m.names(), 'the bad note: other icons stay stock')
+    m = Machine(); m.fs[BAD] = b'1\n'; m.call(entry, a0=m.icon('3'))
+    expect(('stock_resume', '3') in m.calls and 'window_open' not in m.names(), 'the bad note: other icons stay stock')
     m = Machine(); m.fs[BAD] = b'1\n'; m.window = 0; m.call(entry, a0=m.icon('1'))
     expect(('stock_resume', '1') in m.calls, 'the bad note, the page cannot open: Tidal falls back to stock')
     for kill in (KILL_SD, KILL_DATA):

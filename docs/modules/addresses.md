@@ -52,6 +52,7 @@ Other hook sites (call-site words and two-word stubs):
 | 28 play-history call | `0x4ce930` | `jalr add_playrecord` `0x4efb08` |
 | 33 Volume page open | `0x4cd964` | `bal navigator_to_with_context("dialog/volume_dialog", 2)` in `on_wm_tsup_fun` `0x4cd8dc` |
 | 31 play-status call | `0x4ce968` | `jalr mclGetPlayStatus` `0x5d3640` |
+| 34 scan dialog finish refresh | `0x47baec` | `bal 0x47b604` (refresh with `done = 1`) in the dialog's timer callback `0x47bab0`; state word `0xa03a40`, stop byte `0xa0b088`, Auto Update byte `0xa05aa9` ([libupdate](libupdate.md)) |
 | Display page Lock Screen row | `0x4a5ca8` (row handler `0x4a5c10`) | resumes `0x4a5c88` or `0x4a5c94` |
 | Equalizer row | `0x4a0210` | resumes epilogue `0x4a0070` |
 | Empty `scroll_view` event slot | `0x97a330` | data word |
@@ -111,7 +112,7 @@ widget name is its decimal id, which the dispatcher `0x533b80` `atoi`s; `get_hom
 |---|---|---|
 | 0 | `hifimusic` | `hifi/hifimusic_page` (`msg_notnetwork` offline) |
 | 1 | `tidal` | `tidal/tidal_main` (`msg_notnetwork` offline) |
-| 2 | `sset_updatemusic` | `systemset/updatemusic_page` |
+| 2 | `sset_updatemusic` | `systemset/updatemusic_page` (our page opens instead: [libupdate](libupdate.md)) |
 | 3 | `mymusic` | `allmusic_page` `0xf001` |
 | 4 | `folder` | `folder_page` |
 | 5 | `album` | `album_page` `{0xf003, 0}` |
