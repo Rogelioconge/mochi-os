@@ -11,6 +11,7 @@ PCP = sibling('podcasts')
 PCN = sibling('pcnet')   # the podcast network machine: the card, libcurl and libjpeg mocks the logo worker runs on
 KB = sibling('keyboard')
 CA, RADIO_DIR = '/etc/m1plus-cacert.pem', '/mnt/mmc/Radio'
+KILL, KILL_DATA = '/mnt/mmc/m1plus-off', '/mnt/data/m1plus-off'   # the kill switch on the card and in flash (home_off reads both)
 FAVS, RECENT = RADIO_DIR + '/favourites.m3u', '/mnt/data/m1plus/radio-recent'
 PLAYSPEED = pod.DATA['PLAYSPEED_MODE'][0]
 DACOFF, G_OUT, G_VOL = pod.DATA['DACOFF_TIME'][0], pod.DATA['G_HEADSET_OUTPUT'][0], pod.DATA['G_VOLUME'][0]
@@ -75,6 +76,7 @@ class RM(PCN.NM):
         elif name == 'access' and self.read_cstr(a0) in self.dirs: ret = 0
         elif name == 'access' and self.read_cstr(a0) in self.fs: ret = 0
         elif name == 'stock_start_player_trampoline': ret = 1
+        elif name == 'mclAutoChange': self.calls.append(('mclAutoChange',)); self.proc.append(('mclAutoChange',)); ret = 7
         elif name == 'stock_save_stop_trampoline': self.calls.append(('stock_save_stop',)); ret = 0
         elif name == 'stock_save_start_trampoline': self.calls.append(('stock_save_start', a0)); ret = 0
         elif name in ('mclSetPause', 'mclSetResume'):   # (stock: {mcl-pause} / {mcl-resume} to hciplayer, then the status 3 / 2)
@@ -512,6 +514,51 @@ def stop_tests(ctx):
     expect(m.call(PSYMS['rd_owns_bar']) == 1, 'a new station takes it again')
     m.call(PSYMS['rd_start_player'], count=40000000)
     expect(m.call(PSYMS['rd_owns_bar']) == 0, 'a local track over a running station hands it back')
+    # ---- hook 36, on_wm_idle_status's mclAutoChange: a station's end is not the local track's end (no mclNextSong into the old queue)
+    def auto(m): m.proc = []; return m.call(PSYMS['rd_auto_change'], count=4000000)
+    m = machine()
+    expect(auto(m) == 7 and m.proc == [('mclAutoChange',)], 'at boot (nothing played) the idle pass runs stock')
+    for label, setup in (('connecting', lambda m: play(m)), ('playing', lambda m: up(m)),
+                         ('in error', lambda m: (play(m), setattr(m, 'clock', m.clock + 20000), poll(m))),
+                         ('stopped', lambda m: (up(m), m.call(PSYMS['rd_stop'], count=4000000)))):
+        m = machine(); setup(m); m.run = 0
+        expect(auto(m) == 0 and not m.proc, f'a station {label}, hciplayer gone: the idle pass does not advance the local queue ({m.proc})')
+    m = machine(); up(m); m.call(PSYMS['rd_start_player'], count=40000000)
+    expect(auto(m) == 7 and m.proc == [('mclAutoChange',)], 'after a local track took over, stock again')
+    m = machine(); play(m, '#EXTINF:-1,Bad\nftp://x/a\n')
+    expect(auto(m) == 7, 'a refused address never took the player: local music keeps its auto change')
+    for k in (KILL, KILL_DATA):
+        m = machine(); play(m); m.run = 0; m.fs[k] = b''
+        expect(auto(m) == 7 and m.proc == [('mclAutoChange',)], f'the kill switch {k}: stock even while a station owns the player')
+    # ---- hook 37, the home timer's access() of hciplayer's /tmp/notfile and /tmp/notsupport: a dead station's marker never opens stock's modal "File Not Found"
+    def notice(m, path): return m.call(PSYMS['rd_notice'], m.buf(path), 4, count=4000000)
+    for path in ('/tmp/notfile', '/tmp/notsupport'):
+        m = machine(); m.fs[path] = b''
+        expect(notice(m, path) == 0 and path in m.fs, f'{path} with no radio: access() as stock (the dialog opens)')
+        m = machine(); expect(notice(m, path) == 0xffffffff, f'{path} absent: absent')
+        for label, setup in (('connecting', lambda m: play(m)), ('in error', lambda m: (play(m), setattr(m, 'clock', m.clock + 20000), poll(m))),
+                             ('stopped', lambda m: (up(m), m.call(PSYMS['rd_stop'], count=4000000)))):
+            m = machine(); setup(m); m.fs[path] = b''
+            expect(notice(m, path) == 0xffffffff and path not in m.fs, f'{path} while a station is {label}: removed, read as absent (no stock dialog)')
+        m = machine(); play(m); m.fs[path] = b''; m.fail.add(('unlink', path))
+        expect(notice(m, path) == 0 and path in m.fs, f'{path} that cannot be removed: reported present (stock\'s dialog, never a marker left for a later local track)')
+        m = machine(); up(m); m.call(PSYMS['rd_start_player'], count=40000000); m.fs[path] = b''
+        expect(notice(m, path) == 0 and path in m.fs, f'{path} after a local track took over: stock')
+        for k in (KILL, KILL_DATA):
+            m = machine(); play(m); m.fs[path] = b''; m.fs[k] = b''
+            expect(notice(m, path) == 0 and path in m.fs, f'{path} with the kill switch {k}: stock')
+    # a station failed while stock's timer skipped the markers (no valid play position): a local track's start removes them, so they never read as its error
+    for label, setup in (('in error', lambda m: (play(m), setattr(m, 'clock', m.clock + 20000), poll(m))), ('connecting', lambda m: play(m))):
+        m = machine(); setup(m); m.fs['/tmp/notfile'] = b''; m.fs['/tmp/notsupport'] = b''
+        m.call(PSYMS['rd_start_player'], count=40000000)
+        expect('/tmp/notfile' not in m.fs and '/tmp/notsupport' not in m.fs and notice(m, '/tmp/notfile') == 0xffffffff, f'a station {label}, then a local track: the markers are gone')
+    for k in (KILL, KILL_DATA):
+        m = machine(); play(m); m.fs['/tmp/notfile'] = b''; m.fs['/tmp/notsupport'] = b''; m.fs[k] = b''
+        m.call(PSYMS['rd_start_player'], count=40000000)
+        expect('/tmp/notfile' in m.fs and '/tmp/notsupport' in m.fs, f'the kill switch {k}: a local track over a station leaves the markers to stock')
+    m = machine(); m.fs['/tmp/notfile'] = b''
+    m.call(PSYMS['rd_start_player'], count=4000000)
+    expect('/tmp/notfile' in m.fs, 'no station played: a local start leaves a marker alone (it is the local track\'s own)')
     # ---- the radio after local music: Play works again
     m = machine(); up(m)
     m.call(PSYMS['rd_start_player'], count=40000000)

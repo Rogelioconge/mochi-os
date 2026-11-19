@@ -99,12 +99,14 @@ Get Info does not use the map ([songinfo](songinfo.md)).
 
 **Clear** (`btn_qclear`) is Apple's text button, right-aligned on the "Queue" line
 (`QP_CLEAR_X/Y/W/H` 210, 186, 100 x 40). It is shown only while Up Next is not empty, the play
-type is not a stream and `pod_clear_ready()` holds (libcstl as pinned, no DLNA service running);
-otherwise hidden. `qp_clear_sync` re-reads this on every tick.
+type is neither a stream nor folder playback and `pod_clear_ready()` holds (libcstl as pinned,
+no DLNA service running); otherwise hidden. `qp_clear_sync` re-reads this on every tick.
 
 - **Decision: no confirmation.** A tap calls `pod_clear_upnext`, then the page reloads: Up Next
   shows "No upcoming songs". The playing track keeps playing; the play position and the tracks
   before it stay.
+- **Hidden in folder playback** (play type 1, also Podcasts and Audiobooks): stock rebuilds a folder
+  queue at its end, so a cleared Up Next would come back on the next Next.
 - **Decision: hidden while DLNA runs.** The UPnP threads read the queue without a lock, so a freed
   tail record would be a use-after-free. The gate is stock's `dmr_serverflag` (1 while the
   service runs), read again under the lock. Clear shows with the DLNA switch off or Wi-Fi off.

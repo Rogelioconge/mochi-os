@@ -92,6 +92,8 @@ stock's own behaviour.
 | 33 | status bar tap's open of the volume dialog, call site `0x4cd964` (`on_wm_tsup_fun`) | [volume](volume.md) | stock `navigator_to_with_context` |
 | 34 | scan dialog timer's finish refresh, call site `0x47baec` (`bal 0x47b604`; `lu_scan_finish` records a completed scan) and the commit calls `0x4e9e70`, `0x4e9f9c` (`lu_commit` flags it) and the insert path's batch COMMIT `0x5ee090` (`lu_batch_exec` flags a failure) | [libupdate](libupdate.md) | stock refresh and commit, no record |
 | 35 | event1 input thread's key table load, `0x637bc8` (two words, asm stub `pod_keys_site`) | [keyspower](keyspower.md) | stock's key (boot); previous / next swapped only while Swap Prev / Next is on (one byte read, the file read once) |
+| 36 | `on_wm_idle_status` end-of-track call, call site `0x4ce834` | [radio](radio.md) | stock `mclAutoChange` |
+| 37 | home timer's checks of hciplayer's failure markers, call sites `0x4cf5b0` (`/tmp/notfile`), `0x4cf8d0` (`/tmp/notsupport`) (`on_wm_timer_dialogresponse`) | [radio](radio.md) | stock `access` |
 
 Sites without a number:
 
@@ -112,9 +114,13 @@ Rules for the table:
   no-paint-hook rule.
 - Hooks 26 and 28 sit on the main loop's idle path but run only at an album end or a track start
   (bounded work, stock's call on any refusal). Hook 31 runs on every idle pass and does one
-  compare of a cached int when LED Light is not Dynamic.
-- Kill switch `/mnt/mmc/m1plus-off`: scope in [safety](safety.md#kill-switch). Hooks 5, 6, 16, 22 and 33
-  never read it (bounded work or tap-only, stock fallback); 13 and 14 use stock's own switch.
+  compare of a cached int when LED Light is not Dynamic; hook 36 runs on every idle pass and does
+  two compares of the radio's state before stock, plus at most two file checks (the kill switch)
+  while the radio owns the player; hook 37 runs on every home timer pass and does stock's `access`,
+  then the same checks only when a marker exists.
+- Kill switch `/mnt/mmc/m1plus-off`: scope in [safety](safety.md#kill-switch). Hooks 5, 6, 22 and 33
+  never read it (bounded work or tap-only, stock fallback); 13 and 14 use stock's own switch; 16, 36
+  and 37 read both switch files (`home_off`) only while the radio owns the player.
 - `tools/reach.py` decides boot reachability; hooks not marked "boot" are reached only through the navigator's page-init dispatcher, a tap or the status bar, never from `main` / `platform_init`.
 - Credit: hooks 4, 5, 6, 9 - 12, 16 and 19 follow q2-pod's equivalents; hook 31's lamp pins came
   from PR #5.

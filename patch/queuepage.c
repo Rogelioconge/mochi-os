@@ -413,11 +413,11 @@ static void qp_pills(void) {
 
 static void qp_load(int keep);
 
-/* Clear: shown only while songs follow and the engine can run (libcstl as pinned, no DLNA service). Read again on the page's tick, so it hides when the DLNA service starts under the page.
- * The rows' "..." follow it, except in folder playback (play type 1: stock rebuilds the queue from the folder at its end, as upnext_add refuses it); a change moves the text end, so the
- * texts are made again (a cut is made in the tile's own text) and an open sheet closes. */
+/* Clear: shown only while songs follow, not in folder playback (play type 1: stock rebuilds the queue from the folder at its end, so a cleared Up Next came back on Next; upnext_add
+ * refuses it too) and the engine can run (libcstl as pinned, no DLNA service). Read again on the page's tick, so it hides when the DLNA service starts or the play type changes under the
+ * page. The rows' "..." follow it; a change moves the text end, so the texts are made again (a cut is made in the tile's own text) and an open sheet closes. */
 static void qp_clear_sync(void) {
-    int on = qp.n != 0 && !qp_stream() && pod_clear_ready(), edit = on && mclGetPlayType() != 1 && rowmenu_on(&qp.rm),
+    int on = qp.n != 0 && !qp_stream() && mclGetPlayType() != 1 && pod_clear_ready(), edit = on && rowmenu_on(&qp.rm),
         was = qp.edit_on;
     if (on != qp.clear_on) {
         qp.clear_on = on;
@@ -467,7 +467,9 @@ static int qp_on_repeat(void *ctx, void *e) {
 static int qp_on_clear(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (!qp.view || !qp.n || !qp_valid() || qp_stream() || !pod_clear_ready()) return RET_OK;
+    if (!qp.view || !qp_valid()) return RET_OK;
+    qp_clear_sync(); /* (the button's own condition, read now: the play type may have changed since the tick) */
+    if (qp.clear_on != 1) return RET_OK;
     pod_clear_upnext();
     qp_load(0);
     return RET_OK;

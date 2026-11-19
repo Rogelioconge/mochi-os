@@ -3,7 +3,7 @@
 **Sources:** `patch/radio.c` / `radio.h` (parsers, card files, playback state machine, directory
 worker), `patch/radiopage.c` (stations page), `patch/radionp.c` (Now Playing), `patch/radioinfo.c`
 (Station Info); `build_radio_page`, `build_radionp_page`, `build_radioinfo_page` in
-`tools/pod_ui.py`; hooks `START_PLAYER`, `SAVE_STOP`, `SAVE_START` in `tools/pod.py`; pins
+`tools/pod_ui.py`; hooks `START_PLAYER`, `SAVE_STOP`, `SAVE_START`, `AUTOCHANGE_SITE`, `NOTICE_SITES` in `tools/pod.py`; pins
 `RADIO_PINS` in `tools/pod_pins.py`.
 
 Internet radio: My Stations (one saved list, with Import from Card), Recently Played and the
@@ -17,7 +17,8 @@ and screen-off playback are stock's own.
 
 Radio is menu item 22, hidden by default; Extras lists it in Library between Podcasts and Search.
 The Pod has no Radio row: its main menu never opens a page of ours. The kill switch
-`/mnt/mmc/m1plus-off` is read only by the menu entry; nothing else of Radio reads it.
+(`/mnt/mmc/m1plus-off` or `/mnt/data/m1plus-off`, `home_off`) is read by the menu entry and, only
+while the radio owns the player, by hooks 16, 36 and 37 ([Hand-over](#hand-over)); with it they run stock.
 
 ## Stations page
 
@@ -208,6 +209,20 @@ wake). Hook 18 ([payload](payload.md)) turns that pair into the radio's Reroute 
 Hook 16 ([payload](payload.md)) intercepts every local track's start. With the radio running it sends
 `mclStop()`, sets Stopped and resumes stock, with no widget or timer call (it may run off the UI thread).
 Our own play paths reach the same function, so they stop the radio too.
+
+Hook 36 keeps the opposite direction out: `mcl_tidalStartPlayer` leaves stock's play type and position
+on the local queue, so when hciplayer exits (a dead station, an ended stream) stock's idle pass
+(`mclAutoChange`) takes it for the local track's end and would call `mclNextSong(1)` and play the next
+queue song, one per failed station. `rd_auto_change` skips that call while the radio owns the player
+(a station started and no local track since, in any state but Idle); the tick reads the end itself.
+
+Hook 37 keeps stock's failure dialog out: hciplayer touches `/tmp/notfile` (or `/tmp/notsupport`)
+when a stream does not open, and home's timer turns the file into a modal "File Not Found" dialog. A
+retry or a new tap wrote the next one while the first was up, and the nested dialogs could stick.
+`rd_notice` removes the marker and reports it absent under the same condition as hook 36; the radio
+shows its own error words. A marker left while stock's timer skipped it (no valid play position) is
+removed when a local track takes over (hook 16, not with the kill switch), so it never reads as that track's error. Both hooks
+run stock with either kill switch file present (`home_off`).
 
 ## Now Playing entries
 

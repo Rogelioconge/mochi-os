@@ -897,8 +897,13 @@ void rd_stop(void) {
  * (mclStop waits for hciplayer's exit). No widget, no timer call here (it may run off the UI thread): the engine's timer sees the state and ends itself. */
 int rd_start_player(void) {
     peqout_sync(0); /* the track starts on whatever output is plugged in now: its EQ (patch/peqout.c) */
-    rd.owns = 0; /* local music takes the mini bar back */
     if (rd_running()) rd_apply(RD_EV_LOCAL);
+    if (rd.owns &&
+        !home_off()) { /* a station's failure markers (stock's timer skips them while the play position is invalid) would read as this track's error */
+        unlink(RD_NOTFILE);
+        unlink(RD_NOTSUPPORT);
+    }
+    rd.owns = 0; /* local music takes the mini bar back */
     return stock_start_player_trampoline();
 }
 
@@ -920,6 +925,22 @@ void rd_save_start(int paused) {
         rd_apply(get_wifisignal() <= 0 ? RD_EV_NOWIFI : paused ? RD_EV_REROUTE_PAUSED : RD_EV_REROUTE);
     else
         stock_save_start_trampoline(paused);
+}
+
+/* on_wm_idle_status's mclAutoChange call (payload hook 36, every idle pass). mcl_tidalStartPlayer leaves stock's play type and position on the local queue, so when hciplayer exits
+ * (a dead or ended stream) mclAutoChange takes it for the end of the local track and calls mclNextSong(1): the next queue song would start and stop the radio, one song per failed
+ * station. While the radio owns the player (a station started and no local track since: connecting, playing, paused, error or stopped) the call is skipped; rd_poll reads the end
+ * itself. Its result is not read by the caller. One comparison otherwise, then stock. */
+int rd_auto_change(void) {
+    if (rd.owns && rd.state != RD_IDLE && !home_off()) return 0;
+    return mclAutoChange();
+}
+
+int rd_notice(const char *path, int mode) {
+    int r = access(path, mode);
+    if (r == 0 && rd.owns && rd.state != RD_IDLE && !home_off() && (unlink(path) == 0 || access(path, F_OK) != 0))
+        return -1; /* gone: no stock dialog (a marker that could not be removed stays stock's) */
+    return r;
 }
 
 /* The engine's tick: reconcile with what stock says (never trust the flag alone). Inputs: the running byte (cleared by hciplayer's exit / error reply), the socket fd (changes when demo

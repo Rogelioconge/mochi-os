@@ -24,6 +24,9 @@
 #define RD_STEADY_MS 60000 /* a stream that played this long earns a new restart */
 #define RD_GRACE_MS 1500 /* after a start stock's flags are not read yet */
 #define RD_POLL_MS 500
+#define RD_NOTFILE \
+    "/tmp/notfile" /* hciplayer touches these when a stream does not open (stock's home timer reads them, hook 37) */
+#define RD_NOTSUPPORT "/tmp/notsupport"
 #define RD_FAV_MAX 200 /* a favicon address longer than this is dropped */
 #define RD_LOGO_DIR \
     RD_DIR "/.logos" /* <hash>.jpg: a station's logo shrunk to 192 px; <hash>.no: no picture to be had */
@@ -174,5 +177,11 @@ extern int rd_start_player(void);
  * the first stops the stream and the second restarts it on the new output instead of stock's mclStartPlayer of the old local track. */
 extern void rd_save_stop(void);
 extern void rd_save_start(int paused);
+/* Payload hook 36 (tools/pod.py AUTOCHANGE_SITE): on_wm_idle_status's mclAutoChange call. While the radio owns the player, nothing (an ended stream is not a local track's end); else (and with
+ * the kill switch) stock. */
+extern int rd_auto_change(void);
+/* Payload hook 37 (tools/pod.py NOTICE_SITES): the home timer's access() of hciplayer's /tmp/notfile and /tmp/notsupport markers. While the radio owns the player a marker is removed and
+ * reads as absent: a dead station shows the radio's own error, never stock's modal "File Not Found" (a retry used to stack a second one under the first). Else access(). */
+extern int rd_notice(const char *path, int mode);
 
 extern int radio_open(void); /* patch/radiopage.c: Radio's stations page */

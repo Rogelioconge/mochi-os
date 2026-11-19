@@ -53,6 +53,8 @@ Other hook sites (call-site words and two-word stubs):
 | 33 Volume page open | `0x4cd964` | `bal navigator_to_with_context("dialog/volume_dialog", 2)` in `on_wm_tsup_fun` `0x4cd8dc` |
 | 31 play-status call | `0x4ce968` | `jalr mclGetPlayStatus` `0x5d3640` |
 | 35 event1 key table load | `0x637bc8` | `lw v0, (v0)`; `sw v0, 0x58(sp)` in the event1 thread `0x637870` (table `0x75b324`); resumes `0x637bd0` |
+| 36 end-of-track call | `0x4ce834` | `jalr mclAutoChange` `0x5d621c` (its only caller) |
+| 37 failure markers | `0x4cf5b0`, `0x4cf8d0` | `jalr access` of `/tmp/notfile`, `/tmp/notsupport` in `on_wm_timer_dialogresponse` `0x4cf178` |
 | 34 scan dialog finish refresh | `0x47baec` | `bal 0x47b604` (refresh with `done = 1`) in the dialog's timer callback `0x47bab0`; state word `0xa03a40`, stop byte `0xa0b088`, Auto Update byte `0xa05aa9` ([libupdate](libupdate.md)) |
 | Display page Lock Screen row | `0x4a5ca8` (row handler `0x4a5c10`) | resumes `0x4a5c88` or `0x4a5c94` |
 | Equalizer row | `0x4a0210` | resumes epilogue `0x4a0070` |

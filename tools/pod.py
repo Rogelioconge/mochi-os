@@ -821,6 +821,23 @@ START_PLAYER, START_PLAYER_PROLOGUE = 0x5d5300, (0x3c1c0043, 0x279cebd0, 0x0399e
 # status is not 1 and below the queue size. While a station runs, rd_save_stop stops the stream and rd_save_start restarts it on the new output (patch/radio.c). Both are UI-thread handlers' calls.
 SAVE_STOP, SAVE_STOP_PROLOGUE = 0x4e2304, (0x3c1c0052, 0x279c1bcc, 0x0399e021)
 SAVE_START, SAVE_START_PROLOGUE = 0x4e23e8, (0x3c1c0052, 0x279c1ae8, 0x0399e021)
+# Hook 36: on_wm_idle_status's one mclAutoChange call (`lw t9, GOT; jalr t9`, nop, `lw gp` after; the result is not read) becomes `jal rd_auto_change`. mcl_tidalStartPlayer never writes the
+# play type 0xa0abd8 or position 0xa0abdc, so a station's hciplayer exit (running byte 0xa0ab8a 0) reads as the local track's end and mclAutoChange calls mclNextSong(1) (0x5d63fc). While the
+# radio owns the player the call is skipped. Every idle pass, from boot: one comparison, then stock.
+AUTOCHANGE_SITE = 0x4ce834
+AUTOCHANGE_PINS = (
+    (0x4ce830, 0x8f99b3b0, 'on_wm_idle_status: lw t9, GOT mclAutoChange'), (AUTOCHANGE_SITE, 0x0320f809, 'on_wm_idle_status: jalr mclAutoChange (the hook replaces it)'),
+    (0x4ce838, 0x00000000, 'its delay slot: nop'), (0x4ce83c, 0x8fbc0010, 'on_wm_idle_status: lw gp after the call (the result is not read)'),
+    (0x5d621c, 0x3c1c0043, 'mclAutoChange prologue (rd_auto_change calls it)'), (0x5d6220, 0x279cdcb4, 'mclAutoChange prologue'), (0x5d6224, 0x0399e021, 'mclAutoChange prologue'),
+)
+# Hook 37: on_wm_timer_dialogresponse (home's timer, from boot) reads hciplayer's failure markers with access("/tmp/notfile", R_OK) and access("/tmp/notsupport", R_OK) (`lw t9, GOT access; jalr t9`,
+# the path in the delay slot, the result tested after); a marker opens the modal msginfo "File Not Found" / "Not supported" dialog. Both calls become `jal rd_notice`: while the radio owns the
+# player the marker is removed and reads as absent (the radio shows its own error), else access(). Every timer pass: one access, as stock's.
+NOTICE_SITES = (0x4cf5b0, 0x4cf8d0)
+NOTICE_PINS = (
+    (0x4cf5ac, 0x8f99f7cc, 'on_wm_timer_dialogresponse: lw t9, GOT access'), (0x4cf5b0, 0x0320f809, 'jalr access (the hook replaces it)'), (0x4cf5b4, 0x26049c88, 'delay slot: a0 = "/tmp/notfile"'),
+    (0x4cf8cc, 0x8f99f7cc, 'on_wm_timer_dialogresponse: lw t9, GOT access'), (0x4cf8d0, 0x0320f809, 'jalr access (the hook replaces it)'), (0x4cf8d4, 0x26049cd0, 'delay slot: a0 = "/tmp/notsupport"'),
+)
 # Hook 17: stock's on_backtoplayer_onclick (every stock page's Now Playing button): rn_backtoplayer opens Radio Now Playing while a station connects or plays, else resumes stock. Not reachable at boot.
 BACKTOPLAYER, BACKTOPLAYER_PROLOGUE = 0x4cd58c, (0x3c1c0053, 0x279c6944, 0x0399e021)
 FUNCTIONS.update({
@@ -829,6 +846,7 @@ FUNCTIONS.update({
     'set_devicevolume':     ('int', 'int', 0x4d6cf8),
     # Playing through hciplayer: mcl_tidalStartPlayer(url) is mclStartPlayer minus the queue lookup (it sends {set-songurl\\URL|...}); mclStop sends {mcl-stop} and waits for hciplayer's "exit"
     # (returns -1 at once when the running byte is 0); mclGetHciplayerStatus is the byte mclSyncPlayerStatus's thread refreshes every 200 ms from {player-status\request} (1 = "playing")
+    'mclAutoChange':        ('int', 'void', 0x5d621c),   # the idle pass's end-of-track step (rd_auto_change, AUTOCHANGE_SITE)
     'mcl_tidalStartPlayer': ('int', 'const char *', 0x5d5184), 'mclStop': ('int', 'void', 0x5d244c), 'mclGetHciplayerStatus': ('int', 'void', 0x5d436c),
     'mclSetPause': ('int', 'void', 0x5d2604), 'mclSetResume': ('int', 'void', 0x5d2668),   # the mini bar's pause / resume of a station (patch/minibar.c): {mcl-pause} / {mcl-resume} to hciplayer, then the status 3 / 2
     'mclSetPcmMode':        ('int', 'void', 0x5d6080), 'mclSetMute': ('int', 'int', 0x5d4dac), 'mclGetOutputWay': ('int', 'void', 0x5d45a4), 'mclSetDacPwr': ('int', 'int', 0x5d5c1c),
@@ -846,6 +864,13 @@ def patch_radio(image, ps, payload_len):
     target = ps['rn_backtoplayer']
     check(BASE <= target < BASE + payload_len, 'back-to-player entry symbol outside payload')
     hook(image, BACKTOPLAYER, BACKTOPLAYER_PROLOGUE, target, 'on_backtoplayer_onclick')
+    check_pins(image, AUTOCHANGE_PINS)
+    check(BASE <= ps['rd_auto_change'] < BASE + payload_len, 'auto change hook symbol outside payload')
+    struct.pack_into('<I', image, fileoff(image, AUTOCHANGE_SITE), jal(ps['rd_auto_change'], AUTOCHANGE_SITE))
+    check_pins(image, NOTICE_PINS)
+    check(BASE <= ps['rd_notice'] < BASE + payload_len, 'notice hook symbol outside payload')
+    for site in NOTICE_SITES:
+        struct.pack_into('<I', image, fileoff(image, site), jal(ps['rd_notice'], site))
 
 
 # ---- Now Playing's More dialog (patch/playmore.c, docs/modules/playmore.md) -------------------------------------------
@@ -1268,7 +1293,7 @@ def compile_payload(out, demo_path, tag=TAG):
     keep = ['--undefined=compact_set_row_layout', '--undefined=m1plus_home_init',
             '--undefined=stock_home_init_trampoline', '--undefined=m1plus_playing_init',
             '--undefined=stock_playing_init_trampoline', '--undefined=m1plus_bigcover_init', '--undefined=stock_bigcover_init_trampoline', '--undefined=m1plus_lockscreen_init', '--undefined=stock_lockscreen_init_trampoline', '--undefined=m1plus_scroll_event',
-            '--undefined=m1plus_playmore_init', '--undefined=stock_playmore_init_trampoline', '--undefined=m1plus_pulldown_init', '--undefined=pd_open_settings', '--undefined=pd_open_dialog', '--undefined=m1plus_tsdown', '--undefined=stock_tsdown_trampoline', '--undefined=stock_pulldown_init_trampoline', '--undefined=rd_start_player', '--undefined=rd_step', '--undefined=stock_start_player_trampoline', '--undefined=rd_save_stop', '--undefined=rd_save_start', '--undefined=stock_save_stop_trampoline', '--undefined=stock_save_start_trampoline', '--undefined=rn_backtoplayer', '--undefined=stock_backtoplayer_trampoline', '--undefined=pc_id3_path', '--undefined=pc_library_query', '--undefined=pc_sorted_query', '--undefined=stock_dbquery_trampoline', '--undefined=stock_sorted_query_trampoline',
+            '--undefined=m1plus_playmore_init', '--undefined=stock_playmore_init_trampoline', '--undefined=m1plus_pulldown_init', '--undefined=pd_open_settings', '--undefined=pd_open_dialog', '--undefined=m1plus_tsdown', '--undefined=stock_tsdown_trampoline', '--undefined=stock_pulldown_init_trampoline', '--undefined=rd_start_player', '--undefined=rd_step', '--undefined=stock_start_player_trampoline', '--undefined=rd_save_stop', '--undefined=rd_save_start', '--undefined=rd_auto_change', '--undefined=rd_notice', '--undefined=stock_save_stop_trampoline', '--undefined=stock_save_start_trampoline', '--undefined=rn_backtoplayer', '--undefined=stock_backtoplayer_trampoline', '--undefined=pc_id3_path', '--undefined=pc_library_query', '--undefined=pc_sorted_query', '--undefined=stock_dbquery_trampoline', '--undefined=stock_sorted_query_trampoline',
             '--undefined=sba_parse_tracks', '--undefined=sba_parse_albums', '--undefined=sba_parse_artists', '--undefined=sba_parse_playlists', '--undefined=sba_parse_ping',   # (sbparse.c until sbapi.c calls them)
             '--undefined=m1plus_style_color', '--undefined=m1plus_style_gradient', '--undefined=m1plus_image_add', '--undefined=stock_style_color_trampoline', '--undefined=stock_image_add_trampoline', '--undefined=pal_map', '--undefined=pal_active', '--undefined=pal_background', '--undefined=pal_accent', '--undefined=pal_accent_saved', '--undefined=pal_accent_set', '--undefined=pal_accent_color', '--undefined=pal_fill',
             '--undefined=bc_timed_open', '--undefined=m1_scan_dir', '--undefined=sh_set_mode', '--undefined=sbs_play_record', '--undefined=sh_load_playlist', '--undefined=sh_display_mode', '--undefined=sh_clear_queue', '--undefined=pod_na_site', '--undefined=na_next_key', '--undefined=na_set_cur', '--undefined=na_cur', '--undefined=na_active', '--undefined=stock_setmode_trampoline', '--undefined=stock_loadplaylist_trampoline', '--undefined=ft_created', '--undefined=stock_file_created_trampoline', '--undefined=ll_load', '--undefined=ll_assign', '--undefined=stock_loadclass_trampoline', '--undefined=tz_select', '--undefined=tz_row', '--undefined=tz_label', '--undefined=stock_timezone_trampoline', '--undefined=bp_capacity', '--undefined=bp_light_on', '--undefined=bp_light_off', '--undefined=lo_set_text', '--undefined=wifi_hub_open', '--undefined=bt_hub_open', '--undefined=lu_scan_finish', '--undefined=lu_commit', '--undefined=lu_batch_exec', '--undefined=vol_tap_open','--undefined=tidal_kb_focus', '--undefined=pod_eq_site', '--undefined=pod_keys_site', '--undefined=pod_lock_site', '--undefined=pf_items', '--undefined=pf_seen', '--undefined=so_play_src', '--undefined=lib_navidrome', '--undefined=sba_songs_window', '--undefined=sbs_playing', '--undefined=sbs_track']   # (pf_items, pf_seen: accessors of the parser the tests read; so_play_src, albums_open_src: the library seam, no caller yet)
@@ -1519,7 +1544,7 @@ def patch_demo(raw, payload, ps, demo_path):
     check(dynsym(demo_path).get('playsong_id3info') == 0xa0d88c, 'playsong_id3info moved')
     edits = patch_rows(patched, ps)
     # no row edit may touch a PIC prologue (the hooks are the only ones) or a hook site
-    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, TSDOWN, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not LIGHT_ON_SITE <= int(a, 16) < LIGHT_ON_SITE + 4 and not LIGHT_OFF_SITE <= int(a, 16) < LIGHT_OFF_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != BTHUB_SITE and int(a, 16) != VOLUME_SITE and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and int(a, 16) != PULLDOWN_DIALOG_SITE and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8 and not KEYS_SITE <= int(a, 16) < KEYS_SITE + 8
+    check(all(not any(h <= int(a, 16) < h + 12 for h in (HOME_CLICK, HOME_INIT, PLAYING_INIT, BIGCOVER_INIT, LOCKSCREEN_INIT, PLAYMORE_INIT, PULLDOWN_INIT, TSDOWN, START_PLAYER, SAVE_STOP, SAVE_START, BACKTOPLAYER, QUERY_DB, QUERY_SORT, STYLE_COLOR, IMAGE_ADD, SETMODE, LOADPL, FILETIME, LCL, timezones.SELECT)) and int(a, 16) != LCL_ASSIGN_SITE and not STYLE_GRADIENT <= int(a, 16) < STYLE_GRADIENT + 8 and not any(int(a, 16) == s for s, _ in MODE_SITES) and int(a, 16) != CLEAR_SITE and not ID3_SITE <= int(a, 16) < ID3_SITE + 4 and not SCAN_SITE <= int(a, 16) < SCAN_SITE + 4 and not BATTERY_SITE <= int(a, 16) < BATTERY_SITE + 4 and not LIGHT_ON_SITE <= int(a, 16) < LIGHT_ON_SITE + 4 and not LIGHT_OFF_SITE <= int(a, 16) < LIGHT_OFF_SITE + 4 and not any(int(a, 16) == s for s, _ in LINEOUT_SITES) and int(a, 16) != WIFIHUB_SITE and int(a, 16) != BTHUB_SITE and int(a, 16) != VOLUME_SITE and int(a, 16) != AUTOCHANGE_SITE and int(a, 16) not in NOTICE_SITES and int(a, 16) != IDLE_SITE and int(a, 16) != TIDALKB_SITE and int(a, 16) not in PULLDOWN_OPEN_SITES and int(a, 16) != PULLDOWN_DIALOG_SITE and not EQ_ROW <= int(a, 16) < EQ_ROW + 8 and not NEXTALBUM_SITE <= int(a, 16) < NEXTALBUM_SITE + 8 and not KEYS_SITE <= int(a, 16) < KEYS_SITE + 8
               for a, *_ in edits), 'row edit on a hook')
     check(all(not (SCROLL_SLOT <= int(a, 16) < SCROLL_SLOT + 4 or a in {hex(p[0]) for p in SCROLL_PINS}) for a, *_ in edits),
           'row edit on a list gesture word')
@@ -1562,6 +1587,8 @@ def main():
         'hook_pulldown_open': {'sites': [hex(a) for a in PULLDOWN_OPEN_SITES], 'target': ps['pd_open_settings']},
         'hook_pulldown_dialog': {'site': hex(PULLDOWN_DIALOG_SITE), 'target': ps['pd_open_dialog']},
         'hook_start_player': {'addr': START_PLAYER, 'target': ps['rd_start_player']},
+        'hook_autochange': {'addr': AUTOCHANGE_SITE, 'target': ps['rd_auto_change']},
+        'hook_notice': {'addr': NOTICE_SITES[0], 'sites': list(NOTICE_SITES), 'target': ps['rd_notice']},
         'hook_save_stop': {'addr': SAVE_STOP, 'target': ps['rd_save_stop']}, 'hook_save_start': {'addr': SAVE_START, 'target': ps['rd_save_start']},
         'hook_backtoplayer': {'addr': BACKTOPLAYER, 'target': ps['rn_backtoplayer']},
         'hook_id3': {'addr': ID3_SITE, 'target': ps['pc_id3_path']},
