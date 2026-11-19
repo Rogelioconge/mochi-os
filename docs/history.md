@@ -24,6 +24,8 @@ and [UI reference](ui.md).
   music-driven LED light.
 - **1.6.0:** a VU Meter view, a redesigned Now Playing info page and Control Center, Battery
   History, Mono Audio and Crossfeed, Year groups in Albums and Subsonic folders.
+- **1.7.0:** Pins on Home, a Volume page, a shared Select mode, an Update Library page and a
+  French keyboard.
 
 ## Device findings
 
