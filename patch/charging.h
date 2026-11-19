@@ -15,11 +15,13 @@
 #define CHG_STEP 5
 #define CHG_OFF 100 /* no limit (the default) */
 #define CHG_RESUME 5 /* a held charger is released at limit - CHG_RESUME percent or less */
-#define CHG_PERIOD 5 /* seconds between two checks (the status bar ticks every second) */
+#define CHG_PERIOD 5 /* seconds between two checks on external power (the status bar ticks every second) */
+#define CHG_IDLE \
+    60 /* the worker's seconds between two checks on battery (nothing to hold; a plug-in is seen within this) */
 
 int chg_limit(void); /* the saved limit, CHG_MIN .. CHG_OFF */
 int chg_set(int limit); /* save and apply a limit: the limit, or -1 */
 void chg_tick(int killed, int pct); /* from bp_capacity (patch/battery.c) every status bar tick */
 void *chg_main(
     void *
-        arg); /* the worker's loop (public so that the test runs it): a check every CHG_PERIOD seconds while a limit or a hold exists */
+        arg); /* the worker's loop (public so that the test runs it): a check every CHG_PERIOD seconds (CHG_IDLE on battery) while a limit or a hold exists */

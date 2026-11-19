@@ -16,7 +16,9 @@ Two callers run the same check (`chg_step`), serialised by a spin lock:
   try-locks, so a tick is skipped while the worker checks. A check runs at most every
   `CHG_PERIOD` (5) seconds of `time()`; a clock that went back checks at once, and a new limit
   checks at the next tick.
-- `chg_main`, one detached worker thread: a check every `CHG_PERIOD` seconds with `sleep`. It covers the screen off and stock's
+- `chg_main`, one detached worker thread: a check, then a `sleep` of `CHG_PERIOD` seconds when
+  that check saw external power (`chg.ext`), else `CHG_IDLE` (60): on battery there is nothing to
+  hold, and a plug-in is seen within a minute. It covers the screen off and stock's
   standby (userspace still runs; `show_sysbar_face` does not tick), independently of the Battery History setting. `chg_tick` and `chg_set` start it
   (once; a failed `pthread_create` is retried after 30 ticks) while a limit under 100 is set; it
   ends when the limit is 100 or the kill switch is there. The worker holds (`0`) and forgets a

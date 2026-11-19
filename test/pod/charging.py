@@ -8,7 +8,7 @@ import awtk_ui
 DEFS = cdefs.defines(os.path.join(ROOT, 'patch', 'charging.h'), strings=True)
 BDEFS = cdefs.defines(os.path.join(ROOT, 'patch', 'battery.h'), strings=True)
 FILE, SWITCH, GAUGE, BP_FILE, KILL = DEFS['CHG_FILE'], DEFS['CHG_SWITCH'], BDEFS['BP_GAUGE'], BDEFS['BP_FILE'], '/mnt/mmc/m1plus-off'
-PERIOD = DEFS['CHG_PERIOD']
+PERIOD, IDLE = DEFS['CHG_PERIOD'], DEFS['CHG_IDLE']
 
 
 class CM(Machine):
@@ -59,7 +59,7 @@ def limit_tests(ctx):
     """The saved limit and the picker's save."""
     expect = ctx.expect
     expect(FILE == '/mnt/data/m1plus/battery-charge-limit' and SWITCH == '/sys/class/power_supply/battery/charger' and GAUGE == '/sys/class/power_supply/battery/capacity'
-           and (DEFS['CHG_MIN'], DEFS['CHG_STEP'], DEFS['CHG_OFF'], DEFS['CHG_RESUME'], PERIOD) == (80, 5, 100, 5, 5), 'the files and the constants')
+           and (DEFS['CHG_MIN'], DEFS['CHG_STEP'], DEFS['CHG_OFF'], DEFS['CHG_RESUME'], PERIOD, IDLE) == (80, 5, 100, 5, 5, 60), 'the files and the constants')
     for saved, want in ((None, 100), (b'0\n', 80), (b'1\n', 85), (b'2', 90), (b'3\n', 95), (b'4\n', 100), (b'9\n', 100), (b'x', 100), (b'', 100), (b'00', 100), (b'80\n', 100), (b'0\n\n', 100)):
         m = machine(limit=saved)
         expect(m.call(PSYMS['chg_limit'], count=200000) == want, f'saved {saved!r}: the limit is {want}')
@@ -110,7 +110,7 @@ def hold_tests(ctx):
     expect(tick(m) == [], 'held, no switch file: nothing to write to (open fails)')
     # the rate: at most one check per CHG_PERIOD seconds; a clock that went back checks at once
     m = machine(gauge=b'70\n'); tick(m)
-    for dt in (1, 1, 1, 1):
+    for dt in (1,) * (PERIOD - 1):
         tick(m, dt)
         expect(m.names() == ['get_battery_capacity', 'access'], f'within {PERIOD} s of the last check: no file read ({m.names()}; the mock does not log time())')
     tick(m, 1)

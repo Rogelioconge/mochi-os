@@ -6,7 +6,7 @@
  * charging request, /sys/class/power_supply/battery/charger: "0" sets its disable flag and zero charging current, "1" restores the configured current.
  * Two callers run the same check, serialised by a spin lock (the status bar's try-lock simply skips a tick while the worker holds it): bp_capacity (patch/battery.c, the hook on the status bar's 1 s call
  * of get_battery_capacity) calls chg_tick after stock's function, and chg_tick checks at most every CHG_PERIOD seconds of its own (time(); a clock that went back, or a release the worker left to it, checks at once); and one detached worker
- * thread (chg_main) checks every CHG_PERIOD seconds on its own, which covers the screen off and stock's standby (userspace still runs; the status bar does not tick). The worker is started by chg_tick /
+ * thread (chg_main) checks every CHG_PERIOD seconds on its own (CHG_IDLE when its last check saw no external power), which covers the screen off and stock's standby (userspace still runs; the status bar does not tick). The worker is started by chg_tick /
  * chg_set while a limit under 100 is set, and ends when the limit is 100 or the kill switch is there (a hold is then the tick's to release).
  * External power is pwr_external (patch/power.c: battery/status, the online files and the raw PD17 level, any one saying external wins) or stock's POWER_EXT word equal to 1.
  *
@@ -22,7 +22,7 @@
  * next check. A reboot clears the driver's flag. Not covered: a real kernel suspend (no userspace runs, so a limit crossed meanwhile is only held after the wake) and
  * a powered-off player (the kernel's shutdown path selects its charging current without the flag), which charge as stock does.
  *
- * Cost with no limit (the default) and no hold: a cached compare, no call, no thread. With a limit: a time() per tick, and every CHG_PERIOD seconds (per caller) a few
+ * Cost with no limit (the default) and no hold: a cached compare, no call, no thread. With a limit: a time() per tick, and every CHG_PERIOD seconds (the worker's CHG_IDLE on battery) a few
  * open / read / close of the power sources, the gauge and, while held, of the switch, and a write on a change.
  */
 #include "offsets.inc"
@@ -41,6 +41,7 @@ static struct {
     long last; /* the status bar tick's last check (the worker's checks never move it) */
     int run; /* the worker runs (or is being made) */
     int retry; /* status bar ticks to wait before another try to make the worker */
+    int ext; /* the last check saw external power (the worker's sleep: CHG_PERIOD, else CHG_IDLE) */
 } chg __attribute__((section(".scratch")));
 
 static void chg_lock(void) {
@@ -129,7 +130,8 @@ static void chg_step(int killed, int pct, int force) {
         if (chg.checked && !chg.now && t >= chg.last && t - chg.last < CHG_PERIOD) return;
         chg.checked = 1, chg.now = 0, chg.last = t;
     }
-    if (chg.limit >= CHG_OFF || chg_dac_off() || !chg_external()) {
+    chg.ext = 0;
+    if (chg.limit >= CHG_OFF || chg_dac_off() || !(chg.ext = chg_external())) {
         chg_release(!force); /* (with stock owning the switch: the hold forgotten, nothing written) */
         return;
     }
@@ -147,18 +149,19 @@ static void chg_step(int killed, int pct, int force) {
         chg.held = 1;
 }
 
-/* The worker: a check every CHG_PERIOD seconds until the limit is 100 or the kill switch is there. */
+/* The worker: a check every CHG_PERIOD seconds on external power, CHG_IDLE on battery, until the limit is 100 or the kill switch is there. */
 void *chg_main(void *arg) {
     (void)arg;
     for (;;) {
-        int killed = access(KILL_SD, F_OK) == 0, done;
+        int killed = access(KILL_SD, F_OK) == 0, done, ext;
         chg_lock();
         chg_step(killed, -1, 1);
+        ext = chg.ext;
         done = chg_limit() >= CHG_OFF || killed; /* (a hold is the status bar tick's to release) */
         if (done) chg.run = 0;
         chg_unlock();
         if (done) return (void *)0;
-        sleep(CHG_PERIOD);
+        sleep(ext ? CHG_PERIOD : CHG_IDLE);
     }
 }
 

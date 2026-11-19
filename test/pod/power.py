@@ -133,7 +133,7 @@ def worker_tests(ctx):
     sl = [c for c in m.calls if c[0] == 'sleep']
     expect(seen['w1'] == [b'0\n'] and seen['w2'] == [b'0\n'] and seen['w3'] == [b'0\n', b'0\n'] and w == [b'0\n', b'0\n'],
            f'POWER_EXT 0, status Charging, no status bar tick: held at 85; at 70 no "1" (the tick releases); stock\'s "1" held again; the kill switch ends it ({w})')
-    expect(sl == [('sleep', 5)] * 3 and 'get_battery_capacity' not in m.names() and not [c for c in m.calls if c[0] == 'widget_set_visible'], 'it sleeps CHG_PERIOD between checks and never calls stock or the UI')
+    expect(sl == [('sleep', cm.PERIOD)] * 3 and 'get_battery_capacity' not in m.names() and not [c for c in m.calls if c[0] == 'widget_set_visible'], 'it sleeps CHG_PERIOD between checks and never calls stock or the UI')
     # the sources: any one saying external is enough; unknown status; PD17; POWER_EXT 1 alone
     for kw, ext, what in ((dict(status=b'Unknown\n', usb=b'1\n'), 0, 'Unknown status + usb online 1'), (dict(status=b'Unknown\n', gpio=0), 0, 'Unknown status + PD17 low'),
                           (dict(status=b'Discharging\n', ac=b'1\n'), 0, 'Discharging + ac online 1'), (dict(status=b'Unknown\n'), 1, 'POWER_EXT 1 alone (the old input)')):
@@ -172,15 +172,23 @@ def worker_tests(ctx):
     m = worker_machine(gauge=85)
     def killed(k, m): m.present.add(KILL)
     w = run_worker(m, killed)
-    expect(w == [b'0\n'] and [c for c in m.calls if c[0] == 'sleep'] == [('sleep', 5)], f'a hold and then the kill switch: the worker ends at the next check, nothing written ({w})')
+    expect(w == [b'0\n'] and [c for c in m.calls if c[0] == 'sleep'] == [('sleep', cm.PERIOD)], f'a hold and then the kill switch: the worker ends at the next check, nothing written ({w})')
     expect(cm.tick(m) == [b'1\n'], 'the next status bar tick releases the hold')
+    # on battery the worker sleeps CHG_IDLE; once a check sees external power it is back to CHG_PERIOD
+    m = worker_machine(gauge=85, status=b'Discharging\n', usb=b'0\n', ac=b'0\n', gpio=1)
+    def plug(k, m):
+        if k == 2: m.fs[STATUS] = b'Charging\n'
+        if k == 3: m.present.add(KILL)
+    w = run_worker(m, plug)
+    sl = [c[1] for c in m.calls if c[0] == 'sleep']
+    expect(sl == [cm.IDLE, cm.IDLE, cm.PERIOD] and w == [b'0\n'], f'on battery: sleeps of CHG_IDLE, nothing written; plugged in: held at 85, then CHG_PERIOD ({sl}, {w})')
     # the worker's checks never postpone the tick's release: a tick 1 s after a worker check at the resume level releases
     m = worker_machine(gauge=85)
     def resume(k, m):
         if k == 1: m.fs[GAUGE] = b'70\n'
         if k == 2: m.present.add(KILL)
     w = run_worker(m, resume)
-    m.present.discard(KILL); m.wall -= 5   # (back to the worker's check at 70 %: its last sleep advanced the clock)
+    m.present.discard(KILL); m.wall -= cm.PERIOD   # (back to the worker's check at 70 %: its last sleep advanced the clock)
     expect(w == [b'0\n'] and cm.tick(m, dt=1) == [b'1\n'], f'held, then 70 %: the worker leaves the release to the next tick, which does not wait CHG_PERIOD ({w})')
     # a failed write is tried again
     m = worker_machine(gauge=85); m.fail.add(('write', SW))
