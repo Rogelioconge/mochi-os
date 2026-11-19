@@ -67,7 +67,7 @@ Recent Albums and Daily Mix are under **Home Screen**. Settings remains accessib
 on the next Home visit.
 
 Control Center holds up to eight tiles. Sleep Timer, Settings, Equalizer, Power Off, AirPlay and
-DLNA are available but hidden until enabled. **Sleep Timer** opens the same page as Now Playing's
+DLNA are available but hidden until enabled. The **Wi-Fi Transfer** tile opens the Wi-Fi Transfer page (offline it says "Connect to Wi-Fi first"). **Sleep Timer** opens the same page as Now Playing's
 More page. **Power Off** asks for confirmation. AirPlay and DLNA require Wi-Fi; the pull-down
 stays open after a tap, and those tiles cannot be used during an AirPlay session. The Playback
 Settings tile opens its hub and is dimmed on the hub and its Volume & Sound and Output pages.

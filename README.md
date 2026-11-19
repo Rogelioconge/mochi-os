@@ -18,8 +18,8 @@
 ## Features
 
 - **Browse:** Cover Flow, album grids and lists, artist photos, A–Z indexes, playlists and folders.
-- **Search:** music and podcasts with an on-screen QWERTY keyboard, also in Tidal.
-- **Home:** Daily Mix, Recently Played and a floating mini player.
+- **Search:** music and podcasts with an on-screen QWERTY or French AZERTY keyboard, also in Tidal.
+- **Home:** pinned albums, playlists, songs and artists, Daily Mix, Recently Played and a floating mini player.
 - **Now Playing:** cover-colour backgrounds, rounded artwork, three lyrics sizes, an idle display, Continue Playing into the next album, Cassette, Vinyl and Lyrics Mode.
 - **Extras:** album and folder shuffle, a virtual iPod and online cover and lyrics lookup.
 - **Podcasts:** feeds, directory search, episode downloads, filters and per-show order.
@@ -29,7 +29,7 @@
 - **Subsonic:** browse, search, stream and download from Navidrome, Gonic or Airsonic.
 - **Equalizer:** 10-band editor, AutoEq downloads and a separate EQ per output.
 - **Wi-Fi:** WPA3 and Enhanced Open, plus a browser page to manage the card.
-- **Settings:** menu and pull-down tiles, playback, display, charge limit and a music-driven LED.
+- **Settings:** menu and pull-down tiles, a Volume page, playback, display, charge limit and a music-driven LED.
 - **Appearance:** accent colours, a lock screen with mini player, Inter and Source Han Sans.
 - **Languages:** 13 translations following the player's language setting.
 
