@@ -69,6 +69,7 @@
 #include "coverflow.h"
 #include "entries.h"
 #include "artsplit.h"
+#include "genresplit.h"
 #include "search.h"
 #include "pins.h"
 #include "selmode.h"
@@ -171,6 +172,7 @@ static struct {
     const lib_src_t *
         src; /* a non-stock library source (songs_open_src), or 0: every stock path above is then unchanged; sg.list is the source's own copy (deque_destroy) */
     int split; /* an artist's songs from the artist split (patch/artsplit.c): the list is built from the library's songs, not the stock query; sg.name is the artist, sg.pl_id 1 for the Unknown Artist row */
+    int gsplit; /* a genre's songs from the genre split (patch/genresplit.c): the list is the stock genre query run once per tag that names it (gs_fill); sg.name is the name, sg.pl_id 1 for the Unknown Genre row */
     int which; /* the source's list: LS_SONGS, LS_FAVORITES or LS_DOWNLOADED */
     int part; /* the source's list is a part that grows (lib_src_t.complete): no sections, no rail */
     unsigned sgen, srows; /* the source's gen and gen_rows when the list was read */
@@ -289,7 +291,10 @@ static unsigned sg_offers(void) {
 }
 
 /* What a genre's stock row tap leaves in the browsing record (@0x535c4c): classinfo[0] = 0xff09, the name (0x80 bytes, cut as snprintf cuts it) at + 0x30d, the byte + 0xc. */
-static void sg_genre_info(const char *name, int unknown) {
+static void sg_genre_info(const char *name, int unknown) { songs_genre_record(name, unknown); }
+
+/* The browsing record a stock genre row tap leaves: sg_genre_info and the genre split's per-tag queries (patch/genresplit.c) write it the same way. */
+void songs_genre_record(const char *name, int unknown) {
     unsigned char *ci = (unsigned char *)CLASSINFO;
     unsigned i;
     *(int *)ci = CLASS_GENRE_SONGS;
@@ -312,6 +317,9 @@ static void sg_classinfo(void) {
 /* The stock query of the class listed (into *pdeq_showlist), the browsing record put back first. */
 static int sg_query(void) {
     sg_classinfo();
+    if (sg.gsplit)
+        return gs_fill(
+            sg.name, sg.pl_id); /* every tag that names it, asked through the stock genre query (patch/genresplit.c) */
     if (sg.split)
         return as_fill(
             sg.name,
@@ -1197,7 +1205,8 @@ static void sg_play_at(int at, int how) {
         return;
     }
     sg_classinfo(); /* loadSongList runs the class query again and keeps classinfo for the memory playback */
-    if (sg.split) { /* the artist split's songs are the queue as they are (patch/songops.c so_play_own) */
+    if (sg.split ||
+        sg.gsplit) { /* a split's songs are the queue as they are (patch/songops.c so_play_own); the stock genre query on a split name finds nothing */
         so_play_own(sg.list, at, how, pod_start_player);
         return;
     }
@@ -1267,12 +1276,16 @@ static int sg_on_selall(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* The class Delete and Add pass to the stock code: the list's own, but a genre split's list is real songs of several tags, so it goes the generic songtable path (0xf001) that works from each
+ * selected record, never a path keyed on the split name (patch/genresplit.c). */
+static int sg_op_cls(void) { return sg.gsplit ? CLASS_ALL_SONGS : sg.cls; }
+
 /* Delete and Add run the stock code on the stock selection vector (patch/songops.c), filled from the page's marks at that moment. */
 static int sg_on_delete(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!sg.select || sg.src) return RET_OK; /* (a source's tracks are not deleted from here) */
-    if (so_delete(sg.cls, sg.list, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid())) {
+    if (so_delete(sg_op_cls(), sg.list, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid())) {
         sg_select(0);
         sg_load(1);
     }
@@ -1285,7 +1298,7 @@ static int sg_on_add(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!sg.select || sg.src) return RET_OK; /* (a source's sheet has no Add to Playlist) */
-    r = so_add(sg.cls, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid(), sg.title_save, &sg.picker);
+    r = so_add(sg_op_cls(), sg.count, sg.sel.bits, sg.sel.nsel, sg_valid(), sg.title_save, &sg.picker);
     if (r < 0) {
         sg_select(0);
         sg_load(1);
@@ -1341,7 +1354,7 @@ static void sg_add_one(int row) {
     int r;
     if (!sg.sel.bits || row < 0 || row >= (int)sg.count || sg.src) return;
     sg.sel.bits[row >> 3] |= (unsigned char)(1 << (row & 7));
-    r = so_add(sg.cls, sg.count, sg.sel.bits, 1, sg_valid(), sg.title_save, &sg.picker);
+    r = so_add(sg_op_cls(), sg.count, sg.sel.bits, 1, sg_valid(), sg.title_save, &sg.picker);
     memset(sg.sel.bits, 0, (sg.count + 7) / 8); /* (the picker and the stock vector have their own copies) */
     if (r < 0) sg_load(1);
 }
@@ -1712,6 +1725,8 @@ static int sg_stack(void) {
  * asset is not ours (the page is left again). */
 static int sg_split_next
     __attribute__((section(".scratch"))); /* songs_open_artist: the page about to open is an artist split's */
+static int gs_split_next
+    __attribute__((section(".scratch"))); /* songs_open_genre_split: the page about to open is a genre split's */
 static int sg_open_page(int cls, int pl_id, const char *key, const char *name, const lib_src_t *src, int which,
                         void *scope) {
     int i, az_ok;
@@ -1727,6 +1742,7 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     sg.cls = cls, sg.pl_id = pl_id, sg.key = key;
     sg.src = src, sg.which = which, sg.scope_d = scope_d;
     sg.split = sg_split_next, sg_split_next = 0;
+    sg.gsplit = gs_split_next, gs_split_next = 0;
     if (sg_artist())
         memcpy(sg.ci, (void *)CLASSINFO, CLASSINFO_SIZE); /* songs_open_artist ran the two queries just before */
     for (i = 0; name[i] && i < (int)sizeof sg.name - 1; ++i) sg.name[i] = name[i];
@@ -1917,6 +1933,16 @@ int songs_open_genre(const char *name, int unknown) {
         sg_genre_info(name, unknown);
         navigator_to_with_context("allmusic_page", (const void *)CLASS_GENRE_SONGS);
     }
+    return r;
+}
+
+/* A genre row the genre split made (patch/genresplit.c gs_is_row): its songs are the songs of every tag that names it, answered by gs_fill. No fallback to the stock page: the stock query on a
+ * split name finds nothing, so it would open an empty list. -1 when the page did not open. */
+int songs_open_genre_split(const char *name, int unknown) {
+    int r;
+    gs_split_next = 1;
+    r = sg_open(CLASS_GENRE_SONGS, unknown != 0, (const char *)0, name, -1);
+    gs_split_next = 0;
     return r;
 }
 

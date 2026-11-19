@@ -22,6 +22,12 @@ int songs_open_src_in(
     const lib_src_t *src, int which, void *scope,
     const char *title); /* the source's tracks of a row (the artist's All Songs, a playlist's) on our Songs page */
 int songs_open_genre(const char *name, int unknown);
+int songs_open_genre_split(
+    const char *name,
+    int unknown); /* a genre row the genre split made (patch/genresplit.c); -1 when the page did not open */
+void songs_genre_record(
+    const char *name,
+    int unknown); /* the browsing record a stock genre row tap leaves (class 0xff09, the name, the Unknown byte) */
 int songs_open_playlist(int id, const char *name); /* our Songs page on a playlist; -1 when it did not open */
 
 /* patch/folders.c */

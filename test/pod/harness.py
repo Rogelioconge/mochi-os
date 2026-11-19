@@ -792,6 +792,7 @@ class Machine:
                 ci = pod.DATA['CLASSINFO'][0]
                 key = (self.read_cstr(ci + O['CLASSINFO_GENRE']), self.u.mem_read(ci + O['CLASSINFO_GENRE_UNKNOWN'], 1)[0])
                 items = self.genre_songs.get(key, []) if self.word(ci) == O['CLASS_GENRE_SONGS'] else []
+                ex = self.word(PSYMS['pc_genre_exact']); self.calls.append(('genre_exact', self.read_cstr(ex) if ex else None))
                 self.setword(pod.DATA['PDEQ_SHOWLIST'][0], self.new_deque(items))
                 u.reg_write(UC_MIPS_REG_V0, len(items)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
                 return

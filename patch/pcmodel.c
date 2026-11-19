@@ -1493,6 +1493,11 @@ static const char pq_fav_music[] = "select * from myfav where " PQ_MUSIC;
 static const char pq_fav_saved[] =
     "select * from myfav where ifnull(fileurl,'') like '" PM_ROOT "/podcasts/%' order by id desc";
 
+/* The genre split's per-tag queries (patch/genresplit.c gs_tracks) set this to the whole raw tag around its loadLocalClassList(0xff09): stock's `style like '<tag cut to 127 bytes>'` is
+ * then asked as `style='<tag>' COLLATE NOCASE`, so a `_` or `%` in the tag is no wildcard and a long tag is not cut. NULL otherwise. */
+const char *pc_genre_exact __attribute__((section(".scratch")));
+static const char pq_genre_like[] = "select * from songtable where style like '";
+
 /* 1 when the n bytes at a are b's */
 static int pq_eq(const char *a, const char *b, unsigned n) {
     while (n && *a == *b) ++a, ++b, --n;
@@ -1524,6 +1529,14 @@ static char *pq_filter(char *out, const char *sql) {
         return out;
     }
     if (!pq_eq(sql, sel, sizeof sel - 1)) return 0;
+    if (pc_genre_exact && pq_eq(sql, pq_genre_like, sizeof pq_genre_like - 1)) {
+        static const char head[] = "select * from songtable where style='", tail[] = "' COLLATE NOCASE and " PQ_MUSIC;
+        const char *t = pc_genre_exact;
+        ok = pq_put(out, &at, head, sizeof head - 1);
+        for (; ok && *t; ++t) ok = pq_put(out, &at, t, 1) && (*t != '\'' || pq_put(out, &at, t, 1));
+        if (!ok || !pq_put(out, &at, tail, sizeof tail)) return 0; /* (the NUL too: it fits or stock's text runs) */
+        return out;
+    }
     for (n = 0; sql[n]; ++n) {
         for (i = 0; i < sizeof tbl - 1 && sql[n + i] == tbl[i]; ++i) {
         }

@@ -3,7 +3,7 @@
 [User guide](guide.md) · [Settings](settings-guide.md) · [Features and extras](features-guide.md)
 
 [Browse](#browse-your-library) · [Playback and queue](#playback-and-queue) ·
-[Artist photos](#artist-photos) · [Split Artists](#split-artists)
+[Artist photos](#artist-photos) · [Split Artists](#split-artists) · [Split Genres](#split-genres)
 
 ## Browse your library
 
@@ -111,3 +111,17 @@ artist opens the first name.
   without its own photo can use the first artist's.
 - Album Artist view, Genres, Composers, Subsonic, Pod and Continue Playing order are not split.
   After a restart, Memory Playback resumes the same track in the whole library, not the artist list.
+
+## Split Genres
+
+Turn on **Settings → Library → Split Genres** to list a song whose genre tag names several genres,
+such as `Rock; Pop`, under each name on the Genres page. A genre opens the songs of every tag that
+names it.
+
+- Choose separators on the same settings page. Only `;` is on by default, so `R&B`, `Rock/Pop` and
+  `Folk, World, & Country` stay whole; turn on `/`, `&` or `,` if your tags use them.
+- Add names that must never split, one per line, to `genre-exceptions.txt` at the card root; blank
+  lines and `#` comments are ignored. Names are matched ignoring upper and lower case.
+- Reopen an already open Genres page to see a change. Genres on albums and in Search are not
+  split. After a restart, Memory Playback resumes the same track in the whole library, not the
+  genre list.

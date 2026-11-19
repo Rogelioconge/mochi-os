@@ -2675,6 +2675,91 @@ def split_tests(ctx):
     expect(m.played and all(m.read_cstr(m.word(r + O['REC_ARTIST'])).startswith('Artist 0042') or 'Artist 0042' in m.read_cstr(m.word(r + O['REC_ARTIST'])) for r in m.played[0]) and len(m.played[0]) >= 3, 'the big library: Play queues only his songs')
 
 
+GS_FILE, GS_EXC = '/mnt/data/m1plus/library-genre-split', '/mnt/mmc/genre-exceptions.txt'
+GS_TAGS = ('Rock', 'rock; Pop', 'Pop; Jazz', 'R&B', 'Folk, World, & Country', 'Rock/Pop', 'Pop/Rock', 'ambient;electronic', 'Unknown Genre')
+
+
+def gsplit_machine(setting=b'1\n', exceptions=None, tags=GS_TAGS, artist_exceptions=None, sort=None):
+    """The Genres page (the stock list is one row per distinct tag) with the genre split setting as given (None: no file)."""
+    m = artists_machine(genres=tags, cls=SplitMachine)
+    if setting is not None: m.fs[GS_FILE] = setting
+    if exceptions is not None: m.fs[GS_EXC] = exceptions
+    if artist_exceptions is not None: m.fs[SPLIT_EXC] = artist_exceptions
+    if sort is not None: m.fs['/mnt/data/m1plus/genres-sort'] = sort
+    m.calls = []
+    m.call(PSYMS['artists_open'], a0=pod_pages.HOME_GENRE, count=20000000)
+    return m
+
+
+def gsplit_tests(ctx):
+    """The genre split (docs/modules/artists.md "Split Genres"): off = the stock rows; on = one row per name from the stock genre list, semicolons only by default, merged ASCII case-insensitively, first spelling kept, sorted, the card's exceptions, a tap on our Songs page."""
+    expect = ctx.expect
+    stock = list(GS_TAGS)
+    for off in (None, b'0\n', b'm0\n', b'o1\n', b'x\n'):
+        m = gsplit_machine(off)
+        expect(split_names(m) == stock, f'setting {off!r}: the stock rows ({split_names(m)})')
+    m = gsplit_machine()
+    names = split_names(m)
+    want = ['ambient', 'electronic', 'Folk, World, & Country', 'Jazz', 'Pop', 'Pop/Rock', 'R&B', 'Rock', 'Rock/Pop', 'Unknown Genre']
+    expect(names == want, f'one row per name, merged, sorted A-Z with the Unknown row last, only semicolons split ({names})')
+    expect(names.count('Pop') == 1 and names.count('Rock') == 1, 'the first spelling seen is the row (Rock, Pop)')
+    m = gsplit_machine(b'm3\n')   # semicolon and slash
+    names = split_names(m)
+    expect('Rock/Pop' not in names and 'Pop/Rock' not in names and names.count('Pop') == 1 and names.count('Rock') == 1, f'm3: the slash splits too ({names})')
+    m = gsplit_machine(b'm3\n', exceptions=b'# mine\n  Rock/Pop \r\n\n')
+    names = split_names(m)
+    expect('Rock/Pop' in names and 'Pop/Rock' not in names, f'the card file keeps Rock/Pop whole, an unlisted Pop/Rock splits ({names})')
+    m = gsplit_machine(b'm4\n')   # ampersand
+    expect('R&B' not in split_names(m) and 'R' in split_names(m), f'm4: the ampersand splits R&B (no built-in genre exceptions) ({split_names(m)})')
+    m = gsplit_machine(b'm4\n', exceptions=b'R&B\n', artist_exceptions=b'Folk, World, & Country\n')
+    names = split_names(m)
+    expect('R&B' in names and 'Folk, World, & Country' not in names, f'genre-exceptions.txt keeps R&B whole; artist-exceptions.txt is not read for genres ({names})')
+    m = gsplit_machine(exceptions=b'ambient;electronic\n')
+    expect('ambient;electronic' in split_names(m) and 'ambient' not in split_names(m), 'a whole tag listed on the card stays one row')
+    # the rows are the page's own: no stock list is kept, and a tap opens our Songs page on the split name; a window that will not open does nothing (the stock query on a split name finds nothing)
+    for name in ('Pop', 'Unknown Genre'):
+        m = gsplit_machine()
+        names = split_names(m)
+        m.calls = []
+        m.call(PSYMS['ar_open'], a0=names.index(name), count=8000000)
+        expect(('window_open', 'm1plus_songs') in m.calls and 'loadAlbumList' not in m.names() and not any(c[0] == 'navigator_to_with_context' for c in m.calls), f'a tap on the split genre {name!r} opens our Songs page ({[c for c in m.calls if c[0] != "widget_set_text_utf8"][:12]})')
+    m = gsplit_machine(); m.windows['m1plus_songs'] = 0
+    m.calls = []
+    m.call(PSYMS['ar_open'], a0=split_names(m).index('Pop'), count=8000000)
+    expect(not any(c[0] == 'navigator_to_with_context' for c in m.calls), 'a window that will not open: no stock page on a split name')
+    m = gsplit_machine(setting=None); m.calls = []   # a stock row still takes the stock sequence
+    m.call(PSYMS['ar_open'], a0=0, count=8000000)
+    expect(('window_open', 'm1plus_songs') in m.calls, 'the setting off: the stock row opens the genre')
+    # foreground: the same library keeps the rows, a tag gone takes its names with it
+    m = gsplit_machine(); n0 = split_names(m)
+    fired(m, 'ar_on_fg')
+    expect(split_names(m) == n0, 'foreground: the same library, the same rows')
+    m.class_lists[O['CLASS_GENRES']] = [r for r in m.class_lists[O['CLASS_GENRES']] if m.read_cstr(m.word(r + O['REC_TITLE'])) != 'Pop; Jazz']
+    fired(m, 'ar_on_fg')
+    expect('Jazz' not in split_names(m) and 'Pop' in split_names(m), f'foreground: a name no tag holds any more is gone ({split_names(m)})')
+    # a name in CJK sorts by its pinyin initial among the Latin ones (the Artists page's order), so the section letters stay in order; the Unknown row stays last
+    m = gsplit_machine(tags=('Blues; Zed', 'Dub', '春', 'Unknown Genre'))
+    names = split_names(m)
+    expect(names == ['Blues', '春', 'Dub', 'Zed', 'Unknown Genre'], f'春 (pinyin C) sorts between B and D, Unknown last ({names})')
+    # a 129-byte tag still names its second name, a 255-byte name is one whole row, a name beyond 255 bytes is dropped (the tag's other names stay; a tag left with none is the Unknown row's),
+    # a tag beyond 300 bytes names nothing, and '_' stays a plain character
+    m = gsplit_machine(tags=('x' * 123 + '; Jazz', 'w' * 255, 'v' * 256, 'Soul; ' + 'u' * 256, 'y' * 294 + '; Blues', 'Rock; 80s_', 'Rock; 80sX'))
+    names = split_names(m)
+    expect(names[:5] == ['80s_', '80sX', 'Jazz', 'Rock', 'Soul'] and len(names) == 8 and names[5].startswith('wwww') and names[6].startswith('xxxx') and names[7] == 'Unknown Genre',
+           f'a 129-byte tag still names Jazz; a 255-byte name is a row; names beyond 255 bytes are dropped (Soul stays, a tag left with none is Unknown); a tag beyond 300 bytes names nothing; "80s_" and "80sX" stay two rows ({[n[:12] for n in names]})')
+    # an index the build made with no row (every tag beyond 300 bytes) is an empty page, never the stock rows (whose taps would ask a cut name)
+    m = gsplit_machine(tags=('q' * 301,))
+    expect(split_names(m) == [], f'only overlong tags: an empty split page, not the stock rows ({[n[:12] for n in split_names(m)]})')
+    m.calls = []
+    for _ in range(3): fired(m, 'ar_on_fg')
+    made = sum(1 for c in m.calls if c[0] == '_create_deque')
+    expect(made and m.names().count('deque_destroy') == made, f'an empty split page back in front: each fresh index is freed ({made} made, {m.names().count("deque_destroy")} freed)')
+    # the Z-A switch reverses the split rows and keeps the Unknown row last
+    m = gsplit_machine(sort=b'a\n')
+    names = split_names(m)
+    expect(names[:2] == ['Rock/Pop', 'Rock'] and names[-1] == 'Unknown Genre', f'Z-A: the split rows reversed, the Unknown row last ({names})')
+
+
 def split_lookup_tests(ctx):
     """The split's other entry points (docs/modules/artists.md "Split index"): Now Playing's Look up artist gets the first name's row (as_first_row), the Home photo pass keys an album by its first name (as_session, as_lead)."""
     expect = ctx.expect
@@ -2704,4 +2789,4 @@ def split_lookup_tests(ctx):
     expect(split_machine(None).call(PSYMS['as_session'], a0=1, count=4000000) == 0, 'setting off: no session')
 
 
-SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests, split_tests, split_lookup_tests, hold_tests]
+SECTIONS = [artists_tests, scoped_albums_tests, scoped_nextalbum_tests, scoped_pills_tests, scoped_sort_tests, genre_composer_tests, index_tests, sort_tests, name_order_tests, source_tests, source_photo_tests, photo_rows_tests, scoped_head_tests, scoped_plain_tests, reread_tests, find_photo_tests, split_tests, gsplit_tests, split_lookup_tests, hold_tests]

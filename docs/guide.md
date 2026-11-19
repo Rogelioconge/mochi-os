@@ -41,7 +41,9 @@ Now Playing, or use its buttons to pause and skip without leaving Home.
 3. To shuffle the album, tap the shuffle button beside **Play all**.
 
 To browse by artist, open **Artists** instead and choose an artist, then an album. In Cover Flow,
-drag through the covers and tap the centre cover to open its album.
+drag through the covers and tap the centre cover to open its album. Songs tagged with several
+artists or genres can be listed under each name with **Settings → Library → Split Artists** and
+**Split Genres** ([library guide](library-guide.md#split-artists)).
 
 ### Pin to Home
 

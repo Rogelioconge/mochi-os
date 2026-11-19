@@ -156,6 +156,8 @@ int pc_library_query(const char *db, const char *sql, void *row, int sort);
 int pc_sorted_query(const char *db, const char *sql, void *row, int sort);
 /* Set around a loadLocalClassList(0xf00a) (the Favourites query) to read the Saved episodes (myfav rows under the Podcasts folder) instead of the music Favourites; 0 otherwise. */
 extern unsigned char pc_saved_scope;
+extern const char
+    *pc_genre_exact; /* the genre split's per-tag query: the whole raw tag, asked exactly (pcmodel.c pq_filter) */
 /* An episode is about to start: forget a played mark so it plays from the beginning (a place is kept: pc_note jumps to it). */
 void pc_restart(unsigned hash);
 /* A queue (stSongInfo deque) with the podcast and audiobook files taken out, for Shuffle: the queue itself when it has none; else a new queue (copies), *idx now the song that followed or was

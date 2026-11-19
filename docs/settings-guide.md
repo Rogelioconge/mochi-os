@@ -80,6 +80,7 @@ Settings tile opens its hub and is dimmed on the hub and its Volume & Sound and 
 | Update Library | Opens the Update Library page: the number of songs and when the library was last updated, **Update Now** (scans the whole card, and removes songs you deleted), **Choose Folders** (a list of the card's folders: tick the circle of each folder to scan, open a folder with a chevron to pick inside it, **Select All** ticks the folders of the level you are in, and **Scan N Folders** adds their new music) and the **Auto Update** switch (scans after a card is inserted or a USB transfer ends). |
 | Rebuild Covers / Rebuild Artist Photos | Rebuild cached artwork; see [artist photos](library-guide.md#artist-photos). |
 | Split Artists | List songs under each tagged artist; choose separators. See [Split Artists](library-guide.md#split-artists). |
+| Split Genres | List songs under each name of a genre tag such as `Rock; Pop`; choose separators (`;` by default). See [Split Genres](library-guide.md#split-genres). |
 | Index Rail / Section Headers | Show the rail and section letters on supported lists; both are on by default. Albums in Year order use a decades rail in the list. |
 | Folder Album Cover | Show available covers in Folders; on by default. |
 | Cover Flow / Volume Buttons | Choose landscape orientation or use the volume buttons to browse albums. |

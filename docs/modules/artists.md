@@ -1,6 +1,6 @@
 # Artists
 
-**Sources:** `patch/artists.c` (the page), `patch/artsplit.c` (split index), `patch/artistphoto.c`
+**Sources:** `patch/artists.c` (the page), `patch/artsplit.c` (split index), `patch/genresplit.c` (genre split), `patch/artistphoto.c`
 (photos), `cc_build_add_artist` in `patch/covercache.c`, the artist stage of `hc_on_start` in
 `patch/homecover.c`, `tools/pod_ui.py` `build_artists_page`.
 
@@ -289,6 +289,56 @@ first 4096 bytes, read once per build or tap.
 - **Cost**: at most a 256 KB hash table and 160 KB of name spans while rows are built; peak memory is
   the library records (`cc_songs`) plus the row records. The splitter looks for an exception only
   where it found a separator, which keeps a 20,000-song build cheap.
+
+### Split Genres
+
+`patch/genresplit.c`, based on a contribution by powkakashi (GitHub issue 18). Genres page only (not
+the albums' genre, Search or Navidrome). **Off by default, and then no line of it runs**: the page
+reads the stock `loadLocalClassList(0xf006)` and a genre's songs are the stock `0xff09` query.
+
+The setting is `/mnt/data/m1plus/library-genre-split` (`GS_FILE`, Settings > Library > Split Genres,
+[settings](settings.md)), in the format of the artist one (`1`, `m<decimal>`, `o<decimal>`; the mask
+bits are the splitter's `M1_SPLIT_*`). **The default mask (`1`, `GS_DEFAULT`) is the semicolon
+alone**: a genre field is not an artist field, so `R&B`, `Folk, World, & Country` and `Rock/Pop`
+stay whole until the user turns `&`, `,` or `/` on. The card file `/mnt/mmc/genre-exceptions.txt`
+(`GS_EXCEPTIONS`) has the artist file's rule (one name per line, `#` lines and blanks skipped, 64
+names, 4096 bytes); the built-in artist exceptions (`AC/DC`, ...) are not used.
+
+- **Rows** (`gs_rows`): the stock genre list is read and taken (`lib_take_list`); each tag
+  (`REC_TITLE`) is split (at most 8 names) and names merge ASCII case-insensitively in a hash table,
+  **the first spelling seen** staying. The names are sorted as the Artists page sorts names
+  (`gs_order`: `cc_name_keys` / `cc_key_cmp` / `cc_heapsort`, a CJK name by its pinyin initial), so the
+  A-Z sections the page cuts by `cc_name_initial` stay in order; the "Unknown Genre"
+  row (id -1) comes last, and exists when the stock list has its row or a tag names nothing. Rows are
+  page-owned records (`REC_ID` 1.., type 4, **`REC_CLASS` = `GS_MARK`** `0x47535031`: `gs_is_row`). The
+  page keeps them in `ar.split` (so the foreground check reads `gs_rows` again, and Z-A, sections and
+  the rail work as for stock rows). Without the list or memory the page falls back to the stock rows.
+- **A genre's songs** (`gs_fill`, `gs_tracks`): the stock genre list is read again; every tag that
+  splits to the name (a cheap substring test first) is replayed through the stock query, the browsing
+  record set as a stock row tap leaves it (`songs_genre_record`: class `0xff09`, the tag at `+ 0x30d`,
+  the Unknown byte `+ 0xc`) and `loadLocalClassList(0xff09)` run, and the results are concatenated in
+  the stock list's order. Stock's statement is ``select * from songtable where style like '<tag cut to 127 bytes>'``
+  (`_` and `%` are wildcards, a long tag is cut), so while the query runs `pc_genre_exact` points at the
+  whole raw tag and `pq_filter` ([payload](payload.md) hook 6) asks it as
+  `style='<tag, quotes doubled>' COLLATE NOCASE and <podcast filter>` instead: `Rock; 80s_` never returns
+  `Rock; 80sX`, and a 130-byte tag answers in full. The Unknown row's stock query is left as it is. A song has one tag, so nothing is listed twice. The Unknown Genre row asks
+  the stock Unknown row and every tag that names nothing, each as its own row would be. At most 512
+  tags answer one name. Our Songs page (`sg.gsplit`, opened by `songs_open_genre_split`, no fallback to
+  the stock page: the stock query on a split name finds nothing) reads with `gs_fill` in place of
+  `loadLocalClassList(0xff09)`.
+- **Play**: as the artist split: `so_play_own`, class All Songs `0xf001`.
+- **Delete and Add to Playlist** (Select, and a row's menu): on a split page they pass the generic
+  songtable class `0xf001` (`sg_op_cls`), never `0xff09` keyed on the split name; both loops work from
+  the selected records of the page's list, which are the real songs of every tag. The page reads its
+  list again through `gs_fill`.
+- **Limits**: names beyond 20,000 are dropped; a name beyond 255 bytes (`GS_NAME`, the Songs page's
+  name field) is dropped from its tag (`gs_names`), the tag's other names stay and a tag left with none
+  is the Unknown row's; a raw tag beyond 300 bytes (`GS_TAG_MAX`, what the filter's 1 KB buffer takes
+  escaped) names nothing and is not in the Unknown row. An index that leaves no row is an empty page,
+  never the stock rows; Memory Playback resumes the track
+  through the whole library, not the genre list; an Artists page already open keeps its rows until
+  opened again; the splitter is ASCII case folded, so names that differ only in non-ASCII case are two
+  rows.
 
 ### Key, cache and building
 

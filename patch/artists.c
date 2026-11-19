@@ -47,6 +47,7 @@
 #include "artists.h"
 #include "albums.h"
 #include "artsplit.h"
+#include "genresplit.h"
 #include "coverflow.h"
 #include "entries.h"
 #include "rowmenu.h"
@@ -91,7 +92,7 @@ static struct {
     unsigned count;
     unsigned cls; /* the stock class listed: CLASS_ARTISTS, CLASS_GENRES or CLASS_COMPOSERS */
     const lib_src_t *src; /* the library source the list comes from (artists_open_src); NULL = the stock library */
-    int split; /* the rows are patch/artsplit.c's (the artist split setting is on): built from the songs, not the stock query */
+    int split; /* the rows are patch/artsplit.c's (the artist split setting is on) or patch/genresplit.c's (Genres, the genre split setting is on): built by the split, not the stock query */
     unsigned gen, rows, gen_timer; /* the source's gen and gen_rows at the last read, and the timer that watches it */
     int home; /* its Home tile (HOME_GENRE, HOME_COMPOSER; 0 for Artists): where a window that will not open falls back */
     void *chev; /* the chevron bitmap */
@@ -160,7 +161,11 @@ ar_open(unsigned i) { /* (a symbol of its own: the tests call it with a display 
         albums_open_src(ar.src, deque_at(ar.artists, ar_stock(i)));
     } else if (ar.cls == CLASS_GENRES) {
         void *r = deque_at(ar.artists, ar_stock(i));
-        songs_open_genre(ar_name(r), *(int *)((char *)r + REC_ID) == -1);
+        int unknown = *(int *)((char *)r + REC_ID) == -1;
+        if (gs_is_row(r))
+            songs_open_genre_split(ar_name(r), unknown); /* a name the genre split made: every tag that names it */
+        else
+            songs_open_genre(ar_name(r), unknown);
     } else if (albums_open_artist(ar.artists, ar_stock(i), ar.cls) == -1)
         coverflow_artist(ar.artists, ar_stock(i), ar.cls);
     return RET_OK;
@@ -579,12 +584,13 @@ static int ar_on_scroll(void *ctx, void *e) {
  * again and compared with the page's rows (the capped count): 1 when they differ (a list that is now empty too). */
 static void ar_load(int keep);
 static int ar_local_changed(void) {
-    void *list = ar.split ? as_rows() : loadLocalClassList(ar.cls) > 0 ? *(void **)PDEQ_SHOWLIST : (void *)0;
+    void *list = ar.split                         ? (ar.cls == CLASS_GENRES ? gs_rows() : as_rows())
+                 : loadLocalClassList(ar.cls) > 0 ? *(void **)PDEQ_SHOWLIST
+                                                  : (void *)0;
     unsigned n = list ? deque_size(list) : 0;
     int changed;
-    if (!n && !ar.count) return 0;
     if (n > MAX_ARTISTS) n = MAX_ARTISTS;
-    changed = !(n && ar.artists && ar.count == n && ls_same_list(ar.artists, n, list, n));
+    changed = (n || ar.count) && !(n && ar.artists && ar.count == n && ls_same_list(ar.artists, n, list, n));
     if (list && ar.split)
         deque_destroy(list);
     else if (list)
@@ -673,6 +679,12 @@ static void ar_load(int keep) {
         if (ar.count) ar_sort();
     } else if (ar.cls == CLASS_ARTISTS && *(volatile int *)ARTIST_TYPE != 1 && as_mask() &&
                (list = as_rows())) { /* the artist split is on: one row per name (patch/artsplit.c) */
+        ar.split = 1;
+        ar.artists = list, ar.count = deque_size(list);
+        if (ar.count > MAX_ARTISTS) ar.count = MAX_ARTISTS;
+        ar_sort();
+    } else if (ar.cls == CLASS_GENRES && gs_mask() &&
+               (list = gs_rows())) { /* the genre split is on: one row per name (patch/genresplit.c) */
         ar.split = 1;
         ar.artists = list, ar.count = deque_size(list);
         if (ar.count > MAX_ARTISTS) ar.count = MAX_ARTISTS;

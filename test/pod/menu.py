@@ -642,23 +642,27 @@ def settings_tests(ctx):
     pcdir_row_tests(ctx, on_row, rows_s)
     azswitch_row_tests(ctx, on_row, rows_s)
     assplit_tests(ctx, on_row)
+    assplit_tests(ctx, on_row, genres=True)
 
 
-def assplit_tests(ctx, on_row):
-    """Settings > Library > Split Artists (docs/modules/settings.md, artists.md "Split index"): the Library row (a value, On or Off) opens the page; its switch and ten separator switches write
-    /mnt/data/m1plus/library-artist-split atomically ("m<mask>" on, "o<mask>" off, the mask kept); the separators dim while it is off; a failed save changes nothing."""
+def assplit_tests(ctx, on_row, genres=False):
+    """Settings > Library > Split Artists and Split Genres (docs/modules/settings.md, artists.md "Split index" and "Split Genres"): the Library row (a value, On or Off) opens the page; its switch and ten
+    separator switches write /mnt/data/m1plus/library-artist-split (library-genre-split) atomically ("m<mask>" on, "o<mask>" off, the mask kept); the separators dim while it is off; a failed save
+    changes nothing. Artists default to semicolon, slash, ampersand and feat. (0x17), Genres to the semicolon alone (1)."""
     expect, P = ctx.expect, pod_pages
-    FILE = '/mnt/data/m1plus/library-artist-split'
-    L, S = P.LIBRARY_PAGE, P.ASPLIT_PAGE
+    NAME, FNAME, PG, PGI, ACT_PG, ACT_SW, SEPS, MASK, DEF, NOTE, FIRST = (('Split Genres', 'library-genre-split', P.GSPLIT_PAGE, P.GSPLIT_PAGE_INDEX, P.ACT_GSPAGE, P.ACT_GSPLIT, P.GSSEP_ACTIONS, 'gs_mask', 1, P.GSPLIT_NOTE, 199)
+                                                                          if genres else ('Split Artists', 'library-artist-split', P.ASPLIT_PAGE, P.ASPLIT_PAGE_INDEX, P.ACT_ASPAGE, P.ACT_ASPLIT, P.ASSEP_ACTIONS, 'as_mask', 0x17, P.ASPLIT_NOTE, 174))
+    FILE = '/mnt/data/m1plus/' + FNAME
+    L, S = P.LIBRARY_PAGE, PG
     rows_l = PSYMS[f'pod_rows_{P.LIBRARY_PAGE_INDEX}']
-    l_i = next(i for i, r in enumerate(L.rows) if r.action == P.ACT_ASPAGE)
-    sw_i = [i for i, r in enumerate(S.rows) if r.action == P.ACT_ASPLIT][0]
-    sep_i = [i for i, r in enumerate(S.rows) if r.action in P.ASSEP_ACTIONS]
+    l_i = next(i for i, r in enumerate(L.rows) if r.action == ACT_PG)
+    sw_i = [i for i, r in enumerate(S.rows) if r.action == ACT_SW][0]
+    sep_i = [i for i, r in enumerate(S.rows) if r.action in SEPS]
     layout = [type(x).__name__ + (':' + x.label if isinstance(x, P.Row) else '') for x in S.layout]
-    expect((L.rows[l_i].label, L.rows[l_i].arg, P.row_kind(L.rows[l_i])) == ('Split Artists', P.ASPLIT_PAGE_INDEX, 'value') and P.VALUE_INIT[P.ACT_ASPAGE] == 'Off' and P.PAGES[P.ASPLIT_PAGE_INDEX] is S
-           and layout == ['Row:Split Artists', 'Hdr', *[f'Row:{x}' for x in P.ASSEP_LABELS], 'Note'] and [S.rows[i].label for i in sep_i] == [';', '/', '&', ',', 'feat.', 'vs.', 'x', '+', 'with', 'and']
-           and all(P.row_kind(S.rows[i]) == 'switch' for i in [sw_i] + sep_i) and 'library-artist-split' in P.SETTING_FILES and len(set(P.ASSEP_ACTIONS)) == 10,
-           'Library > Split Artists is a value row opening a page of the switch, a Separators header, ten separator switches in bit order and a note; the file is among the Settings Files')
+    expect((L.rows[l_i].label, L.rows[l_i].arg, P.row_kind(L.rows[l_i])) == (NAME, PGI, 'value') and P.VALUE_INIT[ACT_PG] == 'Off' and P.PAGES[PGI] is S
+           and layout == [f'Row:{NAME}', 'Hdr', *[f'Row:{x}' for x in P.ASSEP_LABELS], 'Note'] and [S.rows[i].label for i in sep_i] == [';', '/', '&', ',', 'feat.', 'vs.', 'x', '+', 'with', 'and']
+           and all(P.row_kind(S.rows[i]) == 'switch' for i in [sw_i] + sep_i) and FNAME in P.SETTING_FILES and len(set(SEPS)) == 10,
+           f'Library > {NAME} is a value row opening a page of the switch, a Separators header, ten separator switches in bit order and a note; the file is among the Settings Files')
 
     def open_page(saved=None, lib=False):
         m = Machine()
@@ -677,31 +681,32 @@ def assplit_tests(ctx, on_row):
         c = [x for x in m.calls if x[0] in ('widget_set_opacity', 'widget_set_sensitive') and x[1] == m.widgets[f'pod_row{i}']]
         return ('widget_set_sensitive', m.widgets[f'pod_row{i}'], 1) in c[-2:] and [x for x in c if x[0] == 'widget_set_opacity'][-1][2] == 255
 
-    d = P.ASSEP_ACTIONS
-    for saved, on, mask in ((None, 0, 0x17), (b'0\n', 0, 0x17), (b'1\n', 1, 0x17), (b'm5\n', 1, 5), (b'o5\n', 0, 5), (b'm0\n', 1, 0), (b'm9999999\n', 1, 0x3ff & 9999999), (b'x', 0, 0x17)):
+    d = SEPS
+    for saved, on, mask in ((None, 0, DEF), (b'0\n', 0, DEF), (b'1\n', 1, DEF), (b'm5\n', 1, 5), (b'o5\n', 0, 5), (b'm0\n', 1, 0), (b'm9999999\n', 1, 0x3ff & 9999999), (b'x', 0, DEF)):
         m = open_page(saved)
         got = [img(m, i) for i in sep_i]
         expect(img(m, sw_i) == ['sset_on' if on else 'sset_off'] and got == [['sset_on' if mask >> k & 1 else 'sset_off'] for k in range(10)] and all((dimmed if not on else live)(m, i) for i in sep_i),
                f'saved {saved!r}: the switch is {"on" if on else "off"}, the separators show mask {mask:#x} and are {"live" if on else "dimmed"}')
-        expect(m.call(PSYMS['as_mask'], count=2000000) == (mask if on else 0), f'saved {saved!r}: as_mask is {mask if on else 0:#x}')
+        expect(m.call(PSYMS[MASK], count=2000000) == (mask if on else 0), f'saved {saved!r}: {MASK} is {mask if on else 0:#x}')
     m = open_page()
     m.click(f'pod_row{sw_i}')
-    expect(m.fs.get(FILE) == b'm23\n' and FILE + '.tmp' not in m.fs and ('rename', FILE + '.tmp', FILE) in m.calls and ('fsync', '/mnt/data/m1plus') in m.calls and img(m, sw_i) == ['sset_on']
-           and all(live(m, i) for i in sep_i) and m.call(PSYMS['as_mask'], count=2000000) == 0x17, 'the switch on writes m23 (the default mask) atomically and wakes the separators')
+    expect(m.fs.get(FILE) == f'm{DEF}\n'.encode() and FILE + '.tmp' not in m.fs and ('rename', FILE + '.tmp', FILE) in m.calls and ('fsync', '/mnt/data/m1plus') in m.calls and img(m, sw_i) == ['sset_on']
+           and all(live(m, i) for i in sep_i) and m.call(PSYMS[MASK], count=2000000) == DEF, 'the switch on writes the default mask atomically and wakes the separators')
     m.click(f'pod_row{sep_i[3]}')
-    on3 = img(m, sep_i[3]) == ['sset_on'] and m.fs.get(FILE) == b'm31\n'
+    A = DEF | 8; B = A ^ 1   # (comma on, then semicolon flipped)
+    on3 = img(m, sep_i[3]) == ['sset_on'] and m.fs.get(FILE) == f'm{A}\n'.encode()
     m.click(f'pod_row{sep_i[0]}')
-    expect(on3 and m.fs.get(FILE) == b'm30\n' and img(m, sep_i[0]) == ['sset_off'] and m.call(PSYMS['as_mask'], count=2000000) == 30, 'a separator switch flips its bit: comma on, semicolon off')
+    expect(on3 and m.fs.get(FILE) == f'm{B}\n'.encode() and img(m, sep_i[0]) == [f'sset_{"on" if B & 1 else "off"}'] and m.call(PSYMS[MASK], count=2000000) == B, 'a separator switch flips its bit: comma on, semicolon flipped')
     m.click(f'pod_row{sw_i}')
-    expect(m.fs.get(FILE) == b'o30\n' and all(dimmed(m, i) for i in sep_i) and m.call(PSYMS['as_mask'], count=2000000) == 0, 'the switch off writes o30 (the mask kept) and dims the separators')
+    expect(m.fs.get(FILE) == f'o{B}\n'.encode() and all(dimmed(m, i) for i in sep_i) and m.call(PSYMS[MASK], count=2000000) == 0, 'the switch off writes o<mask> (the mask kept) and dims the separators')
     m.click(f'pod_row{sw_i}')
-    expect(m.fs.get(FILE) == b'm30\n' and m.call(PSYMS['as_mask'], count=2000000) == 30, 'and on again brings the mask back')
+    expect(m.fs.get(FILE) == f'm{B}\n'.encode() and m.call(PSYMS[MASK], count=2000000) == B, 'and on again brings the mask back')
     m = open_page(b'm5\n'); m.fail.add(('write', FILE + '.tmp'))
     m.click(f'pod_row{sep_i[1]}')
     kept = img(m, sep_i[1]) == []
     m.click(f'pod_row{sw_i}')
-    expect(kept and m.fs.get(FILE) == b'm5\n' and FILE + '.tmp' not in m.fs and m.call(PSYMS['as_mask'], count=2000000) == 5 and img(m, sw_i) == [], 'a failed save changes neither the file nor the switches')
-    expect(d == tuple(range(174, 184)) and all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in ('Split Artists', 'Separators', P.ASPLIT_NOTE) for loc in pod_i18n.LOCALES), 'the page texts are translated in every language')
+    expect(kept and m.fs.get(FILE) == b'm5\n' and FILE + '.tmp' not in m.fs and m.call(PSYMS[MASK], count=2000000) == 5 and img(m, sw_i) == [], 'a failed save changes neither the file nor the switches')
+    expect(d == tuple(range(FIRST, FIRST + 10)) and all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in (NAME, 'Separators', NOTE) for loc in pod_i18n.LOCALES), 'the page texts are translated in every language')
 
 
 def mainmenu_section(ctx):
@@ -1209,8 +1214,8 @@ def azswitch_row_tests(ctx, on_row, rows_s):
         FILE = '/mnt/data/m1plus/' + name
         r_i = next(i for i, r in enumerate(A.rows) if r.action == act)
         layout = [type(x).__name__ + (':' + x.label if isinstance(x, P.Row) else '') for x in A.layout]
-        expect(A.rows[r_i].label == label and act in P.SWITCH_ACTIONS and P.row_kind(A.rows[r_i]) == 'switch' and name in P.SETTING_FILES and layout[5:9] == ['Hdr', 'Row:Index Rail', 'Row:Section Headers', 'Note'],
-               f'{label}: a switch row in the List Navigation card (header and note) under the first card of the Library page, its file {name} among the Settings Files ({layout[5:9]})')
+        expect(A.rows[r_i].label == label and act in P.SWITCH_ACTIONS and P.row_kind(A.rows[r_i]) == 'switch' and name in P.SETTING_FILES and layout[7:11] == ['Hdr', 'Row:Index Rail', 'Row:Section Headers', 'Note'],
+               f'{label}: a switch row in the List Navigation card (header and note) under the Artists and Genres cards of the Library page, its file {name} among the Settings Files ({layout[7:11]})')
 
         def open_page(saved=None):
             m = Machine()
@@ -1250,7 +1255,7 @@ def library_tests(ctx, on_row):
     vk_i = next(i for i, r in enumerate(C.rows) if r.action == P.ACT_VOLKEYS)
     vsw, VK = f'pod_switch{vk_i}', '/mnt/data/m1plus/coverflow-volume-keys'
     sw = f'pod_switch{land_i}'
-    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_PAGE), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE)]
+    expect([(r.label, r.action) for r in C.rows] == [('Update Library', P.ACT_PAGE), ('Rebuild Covers', P.ACT_REBUILD), ('Rebuild Artist Photos', P.ACT_AREBUILD), ('Split Artists', P.ACT_ASPAGE), ('Split Genres', P.ACT_GSPAGE), ('Index Rail', P.ACT_AZRAIL), ('Section Headers', P.ACT_AZHEAD), ('Folder Album Cover', P.ACT_FOLDERCOVER), ('Landscape', P.ACT_LANDSCAPE), ('Volume Buttons', P.ACT_VOLKEYS), ('Podcasts', P.ACT_PAGE), ('Scrobbling', P.ACT_SCROBPAGE)]
            and C.title == 'Library' and C.rows[0].arg == P.LIBUPDATE_PAGE_INDEX and P.row_kind(C.rows[0]) == 'link',
            'the Library page: one card of Update Library (our page, a chevron), Rebuild Covers, Rebuild Artist Photos, then the List Navigation switches (Index Rail, Section Headers), Folder Album Cover (a switch) under Folders, Landscape and Volume Buttons (switches, the second with its note) under Cover Flow, and the last card of two rows: Podcasts (a plain page link, no value) and Scrobbling (a value, On or Off)')
 
@@ -1389,7 +1394,7 @@ def library_tests(ctx, on_row):
     path = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui', C.key + '.bin')
     tree = awtk_ui.parse(open(path, 'rb').read())
     sc_i = next(i for i, r in enumerate(C.rows) if r.action == P.ACT_SCROBPAGE)
-    expect({n.name for n in tree.walk() if n.name.startswith('pod_value')} == {f'pod_value{sc_i}', f'pod_value{next(i for i, r in enumerate(C.rows) if r.action == P.ACT_ASPAGE)}'}, 'the Library page has two value labels, the Split Artists and Scrobbling rows (the Podcasts row is a plain link)')
+    expect({n.name for n in tree.walk() if n.name.startswith('pod_value')} == {f'pod_value{sc_i}', f'pod_value{next(i for i, r in enumerate(C.rows) if r.action == P.ACT_ASPAGE)}', f'pod_value{next(i for i, r in enumerate(C.rows) if r.action == P.ACT_GSPAGE)}'}, 'the Library page has three value labels, the Split Artists, Split Genres and Scrobbling rows (the Podcasts row is a plain link)')
     PC = P.PCSET_PAGE
     pc_tree = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui', PC.key + '.bin'), 'rb').read())
     reg_i = next(i for i, r in enumerate(PC.rows) if r.action == P.ACT_REGION)

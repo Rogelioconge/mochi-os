@@ -83,7 +83,7 @@ If M1+ Music is useful to you, you can support its development on [Ko-fi](https:
   files carry their own notices. The Q2 and M1 Plus differ, so no address or patch word is reused
   unchecked.
 - Subsonic is based on a pull request by Gaurav Mishra and the work of shivaluma. The Dynamic LED
-  is based on a pull request by Gaurav Mishra.
+  is based on a pull request by Gaurav Mishra. Split Genres is based on a contribution by powkakashi.
 - Crossfeed uses the algorithm and settings of Boris Mikhaylov's [bs2b](https://bs2b.sourceforge.net) (libbs2b, MIT).
 - The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
 - The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.

@@ -26,6 +26,7 @@
 #include "nextalbum.h"
 #include "tracklamp.h"
 #include "artsplit.h"
+#include "genresplit.h"
 #include "stereo.h"
 
 enum { K_CHAR, K_PRESENT, K_MENU, K_LINES, K_TEXT };
@@ -94,6 +95,7 @@ static const struct sf_file sf_files[] = {
     {STEREO_MONO_FILE, K_CHAR},
     {STEREO_XFEED_FILE, K_CHAR},
     {SWAPKEYS_FILE, K_CHAR},
+    {GS_FILE, K_CHAR},
 };
 #define SF_FILES (sizeof sf_files / sizeof sf_files[0])
 #define SF_SETTING 5 /* the first setting file's row: the rows before it (guard files, folder) are never deleted */

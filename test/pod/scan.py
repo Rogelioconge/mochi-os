@@ -280,6 +280,20 @@ def query_tests(ctx):
         except Exception: pass
         expect(qq.sql == sql, f'{sql[:50]!r}: stock SQL, untouched')
     first_track_tests(expect, stock_demo)
+    # the genre split's per-tag query (pc_genre_exact): stock's `style like '<tag cut to 127 bytes>'` becomes an exact NOCASE comparison on the whole tag, quotes doubled, the podcast filter kept
+    gq = QueryMachine([(1, 'a', 'a', 'a', 'a', 'Rock; 80s_', '/mnt/mmc/Music/1.flac'), (2, 'a', 'a', 'a', 'a', 'Rock; 80sX', '/mnt/mmc/Music/2.flac'), (3, 'a', 'a', 'a', 'a', 'rock; 80S_', '/mnt/mmc/Music/3.flac'),
+                       (4, 'a', 'a', 'a', 'a', "It's; 100%", '/mnt/mmc/Music/4.flac'), (5, 'a', 'a', 'a', 'a', "It's; 1000", '/mnt/mmc/Music/5.flac'), (6, 'a', 'a', 'a', 'a', 'Rock; 80s_', '/mnt/mmc/Podcasts/6.mp3'),
+                       (7, 'a', 'a', 'a', 'a', 'x' * 130 + '; Jazz', '/mnt/mmc/Music/7.flac'), (8, 'a', 'a', 'a', 'a', 'x' * 127, '/mnt/mmc/Music/8.flac')])
+    for tag, want in (('Rock; 80s_', [1, 3]), ("It's; 100%", [4]), ('x' * 130 + '; Jazz', [7])):
+        gq.u.mem_write(PSYMS['pc_genre_exact'], struct.pack('<I', gq.cstr(tag)))
+        for fn in ('pc_library_query', 'pc_sorted_query'):
+            gq.query("select * from songtable where style like '%s'" % tag[:127].replace("'", "''"), fn)
+            expect([r[0] for r in gq.results] == want and gq.sql.endswith(MUSIC), f'{fn}: genre {tag[:20]!r}: exactly its songs {[r[0] for r in gq.results]} (want {want})')
+    gq.query("select * from songtable where songer like 'x'")   # another statement while the hook is set: only the genre query is rewritten
+    expect(gq.sql == "select * from (select * from songtable where %s) where songer like 'x'" % MUSIC, f'another statement is left to the plain filter: {gq.sql}')
+    gq.u.mem_write(PSYMS['pc_genre_exact'], struct.pack('<I', 0))
+    gq.query("select * from songtable where style like 'Rock; 80s_'")
+    expect(sorted(r[0] for r in gq.results) == [1, 2, 3], 'the hook off: stock\'s like, wildcards and all')
     # Favourites (getAllFav: exactly "select * from myfav") is music only; with pc_saved_scope set (the Saved page) it is the episodes only, the last saved first
     fav = [(1, '/mnt/mmc/Music/a.flac'), (2, '/mnt/mmc/Podcasts/Show/ep1.mp3'), (3, '/mnt/mmc/Music/Podcasts/b.flac'), (4, '/mnt/mmc/pOdCaStS/Show/ep2.mp3'), (5, None), (6, '/mnt/mmc/Podcasts Extra/c.mp3'), (7, '/mnt/mmc/Podcasts/Other/ep3.mp3'), (8, '/mnt/mmc/Audiobooks/Book/01.mp3')]
     qf = QueryMachine([])

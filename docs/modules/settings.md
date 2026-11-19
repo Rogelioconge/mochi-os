@@ -17,7 +17,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Bluetooth | our Bluetooth page | [bluetooth](bluetooth.md) |
 | | Network Services | AirPlay and DLNA switches, SyncLink, Wi-Fi Transfer; stock's page stays under All System Settings | [wifi-transfer](wifi-transfer.md) |
 | | Home Screen | Recent Albums, Daily Mix, Main Menu / Extras, Regenerate Daily Mix | [dailymix](dailymix.md), [menu](menu.md) |
-| | Library | [Update Library](libupdate.md), Rebuild rows, Split Artists, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
+| | Library | [Update Library](libupdate.md), Rebuild rows, Split Artists, Split Genres, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
 | | Now Playing | Cassette Theme, Lyrics Text Size, Idle Display, Track Position | [tape](tape.md), [bigcover](bigcover.md) |
 | **Playback** | EQ | our Equalizer page | [peq](peq.md) |
 | | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [nextalbum](nextalbum.md) |
@@ -97,6 +97,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   - Update Library (our page, a link row: [libupdate](libupdate.md)), then **Rebuild Covers** and **Rebuild Artist Photos**
     ([Rebuild rows](#rebuild-rows)).
   - **Artists:** a value row **Split Artists** (On / Off) opening its page (below).
+  - **Genres:** a value row **Split Genres** (On / Off) opening its page (below).
   - **List Navigation:** **Index Rail** and **Section Headers** switches, note "Songs, Artists, Albums and
     Radio lists" ([songs](songs.md), [artists](artists.md)).
   - **Cover Flow:** Landscape and **Volume Buttons** (`coverflow_volkeys`; two-line note "In Cover Flow,
@@ -119,6 +120,11 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   stores the mask even when off, so the separators survive off / on; turning the last separator off while on
   leaves the switch on and splits nothing. Artists, Search and Now Playing read the setting when they open,
   so an already open Artists page keeps its rows. Rules: [artists](artists.md).
+- **Library > Split Genres** (`m1plus_genresplit`, last in `PAGE_ORDER`, ACT 196..): the same page for the
+  Genres list: the **Split Genres** switch (ACT 197, off by default), **Separators** and ten switch rows
+  (ACT 198 + k; **default on for `;` alone**), and the note "A track tagged Rock; Pop appears under each
+  name in Genres. Names in genre-exceptions.txt on the card are never split." Dimming, saving and the
+  mask kept when off are as for Split Artists. Rules: [artists](artists.md#split-genres).
 - **Library > Scrobbling** and its ListenBrainz and Last.fm pages: [scrobble](scrobble.md#settings).
   The account pages are read-only; the accounts live in `scrobble.ini` on the card, not in the settings
   folder.
@@ -171,6 +177,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `home-recent-albums` | Recent Albums | `0` off; missing/other on |
 | `keyboard-pinyin` | Chinese (Pinyin) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |
 | `keyboard-french` | French (AZERTY) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |
+| `library-genre-split` | Split Genres | The same format as `library-artist-split`; `1` is on with the semicolon alone ([artists](artists.md) "Split Genres") |
 | `library-artist-split` | Split Artists | `0` or missing: off (the default); `1`: on with the default separators (`;` `/` `&` `feat.`); `m<decimal>`: on with that `M1_SPLIT_*` mask (bit k = the k-th separator of the page; `m0`: on, splits nothing); `o<decimal>`: off, keeping that mask (the page writes `m<mask>` and `o<mask>`, so the separators survive an off / on); anything else off ([artists](artists.md) "Split index") |
 | `lockscreen-layout` | Lock Screen > Player Style | `1` Mini Player; missing/other Large Cover (the default); applies the next time the lock screen opens ([lockscreen](lockscreen.md)) |
 | `nowplaying-idle` | Idle Display | `1` Cassette, `2` Vinyl, `3` Lyrics; missing/other Album Cover (Off is stock's Cover mode byte) ([bigcover](bigcover.md) "Idle view") |

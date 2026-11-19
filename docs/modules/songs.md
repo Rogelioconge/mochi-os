@@ -235,7 +235,8 @@ Class `0xff09`. The stock row tap sets `classinfo[0]`, copies the genre name int
 `classinfo + 0x30d` and the Unknown byte (`+0xc`, row id -1) and opens `allmusic_page`;
 `loadLocalClassList(0xff09)` reads that record. Ours is a list like the others. `sg_classinfo()` puts
 the record back (`sg_genre_info`) **before every `sg_query()` and `loadSongList`**, because another
-page's query may have changed it. `sg.pl_id` carries the Unknown byte. Delete and Add to Playlist use `0xff09` through the generic library path. There is **no Search** (stock
+page's query may have changed it. `sg.pl_id` carries the Unknown byte. Delete and Add to Playlist use `0xff09` through the generic library path.
+With Split Genres on, a split name's list is `gs_fill` (`sg.gsplit`), Delete and Add pass `0xf001` and a row plays an All Songs queue ([artists](artists.md#split-genres)). There is **no Search** (stock
 leaves it out for `0xff09`): the capsule is Select | Now Playing, the small title runs to 214. A
 window that will not open repeats the stock tap's sequence.
 

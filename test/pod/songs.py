@@ -1711,6 +1711,72 @@ def lists_tests(ctx):
     nav = [c for c in m.calls if c[0] == 'navigator_to_with_context']
     expect(r == 0xffffffff and nav and nav[0][:3] == ('navigator_to_with_context', 'allmusic_page', gen) and m.word(CI) == gen and ci_name(m) == 'Rock' and ci_unknown(m) == 0
            and 'loadLocalClassList' not in m.names(), 'a window that will not open: the stock row tap\'s sequence (the record, then allmusic_page 0xff09)')
+    # a genre the split setting made (patch/genresplit.c; the row's REC_CLASS marks it): the songs of every tag that names it, the stock genre query asked once per tag, a row plays the list as it is
+    GS_SETTING = '/mnt/data/m1plus/library-genre-split'
+    def gsplit_machine(setting=b'1\n'):
+        m = list_machine(titles)
+        tags = ('Rock', 'rock; Pop', 'Pop; Jazz', 'R&B', 'Unknown Genre', ';')   # the stock genre list: one row per distinct tag, the Unknown row (id -1), a tag that names nothing
+        m.class_lists[O['CLASS_GENRES']] = [artist_rec(m, g, -1 if g.startswith('Unknown') else i + 1) for i, g in enumerate(tags)]
+        s = m.songs
+        m.genre_songs = {('Rock', 0): s[0:2], ('rock; Pop', 0): s[2:3], ('Pop; Jazz', 0): s[3:5], ('R&B', 0): s[5:6], ('Unknown Genre', 1): s[6:7], (';', 0): s[7:8]}
+        if setting is not None: m.fs[GS_SETTING] = setting
+        return m
+    gshow = lambda m: list(m.deques[m.word(SHOWLIST)])
+    gq = lambda calls: [c[1] for c in calls if c[0] == 'loadLocalClassList' and c[1] in (O['CLASS_GENRES'], gen)]
+    for name, unknown, want in (('Rock', 0, (0, 3)), ('Pop', 0, (2, 5)), ('Jazz', 0, (3, 5)), ('R&B', 0, (5, 6)), ('Unknown Genre', 1, (6, 8))):
+        m = gsplit_machine()
+        r = m.call(PSYMS['songs_open_genre_split'], a0=m.cstr(name), a1=unknown, count=900000000)
+        songs = m.songs[want[0]:want[1]]
+        expect(r == 0 and ('window_open', 'm1plus_songs') in m.calls and gshow(m) == songs and m.props[(m.sv, 'virtual_h')] == Layout(['A'] * len(songs), sections=False).content()
+               and gq(m.calls) == [O['CLASS_GENRES']] + [gen] * {'Rock': 2, 'Pop': 2, 'Jazz': 1, 'R&B': 1, 'Unknown Genre': 2}[name],
+               f'a split genre {name!r}: the songs of every tag that names it in the stock list\'s order ({len(gshow(m))} songs, queries {gq(m.calls)})')
+        m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m = gsplit_machine()   # a tag with a name beyond 255 bytes still gives its short names their songs: the Rock page lists both tags', the second asked by its whole raw tag
+    long_tag = 'Rock; ' + 'z' * 250
+    m.class_lists[O['CLASS_GENRES']] = [artist_rec(m, 'Rock', 1), artist_rec(m, long_tag, 2)]
+    m.genre_songs = {('Rock', 0): m.songs[0:1], (long_tag[:127], 0): m.songs[1:2]}
+    m.call(PSYMS['songs_open_genre_split'], a0=m.cstr('Rock'), a1=0, count=900000000)
+    expect(gshow(m) == m.songs[0:2] and [c[1] for c in m.calls if c[0] == 'genre_exact'] == ['Rock', long_tag],
+           f'a long tag keeps its short names\' songs: Rock lists both tracks ({len(gshow(m))} songs)')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m = gsplit_machine()   # each per-tag query asks for the whole raw tag exactly (pq_filter), and the hook is off again afterwards
+    m.call(PSYMS['songs_open_genre_split'], a0=m.cstr('Pop'), a1=0, count=900000000)
+    expect([c[1] for c in m.calls if c[0] == 'genre_exact'] == ['rock; Pop', 'Pop; Jazz'] and m.word(PSYMS['pc_genre_exact']) == 0, 'a split genre: each stock query asks for its whole tag exactly, the hook is cleared')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m = gsplit_machine()
+    m.call(PSYMS['songs_open_genre_split'], a0=m.cstr('Unknown Genre'), a1=1, count=900000000)
+    expect([c[1] for c in m.calls if c[0] == 'genre_exact'] == [None, ';'], 'the Unknown Genre row: the stock Unknown query as it is, a tag that names nothing exactly')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m = gsplit_machine(None)   # off: nothing is asked, the list is empty (the Genres page opens this page for a split row only)
+    m.call(PSYMS['songs_open_genre_split'], a0=m.cstr('Pop'), a1=0, count=900000000)
+    expect(gq(m.calls) == [] and gshow(m) == [], 'the setting off: no stock genre query, an empty list')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
+    m = gsplit_machine()
+    m.call(PSYMS['songs_open_genre_split'], a0=m.cstr('Pop'), a1=0, count=900000000)
+    m.setword(SHOWLIST, m.new_deque([])); corrupt(m)   # another page's query
+    m.calls = []
+    m.call(PSYMS['sg_on_fg'], a0=0, a1=0, count=900000000)
+    expect(gshow(m) == m.songs[2:5] and gq(m.calls) == [O['CLASS_GENRES'], gen, gen], 'read again on return: every tag that names it is asked again')
+    settle(m)
+    m.calls = []
+    calls = tap(m, 150, lay.row_y(1) + 30)
+    expect(m.played and m.played[1] == 1 and m.played[0] == m.songs[2:5] and not [c for c in calls if c[0] == 'loadSongList'] and m.word(G_CLASS) == O['CLASS_ALL_SONGS']
+           and all(m.word(q + O['REC_CLASS']) == O['CLASS_ALL_SONGS'] for q in m.played[0]),
+           'a row plays exactly its songs from that row as an All Songs queue (Memory Playback resumes through the library), no stock queue query on the split name')
+    m.confirm_answer = O['CONFIRM_DELETE_LIBRARY']
+    pick(m, 'select'); tap(m, 150, lay.row_y(0) + 30); tap(m, 150, lay.row_y(2) + 30)
+    shown = gshow(m)
+    m.calls = []
+    calls = click(m, 'sg_del')
+    bd = [c for c in calls if c[0] == 'batch_delete_file']
+    expect(bd and bd[0][1] == O['CLASS_ALL_SONGS'] and bd[0][6] == [0, 2] and m.deques[bd[0][2]] == shown and gq(calls) == [O['CLASS_GENRES'], gen, gen],
+           f'split Select, Delete: the generic songtable path (class 0xf001, not the genre class) on the page list and rows 0 and 2, then every tag is asked again ({bd})')
+    m.confirm_answer = None
+    pick(m, 'select'); tap(m, 150, lay.row_y(1) + 30)
+    m.windows['m1plus_playlists'] = 0   # the stock picker (our page does not open)
+    calls = click(m, 'sg_add')
+    expect(('navigator_to_with_context', 'playlist_page', O['PICKER_ADD'] | O['CLASS_ALL_SONGS']) in calls, 'split Select, Add opens the playlist picker with the generic class 0xf001')
+    m.call(PSYMS['sg_on_destroy'], count=4000000)
     # the other lists: Select is a navbar button, the middle piece after Search
     m = list_machine(titles, O['CLASS_FAV']); m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000)
     expect(vis(m, 'btn_select') == (1, 1) and vis(m, 'btn_more') == (0, 0) and vis(m, 'btn_search') == (1, 1) and m.props[(m.widgets['btn_select'], 'style:normal:icon')] == 'pod_nav_select',

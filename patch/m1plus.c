@@ -194,7 +194,19 @@ enum {
     ACT_LUNOW = 193, /* Update Library: Update Now, stock's scan dialog (patch/libupdate.c) */
     ACT_LUFOLDERS = 194, /* Update Library: Choose Folders (stock's folder page for now) */
     ACT_LUAUTO = 195, /* Update Library: Auto Update, stock's autoscan switch */
-    ACT_SWAPKEYS = 196 /* Buttons & Power: Swap Prev / Next, a switch (patch/keyspower.c) */
+    ACT_SWAPKEYS = 196, /* Buttons & Power: Swap Prev / Next, a switch (patch/keyspower.c) */
+    ACT_GSPAGE = 197, /* Settings > Library > Split Genres: a value row (On or Off) opening the Split Genres page */
+    ACT_GSPLIT = 198, /* Split Genres page: the switch, off by default (patch/genresplit.c gs_toggle) */
+    ACT_GSSEP0 = 199, /* ... and the separator switches, one per M1_SPLIT_* bit (gs_sep_toggle) */
+    ACT_GSSEP1 = 200,
+    ACT_GSSEP2 = 201,
+    ACT_GSSEP3 = 202,
+    ACT_GSSEP4 = 203,
+    ACT_GSSEP5 = 204,
+    ACT_GSSEP6 = 205,
+    ACT_GSSEP7 = 206,
+    ACT_GSSEP8 = 207,
+    ACT_GSSEP9 = 208
 };
 
 struct pod_row {
@@ -231,7 +243,7 @@ enum {
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
     INFO_SF = INFO_CC + 7, /* the Settings Files page's 57 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 57, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SFOLD = INFO_SF + 58, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -277,6 +289,7 @@ enum {
     VK_PSBAL,
     VK_PCDIR,
     VK_ASPLIT, /* the Library page's Split Artists row: On or Off */
+    VK_GSPLIT, /* ... and its Split Genres row */
     VK_RGBTHEME, /* the LED Light page's Theme row: the Dynamic lamp's theme's name */
     VK_XFEED, /* the Playback Settings Crossfeed row: Off, Low, Medium or High */
     VK_LANG, /* the Language row: the loaded language's own name (stock's key lan_*) */
@@ -332,6 +345,7 @@ static const char HOME_NAMES[18][3] = {"0", "1",  "2",  "3",  "4",  "5",  "6",  
 #include "tracklamp.h"
 #include "scrobble.h"
 #include "artsplit.h" /* Split Artists */
+#include "genresplit.h" /* Split Genres */
 #include "scrobpage.h"
 static int pod_off(void) { return home_off(); } /* the SD file and the flash one */
 
@@ -534,6 +548,7 @@ static const struct pick_def {
     {ACT_BHPAGE, VK_BATTHIST, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_SCROBPAGE, VK_SCROB, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_ASPAGE, VK_ASPLIT, 0, (int (*)(void))0, (int (*)(int))0},
+    {ACT_GSPAGE, VK_GSPLIT, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_PLAYMODE, VK_PSMODE, ACT_PLAYMODESET, ps_playmode, ps_playmode_set},
     {ACT_MEMPLAY, VK_PSMEM, ACT_MEMPLAYSET, ps_memplay, ps_memplay_set},
     {ACT_GAIN, VK_PSGAIN, ACT_GAINSET, ps_gain, ps_gain_set},
@@ -753,6 +768,19 @@ AS_SEP_FN(6)
 AS_SEP_FN(7)
 AS_SEP_FN(8)
 AS_SEP_FN(9)
+#define GS_SEP_FN(k) \
+    static int sw_gs##k(void) { return gs_sep(k); } \
+    static int sw_gs##k##_t(void) { return gs_sep_toggle(k); }
+GS_SEP_FN(0)
+GS_SEP_FN(1)
+GS_SEP_FN(2)
+GS_SEP_FN(3)
+GS_SEP_FN(4)
+GS_SEP_FN(5)
+GS_SEP_FN(6)
+GS_SEP_FN(7)
+GS_SEP_FN(8)
+GS_SEP_FN(9)
 static int sw_always(void) { return 1; } /* Keyboards > English: always on, and its row takes no tap */
 
 static const struct pod_switch {
@@ -787,6 +815,7 @@ static const struct pod_switch {
 
     {ACT_SCROBBLE, scrobble_setting, scrobble_toggle},
     {ACT_ASPLIT, as_setting, as_toggle},
+    {ACT_GSPLIT, gs_setting, gs_toggle},
     {ACT_ASSEP0, sw_as0, sw_as0_t},
     {ACT_ASSEP1, sw_as1, sw_as1_t},
     {ACT_ASSEP2, sw_as2, sw_as2_t},
@@ -797,6 +826,16 @@ static const struct pod_switch {
     {ACT_ASSEP7, sw_as7, sw_as7_t},
     {ACT_ASSEP8, sw_as8, sw_as8_t},
     {ACT_ASSEP9, sw_as9, sw_as9_t},
+    {ACT_GSSEP0, sw_gs0, sw_gs0_t},
+    {ACT_GSSEP1, sw_gs1, sw_gs1_t},
+    {ACT_GSSEP2, sw_gs2, sw_gs2_t},
+    {ACT_GSSEP3, sw_gs3, sw_gs3_t},
+    {ACT_GSSEP4, sw_gs4, sw_gs4_t},
+    {ACT_GSSEP5, sw_gs5, sw_gs5_t},
+    {ACT_GSSEP6, sw_gs6, sw_gs6_t},
+    {ACT_GSSEP7, sw_gs7, sw_gs7_t},
+    {ACT_GSSEP8, sw_gs8, sw_gs8_t},
+    {ACT_GSSEP9, sw_gs9, sw_gs9_t},
     {ACT_LBAUTO, scrobble_auto_setting, scrobble_auto_toggle},
     {ACT_GAPLESS, ps_gapless, ps_gapless_toggle},
     {ACT_FOLDERSKIP, ps_folderskip, ps_folderskip_toggle},
@@ -837,6 +876,7 @@ static int on_switch(void *ctx, void *e) {
         pod_page_refresh(POD_BATTHIST_PAGE); /* the charts show and hide with the switch */
     if (s->sw->action == ACT_ASPLIT)
         pod_page_refresh(POD_ASPLIT_PAGE); /* the separators dim and wake with the switch */
+    if (s->sw->action == ACT_GSPLIT) pod_page_refresh(POD_GSPLIT_PAGE);
     if (s->sw->action == ACT_STANDBY) pod_page_refresh(POD_KEYSPOWER_PAGE); /* turning it on turned Auto-Shutdown off */
     if (s->sw->action == ACT_BOOTMEM) pod_page_refresh(POD_PSBOOTVOL_PAGE); /* the slider's cards follow the switch */
     if (s->sw->action == ACT_DTAUTO || s->sw->action == ACT_DT24)
@@ -950,6 +990,8 @@ static void value_text(void *label, int kind) {
         key = scrobble_setting() ? "On" : "Off";
     } else if (kind == VK_ASPLIT) {
         key = as_setting() ? "On" : "Off";
+    } else if (kind == VK_GSPLIT) {
+        key = gs_setting() ? "On" : "Off";
     } else if (kind == VK_LB ||
                kind == VK_LF) { /* a scrobble account (patch/scrobpage.c): already translated, or a user name */
         if (kind == VK_LB)
@@ -1107,6 +1149,11 @@ static void page_refresh(void *win, const struct pod_page *page) {
                 ACT_ASSEP9) { /* Split Artists: the separators are dimmed and inert while the switch is off */
             void *item = widget_lookup(win, row->name, 1);
             int on = as_setting();
+            if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);
+        }
+        if (row->action >= ACT_GSSEP0 && row->action <= ACT_GSSEP9) { /* Split Genres: the same */
+            void *item = widget_lookup(win, row->name, 1);
+            int on = gs_setting();
             if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);
         }
         if (row->action ==
