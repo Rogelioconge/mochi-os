@@ -330,13 +330,13 @@
 #define AB_NUM_X 12
 #define AB_NUM_GAP 8
 #define AB_TEXT_END 298
-#define AB_ROW_H 52            /* the album page's track row, the one-line rows' height (Artists, Folders; the two-line lists keep LIST_ROW_H 64): AB_TEXT_Y centres the title's line, 1 px above the middle as on the 64 px rows */
-#define AB_TEXT_Y 14
+#define AB_ROW_H 52            /* the album page's track row, the one-line rows' height (Artists, Folders; the two-line lists keep LIST_ROW_H 64): AB_TEXT_Y puts the title's capitals (20 px: ink y 20..31) on the middle of the row above its hairline (25.5) */
+#define AB_TEXT_Y 16
 #define AB_TEXT_H 22
 #define AB_NUM_PX 17           /* the track number's font size (the title keeps LIST_TITLE_PX 20) */
-#define AB_NUM_Y 15            /* the number line's top in the row, AB_TEXT_H high like the title's: baselines match at row y 30 = AB_TEXT_Y 14 + (22 - 20) / 2 + baseline(20) 15 = AB_NUM_Y + (22 - 17) / 2 + baseline(17) 13 (StbFont), i.e. AB_TEXT_Y + 1 */
+#define AB_NUM_Y 15            /* the number line's top in the row, AB_TEXT_H high like the title's: the digits (ink y 21..30 on the device) centred on the title's capitals (20..31), not on its baseline, where the smaller digits read low */
 #define AB_WAVE 12             /* the playing track's marker (ah_wave): a square bitmap right-aligned in the number column */
-#define AB_WAVE_Y 18           /* its top in the row: 1 px above the centre of the title's line (AB_TEXT_Y + (AB_TEXT_H - AB_WAVE) / 2 = 19), on the centre of the capitals and digits */
+#define AB_WAVE_Y 20           /* its top in the row: 1 px above the centre of the title's line (AB_TEXT_Y + (AB_TEXT_H - AB_WAVE) / 2 = 21), on the centre of the capitals and digits */
 #define AB_WAVE_COLOR 0x00ECEEEEu /* its colour #EEEEEC as a RGBA8888 word (red in the low byte), the rows' wave */
 #define AB_PRESS 0x33ffffffu
 #define AB_HAIR 0x22ffffffu
