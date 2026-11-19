@@ -2,7 +2,7 @@
 
 **Sources:** `patch/btset.c` / `btset.h` (control layer), `patch/btpage.c` (pages), `tools/pod_ui.py`
 (`build_bluetooth_page`, `build_btdevice_page`), `tools/pod_pages.py` (`BLUETOOTH_PAGE`,
-`BTCODEC_PAGE`, `BTDEVICE_PAGE`), `tools/pod_pins.py` `BLUETOOTH_PINS`.
+`BTCODEC_PAGE`, `BTDEVICE_PAGE`), `tools/pod_pins.py` `BLUETOOTH_PINS`, `tools/mod_bluealsa.py`.
 Settings > Bluetooth is our own page on stock's own state and calls, as [Wi-Fi](wifi.md) and
 [Buttons & Power](keyspower.md) are. Three layers:
 
@@ -10,7 +10,8 @@ Settings > Bluetooth is our own page on stock's own state and calls, as [Wi-Fi](
 - **The page** (`btpage.c`): Bluetooth switch, Audio Codec picker, My / Other Devices.
 - **The device page**: Connect / Disconnect, Headset Volume, Forget.
 
-The radio itself is stock's (`libbtctl`, `bluetoothd`, `bluealsa`); we add no backend. One hook
+The radio itself is stock's (`libbtctl`, `bluetoothd`, `bluealsa`); we add no backend and change one
+capability bit ([AAC at 48 kHz](#aac-at-48-khz)). One hook
 (32) sends the All System Settings hub's Bluetooth row to our page ([payload](payload.md)).
 
 ## Stock behaviour relied on
@@ -160,6 +161,20 @@ reads the device from the show list by it every time.
 - **Closing.** When the device is gone or unpaired, or Bluetooth went off (the tile), the page closes once
   (`navigator_back`). A device that left the list between the row's draw and the glyph tap opens no page.
 - **Text.** `Connect`, `Disconnect`, `Headset Volume`, `Forget This Device` (13 languages).
+
+## AAC at 48 kHz
+
+`tools/mod_bluealsa.py` (the build step after `mod_player`) clears the 44.1 kHz bit of bluealsa's AAC
+source capability (`c0 01 84 84 e2 00` at file offset `0x317b7`; octet 1 `01` → `00`), pinned by the stock
+SHA-256.
+
+- The player feeds bluealsa 48 kHz. A link the player opens picks 48 kHz AAC. A headset or speaker that
+  opens the stream itself (AirPods out of the case, a speaker reopening it after idling through a long
+  pause) picked 44.1 kHz, and bluealsa dropped about 8% of the AAC frames: a rhythmic stutter and audio
+  that sounds fast, until Bluetooth reconnected. With the bit clear only 48 kHz is offered, which every
+  AAC sink supports.
+- The same stock binary and fix as q2-pod's (`docs/internals.md` "Bluetooth AAC").
+- A capability bit, not a hook: the kill switch does not restore it. SBC and the other codecs are unchanged.
 
 ## Limits
 
