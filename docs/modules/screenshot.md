@@ -8,6 +8,8 @@ callbacks. The menu entry gates the row, so it has no kill-switch check of its o
 
 ## Flow
 
+Two entries call `shot_start()`: the Developer row and the Control Center tile `f` ([pulldown](pulldown.md)).
+
 1. **Confirm.** The stock confirm dialog (`pod_confirm`, [overlays](overlays.md)) asks "Take a
    screenshot?". Only Yes goes on.
 2. **Delay.** A second dialog, "Take a screenshot in:", has the delay as its two buttons: 5 s

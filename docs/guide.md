@@ -114,7 +114,7 @@ Open **Extras → Settings** to change the player. A few places to start:
 - **Home Screen:** choose which items appear on Home and in Extras.
 - **Playback → EQ:** adjust the sound or choose a preset.
 - **Now Playing:** change the idle display, cassette theme or lyrics size.
-- **Appearance:** choose an accent colour and customize Control Center.
+- **Appearance:** choose an accent colour and customize Control Center, which also has Wi-Fi Transfer and Screenshot tiles.
 
 To return to Shanling Home, open **Settings → Developer → Startup → Open Shanling Home**. Tap the
 M1+ Music icon on Shanling Home to return.

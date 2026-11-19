@@ -34,8 +34,9 @@
 #include "entries.h"
 #include "battery.h"
 #include "lineout.h"
+#include "shot.h"
 
-#define PD_N 15 /* every tile: the eight stock ones, then ours (ids '8', '9', 'a', 'b', 'c', 'd', 'e') */
+#define PD_N 16 /* every tile: the eight stock ones, then ours (ids '8', '9', 'a' ... 'f') */
 #define PD_STOCK 8 /* ids 0-7 are the stock tiles: the default shows them in this order */
 #define PD_SLOTS 8 /* the pull-down has room for eight tiles: a file that shows more is invalid */
 #define PD_FILE_MAX 20 /* tools/pod_pages.py PULLDOWN_FILE_MAX */
@@ -49,27 +50,28 @@ enum {
     PD_POWER,
     PD_AIRPLAY,
     PD_DLNA,
-    PD_TRANSFER
+    PD_TRANSFER,
+    PD_SHOT
 }; /* the ids of our tiles (AirPlay and DLNA are switches, not actions) */
 
 /* Our tiles' widgets are in the asset (tools/mod_pulldown.py), hidden and insensitive, named pod_tile_* / pod_cap_*. */
 static const char *const PD_IMG[PD_N] = {"img_wifiswitch",   "img_btswitch",      "img_keylockswitch", "img_gainswitch",
                                          "img_usbmode",      "img_outputswitch",  "img_playset",       "img_sysset",
                                          "pod_tile_sleep",   "pod_tile_settings", "pod_tile_eq",       "pod_tile_power",
-                                         "pod_tile_airplay", "pod_tile_dlna",     "pod_tile_transfer"};
-static const char *const PD_LAB[PD_N] = {"label_wifi",      "label_bt",         "label_lock",      "label_gain",
-                                         "label_usbmode",   "label_outputway",  "label_playset",   "label_sysset",
-                                         "pod_cap_sleep",   "pod_cap_settings", "pod_cap_eq",      "pod_cap_power",
-                                         "pod_cap_airplay", "pod_cap_dlna",     "pod_cap_transfer"};
+                                         "pod_tile_airplay", "pod_tile_dlna",     "pod_tile_transfer", "pod_tile_shot"};
+static const char *const PD_LAB[PD_N] = {"label_wifi",      "label_bt",         "label_lock",       "label_gain",
+                                         "label_usbmode",   "label_outputway",  "label_playset",    "label_sysset",
+                                         "pod_cap_sleep",   "pod_cap_settings", "pod_cap_eq",       "pod_cap_power",
+                                         "pod_cap_airplay", "pod_cap_dlna",     "pod_cap_transfer", "pod_cap_shot"};
 
 static const char *pd_name(void *w);
 static void pd_close_subpages(const char *name);
 static void pd_close_children(const char *name);
 static void *pd_by_name(const char *name);
 
-/* The id of a file character ('0'-'9', 'a'-'e'), or PD_N. */
+/* The id of a file character ('0'-'9', 'a'-'f'), or PD_N. */
 static unsigned pd_id(char c) {
-    return c >= '0' && c <= '9' ? (unsigned)(c - '0') : c >= 'a' && c <= 'e' ? (unsigned)(c - 'a') + 10u : PD_N;
+    return c >= '0' && c <= '9' ? (unsigned)(c - '0') : c >= 'a' && c <= 'f' ? (unsigned)(c - 'a') + 10u : PD_N;
 }
 
 /* The shown tiles in order (ord, at least PD_N long) from the saved file; the count. The default: the eight stock tiles in stock order
@@ -356,6 +358,8 @@ static void pd_run(unsigned id) {
         pd_open_page("m1plus_peq_page", pod_open_peq, 1);
     else if (id == PD_TRANSFER && ns_transfer_ok())
         pd_open_page("m1plus_wifitransfer_page", pod_open_wifitransfer, 1); /* one window with Network Services' row */
+    else if (id == PD_SHOT)
+        shot_start(); /* the Developer > Screenshot row's confirm */
 }
 
 /* The hook at on_wm_tsmove_fun's navigator_to("dialog/dropdown_dialog") (tools/pod.py PULLDOWN_DIALOG_SITE): the stock call, then, when the dialog was quit by one of our tiles (its result is

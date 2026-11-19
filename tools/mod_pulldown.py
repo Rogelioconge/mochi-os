@@ -7,10 +7,10 @@ dropdown_dialog.bin) carries its own copy of the status bar (view_sysbar) and th
   view_sysbar    laid out from the table the real bar (ui/system_bar.bin) uses, tools/statusbar.py: left group
                  at x 10, 4 px spacing, the volume number 16 px middle in 30 px, the clock 104..194 at 18 px, the
                  right group 4 px spacing and clear of the battery; the bar black as the real one
-  pod_tile_*,    the seven tiles of ours (Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA, Wi-Fi Transfer: patch/pulldown.c shows them in the slots the saved file names): an
+  pod_tile_*,    the eight tiles of ours (Sleep Timer, Settings, Equalizer, Power Off, AirPlay, DLNA, Wi-Fi Transfer, Screenshot: patch/pulldown.c shows them in the slots the saved file names): an
   pod_cap_*      image and a caption in view_switchs, added hidden and insensitive, the caption a copy of label_playset with the tile's text
   label_*        the eight tile captions (Wi-Fi, Bluetooth, Buttons lock, gain, USB mode, output,
-                 Playback / System Setting): 71 x 32 boxes (stock 57 x 40) 5 px under the disc, top aligned, word-wrapped,
+                 Playback / System Setting): 71 x 36 boxes (stock 57 x 40) 5 px under the disc, top aligned, word-wrapped,
                  16 px #B0B0B0 (disabled #555555; stock 18 / 16 px white)
   img_*, label_* the tile images 56 x 56 (stock 50) round the stock centres, rows 100 apart as stock: x 21 / 95 / 169 / 243, y 11 / 111; no card under them, the discs sit on the panel
   pod_grabber    an image (drop_grabber: Now Playing's 36 x 5 pill, white at alpha 110, baked) at (142, 328) in the dialog, insensitive
@@ -55,7 +55,10 @@ PANEL_BG = f'{PANEL_RGB}{round(255 * PANEL_ALPHA):02X}'
 CARD_X = 10                                             # the brightness card's x
 TILE_PX = 56                                            # the tile images: stock 50 x 50, grown round the same centres
 COLS_X, ROWS_Y = (21, 95, 169, 243), (11, 111)          # the 56 px tiles' x (stock 24 + 74 k, minus 3) and y in view_switchs (stock rows 14 and 114, 100 apart as now)
-CAP_DX, CAP_DY, CAP_H = -7, TILE_PX + 5, 32             # a caption box from its tile: 71 wide centred on it, 5 px under the disc, two lines of 16 px
+CAP_DX, CAP_DY, CAP_H = -7, TILE_PX + 5, 36             # a caption box from its tile: 71 wide centred on it, 5 px under the disc, two rows of 16 px (CAP_MT + 16 + CAP_SPACER + 16)
+# AWTK's wrapped label (tools/mod_nowplaying.py, before LYR_DEFAULT_MARGIN) wraps to the box less margin_left / margin_right and draws a row only while it ends inside the box less
+# margin_bottom; rows are font + spacer apart (default 2, tools/pod_pins.py). Every margin defaults to 2: the captions set left, right and bottom to 0 and keep the top 2.
+CAP_MT, CAP_SPACER, CAP_MARGINS = 2, 2, ('margin_left', 'margin_right', 'margin_bottom')
 BL_Y, BL_R = 265, 26                                    # the brightness card's y in the dialog (the slider inside keeps stock's screen y 266 .. 316) and radius; it is ROW_H high, CARD_W wide, at CARD_X
 STOCK_BL = ((10, 266, 300, 50), (20, 15, 20, 20), (260, 15, 20, 20), (50, 0, 200, 50))   # stock's view_backlight and its image0, image1, slider_backlight (pinned)
 GRAB = ('pod_grabber', 142, 328, 36, 5, 'drop_grabber')    # the grabber, a child of the dialog: name, x, y, w, h, image (the dialog is 340 high); a baked, antialiased copy of Now Playing's pill (mod_icons DROP_GRABBER)
@@ -70,7 +73,9 @@ TILE_KEYS = ('wifiset_wifi', 'wifiset_bt', 'system_keylock', 'gain_high', 'gain_
 OWN = (('pod_tile_sleep', 'pod_cap_sleep', 'drop_sleep', 'Sleep Timer'), ('pod_tile_settings', 'pod_cap_settings', 'drop_settings', 'Settings'),
        ('pod_tile_eq', 'pod_cap_eq', 'drop_equalizer', 'Equalizer'), ('pod_tile_power', 'pod_cap_power', 'drop_power', 'Power Off'),
        ('pod_tile_airplay', 'pod_cap_airplay', 'drop_airplay', 'AirPlay'), ('pod_tile_dlna', 'pod_cap_dlna', 'drop_dlna', 'DLNA'),
-       ('pod_tile_transfer', 'pod_cap_transfer', 'drop_transfer', 'Wi-Fi Transfer'))
+       ('pod_tile_transfer', 'pod_cap_transfer', 'drop_transfer', 'Wi-Fi Transfer'),
+       ('pod_tile_shot', 'pod_cap_shot', 'drop_shot', 'Screenshot'))
+CAPTION_OWN_PX = {'Screenshot': 15}   # a caption of ours set smaller than CAPTION_PX: the word is 74 px at 16 in the 71 px text width (71 at 15 fits)
 MUST_FIT = ('en_US', 'zh_CN')
 VOLUME_MAX, CLOCK_MAX = '100', '12:59 PM'
 TILE_W = 71                              # caption box width (stock 57)
@@ -121,6 +126,11 @@ def split_words(ttf, text, px, width):
     return [t for t in text.split(' ') if t.isascii() and awtk_width(ttf, t, px) > width]
 
 
+def caption_rows(n, px):
+    """The height n wrapped rows of a caption need from its box's top: the top margin, then rows CAP_SPACER apart (no bottom margin)."""
+    return CAP_MT + n * px + (n - 1) * CAP_SPACER
+
+
 def resize(w, table, states=STATES):
     """Every state that sets a font size gets the table's smaller one; returns {old: new}."""
     done = {}
@@ -134,7 +144,7 @@ def resize(w, table, states=STATES):
 
 
 def add_own(root):
-    """Our seven tiles in view_switchs after the stock widgets: the image (56 x 56, the stock tiles' new size, picture of the flat disc style, clickable) and its caption (a copy of label_playset
+    """Our eight tiles in view_switchs after the stock widgets: the image (56 x 56, the stock tiles' new size, picture of the flat disc style, clickable) and its caption (a copy of label_playset
     with the tile's text), at the first slot and its caption offset; hidden and insensitive. A tile not shown stays so; patch/pulldown.c moves, shows and binds the shown ones."""
     from awtk_ui import Widget
     view, img, cap = root.find('view_switchs'), root.find('img_wifiswitch'), root.find('label_playset')
@@ -143,6 +153,8 @@ def add_own(root):
         tile = Widget('image', img.x, img.y, img.w, img.h, [('name', name), ('draw_type', 'default'), ('image', image), ('clickable', 'true')])
         label = Widget('label', img.x + cap.x - root.find('img_playset').x, img.y + cap.y - root.find('img_playset').y, cap.w, cap.h,
                        [('name', capname)] + [p for p in cap.props if p[0] != 'name'] + [pod_i18n.text_prop(english)])
+        for st in STATES:
+            if english in CAPTION_OWN_PX and label.get(f'style:{st}:font_size') is not None: label.set(f'style:{st}:font_size', str(CAPTION_OWN_PX[english]))
         for w in (tile, label):
             w.set('visible', 'false'); w.set('sensitive', 'false'); view.children.append(w)
 
@@ -211,12 +223,14 @@ def edit(root, ttf, texts, report):
         for st in STATES:   # secondary text, from the top of the box so a one-line and a two-line caption start at the same height
             w.set(f'style:{st}:text_color', CAPTION_DIS_RGB if st == 'disable' else CAPTION_RGB)
             w.set(f'style:{st}:text_align_v', 'top')
+            for m in CAP_MARGINS: w.set(f'style:{st}:{m}', '0')
         tpx = int(w.get('style:normal:font_size'))
-        fits = lambda t, px, bw=w.w: len(wrap(ttf, t, px, bw)) * px <= w.h
+        fits = lambda t, px, bw=w.w: caption_rows(len(wrap(ttf, t, px, bw)), px) <= w.h
         for lang in MUST_FIT:
             for k, t in texts[lang].items():
-                check(not split_words(ttf, t, tpx, w.w), f'{lang} {k} {t!r}: a word is wider than {w.w} px at {tpx}')
-                check(fits(t, tpx), f'{lang} {k} {t!r} does not fit {w.w}x{w.h} at {tpx}: {wrap(ttf, t, tpx, w.w)}')
+                px = CAPTION_OWN_PX.get(k, tpx)
+                check(not split_words(ttf, t, px, w.w), f'{lang} {k} {t!r}: a word is wider than {w.w} px at {px}')
+                check(fits(t, px), f'{lang} {k} {t!r} does not fit {w.w}x{w.h} at {px}: {wrap(ttf, t, px, w.w)}')
         if name == TILES[0]:   # the boxes are all the same size: count once
             over = lambda px, bw: sorted(f'{l}:{k}' for l, kv in texts.items() for k, t in kv.items() if not fits(t, px, bw))
             report.append(f'tile captions over {w.h} px: {len(over(spx, 57))} at {spx} px x 57 (stock), {len(over(tpx, w.w))} at {tpx} px x {w.w} '

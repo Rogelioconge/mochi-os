@@ -5,7 +5,7 @@
 `PULLDOWN_FLAG_PINS`, `TSDOWN_PINS` in `tools/pod_pins.py`.
 
 The stock pull-down (`dialog/dropdown_dialog`) restyled, with tiles the user can hide, show and
-reorder, seven tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
+reorder, eight tiles of ours, and two repairs for a pull-down that stops opening. One hook on the
 dialog's init and one on touch down ([payload](payload.md)).
 
 ## Look
@@ -24,14 +24,17 @@ dialog's init and one on touch down ([payload](payload.md)).
   [Display](display.md) page's brightness card: suns at x 14 and 266 in the card, slider x 48 .. 248
   (200 wide), 6 px `drop_bg` / `drop_fg` track and fill, the white capsule thumb `pod_sl_thumb`.
   The slider keeps stock's screen y 266 .. 316 (the card is one px taller at the top and 1 at the
-  bottom); the card sits 21 px under the last caption row and 11 px over the grabber (y 328).
+  bottom); the card sits 17 px under a two-row caption's last row and 11 px over the grabber (y 328).
   `mod_pulldown.restyle_backlight` pins the stock geometry and refuses anything else.
 - **Tile layout:** the tile images are 56 x 56 (stock 50) round the stock centres, columns x 21 / 95
   / 169 / 243, rows y 11 and 111 in view_switchs (screen 51 and 151; 100 apart as stock). The discs sit
   directly on the panel, no card under them. The hook reads positions from the widgets, so it did not change.
 - **Captions:** the stock keys and texts, 16 px `#B0B0B0` (disabled `#555555`; stock 18 / 16 px
-  white), 71 x 32 boxes centred on the tile, top aligned, 5 px under the disc, word-wrapped (two
-  lines fit). `Bluetooth` is 60 px at 16, which AWTK broke mid-word in a 57 px box; the 71 px box
+  white), 71 x 36 boxes centred on the tile, top aligned, 5 px under the disc, word-wrapped (two
+  lines fit). AWTK wraps a label to its box less the left and right margins and drops a row that
+  ends below the bottom margin; rows are the font + spacer 2 apart and every margin defaults to 2.
+  The captions set the left, right and bottom margins to 0 (`mod_pulldown.CAP_MARGINS`), so the
+  text is 71 px wide and two 16 px rows need 2 + 16 + 2 + 16 = 36 px. `Bluetooth` is 60 px at 16, which AWTK broke mid-word in a 57 px box; the 71 px box
   stays. The tool refuses a Latin word wider than the box, or a caption that does not fit two
   lines, in English or Chinese. A few long captions in other languages still overflow, clipped as
   in stock.
@@ -45,7 +48,7 @@ dialog's init and one on touch down ([payload](payload.md)).
 ## Tiles: hide, show and reorder
 
 Settings > Appearance > **Control Center** (`m1plus_pulldown`) edits the eight stock tiles and the
-seven of ours (fifteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md)):
+eight of ours (sixteen rows, at most eight shown). It is the Main Menu page's twin ([menu](menu.md)):
 one row per tile with a switch and, on every shown row but the first, an up arrow. The row takes
 every tap: the arrow moves the tile one place up, elsewhere shows or hides it, and a tile shown joins
 the end. Each change is saved at once and atomically; a failed save is undone. The code is a copy of
@@ -134,7 +137,7 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
 
 ## Tiles of ours
 
-Seven tiles can take any of the eight slots (hidden by default): five are actions, two are switches.
+Eight tiles can take any of the eight slots (hidden by default): six are actions, two are switches.
 
 | Id | Tile | Art (`mod_icons.PD_OWN`) | Action |
 |---|---|---|---|
@@ -145,10 +148,11 @@ Seven tiles can take any of the eight slots (hidden by default): five are action
 | `c` | AirPlay | `drop_airplay` / `drop_airplayopen` | a switch ([AirPlay and DLNA](#airplay-and-dlna)) |
 | `d` | DLNA | `drop_dlna` / `drop_dlnaopen` (Simple Icons mark) | a switch |
 | `e` | Wi-Fi Transfer | `drop_transfer` (`folder-sync`) | Wi-Fi Transfer page ([wifi-transfer](wifi-transfer.md)): `ns_transfer_ok()` (a toast "Connect to Wi-Fi first" and nothing else when offline), then `pd_open_page` (rooted) with `pod_open_wifitransfer`, as Network Services' row does, so both open one window; a page behind the player is restacked, and its `EVT_WINDOW_TO_FG` (`wt_front`) restarts the file server without a second `wt_opened` |
+| `f` | Screenshot | `drop_shot` (`camera`) | `shot_start()` ([screenshot](screenshot.md)): the same two-step confirm as Settings > Developer > Screenshot, no page; a second tap while counting asks to cancel |
 
 Captions are keys of ours in 13 languages; AirPlay and DLNA are brand text. Wi-Fi Transfer's caption is the Network Services row's full text; its row on the Control Center page is the shorter `Transfer` (the full text is too long for the row label in six languages). Sleep Timer is too long
 for the row label in ja, fr, pl and ru (it ends in an ellipsis and scrolls when focused) and for the
-caption box in ru; both are accepted. Our other captions fit the 71 x 32 box in every language.
+caption box in ru; both are accepted. The Screenshot row label is too long in ja, fr and es and is cut the same way. The Screenshot caption is set at 15 px (`mod_pulldown.CAPTION_OWN_PX`): the word is 74 px wide at 16 in the 71 px text width (en, de, it). In pl, AWTK keeps "Zrzut ekranu" on one 78 px line and the box clips it (accepted, like ru Sleep Timer). Our other captions fit the 71 x 36 box in every language.
 
 - **Widgets are in the asset.** `mod_pulldown.py` adds to `view_switchs` an image (`pod_tile_*`,
   56 x 56, clickable) and a caption (`pod_cap_*`, a copy of `label_playset`) for each, **hidden and
@@ -156,9 +160,9 @@ caption box in ru; both are accepted. Our other captions fit the 71 x 32 box in 
   widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes),
   moves a shown tile with its caption, binds a tap and makes it visible. Stock's tile visitor knows
   tiles by name and ignores ours.
-- Art is the flat disc, off look only for the five actions: an action has no on state because the
+- Art is the flat disc, off look only for the six actions: an action has no on state because the
   dialog closes on the tap.
-- **The page** has fifteen rows (`pod_row0..14`) with glyphs from `POD_ROWS`.
+- **The page** has sixteen rows (`pod_row0..15`) with glyphs from `POD_ROWS`.
 - **Tap** (`pd_on_tile`, `pd_open_dialog`, payload hook 22). Stock's tiles never open a page from
   their click handler. They check three words (`DROPDOWN_BUSY`, `POWER_USBSTATE`,
   `airplayGetFlag()`; any equal to 2 = do nothing), call `dialog_quit(dialog, 0xd)` and set a flag.

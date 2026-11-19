@@ -46,8 +46,8 @@ def controls(s, work, bg=(0, 0, 0, 255), ink=lambda c: c):
         w, lb = root.find(name), root.find(label)
         im.alpha_composite(s.img(img), (w.x, sw.y + w.y))
         px = int(lb.get('style:normal:font_size'))
-        for i, line in enumerate(MP.wrap(ttf, en[key], px, lb.w)):   # top aligned
-            s.text(im, lb.x + lb.w / 2, sw.y + lb.y + (i + 0.5) * px, line, px, ink((0xB0, 0xB0, 0xB0)), anchor='m')
+        for i, line in enumerate(MP.wrap(ttf, en[key], px, lb.w)):   # top aligned: from the top margin, rows font + spacer apart (left and right margins 0)
+            s.text(im, lb.x + lb.w / 2, sw.y + lb.y + MP.CAP_MT + i * (px + MP.CAP_SPACER) + px / 2, line, px, ink((0xB0, 0xB0, 0xB0)), anchor='m')
     im.alpha_composite(s.img(grab.get('image')), (grab.x, grab.y))
     bl = root.find('view_backlight')   # the brightness card (flat, radius 26) with the stock widgets in it, the slider at 60 %
     ImageDraw.Draw(im).rounded_rectangle((bl.x, bl.y, bl.x + bl.w - 1, bl.y + bl.h - 1), int(bl.get('style:normal:round_radius')), fill=ink((0x1C, 0x1C, 0x1E)))
