@@ -193,7 +193,8 @@ enum {
     ACT_NPPOS = 192, /* Settings > Now Playing: Track Position, a switch (patch/nowplaying.c) */
     ACT_LUNOW = 193, /* Update Library: Update Now, stock's scan dialog (patch/libupdate.c) */
     ACT_LUFOLDERS = 194, /* Update Library: Choose Folders (stock's folder page for now) */
-    ACT_LUAUTO = 195 /* Update Library: Auto Update, stock's autoscan switch */
+    ACT_LUAUTO = 195, /* Update Library: Auto Update, stock's autoscan switch */
+    ACT_SWAPKEYS = 196 /* Buttons & Power: Swap Prev / Next, a switch (patch/keyspower.c) */
 };
 
 struct pod_row {
@@ -229,8 +230,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 56 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 56, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 57 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 57, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -776,6 +777,7 @@ static const struct pod_switch {
     {ACT_VOLKEYS, coverflow_volkeys, coverflow_volkeys_toggle},
     {ACT_LEDFOLLOW, disp_follow, disp_follow_toggle},
     {ACT_TAPWAKE, kp_tap, kp_tap_toggle},
+    {ACT_SWAPKEYS, kp_swap, kp_swap_toggle},
     {ACT_STANDBY, kp_standby, kp_standby_toggle},
     {ACT_ROTATE, disp_rotate, disp_rotate_toggle},
     {ACT_CARMODE, kp_car, kp_car_toggle},

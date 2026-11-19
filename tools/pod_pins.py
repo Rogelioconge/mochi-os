@@ -1442,3 +1442,23 @@ VOLUME_PINS = (   # (address, stock word, what it proves)
     (0x47dbc8, 0x2405010c, 'the dialog visitor: EVT_CLICK for the buttons'), (0x47dc1c, 0x24c6e034, 'the dialog visitor: btn_add -> 0x47e034'), (0x47dc48, 0x24c6e180, 'the dialog visitor: btn_dec -> 0x47e180'),
     (0x47dc74, 0x2405011d, 'the dialog visitor: vol_slider EVT_VALUE_CHANGING'), (0x47dc7c, 0x24c6e1b8, 'the dialog visitor: vol_slider -> 0x47e1b8'),
 )
+# Swap Prev / Next (patch/keyspower.c kp_key_map, docs/modules/keyspower.md "Swap Prev / Next", payload hook 35): the /dev/input/event1 thread (0x637870, started by input_thread_run; the previous, play and next
+# buttons) maps a key event's Linux code through the table 0x75b324 (`v0 = table[code & 0xff]`) and stores the result in the event at 0x58(sp). The load and the store become `j pod_keys_site; nop`: the stub
+# loads the word, calls kp_key_map, stores its answer at 0x58(sp) and resumes at 0x637bd0 (also the target of the branch at 0x637aa8, so a jump there is a normal path). Nothing reads $v0, $v1 or $a0 .. $a3
+# set before the site after it ($a0 is stored at 0x637bbc and reloaded at 0x637bd0; $a1, $a2, $t9 are set again before the dispatch call), $ra is saved by the prologue and reloaded by the epilogue, and
+# $gp is set again. The table's two entries and the event2 table's (0x75b7f8, the volume keys' thread, gives them 0xeb / 0xea) are pinned: only event1 sends the previous and next codes. Reached on every key event at boot.
+KEYS_SITE, KEYS_RESUME = 0x637bc8, 0x637bd0
+KEYS_PINS = (   # (address, stock word, what it proves)
+    (0x637870, 0x3c1c003d, 'event1 thread prologue (1/3)'), (0x637874, 0x279cc660, 'event1 thread prologue (2/3)'), (0x637878, 0x0399e021, 'event1 thread prologue (3/3)'),
+    (0x63787c, 0x27bdff68, 'event1 thread: addiu sp, sp, -0x98'), (0x6378a4, 0xafbf0094, 'event1 thread: sw ra, 0x94(sp)'),
+    (0x637b84, 0x8fa3007c, 'event1 thread: lw v1, 0x7c(sp), the event value (the stub reads it again)'), (0x637b90, 0x2405010f, 'event1 thread: 0x10f KEY_DOWN for a non-zero value'),
+    (0x637ba8, 0x24040113, 'event1 thread: 0x113 KEY_UP for value 0'), (0x637bb0, 0x00a3200b, 'event1 thread: movn a0, a1, v1 (down unless the value is 0)'),
+    (0x637bac, 0x304200ff, 'event1 thread: code & 0xff'), (0x637bb4, 0x00021080, 'event1 thread: index * 4'), (0x637bb8, 0x8f838054, 'event1 thread: lw v1, GOT page 0x760000'),
+    (0x637bbc, 0xafa40040, 'event1 thread: the event type stored before the site'), (0x637bc0, 0x2463b324, 'event1 thread: v1 = the key table 0x75b324'), (0x637bc4, 0x00431021, 'event1 thread: v0 = &table[code]'),
+    (KEYS_SITE, 0x8c420000, 'event1 thread: lw v0, (v0) (the hook replaces it)'), (KEYS_SITE + 4, 0xafa20058, 'event1 thread: sw v0, 0x58(sp), the key in the event (the stub does it)'),
+    (KEYS_RESUME, 0x8fa4002c, 'event1 thread: lw a0, 0x2c(sp) (the resume point)'), (0x637aa8, 0x10000049, 'event1 thread: b 0x637bd0 (the resume point is a branch target)'),
+    (0x637c20, 0x8fbf0094, 'event1 thread: lw ra, 0x94(sp) in the epilogue'),
+    (0x637df8, 0x0320f809, 'input_thread_run: tk_thread_create (1/2)'), (0x637dfc, 0x24847870, 'input_thread_run: ... with the thread 0x637870 (2/2)'),
+    (0x75b324 + 0xa3 * 4, 0xd7, 'event1 table: KEY_NEXTSONG -> next'), (0x75b324 + 0xa5 * 4, 0xd6, 'event1 table: KEY_PREVIOUSSONG -> previous'),
+    (0x75b7f8 + 0xa3 * 4, 0xeb, 'event2 table: KEY_NEXTSONG is not next there'), (0x75b7f8 + 0xa5 * 4, 0xea, 'event2 table: KEY_PREVIOUSSONG is not previous there'),
+)

@@ -208,6 +208,11 @@ int kp_car(void); /* Car Mode, stock's byte */
 int kp_car_toggle(void);
 int kp_shutdown(void); /* Auto-Shutdown, stock's word 0 .. 4 */
 int kp_shutdown_set(int v);
+int kp_swap(void); /* Swap Prev / Next, ours (SWAPKEYS_FILE): 1 on, 0 off (the default) */
+int kp_swap_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
+int kp_key_map(
+    int key,
+    int value); /* the pod_keys_site stub: an event1 key code after stock's table and the event's value; previous and next swapped while kp_swap, chosen at key down */
 
 /* patch/sleeptimer.c: the Sleep Timer page, stock's byte sleepflag and word sleep_time */
 int st_choice(void); /* the row to check: 0 Off, 1 .. 6 a time, -1 none of them */

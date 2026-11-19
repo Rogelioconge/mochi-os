@@ -18,7 +18,7 @@ Open **Extras → Settings**, then follow the path below. Paths start at Setting
 | Equalizer | **Playback → EQ**; see [Equalizer](equalizer-guide.md) |
 | Playback, volume or output | **Playback → Playback Settings** |
 | Brightness, lock screen or LED | **Display** |
-| Button lock, wake or shutdown | **Buttons & Power** |
+| Button lock, track buttons, wake or shutdown | **Buttons & Power** |
 | Accent colour or background | **Appearance** |
 | Battery percentage, charge limit or history | **Battery** |
 | Software updates, keyboard, date or language | **General** |
@@ -165,7 +165,9 @@ customizes the pull-down tiles; see [Home Screen and Control Center](#home-scree
 ### Buttons & Power
 
 **Button Lock** applies while the screen is off, and is the same setting as the Control Center
-key-lock tile. **Tap to Wake** uses one or two taps depending on the touch panel. Auto-Standby and
+key-lock tile. **Tap to Wake** uses one or two taps depending on the touch panel. **Swap Prev /
+Next** makes the upper track button skip forward and the lower one go back; Bluetooth controls are
+unchanged. Auto-Standby and
 Auto-Shutdown cannot both be on. **Car Mode** resumes the last track at start, disables those
 automatic power options and ignores USB connections.
 

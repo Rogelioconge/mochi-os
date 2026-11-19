@@ -67,6 +67,9 @@
 #define NPPOS_FILE \
     "/mnt/data/m1plus/nowplaying-position" /* "1" = Now Playing shows the queue position (5/10) between the times, anything else or missing off (the default); docs/modules/nowplaying.md */
 #define NPPOS_TMP "/mnt/data/m1plus/nowplaying-position.tmp"
+#define SWAPKEYS_FILE \
+    "/mnt/data/m1plus/buttons-swap" /* "1" = the previous and next buttons are swapped, anything else or missing off (the default); docs/modules/keyspower.md */
+#define SWAPKEYS_TMP "/mnt/data/m1plus/buttons-swap.tmp"
 #define VINYLREC_FILE \
     "/mnt/data/m1plus/vinyl-record" /* Vinyl Mode's record colour: "1" Cover (with an optional newline), anything else or missing = Black (the default) */
 #define VINYLREC_TMP "/mnt/data/m1plus/vinyl-record.tmp"

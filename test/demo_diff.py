@@ -127,6 +127,7 @@ def main():
     allow(va_to_off(s, pod.EQ_ROW), 8, 'Play Settings Equalizer row hook')
     allow(va_to_off(s, pod.LOCKROW), 8, 'Display page Lock Screen row hook')
     allow(va_to_off(s, pod.NEXTALBUM_SITE), 8, 'mclNextSong end branch hook (Continue with Next Album)')
+    allow(va_to_off(s, pod.KEYS_SITE), 8, 'event1 key table load hook (Swap Prev / Next)')
     allow(va_to_off(s, pod.TSDOWN), 8, 'touch-down hook (on_wm_tsdown_fun: j m1plus_tsdown; nop, patch/pulldown.c, docs/modules/payload.md hook 30)')
     for q in SHUFFLE_HOOKS: allow(va_to_off(s, q), 8, 'shuffle hook')
     for q in MODE_SITES: allow(va_to_off(s, q), 4, 'play mode display site')
@@ -278,6 +279,11 @@ def main():
     good = (struct.unpack_from('<II', s, o) == pod.NEXTALBUM_DISPLACED and mw >> 26 == 2 and m[o + 4:o + 8] == bytes(4) and s[o + 8:o + 12] == m[o + 8:o + 12]
             and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s)))
     print(f'mclNextSong end branch hook {pod.NEXTALBUM_SITE:#x}: {s[o:o + 8].hex()} -> {m[o:o + 8].hex()}', 'ok' if good else 'WRONG')
+    ok = ok and good
+    o = va_to_off(s, pod.KEYS_SITE); mw = struct.unpack_from('<I', m, o)[0]
+    good = (struct.unpack_from('<II', s, o) == (0x8c420000, 0xafa20058) and mw >> 26 == 2 and m[o + 4:o + 8] == bytes(4) and s[o + 8:o + 12] == m[o + 8:o + 12]
+            and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s)))
+    print(f'event1 key table load hook {pod.KEYS_SITE:#x}: {s[o:o + 8].hex()} -> {m[o:o + 8].hex()}', 'ok' if good else 'WRONG')
     ok = ok and good
     for q in SHUFFLE_HOOKS + (pod.TSDOWN,):   # (TSDOWN: on_wm_tsdown_fun, the same shape)
         o = va_to_off(s, q); mw = struct.unpack_from('<I', m, o)[0]

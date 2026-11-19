@@ -203,12 +203,12 @@ def settings_tests(ctx):
            'Settings > Buttons & Power: after Appearance, opens our page')
     expect(P.PAGES[P.KEYSPOWER_PAGE_INDEX] is K and P.PAGES[P.KEYLOCK_PAGE_INDEX] is L and P.PAGES[P.SHUTDOWN_PAGE_INDEX] is S
            and (K.key, K.title, L.key, L.title, S.key, S.title) == ('m1plus_keyspower', 'Buttons & Power', 'm1plus_keylock', 'Button Lock', 'm1plus_shutdown', 'Auto-Shutdown'), 'the three pages')
-    expect([(r.label, r.action, r.arg) for r in K.rows] == [('Button Lock', P.ACT_KEYLOCK, P.KEYLOCK_PAGE_INDEX), ('Tap to Wake', P.ACT_TAPWAKE, 0), ('Auto-Standby', P.ACT_STANDBY, 0),
-                                                           ('Auto-Shutdown', P.ACT_SHUTDOWN, P.SHUTDOWN_PAGE_INDEX), ('Car Mode', P.ACT_CARMODE, 0)] and [P.row_kind(r) for r in K.rows] == ['value', 'switch', 'switch', 'value', 'switch'], 'the page\'s rows and their kinds')
+    expect([(r.label, r.action, r.arg) for r in K.rows] == [('Button Lock', P.ACT_KEYLOCK, P.KEYLOCK_PAGE_INDEX), ('Tap to Wake', P.ACT_TAPWAKE, 0), ('Swap Prev / Next', P.ACT_SWAPKEYS, 0), ('Auto-Standby', P.ACT_STANDBY, 0),
+                                                           ('Auto-Shutdown', P.ACT_SHUTDOWN, P.SHUTDOWN_PAGE_INDEX), ('Car Mode', P.ACT_CARMODE, 0)] and [P.row_kind(r) for r in K.rows] == ['value', 'switch', 'switch', 'switch', 'value', 'switch'], 'the page\'s rows and their kinds')
     kl = [x.label if isinstance(x, P.Row) else x.text if isinstance(x, P.Note) else x for x in K.layout]
-    expect(kl == ['Button Lock', 'Only effective when the screen is off', 'Tap to Wake', P.GAP, 'Auto-Standby', 'Auto-Shutdown', 'Only one of Auto-Standby and Auto-Shutdown is on at a time', P.GAP,
+    expect(kl == ['Button Lock', 'Only effective when the screen is off', 'Tap to Wake', P.GAP, 'Swap Prev / Next', 'Next moves to the upper button', P.GAP, 'Auto-Standby', 'Auto-Shutdown', 'Only one of Auto-Standby and Auto-Shutdown is on at a time', P.GAP,
                  'Car Mode', 'Resumes the last track at start. Auto-Standby, Auto-Shutdown and USB connections are ignored.'],
-           f'four cards: Button Lock with its note; Tap to Wake; Auto-Standby + Auto-Shutdown with its note; Car Mode with its note ({kl})')
+           f'five cards: Button Lock with its note; Tap to Wake; Swap Prev / Next with its note; Auto-Standby + Auto-Shutdown with its note; Car Mode with its note ({kl})')
     expect([(r.label, r.action, r.arg) for r in L.rows] == [('Off', P.ACT_KEYLOCKSET, 0), ('Lock Volume Only', P.ACT_KEYLOCKSET, 1), ('Lock Buttons Only', P.ACT_KEYLOCKSET, 2), ('Lock Volume & Buttons', P.ACT_KEYLOCKSET, 3)]
            and all(P.row_kind(r) == 'check' for r in L.rows) and [x.text for x in L.layout if isinstance(x, P.Note)] == ['Only effective when the screen is off'] and P.KEYLOCK_VALUES == ('Off', 'Volume', 'Buttons', 'Both'),
            'the Button Lock picker: Off and stock\'s three modes in stock\'s numbers, the note repeated')
@@ -268,40 +268,40 @@ def settings_tests(ctx):
 
     def sw_images(m, i): return [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets[f'pod_switch{i}']]
     for flag, mode, want in ((0, 3, 'Off'), (1, 1, 'Volume'), (1, 2, 'Buttons'), (1, 3, 'Both'), (1, 9, 'Volume')):
-        got, tr = value(page(P.KEYSPOWER_PAGE_INDEX, 4, PK, flag=flag, mode=mode), 0)
+        got, tr = value(page(P.KEYSPOWER_PAGE_INDEX, 6, PK, flag=flag, mode=mode), 0)
         expect(tr == [want], f'flag {flag}, mode {mode}: the Button Lock row shows {tr}')
     for sh, want in ((0, ['Off']), (1, []), (4, [])):
-        got, tr = value(page(P.KEYSPOWER_PAGE_INDEX, 4, PK, shutdown=sh), 3)
+        got, tr = value(page(P.KEYSPOWER_PAGE_INDEX, 6, PK, shutdown=sh), 4)
         expect(tr == want and got[-1][1] == ('Off' if sh == 0 else ('1min', '3min', '5min', '10min')[sh - 1]), f'the word {sh}: the Auto-Shutdown row shows {got}')
     for tap, sb, img_t, img_s in ((0, 0, 'sset_off', 'sset_off'), (1, 1, 'sset_on', 'sset_on')):
-        m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK, tap=tap, standby=sb)
-        expect(sw_images(m, 1) == [img_t] and sw_images(m, 2) == [img_s] and not saves(m), f'the switches open {img_t} / {img_s} with the bytes ({tap}, {sb}), nothing written')
-    m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK, tap=0)
+        m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK, tap=tap, standby=sb)
+        expect(sw_images(m, 1) == [img_t] and sw_images(m, 3) == [img_s] and not saves(m), f'the switches open {img_t} / {img_s} with the bytes ({tap}, {sb}), nothing written')
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK, tap=0)
     m.click('pod_row1')
     expect(m.byte(TAP) == 1 and saves(m) == [('write_int_config', 1, 'SYSSET', 'DOUBLEWAKE')] and sw_images(m, 1)[-1] == 'sset_on', 'a tap turns Tap to Wake on: the byte, the save, the switch')
     m.click('pod_row1')
     expect(m.byte(TAP) == 0 and sw_images(m, 1)[-1] == 'sset_off', 'and off again')
     # Auto-Standby on while Auto-Shutdown is on: the shutdown row shows Off at once (the page reads the words again after the tap)
-    m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK, standby=0, shutdown=3)
-    m.click('pod_row2')
-    got, tr = value(m, 3)
-    expect(m.state()[3:] == (1, 0) and sw_images(m, 2)[-1] == 'sset_on' and got[-1][1] == 'Off' and tr[-1] == 'Off', f'Auto-Standby on turns Auto-Shutdown off: the words and the row follow ({m.state()}, {got[-2:]})')
-    m.click('pod_row2')
-    expect(m.state()[3:] == (0, 0) and sw_images(m, 2)[-1] == 'sset_off', 'Auto-Standby off')
-    m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK)
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK, standby=0, shutdown=3)
+    m.click('pod_row3')
+    got, tr = value(m, 4)
+    expect(m.state()[3:] == (1, 0) and sw_images(m, 3)[-1] == 'sset_on' and got[-1][1] == 'Off' and tr[-1] == 'Off', f'Auto-Standby on turns Auto-Shutdown off: the words and the row follow ({m.state()}, {got[-2:]})')
+    m.click('pod_row3')
+    expect(m.state()[3:] == (0, 0) and sw_images(m, 3)[-1] == 'sset_off', 'Auto-Standby off')
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK)
     m.calls = []; m.click('pod_row0')
     expect([c[1] for c in m.calls if c[0] == 'window_open'] == [L.key] and 'navigator_to' not in m.names(), 'the Button Lock row opens our picker')
-    m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK); m.calls = []; m.click('pod_row3')
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK); m.calls = []; m.click('pod_row4')
     expect([c[1] for c in m.calls if c[0] == 'window_open'] == [S.key] and 'navigator_to' not in m.names(), 'the Auto-Shutdown row opens our picker')
     # back in front: the words are read again (the Control Center's Button Lock tile writes the byte; stock's pages write all of them)
-    m = page(P.KEYSPOWER_PAGE_INDEX, 4, PK, flag=0, mode=2, tap=0, standby=0, shutdown=0)
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK, flag=0, mode=2, tap=0, standby=0, shutdown=0)
     m.u.mem_write(FLAG, b'\1'); m.u.mem_write(TAP, b'\1'); m.u.mem_write(STANDBY, b'\1')
     m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
     got, tr = value(m, 0)
-    expect(tr == ['Buttons'] and sw_images(m, 1) == ['sset_on'] and sw_images(m, 2) == ['sset_on'] and not saves(m), f'back in front: the lock, both switches follow the state ({tr}, {sw_images(m, 1)}, {sw_images(m, 2)}), nothing written')
+    expect(tr == ['Buttons'] and sw_images(m, 1) == ['sset_on'] and sw_images(m, 3) == ['sset_on'] and not saves(m), f'back in front: the lock, both switches follow the state ({tr}, {sw_images(m, 1)}, {sw_images(m, 3)}), nothing written')
     m.setword(SHUTDOWN, 2); m.u.mem_write(STANDBY, b'\0'); m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
-    got, tr = value(m, 3)
-    expect(got[-1][1] == '3min' and sw_images(m, 2) == ['sset_off'], 'back in front: Auto-Shutdown shows the word stock\'s page set')
+    got, tr = value(m, 4)
+    expect(got[-1][1] == '3min' and sw_images(m, 3) == ['sset_off'], 'back in front: Auto-Shutdown shows the word stock\'s page set')
     m = page(P.KEYLOCK_PAGE_INDEX, 4, flag=1, mode=1)
     m.u.mem_write(FLAG, b'\0'); m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
     expect(checks(m, 4) == [1, 0, 0, 0], 'the picker follows the tile too: Off checked after the byte was cleared')
@@ -311,19 +311,19 @@ def settings_tests(ctx):
     lt = awtk_ui.parse(open(os.path.join(raw, 'm1plus_keylock.bin'), 'rb').read())
     st = awtk_ui.parse(open(os.path.join(raw, 'm1plus_shutdown.bin'), 'rb').read())
     se = awtk_ui.parse(open(os.path.join(raw, 'm1plus_settings.bin'), 'rb').read())
-    expect([kt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(5)] == ['pod_ci_lock_keyhole', 'pod_ci_pointer', 'pod_ci_moon', 'pod_ci_power', 'pod_ci_car'] and kt.find('label_title').get('tr_text') == 'Buttons & Power'
-           and se.find(f'pod_row{ki}').find('pod_icon').get('image') == 'pod_ci_power', 'the page asset: the five glyphs and the title; the Settings row\'s glyph')
-    expect([kt.find(f'pod_label{i}').get('tr_text') for i in range(5)] == ['Button Lock', 'Tap to Wake', 'Auto-Standby', 'Auto-Shutdown', 'Car Mode'], 'the row labels are our short keys')
+    expect([kt.find(f'pod_row{i}').find('pod_icon').get('image') for i in range(6)] == ['pod_ci_lock_keyhole', 'pod_ci_pointer', 'pod_ci_skip_forward', 'pod_ci_moon', 'pod_ci_power', 'pod_ci_car'] and kt.find('label_title').get('tr_text') == 'Buttons & Power'
+           and se.find(f'pod_row{ki}').find('pod_icon').get('image') == 'pod_ci_power', 'the page asset: the six glyphs and the title; the Settings row\'s glyph')
+    expect([kt.find(f'pod_label{i}').get('tr_text') for i in range(6)] == ['Button Lock', 'Tap to Wake', 'Swap Prev / Next', 'Auto-Standby', 'Auto-Shutdown', 'Car Mode'], 'the row labels are our short keys')
     # Car Mode: the switch follows the byte and a tap is stock's click (the byte, the save, the start flag cleared)
     for car, img in ((0, 'sset_off'), (1, 'sset_on')):
-        m = page(P.KEYSPOWER_PAGE_INDEX, 5, PK, tap=0)
+        m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK, tap=0)
         m.u.mem_write(CAR, bytes([car])); m.calls = []; m.fire(O['EVT_WINDOW_TO_FG'])
-        expect(sw_images(m, 4)[-1] == img and not saves(m), f'the byte {car}: the Car Mode switch shows {img} when the page is back in front, nothing written')
-    m = page(P.KEYSPOWER_PAGE_INDEX, 5, PK)
-    m.setword(CARSTART, 3); m.calls = []; m.click('pod_row4')
-    expect(m.byte(CAR) == 1 and m.word(CARSTART) == 0 and saves(m) == [('write_int_config', 1, 'SYSSET', 'CARMODE')] and sw_images(m, 4)[-1] == 'sset_on', f'a tap turns Car Mode on: the byte, the save, the start flag cleared, the switch ({saves(m)})')
-    m.click('pod_row4')
-    expect(m.byte(CAR) == 0 and sw_images(m, 4)[-1] == 'sset_off' and saves(m)[-1] == ('write_int_config', 0, 'SYSSET', 'CARMODE'), 'and off again')
+        expect(sw_images(m, 5)[-1] == img and not saves(m), f'the byte {car}: the Car Mode switch shows {img} when the page is back in front, nothing written')
+    m = page(P.KEYSPOWER_PAGE_INDEX, 6, PK)
+    m.setword(CARSTART, 3); m.calls = []; m.click('pod_row5')
+    expect(m.byte(CAR) == 1 and m.word(CARSTART) == 0 and saves(m) == [('write_int_config', 1, 'SYSSET', 'CARMODE')] and sw_images(m, 5)[-1] == 'sset_on', f'a tap turns Car Mode on: the byte, the save, the start flag cleared, the switch ({saves(m)})')
+    m.click('pod_row5')
+    expect(m.byte(CAR) == 0 and sw_images(m, 5)[-1] == 'sset_off' and saves(m)[-1] == ('write_int_config', 0, 'SYSSET', 'CARMODE'), 'and off again')
     expect(P.ACT_CARMODE == 154 and P.ACT_CARMODE in P.SWITCH_ACTIONS and pod_i18n.key_for('Car Mode') == 'Car Mode' and mod_icons.CARD_GLYPHS['Car Mode'] == 'car', 'the action 154, a switch row; our short key and the car glyph')
     for tree, n, title, first in ((lt, 4, 'Button Lock', 'Off'), (st, 5, 'Auto-Shutdown', 'Off')):
         expect(all(tree.find(f'pod_check{i}').get('visible') == 'false' and tree.find(f'pod_check{i}').get('sensitive') == 'false' for i in range(n)) and tree.find('label_title').get('tr_text') == title
@@ -332,4 +332,102 @@ def settings_tests(ctx):
            'the durations as stock writes them; the lock choices translated')
 
 
-SECTIONS = [lock_tests, tap_tests, power_tests, settings_tests, car_tests]
+def swap_tests(ctx):
+    """Swap Prev / Next: the event1 thread's key table load goes through pod_keys_site and kp_key_map. The site's stock code runs under the emulator from the table index to the resume point, for every key
+    the table gives and each state of the setting file and the kill switch."""
+    import struct
+    from unicorn.mips_const import UC_MIPS_REG_V1
+    expect, P = ctx.expect, pod_pages
+    SWAP, KILL, TABLE = '/mnt/data/m1plus/buttons-swap', '/mnt/mmc/m1plus-off', 0x75b324
+    stock_demo, built = stock_demo_bytes(), built_demo_bytes()
+    w = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+    site, stub = pod.KEYS_SITE, PSYMS['pod_keys_site']
+    expect(site == 0x637bc8 and pod.KEYS_RESUME == 0x637bd0 and O['KEY_PREV'] == 0xd6 and O['KEY_NEXT'] == 0xd7, 'the site 0x637bc8, the resume 0x637bd0, the codes 0xd6 / 0xd7')
+    expect(all(w(stock_demo, a) == old and (a in (site, site + 4) or w(built, a) == old) for a, old, _ in pod.KEYS_PINS), f'all {len(pod.KEYS_PINS)} pinned words are stock\'s and unchanged in the build (but the two edited)')
+    expect(w(built, site) == pod.j(stub) and w(built, site + 4) == 0 and w(built, site - 4) == w(stock_demo, site - 4) and w(built, site + 8) == w(stock_demo, site + 8), 'the two words became `j pod_keys_site; nop`, their neighbours stock\'s')
+    expect(MANIFEST['hook_keys'] == {'addr': site, 'target': stub}, 'the manifest lists the hook')
+
+    def press(code, fs=None, present=(), value=1, m=None):
+        """The thread's words from `v0 = &table[code]` (0x637bc4) to the resume point, for an event of that value (1 down, 2 repeat, 0 up); the key stored in the event at 0x58(sp)."""
+        if m is None:
+            m = Machine()
+            m.fs.update(fs or {}); m.present.update(present)
+        sp = STACK - 0x200
+        m.setword(sp + 0x58, 0xdeadbeef); m.setword(sp + 0x7c, value)
+        for r, v in ((UC_MIPS_REG_SP, sp), (UC_MIPS_REG_V0, (code & 0xff) * 4), (UC_MIPS_REG_V1, TABLE), (UC_MIPS_REG_GP, 0)): m.u.reg_write(r, v)
+        m.calls = []; m._icount = 0; m.limit = 400000
+        m.u.emu_start(0x637bc4, pod.KEYS_RESUME)
+        expect(m.u.reg_read(UC_MIPS_REG_GP) == 0xa03ed0 and m.u.reg_read(UC_MIPS_REG_SP) == sp and m.word(sp + 0x7c) == value, f'code {code:#x}: $gp is stock\'s again, the frame is the thread\'s and the value untouched')
+        return m.word(sp + 0x58), m
+
+    table = {c: w(stock_demo, TABLE + 4 * c) for c in range(256)}
+    expect(table[0xa3] == 0xd7 and table[0xa5] == 0xd6 and table[0xa4] == 0xd5, 'event1: KEY_NEXTSONG next, KEY_PREVIOUSSONG previous, KEY_PLAYPAUSE play')
+    for label, fs, present, swapped in (('missing', {}, (), 0), ('off', {SWAP: b'0\n'}, (), 0), ('on', {SWAP: b'1\n'}, (), 1), ('on, kill switch', {SWAP: b'1\n'}, (KILL,), 0)):
+        for c in (0xa3, 0xa5, 0xa4, 0x74, 0x71, 0x80, 0x1c):
+            want = {0xd6: 0xd7, 0xd7: 0xd6}.get(table[c], table[c]) if swapped else table[c]
+            got, m = press(c, fs, present)
+            expect(got == want, f'setting {label}, Linux code {c:#x}: the event gets {want:#x} ({got:#x})')
+    got, m = press(0x74, {SWAP: b'1\n'})
+    expect(not any(c[0] in ('open', 'access') for c in m.calls), 'a key other than previous or next reads no file')
+    m = Machine()
+    expect(m.call(PSYMS['kp_swap']) == 0 and m.call(PSYMS['kp_swap_toggle'], count=4000000) == 1 and m.fs[SWAP] == b'1\n' and m.call(PSYMS['kp_swap']) == 1
+           and m.call(PSYMS['kp_key_map'], a0=0xd7, a1=1) == 0xd6 and m.call(PSYMS['kp_key_map'], a0=0xd7) == 0xd6 and m.call(PSYMS['kp_swap_toggle'], count=4000000) == 0 and m.fs[SWAP] == b'0\n' and m.call(PSYMS['kp_key_map'], a0=0xd7, a1=1) == 0xd7 and m.call(PSYMS['kp_key_map'], a0=0xd7) == 0xd7,
+           'the switch: off by default; a toggle saves 1 atomically and swaps at once, then 0')
+    # One press keeps the mapping of its key down through its repeats and its key up, whatever happens meanwhile; a new key down takes the setting and the kill switch anew
+    PREV, NEXT = 0xa5, 0xa3
+    def seq(m, steps):
+        return [press(c, value=v, m=m)[0] for c, v in steps]
+    m = Machine()
+    got = [press(PREV, value=1, m=m)[0]]
+    expect(m.call(PSYMS['kp_swap_toggle'], count=4000000) == 1, 'toggled on while previous is held')
+    got += seq(m, ((PREV, 2), (PREV, 0), (PREV, 1), (PREV, 0)))
+    expect(got == [0xd6, 0xd6, 0xd6, 0xd7, 0xd7], f'held through a toggle on: down, repeat and up stay previous; the next press is next ({[hex(g) for g in got]})')
+    m = Machine(); m.fs[SWAP] = b'1\n'
+    got = seq(m, ((NEXT, 1),))
+    m.present.add(KILL)
+    got += seq(m, ((NEXT, 2), (NEXT, 0), (NEXT, 1), (NEXT, 0)))
+    expect(got == [0xd6, 0xd6, 0xd6, 0xd7, 0xd7], f'the kill switch appearing after the first press: the held press stays swapped, the next press is stock ({[hex(g) for g in got]})')
+    # A lost key up: stock's pressed-key slots (input_device_status_update_key_status 0x6a46b8, slots of 0x18 bytes at ids + 0x18, the key first) must be empty once a later key up arrives
+    UPDATE_KEY = 0x6a46b8
+    expect(w(stock_demo, UPDATE_KEY) == 0x3c1c0036 and w(stock_demo, 0x6a4d9c) == 0x24060001 and w(stock_demo, 0x6a4e90) == 0x00003025, 'stock\'s key status update: down at KEY_DOWN, up at KEY_UP')
+    m = Machine(); m.fs[SWAP] = b'1\n'
+    ids = m.alloc(0x200); m.u.mem_write(ids, bytes(0x200))
+    m.handlers[m.word(0xa03ed0 - 0xadc)] = 'memset'   # the key up clears its slot with memset through stock's GOT
+    def deliver(steps):
+        out = []
+        for c, v in steps:
+            k = press(c, value=v, m=m)[0]; out.append(k)
+            m.call(UPDATE_KEY, a0=ids, a1=k, a2=1 if v else 0, count=200000)
+        return out
+    held = lambda: [m.word(ids + 0x18 + 0x18 * i) for i in range(16) if m.word(ids + 0x18 + 0x18 * i)]
+    got = deliver(((PREV, 1),))
+    expect(m.call(PSYMS['kp_swap_toggle'], count=4000000) == 0, 'toggled off with the key up lost')
+    got += deliver(((PREV, 1), (PREV, 0)))
+    expect(got == [0xd7, 0xd7, 0xd7] and held() == [], f'a lost key up: the next press keeps the code stock holds, and its key up releases it ({[hex(g) for g in got]}, held {[hex(k) for k in held()]})')
+    got = deliver(((PREV, 1), (PREV, 0)))
+    expect(got == [0xd6, 0xd6] and held() == [], f'the press after it takes the setting anew ({[hex(g) for g in got]})')
+    m = Machine()
+    got = seq(m, ((PREV, 1),))
+    expect(m.call(PSYMS['kp_swap_toggle'], count=4000000) == 1, 'toggled on while previous is held')
+    got += seq(m, ((NEXT, 1), (NEXT, 2), (PREV, 0), (NEXT, 0), (NEXT, 1), (NEXT, 0)))
+    expect(got == [0xd6, 0xd7, 0xd7, 0xd6, 0xd7, 0xd6, 0xd6], f'overlapping presses keep one mapping until both are up, so the two buttons never send the same key ({[hex(g) for g in got]})')
+    # The first read cannot overwrite a toggle saved while it ran: the UI thread publishes Off (1) while the input thread reads the old file
+    state = PSYMS.get('kp_swap_state')
+    expect(state is not None, 'kp_swap_state is in the payload\'s symbols')
+    if state is not None:
+        class Racy(list):
+            def append(self, c):
+                super().append(c)
+                if c[0] == 'open' and c[1] == SWAP: m.setword(state, 1)
+        m = Machine(); m.fs[SWAP] = b'1\n'
+        sp = STACK - 0x200
+        m.setword(sp + 0x58, 0xdeadbeef); m.setword(sp + 0x7c, 1)
+        for r, v in ((UC_MIPS_REG_SP, sp), (UC_MIPS_REG_V0, PREV * 4), (UC_MIPS_REG_V1, TABLE), (UC_MIPS_REG_GP, 0)): m.u.reg_write(r, v)
+        m.calls = Racy(); m._icount = 0; m.limit = 400000
+        m.u.emu_start(0x637bc4, pod.KEYS_RESUME)
+        expect(m.word(state) == 1 and m.word(sp + 0x58) == 0xd6 and m.call(PSYMS['kp_swap']) == 0, 'a toggle published during the first read wins: the state stays Off and the press is stock')
+    expect(('Swap Prev / Next', P.ACT_SWAPKEYS) in [(r.label, r.action) for r in P.KEYSPOWER_PAGE.rows] and P.ACT_SWAPKEYS in P.SWITCH_ACTIONS and 'buttons-swap' in P.SETTING_FILES,
+           'Buttons & Power has the switch, saved in buttons-swap and listed on Settings Files')
+
+
+SECTIONS = [lock_tests, tap_tests, power_tests, settings_tests, car_tests, swap_tests]

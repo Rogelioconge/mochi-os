@@ -206,6 +206,11 @@ TEXT = dict([
        'Vinilo', 'Vinile', 'แผ่นเสียง', 'Winyl', 'Винил', 'Вініл'),
     _t('Shown after 10 seconds on Now Playing.', '在正在播放界面停留10秒后显示。', '在正在播放畫面停留10秒後顯示。', '再生画面で10秒後に表示されます。', '지금 재생 화면에서 10초 후 표시됩니다.', "Affichée après 10 s sur Lecture en cours.", 'Nach 10 Sekunden auf „Jetzt läuft“.',
        'Se muestra tras 10 s en Reproduciendo.', 'Mostrata dopo 10 secondi in Riproduzione.', 'แสดงหลัง 10 วินาทีในหน้ากำลังเล่น', 'Pokazywane po 10 s na ekranie odtwarzania.', 'Через 10 с на экране «Сейчас играет».', 'Через 10 секунд на екрані «Зараз грає».'),
+    # Settings > Buttons & Power > Swap Prev / Next (patch/keyspower.c, docs/modules/keyspower.md); machine translations, unreviewed
+    _t('Swap Prev / Next', '交换上一曲/下一曲', '交換上一首/下一首', '前/次を入れ替え', '이전/다음 바꾸기', 'Inverser Préc./Suiv.', 'Tasten tauschen',
+       'Invertir Ant./Sig.', 'Inverti Prec./Succ.', 'สลับก่อนหน้า/ถัดไป', 'Zamień Poprz./Nast.', 'Поменять кнопки', 'Поміняти кнопки'),
+    _t('Next moves to the upper button', '下一曲改为上方按键', '下一首改為上方按鍵', '「次へ」が上のボタンになります', '다음 곡이 위쪽 버튼이 됩니다', 'Suivant passe au bouton du haut', 'Weiter liegt auf der oberen Taste',
+       'Siguiente pasa al botón superior', 'Successivo passa al tasto superiore', 'ปุ่มถัดไปย้ายไปเป็นปุ่มบน', 'Następny na górnym przycisku', 'Вперёд — на верхней кнопке', 'Вперед — на верхній кнопці'),
     # Settings > Now Playing > Track Position (patch/nowplaying.c, docs/modules/nowplaying.md); machine translations, unreviewed
     _t('Track Position', '曲目位置', '曲目位置', 'トラック位置', '트랙 위치', 'Position du titre', 'Titelposition',
        'Posición de pista', 'Posizione brano', 'ลำดับเพลง', 'Pozycja utworu', 'Номер трека', 'Номер треку'),

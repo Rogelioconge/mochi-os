@@ -6,6 +6,7 @@
  * the refresh, so they are not called. */
 #include "offsets.inc"
 #include "stock.h"
+#include "home.h"
 #include "entries.h"
 
 #define KP_SHUTDOWN_MAX 4 /* stock's last duration (10 minutes) */
@@ -124,4 +125,42 @@ int kp_shutdown_set(int v) {
         reset_poweroptions_timer(0, 1, 0);
     }
     return 0;
+}
+
+/* Swap Prev / Next (SWAPKEYS_FILE, ours): the physical previous and next buttons trade places. The input thread of /dev/input/event1 maps each Linux key code through stock's table 0x75b324; the
+ * pod_keys_site stub (tools/pod.py KEYS_SITE) hands the mapped code and the event's value (1 down, 2 repeat, 0 up) to kp_key_map before the code is stored in the event, so every later reader
+ * (on_wm_keyup_fun with its own Screen Rotation swap, long press, the Button Lock gates, Cover Flow) sees the swapped key. Bluetooth controls are posted by on_wm_idle_status and stay as they are.
+ *
+ * kp_swap_state is the saved setting, 0 not read yet, 1 off, 2 on, shared by both threads through atomic loads and stores. The UI thread's toggle stores it after the save; the input thread publishes
+ * its first read only while it is still 0 (a compare-and-swap), so a stale read never overwrites a toggle. kp_map is the mapping in use (0 none, 1 stock, 2 swapped) and kp_held the buttons down (bit 0
+ * previous, bit 1 next, by physical button), both touched only by the input thread. The mapping is chosen at a key down while no other of the two buttons is down and kept until both are up: a toggle or
+ * the kill switch mid-press can neither split one press into a previous down and a next up nor send both buttons as the same key (stock keeps one slot and one long-press timer per key). A lost key up
+ * keeps the old mapping until that button's next key up arrives, so stock releases the code it holds. kp_key_map calls no stock function: one file read on the first press, the kill switch's two stats on each choice while the setting is on. */
+static int kp_swap_state __attribute__((section(".scratch")));
+static unsigned char kp_map __attribute__((section(".scratch")));
+static unsigned char kp_held __attribute__((section(".scratch")));
+
+int kp_swap(void) {
+    int s = __atomic_load_n(&kp_swap_state, __ATOMIC_ACQUIRE);
+    if (!s) {
+        int v = set_read(SWAPKEYS_FILE, '0') == '1' ? 2 : 1;
+        s = 0;
+        if (!__atomic_compare_exchange_n(&kp_swap_state, &s, v, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) v = s;
+        s = v;
+    }
+    return s == 2;
+}
+
+int kp_swap_toggle(void) {
+    int v = home_set_digit(SWAPKEYS_FILE, SWAPKEYS_TMP, !kp_swap(), 1);
+    if (v >= 0) __atomic_store_n(&kp_swap_state, v ? 2 : 1, __ATOMIC_RELEASE);
+    return v;
+}
+
+int kp_key_map(int key, int value) {
+    if (key != KEY_PREV && key != KEY_NEXT) return key;
+    int bit = key == KEY_NEXT ? 2 : 1;
+    if (!kp_map || (value == 1 && !kp_held)) kp_map = kp_swap() && !home_off() ? 2 : 1;
+    kp_held = (unsigned char)(value ? kp_held | bit : kp_held & ~bit);
+    return kp_map == 2 ? key ^ (KEY_PREV ^ KEY_NEXT) : key;
 }

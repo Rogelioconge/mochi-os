@@ -183,6 +183,8 @@
 #define EV_KEY 0x18             /* the key event's code: on_wm_keyup_fun reads 0x18($a1) (0x4cda0c) */
 #define KEY_VOL_UP 0xdc         /* on_wm_keyup_fun, the volume dialog handler 0x47e330 */
 #define KEY_VOL_DOWN 0xdd
+#define KEY_PREV 0xd6 /* the key codes of /dev/input/event1's table 0x75b324: Linux KEY_PREVIOUSSONG (0xa5) and KEY_NEXTSONG (0xa3) */
+#define KEY_NEXT 0xd7
 #define EVT_POINTER_DOWN 0xff  /* input_device_status_on_input_event jump table @0x88f120 */
 #define EVT_POINTER_MOVE 0x101
 #define EVT_POINTER_UP 0x103

@@ -167,6 +167,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `folders-sort` | Folders order | `0` Name, `1` Date Modified, `2` Type, or `a` `b` `c` for the same order reversed; missing/other Name A-Z; one order for every level ([folders](folders.md)) |
 | `home-daily-mix` | Daily Mix | `0` off; missing/other on ([dailymix](dailymix.md)) |
 | `home-menu` | Main Menu / Extras | item ids in order, optional `-` then the hidden ids; invalid = defaults ([menu](menu.md)) |
+| `buttons-swap` | Swap Prev / Next | `1` on; missing/other off (the default) ([keyspower](keyspower.md) "Swap Prev / Next") |
 | `home-recent-albums` | Recent Albums | `0` off; missing/other on |
 | `keyboard-pinyin` | Chinese (Pinyin) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |
 | `keyboard-french` | French (AZERTY) keyboard | `1` on; missing/other off ([keyboard](keyboard.md)) |

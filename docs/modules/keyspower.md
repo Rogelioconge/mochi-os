@@ -1,10 +1,11 @@
 # Buttons & Power
 
 **Sources:** `patch/keyspower.c` (getters, setters), `patch/m1plus.c` (page wiring),
-`KEYSPOWER_PAGE` in `tools/pod_pages.py`, `KEYSPOWER_PINS` in `tools/pod.py`.
+`KEYSPOWER_PAGE` in `tools/pod_pages.py`, `KEYSPOWER_PINS` and `KEYS_PINS` in `tools/pod_pins.py`, the
+`pod_keys_site` stub in `tools/pod.py`.
 Settings > Buttons & Power is one own cards page (`m1plus_keyspower`) that replaces four stock
 controls the way [Display](display.md) replaced stock's Display list: our own rows, stock's own
-state words and config saves, no row opening a stock page, nothing of ours saved. Sleep Timer is
+state words and config saves, no row opening a stock page. Swap Prev / Next is ours (one file). Sleep Timer is
 [its own page](sleeptimer.md); Screen Rotation is on [Display](display.md). Stock's pages stay under
 All System Settings and show the same state. The emulator tests run stock's own handlers on the same
 state and require the same final state, the same `write_int_config` / `reset_poweroptions_timer`
@@ -18,6 +19,7 @@ calls in the same order.
 | Tap to Wake | byte (0/1) | `DOUBLEWAKE` | switch row |
 | Auto-Standby | byte (0/1, 300 s fixed) | `STANDBYMODE` | switch row |
 | Auto-Shutdown | word (0 off, 1..4 = 1/3/5/10 min) | `SAVEPOWERMODE` | value row + picker (Off, 1min, 3min, 5min, 10min) |
+| Swap Prev / Next | ours: `/mnt/data/m1plus/buttons-swap` | none | switch row |
 
 ## Behaviour rules
 
@@ -61,18 +63,51 @@ and the main loop wakes the screen on the gesture state, so toggling the byte is
 - Stock's page re-reads on return to the foreground (the other page can change the same state), so
   ours does too.
 
+## Swap Prev / Next
+
+Off by default. On, the physical previous and next buttons trade places: the upper one skips
+forward, the lower one goes back. The setting is ours (`buttons-swap`, `1` = on, written
+atomically); a change applies to the next key press.
+
+- **Where the swap is made.** Stock reads the three track buttons (previous, play, next) in the
+  input thread of `/dev/input/event1` (`0x637870`, started by `input_thread_run`). It maps the Linux
+  code through the table `0x75b324` (`KEY_PREVIOUSSONG` 0xa5 to `0xd6`, `KEY_NEXTSONG` 0xa3 to
+  `0xd7`) and stores the result in the event. Hook 35 replaces that load and store with
+  `j pod_keys_site; nop`. The stub loads the table word and the event's value (`0x7c(sp)`: 1 down,
+  2 repeat, 0 up), calls `kp_key_map`, stores its answer and resumes at `0x637bd0`. `kp_key_map`
+  swaps `0xd6` and `0xd7` while the setting is on and returns every other code unchanged.
+- **One mapping per press.** The mapping is chosen at a key down while neither track button is
+  marked down, and kept until both are released. A toggle or the kill switch mid-press can neither turn one
+  press into a previous down and a next up nor make both held buttons send the same key (stock
+  keeps one held slot and one long-press timer per key). A lost key up keeps the old mapping
+  until that button's next key up arrives, so stock releases the code it still holds.
+- **Everything after it is stock's.** Key down, key up and long press all come from the same
+  event, so `on_wm_keyup_fun`, the Button Lock gates and Now Playing's handler all see the swapped
+  key. Screen Rotation's own swap (`ROTATEMODE` 1, in `on_wm_keyup_fun` and `player_timer_clear`)
+  still applies on top, so the upper button is next in both orientations.
+- **Not swapped:** the volume keys (`/dev/input/event2`, table `0x75b7f8`, which has no previous or
+  next) and Bluetooth or remote controls, which `on_wm_idle_status` posts as keys of its own.
+- **Thread rules.** `kp_key_map` runs on the input thread and calls no stock function. The setting
+  is one word (0 not read, 1 off, 2 on), read from the file on the first previous or next press.
+  Both threads use atomic loads and stores on it. The toggle on the UI thread stores it after the
+  save; the input thread publishes its first read with a compare-and-swap from 0, so a stale read
+  never overwrites a toggle. Each choice of the mapping while the setting is on also checks the kill
+  switch (two stats); present, the press is stock's.
+
 ## The page
 
 In the Display, Appearance, Buttons & Power, Battery card (`Row('Buttons & Power', ACT_PAGE,
-KEYSPOWER_PAGE_INDEX)`, glyph `power`). Three cards:
+KEYSPOWER_PAGE_INDEX)`, glyph `power`). Four cards:
 
 | Card | Row | Kind | Action |
 |---|---|---|---|
 | 1 | Button Lock | value row (Off, Volume, Buttons, Both) opening picker `m1plus_keylock` | `ACT_KEYLOCK` |
 | | "Only effective when the screen is off" | note | |
 | 2 | Tap to Wake | switch | `ACT_TAPWAKE` |
-| 3 | Auto-Standby | switch | `ACT_STANDBY` |
-| 3 | Auto-Shutdown | value row opening picker `m1plus_shutdown` | `ACT_SHUTDOWN` |
+| 3 | Swap Prev / Next | switch | `ACT_SWAPKEYS` |
+| | "Next moves to the upper button" | note | |
+| 4 | Auto-Standby | switch | `ACT_STANDBY` |
+| 4 | Auto-Shutdown | value row opening picker `m1plus_shutdown` | `ACT_SHUTDOWN` |
 | | "Only one of Auto-Standby and Auto-Shutdown is on at a time" | note, two lines | |
 
 The pickers are check rows: Button Lock (Off, Lock Volume Only, Lock Buttons Only, Lock Volume &
