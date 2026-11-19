@@ -19,6 +19,14 @@ Open **Extras → Radio** to play internet stations over Wi-Fi. To put it on the
    the list. Starting local music stops the radio. Bluetooth audio is supported too.
 3. Use **…** on Radio Now Playing to add or remove the station from **My Stations**.
 
+To manage **My Stations**, use its **…** menu:
+
+- **Select** marks stations; **Delete** removes them after asking.
+- **Sort by Name** puts the list in A–Z order.
+- **Add by URL** takes a stream address (`http://` or `https://`), then a name.
+
+You can also hold a station and choose **Remove from My Stations**.
+
 Saved stations live in `Radio/favourites.m3u` on the card. To import your own lists, copy `.m3u`,
 `.m3u8` or `.pls` files into `Radio/`, then choose **My Stations → … → Import from Card**.
 It adds stations not already saved and leaves your source files unchanged.

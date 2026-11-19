@@ -29,6 +29,8 @@
 #include "pcopml.h"
 #include "pcnet.h"
 #include "radio.h"
+#include "rowmenu.h"
+#include "selmode.h"
 
 #define RP_ASSET "m1plus_radio"
 #define RP_W 320
@@ -69,13 +71,22 @@ static const char *const RP_ICON_NAME[RI_N] = {"pod_ic_rd_stations", "pod_ic_rd_
 static const char *const RP_ROW_TEXT[RR_N] = {"Now Playing",  "My Stations", "Recently Played", "Radio Browser",
                                               "Top Stations", "By Country",  "By Genre"};
 static const int RP_ROW_ICON[RR_N] = {RI_NOW, RI_STATIONS, RI_RECENT, RI_BROWSER, RI_TOP, RI_COUNTRY, RI_GENRE};
+/* The sheets' rows (tools/pod_ui.py RS_SHEET_ROWS): My Stations' "..." the first four, Recently Played's Clear, a long press on a My Stations row Remove. */
+enum { SH_SELECT, SH_SORT, SH_ADD, SH_IMPORT, SH_CLEAR, SH_REMOVE, SH_N };
+static const char *const RP_SH_ID[SH_N] = {"select", "sort", "addurl", "import", "clear", "remove"};
+#define RP_SCHEME "http://" /* what an empty Add by URL address starts as, and what its clear button leaves */
 
 #define P(w, off) (*(void **)((char *)(w) + (off)))
 
 static struct {
     void *win, *view, *sv, *lv, *status, *title, *big, *fade, *back, *np, *find, *st_title, *st_sub, *st_gtitle,
-        *st_gsub, *credit, *field, *view_btn, *more, *sh_scrim, *sh_card, *sh_row, *sh_hr, *sh_clear, *sh_clear_hr;
+        *st_gsub, *credit, *field, *view_btn, *more, *sh_scrim, *sh_card, *btn_selall, *bar, *del;
+    void *sh[SH_N], *sh_hr[SH_N]; /* the sheets' rows and their hairlines */
     void *chev, *ic[RI_N];
+    m1_sel_t ms; /* My Stations' select mode (patch/selmode.c) */
+    int select, entry,
+        hold; /* the select mode is on; Add by URL's step (1 the address, 2 the name); the row a long press holds */
+    char add_url[KB_MAX_LONG + 1];
     az_t al; /* the countries' sections, rail and pinned header */
     grid_t g; /* the text ring of the rows and the stations' tiles */
     int level, from, nrows, note, loading, genre, press, down, title_on, noscroll, favs, sheet;
@@ -123,7 +134,10 @@ static int rp_rows_end(void) {
     if (rp_grid()) return rp_top() + (rp.nrows + GRID_COLS - 1) / GRID_COLS * GRID_PITCH - GRID_ROW_GAP;
     return rp_top() + rp.nrows * rp_row_h() + rp_gap();
 }
-static int rp_content(void) { return rp_rows_end() + (rp_credit() ? RP_CREDIT_H : RP_END); }
+static int rp_content(void) {
+    return rp_rows_end() + (rp_credit() ? RP_CREDIT_H : RP_END) +
+           (rp.select ? SG_BAR_H : 0); /* the last row clears the select bar */
+}
 static int rp_max_scroll(void) {
     int m = rp_content() - GRID_VIEW_H;
     return m > 0 ? m : 0;
@@ -230,19 +244,25 @@ static grid_tile_t *rp_tile_of(void *ctx, int a) {
 
 /* The stations in the list mode: the Albums list's rows (grid_list_paint), the first one rp_top() down the content. */
 static void rp_paint_list(void *canvas) {
-    int r0, r1;
+    int r0, r1, r, co = rp_off() - rp_top();
     rp_span(&r0, &r1);
     if (r1 < r0) return;
-    grid_list_paint(canvas, &rp.g, rp.st_title, rp.st_sub, r0, r1, rp_off() - rp_top(), GRID_VIEW_H, rp.press, 0, 0,
-                    rp_tile_of, (void *)0);
+    for (r = r0; rp.select && r <= r1; ++r) /* the select look under the cover and text (the Playlists list's) */
+        m1_sel_paint(&rp.ms, canvas, r, r * LIST_ROW_H - co, LIST_ROW_H, RP_W,
+                     LIST_ART_X + (SG_SEL_COL - 6 - SG_MARK) / 2, GRID_VIEW_H);
+    grid_list_paint(canvas, &rp.g, rp.st_title, rp.st_sub, r0, r1, co, GRID_VIEW_H, rp.select ? 0 : rp.press,
+                    rp.select ? SG_SEL_COL : 0, 0, rp_tile_of, (void *)0);
 }
 
-/* The stations in the grid mode: the Albums grid's cells (covers, then names, then captions). */
+/* The stations in the grid mode: the Albums grid's cells (covers, then names, then captions); in select mode a mark at each cover's bottom right (the Playlists grid's). */
 static void rp_paint_grid(void *canvas) {
-    int c0, c1;
+    int c0, c1, a, y0 = rp_top() - rp_off();
     rp_gspan(&c0, &c1);
     if (c1 < c0) return;
-    grid_paint(canvas, &rp.g, c0, c1 + 1, rp_top() - rp_off(), GRID_VIEW_H, rp_tile_of, (void *)0);
+    grid_paint(canvas, &rp.g, c0, c1 + 1, y0, GRID_VIEW_H, rp_tile_of, (void *)0);
+    for (a = c0; rp.select && a <= c1; ++a)
+        grid_mark_draw(canvas, rp.ms.mark[m1_sel_is(&rp.ms, a)], grid_cell_x(a) + GRID_COVER - SG_MARK - 6,
+                       grid_cell_y(a, y0) + GRID_COVER - SG_MARK - 6, GRID_VIEW_H);
 }
 
 static void rp_paint_rows(void *canvas) {
@@ -339,7 +359,8 @@ static void rp_credit_place(void) {
 
 static void rp_title_update(void) {
     m1_title_set(rp.title, &rp.title_on,
-                 rp.noscroll || rp.note || rp.search || !rp.nrows || m1_title_gone(rp_off(), 0));
+                 rp.noscroll || rp.note || rp.search || rp.entry || rp.select || !rp.nrows ||
+                     m1_title_gone(rp_off(), 0));
     if (rp.fade) {
         grid_fade(rp.fade, rp_off() > 0);
     }
@@ -607,7 +628,9 @@ static void rp_play(int i) {
 }
 
 /* The Stations level (favourites.m3u) read again and shown; empty it keeps the level, with the hint and the "..." (Import from Card). keep: the scroll offset it was left at. */
+static void rp_select(int on);
 static void rp_stations(int keep) {
+    rp_select(0); /* the marks were of the list read before */
     rd_favs_read(&rp.list);
     snprintf(rp.caption, sizeof rp.caption, "%s", TR("My Stations"));
     rp_show_level(L_LIST, keep);
@@ -668,7 +691,7 @@ static void rp_pick(int i) {
  */
 /* The list's height with or without the pad under it. */
 static void rp_search_layout(void) {
-    int pad = rp.search && keyboard_shown() ? KB_H : 0;
+    int pad = (rp.search || rp.entry) && keyboard_shown() ? KB_H : 0;
     widget_resize(rp.lv, RP_W, GRID_VIEW_H - pad);
     widget_resize(rp.sv, 310, GRID_VIEW_H - pad);
 }
@@ -720,7 +743,7 @@ static void rp_on_text(const char *text) { (void)text; }
 /* A tap on the field brings the pad back. */
 static int rp_on_field(void *ctx, void *e) {
     (void)ctx;
-    if (e && *(int *)e == EVT_POINTER_UP && rp.search && !keyboard_shown()) {
+    if (e && *(int *)e == EVT_POINTER_UP && (rp.search || rp.entry) && !keyboard_shown()) {
         keyboard_show(1);
         rp_search_layout();
         grid_sv_redraw(rp.sv);
@@ -767,6 +790,20 @@ static int rp_item_of(void *e) {
     return rp_item_at(pt[0], pt[1]);
 }
 
+/* The My Stations level as a list of the card's file (not the search results over it, not Recently Played). */
+static int rp_my(void) { return rp.level == L_LIST && rp.local && rp.favs && !rp.search && !rp.note; }
+
+static void rp_sheet_open(const int *ids, int n);
+
+/* A long press on a My Stations row: its one-row sheet, Remove from My Stations. */
+static void rp_on_hold(int a) {
+    static const int ids[] = {SH_REMOVE};
+    grid_press_end(&rp.down, &rp.press, rp.sv);
+    if (!rp.win || !rp_my() || rp.select || rp.entry || rp.sheet || a < 0 || a >= rp.list.n) return;
+    rp.hold = a;
+    rp_sheet_open(ids, 1);
+}
+
 static int rp_on_down(void *ctx, void *e) {
     int a;
     (void)ctx;
@@ -774,17 +811,30 @@ static int rp_on_down(void *ctx, void *e) {
     if (!e || !rp.view || !rp.nrows || rp.note) return RET_OK;
     a = rp_item_of(e);
     rp.down = a + 1, m1_tap_at(&rp.tap, e);
-    grid_set_press(&rp.press, a + 1, rp.sv);
+    if (!rp.select) grid_set_press(&rp.press, a + 1, rp.sv);
+    if (a >= 0 && rp_my() && !rp.select) rowmenu_hold_start(a, rp_on_hold);
+    return RET_OK;
+}
+
+static int rp_on_move(void *ctx, void *e) {
+    (void)ctx;
+    if (rp.down && e) rowmenu_hold_move(&rp.tap, e); /* a drift is a drag, not a long press */
     return RET_OK;
 }
 
 static int rp_on_up(void *ctx, void *e) {
     int a = rp.down - 1;
     (void)ctx;
+    rowmenu_hold_stop();
     grid_press_end(&rp.down, &rp.press, rp.sv);
     if (a < 0 || !e || !rp.view || rp.note) return RET_OK;
     if (!m1_tap_near(&rp.tap, e) || rp_item_of(e) != a || a >= rp.nrows) return RET_OK;
-    if (rp_rows_lvl())
+    if (rp.select) {
+        if (m1_sel_toggle(&rp.ms, a)) {
+            m1_sel_head(&rp.ms);
+            grid_sv_redraw(rp.sv);
+        }
+    } else if (rp_rows_lvl())
         rp_root_action(rp.rows[a]);
     else if (rp.level == L_PICK)
         rp_pick(a);
@@ -796,30 +846,258 @@ static int rp_on_up(void *ctx, void *e) {
 static int rp_on_abort(void *ctx, void *e) {
     (void)ctx;
     (void)e;
+    rowmenu_hold_stop();
     grid_press_end(&rp.down, &rp.press, rp.sv);
     return RET_OK;
+}
+
+/* ---------------------------------------------------------------------------
+ * My Stations' select mode (the sheet's Select), in the Playlists page's manner: Back becomes the x, the title "N Selected", Select All at the right, a mark on every row or
+ * cell, the bar with one Delete pill. Delete asks, then takes the marked stations out of favourites.m3u.
+ */
+static int rp_select_ok(void) { return rp.btn_selall && rp.bar && rp.del && rp.ms.mark[0] && rp.ms.mark[1]; }
+
+static void rp_select(int on) {
+    if (on == rp.select) return;
+    if (on && (!rp_select_ok() || !rp_my() || !rp.list.n || !m1_sel_reset(&rp.ms, (unsigned)rp.list.n))) return;
+    rowmenu_hold_stop();
+    rp.select = on;
+    rp.press = rp.down = 0;
+    m1_sel_enter(&rp.ms, on, NAV_VIEW_X);
+    if (on) {
+        m1_show(rp.np, 0);
+        m1_show(rp.more, 0);
+        m1_show(rp.view_btn, 0);
+        rp_size();
+        rp.title_on = -1;
+        rp_title_update();
+        grid_sv_redraw(rp.sv);
+        return;
+    }
+    m1_show(rp.np, 1);
+    rp.sel[L_LIST] = rp_off();
+    rp_show_level(L_LIST, 1); /* the level's own navbar, title and height */
+}
+
+static int rp_on_selall(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    if (!rp.select) return RET_OK;
+    m1_sel_toggle_all(&rp.ms);
+    m1_sel_head(&rp.ms);
+    grid_sv_redraw(rp.sv);
+    return RET_OK;
+}
+
+/* A failed write keeps the list (and the select mode) as it was. */
+static void rp_removed(int r, int one) {
+    if (r < 0) {
+        pod_toast(TR("Could not save My Stations"));
+        return;
+    }
+    if (one && r > 0) pod_toast(TR("Removed from My Stations"));
+    if (!rp.note) rp.sel[L_LIST] = rp_off();
+    rp_stations(1);
+}
+
+static int rp_on_delete(void *ctx, void *e) {
+    char q[160];
+    (void)ctx;
+    (void)e;
+    if (!rp.select || !rp.ms.nsel) return RET_OK;
+    m1_fmt(q, sizeof q,
+           TR(rp.ms.nsel == 1 ? "Remove %d station from My Stations?" : "Remove %d stations from My Stations?"),
+           (int)rp.ms.nsel);
+    if (!pod_confirm(q)) return RET_OK;
+    rp_removed(rd_fav_remove(&rp.list, rp.ms.bits), 0);
+    return RET_OK;
+}
+
+/* ---------------------------------------------------------------------------
+ * Add by URL: the search page's field and pad take the address (Next), then the station's name (Done, the address's host to start with); the station is appended to My Stations.
+ * Back leaves it with nothing written.
+ */
+static void rp_on_add_text(const char *text);
+static void rp_on_add_go(void);
+
+/* The address's host (no user info, an IPv6 one without its brackets) into out (cut to n - 1 bytes); its length, 0 when there is none. */
+static unsigned rp_url_host(const char *url, char *out, unsigned n) {
+    const char *a = strstr(url, "://"), *e, *h, *t;
+    unsigned k;
+    a = a ? a + 3 : url;
+    for (e = a; *e && !strchr("/?#", *e); ++e) {
+    }
+    for (h = a, t = a; t < e; ++t)
+        if (*t == '@') h = t + 1; /* the host follows the last '@' of the authority */
+    if (*h == '[') { /* [v6]: up to the bracket, then the end or a port */
+        for (t = ++h; t < e && *t != ']'; ++t) {
+        }
+        if (t == e || (t + 1 < e && t[1] != ':')) t = h;
+    } else
+        for (t = h; t < e && *t != ':'; ++t) {
+        }
+    for (k = 0; n && k + 1 < n && h + k < t; ++k) out[k] = h[k];
+    if (n) out[k] = 0;
+    return (unsigned)(t - h);
+}
+
+/* An address the player can open (rd_playable) with a host, and no space. */
+static int rp_url_ok(const char *s) {
+    return (!strncasecmp(s, "http://", 7) || !strncasecmp(s, "https://", 8)) && rd_playable(s) && !strchr(s, ' ') &&
+           rp_url_host(s, (char *)0, 0) > 0;
+}
+
+static void rp_entry(int step) {
+    char host[KB_MAX + 1];
+    rp.entry = step;
+    m1_show(rp.view, 0);
+    m1_show(rp.status, 0);
+    m1_show(rp.credit, 0);
+    m1_show(rp.more, 0);
+    m1_show(rp.find, 0);
+    m1_show(rp.view_btn, 0);
+    widget_set_prop_int(rp.sv, "yoffset", 0);
+    widget_set_prop_int(rp.sv, "virtual_h", GRID_VIEW_H);
+    az_fit(rp.title, TR("Add by URL"));
+    widget_set_visible(rp.big, 0, 0);
+    rp.title_on = -1;
+    rp_title_update();
+    if (step ==
+        1) { /* the Sign In page's address field (patch/ndserver.c): English only, no capitals, the scheme to type after */
+        keyboard_refocus(TR("Stream URL"), RP_TEXT_W, KB_PASSWORD, RP_SCHEME, rp_on_add_text, rp_on_add_go);
+        keyboard_set_mask(0);
+        keyboard_set_clear(RP_SCHEME);
+        keyboard_set_max(KB_MAX_LONG);
+    } else {
+        rp_url_host(rp.add_url, host, sizeof host);
+        keyboard_refocus(TR("Station Name"), RP_TEXT_W, 0, host, rp_on_add_text, rp_on_add_go);
+    }
+    m1_show(rp.field, 1);
+    keyboard_show(1);
+    rp_search_layout();
+    rp_on_add_text(keyboard_text());
+}
+
+/* The field back to the search's, the pad hidden, the My Stations level read again (keep: where it was). */
+static void rp_entry_leave(void) {
+    if (!rp.entry) return;
+    rp.entry = 0;
+    keyboard_refocus(TR("Search Stations"), RP_TEXT_W, 0, "", rp_on_text, rp_on_go);
+    keyboard_set_go("Search", 1);
+    keyboard_show(0);
+    m1_show(rp.field, 0);
+    rp_search_layout();
+    rp_stations(1);
+}
+
+static void rp_on_add_text(const char *text) {
+    if (!rp.entry) return;
+    keyboard_set_go(rp.entry == 1 ? "Next" : "Done", rp.entry == 1 ? rp_url_ok(text) : text[0] != 0);
+}
+
+static void rp_on_add_go(void) {
+    const char *text = keyboard_text();
+    int r;
+    if (rp.entry == 1) {
+        if (!rp_url_ok(text)) return;
+        snprintf(rp.add_url, sizeof rp.add_url, "%s", text);
+        rp_entry(2);
+        return;
+    }
+    if (rp.entry != 2 || !text[0]) return;
+    r = rd_fav_add(text, rp.add_url);
+    pod_toast(TR(r == 1    ? "Added to My Stations"
+                 : r == 0  ? "Already in My Stations"
+                 : r == -2 ? "My Stations is full"
+                           : "Could not save My Stations"));
+    if (r == 1) rp.sel[L_LIST] = 1 << 20; /* the new station is the last row: in view (rp_show_level clamps) */
+    rp_entry_leave();
 }
 
 /* ---------------------------------------------------------------------------
  * The "..." sheet of the My Stations level (Import from Card) and of Recently Played (Clear Recently Played): the same widget set as Radio Now Playing's sheet, one row shown
  */
 static void rp_sheet_close(void) {
+    int i;
     if (!rp.sheet) return;
     rp.sheet = 0;
     m1_show(rp.sh_scrim, 0);
     m1_show(rp.sh_card, 0);
-    m1_show(rp.sh_row, 0);
-    m1_show(rp.sh_clear, 0);
+    for (i = 0; i < SH_N; ++i) m1_show(rp.sh[i], 0);
 }
 
+/* The rows ids[0 .. n - 1] in that order (the others stay hidden). */
+static void rp_sheet_open(const int *ids, int n) {
+    void *rows[SH_N], *hrs[SH_N];
+    int i;
+    for (i = 0; i < n; ++i) rows[i] = rp.sh[ids[i]], hrs[i] = rp.sh_hr[ids[i]];
+    rp.sheet = 1;
+    m1_sheet_rows(rp.sh_scrim, rp.sh_card, RP_W, rows, hrs, n);
+}
+
+/* My Stations: Select (with a station and the mode's widgets), Sort by Name (two stations or more), Add by URL, Import from Card; Recently Played: Clear Recently Played. */
 static int rp_on_more(void *ctx, void *e) {
-    void *row = rp.favs ? rp.sh_row : rp.sh_clear; /* the level's row */
+    int ids[SH_N], n = 0;
     (void)ctx;
     (void)e;
     if (!rp.view || !rp_more_on() || rp.sheet) return RET_OK;
-    rp.sheet = 1;
-    widget_set_visible(rp.favs ? rp.sh_clear_hr : rp.sh_hr, 0, 0); /* (the other level's row stays hidden) */
-    m1_sheet_rows(rp.sh_scrim, rp.sh_card, RP_W, &row, (void *const[]){rp.favs ? rp.sh_hr : rp.sh_clear_hr}, 1);
+    if (!rp.favs)
+        ids[n++] = SH_CLEAR;
+    else {
+        if (rp_my() && rp.list.n && rp_select_ok()) ids[n++] = SH_SELECT;
+        if (rp_my() && rp.list.n > 1) ids[n++] = SH_SORT;
+        ids[n++] = SH_ADD;
+        ids[n++] = SH_IMPORT;
+    }
+    rp_sheet_open(ids, n);
+    return RET_OK;
+}
+
+static int rp_on_sh_select(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    rp_sheet_close();
+    rp_select(1);
+    return RET_OK;
+}
+
+/* Sort by Name: favourites.m3u rewritten in name order, the list read again from its top. */
+static int rp_on_sort(void *ctx, void *e) {
+    int r;
+    (void)ctx;
+    (void)e;
+    rp_sheet_close();
+    if (!rp_my()) return RET_OK;
+    r = rd_fav_sort();
+    if (r < 0) {
+        pod_toast(TR("Could not save My Stations"));
+        return RET_OK;
+    }
+    rp_stations(0);
+    return RET_OK;
+}
+
+static int rp_on_addurl(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    rp_sheet_close();
+    if (!rp.view || !rp_more_on() || !rp.favs || !rp.field) return RET_OK;
+    if (!rp.note) rp.sel[L_LIST] = rp_off();
+    rp.note = 0;
+    rp_entry(1);
+    return RET_OK;
+}
+
+/* The long press's Remove from My Stations: that one station out of the file. */
+static int rp_on_remove(void *ctx, void *e) {
+    unsigned char bits[(RD_MAX + 8) / 8];
+    (void)ctx;
+    (void)e;
+    rp_sheet_close();
+    if (!rp_my() || rp.hold < 0 || rp.hold >= rp.list.n) return RET_OK;
+    memset(bits, 0, sizeof bits);
+    bits[rp.hold >> 3] = (unsigned char)(1 << (rp.hold & 7));
+    rp_removed(rd_fav_remove(&rp.list, bits), 1);
     return RET_OK;
 }
 
@@ -883,6 +1161,14 @@ static int rp_on_back(void *ctx, void *e) {
         rp_sheet_close();
         return RET_OK;
     }
+    if (rp.select) { /* the x: the select mode ends, nothing removed */
+        rp_select(0);
+        return RET_OK;
+    }
+    if (rp.entry) { /* Add by URL: left, nothing written */
+        rp_entry_leave();
+        return RET_OK;
+    }
     if (rp.search && !rp.note) { /* the search page: Back leaves it for the level it began on */
         rp_search_leave();
         return RET_OK;
@@ -908,6 +1194,7 @@ static int rp_on_fg(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!rp.view) return RET_OK;
+    if (rp.entry) return RET_OK; /* (Add by URL keeps its field) */
     if (rp.level == L_ROOT && !rp.note)
         rp_show_level(L_ROOT, 1); /* Now Playing may have appeared */
     else if (rp.level == L_LIST && rp.local && rp.favs && rd_serial() != rp.serial) {
@@ -934,6 +1221,7 @@ static int rp_on_rail_paint(void *ctx, void *e) {
 
 static int rp_on_bg(void *ctx, void *e) {
     az_rail_end(&rp.al);
+    rowmenu_hold_stop();
     return rp_on_abort(ctx, e);
 }
 
@@ -943,6 +1231,8 @@ static int rp_on_destroy(void *ctx, void *e) {
     (void)e;
     rp_timer_off();
     m1_timer_stop(&rp.ltimer);
+    rowmenu_hold_stop();
+    m1_sel_free(&rp.ms);
     rd_fetch_drop();
     keyboard_detach();
     grid_free(&rp.g);
@@ -1031,7 +1321,7 @@ static void rp_placeholder(void) {
 
 /* The Radio page (the Radio items of Home's menu, Extras and the Pod). 0 once it is up, -1 when it could not open. */
 int radio_open(void) {
-    int i, az_ok;
+    int i, az_ok, sh_ok = 1;
     if (rp.win) return -1;
     memset(&rp, 0, sizeof rp);
     rp.win = window_open(RP_ASSET);
@@ -1044,10 +1334,19 @@ int radio_open(void) {
     rp.more = m1_bind(rp.win, "btn_more", rp_on_more, (void *)0);
     rp.sh_scrim = m1_bind(rp.win, "rd_sh_scrim", rp_on_sheet_scrim, (void *)0);
     rp.sh_card = widget_lookup(rp.win, "rd_sh_card", 1);
-    rp.sh_row = m1_bind(rp.win, "rd_sh_import", rp_on_import, (void *)0);
-    rp.sh_hr = widget_lookup(rp.win, "rd_sh_import_hr", 1);
-    rp.sh_clear = m1_bind(rp.win, "rd_sh_clear", rp_on_clear, (void *)0);
-    rp.sh_clear_hr = widget_lookup(rp.win, "rd_sh_clear_hr", 1);
+    for (i = 0; i < SH_N; ++i) {
+        static int (*const RP_SH_FN[SH_N])(void *, void *) = {rp_on_sh_select, rp_on_sort,  rp_on_addurl,
+                                                              rp_on_import,    rp_on_clear, rp_on_remove};
+        char name[24];
+        snprintf(name, sizeof name, "rd_sh_%s", RP_SH_ID[i]);
+        rp.sh[i] = m1_bind(rp.win, name, RP_SH_FN[i], (void *)0);
+        snprintf(name, sizeof name, "rd_sh_%s_hr", RP_SH_ID[i]);
+        rp.sh_hr[i] = widget_lookup(rp.win, name, 1);
+        sh_ok = sh_ok && rp.sh[i] && rp.sh_hr[i];
+    }
+    rp.btn_selall = m1_bind(rp.win, "btn_selall", rp_on_selall, (void *)0); /* the select mode's widgets */
+    rp.bar = widget_lookup(rp.win, "rd_bar", 1);
+    rp.del = m1_bind(rp.win, "rd_del", rp_on_delete, (void *)0);
     rp.title = widget_lookup(rp.win, "label_title", 1);
     rp.big = widget_lookup(rp.win, "sg_title", 1);
     rp.fade = widget_lookup(rp.win, "img_nb_fade", 1);
@@ -1064,12 +1363,13 @@ int radio_open(void) {
     rp.al.win = rp.win, rp.al.sv = rp.sv, rp.al.top = SG_TITLE_H, rp.al.row = RP_ROW_ROOT;
     az_prefs(&rp.al);
     az_ok = az_bind(&rp.al, rp.win);
-    if (!rp.back || !rp.np || !rp.find || !rp.view_btn || !rp.more || !rp.sh_scrim || !rp.sh_card || !rp.sh_row ||
-        !rp.sh_hr || !rp.sh_clear || !rp.sh_clear_hr || !rp.lv || !rp.credit || !rp.field || !rp.title || !rp.big ||
-        !rp.view || !rp.sv || !rp.status || !rp.st_title || !rp.st_sub || !rp.st_gtitle || !rp.st_gsub || !az_ok) {
+    if (!rp.back || !rp.np || !rp.find || !rp.view_btn || !rp.more || !rp.sh_scrim || !rp.sh_card || !sh_ok || !rp.lv ||
+        !rp.credit || !rp.field || !rp.title || !rp.big || !rp.view || !rp.sv || !rp.status || !rp.st_title ||
+        !rp.st_sub || !rp.st_gtitle || !rp.st_gsub || !az_ok) {
         navigator_back(); /* an asset that is not ours */
         return -2;
     }
+    m1_sel_init(&rp.ms, rp.win, rp.back, rp.title, rp.btn_selall, rp.bar, rp.del, (void *)0, (void *)0, (void *)0);
     label_set_line_wrap(rp.status, 1);
     widget_set_prop_bool(rp.status, "word_wrap", 1); /* break at spaces (a character break cut the hint mid-word) */
     widget_on(rp.status, EVT_POINTER_UP, rp_on_retry, (void *)0);
@@ -1080,6 +1380,7 @@ int radio_open(void) {
     widget_on(rp.win, EVT_WINDOW_TO_FG, rp_on_fg, (void *)0);
     widget_on(rp.win, EVT_WINDOW_TO_BG, rp_on_bg, (void *)0);
     widget_on(rp.view, EVT_POINTER_DOWN, rp_on_down, (void *)0);
+    widget_on(rp.view, EVT_POINTER_MOVE, rp_on_move, (void *)0);
     widget_on(rp.view, EVT_POINTER_UP, rp_on_up, (void *)0);
     widget_on(rp.view, EVT_POINTER_ABORT, rp_on_abort, (void *)0);
     widget_on(rp.view, EVT_AFTER_PAINT, rp_on_paint, (void *)0);

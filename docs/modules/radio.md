@@ -53,7 +53,26 @@ One window with the Folders page's structure (glass navbar, large title, rows in
   station lists (Top Stations, a country's, a genre's); never on the root, My Stations or Recently
   Played. My Stations and Recently Played have the "..." in its place.
 - **My Stations** lists `favourites.m3u` in file order; new stations are appended. Add to and
-  Remove from My Stations are on Now Playing; the level's "..." sheet has **Import from Card**.
+  Remove from My Stations are on Now Playing. The level's "..." sheet has **Select** (with a
+  station), **Sort by Name** (with two or more), **Add by URL** and **Import from Card**. A long
+  press on a station (`rowmenu_hold_start`, list or grid) opens a one-row sheet, **Remove from My
+  Stations** (toast "Removed from My Stations").
+- **Select** is the shared select mode ([select mode](selmode.md)): Back becomes the x, Select All,
+  a mark per row (list) or cover (grid), one Delete pill (`rd_bar`, `rd_del`). Delete asks "Remove N
+  stations from My Stations?" and then `rd_fav_remove` takes out, per marked row, the file row of
+  the same name, address and info and the same occurrence of them (an unmarked twin stays). A failed write
+  toasts "Could not save My Stations" and the mode stays. A file replaced whose folder sync failed
+  (`m1_card_write` 1) counts as written. A list read again (Now Playing's sheet changed the file) ends the mode.
+- **Sort by Name** rewrites the file in `cc_name_cmp` order (stable, info kept). A file already in
+  order is not written.
+- **Add by URL** reuses the search field and pad (`keyboard_refocus`). First the address: the Sign In
+  page's field (English, no capitals, starts at `http://`, up to `KB_MAX_LONG` bytes). Next is dimmed
+  until it is an address `rd_play` takes (`rd_playable`: `http://` or `https://`, no `|` or `}`)
+  with a host (after any `user@`; `[v6]` in brackets) and no space; `rp_url_host` parses it once for
+  this check and for the name's start (the host alone, an IPv6 one without brackets). Then the name, which starts as the
+  host; Done is dimmed while it is empty. `rd_fav_add` appends the station with no info.
+  Toasts: "Added to My Stations", "Already in My Stations" (same address), "My Stations is full" (300
+  stations, or a file that would pass `RD_FETCH_MAX`, the most read back), "Could not save My Stations". Back leaves with nothing written.
 - **Import from Card** reads every `.m3u`, `.m3u8` and `.pls` in `/mnt/mmc/Radio` (at most 64
   files) and appends the stations not yet listed, up to 300, writing the file once. The user's
   files are never modified, so importing again adds nothing. Toasts say "Added N stations" / "Added 1 station", or why not ("No new stations", "No playlists in the Radio folder", "Stations is full", "Could not

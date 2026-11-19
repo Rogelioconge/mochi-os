@@ -26,6 +26,7 @@
 #include "pcnet.h"
 #include "peqout.h"
 #include "pccover.h"
+#include "covercache.h"
 #include "radio.h"
 #include "fnv.h"
 
@@ -496,6 +497,100 @@ int rd_fav_has(const char *url) {
     return has;
 }
 
+/* favourites.m3u rewritten as favs' rows order[0 .. n - 1], then a station of no info (name and url) when name is not NULL: 1 written (the
+ * serial moves; also when only the directory's fsync failed, as the new file is in place), 0 not, -2 not as rd_favs_read could not read it whole. */
+static int rd_favs_put(const rd_list_t *favs, const int *order, int n, const char *name, const char *url) {
+    unsigned need = 16, o;
+    int k, ok;
+    char *out;
+    for (k = 0; k < n; ++k) need += rd_row_size(favs, order[k]);
+    if (name) need += 24 + (unsigned)(strlen(name) + strlen(url));
+    out = calloc(need, 1);
+    if (!out) return 0;
+    o = (unsigned)snprintf(out, need, "#EXTM3U\n");
+    for (k = 0; k < n; ++k) o += rd_row_put(out + o, need - o, favs, order[k]);
+    if (name) o += (unsigned)snprintf(out + o, need - o, "#EXTINF:-1,%s\n%s\n", name, url);
+    ok = o + 2 > RD_FETCH_MAX ? -2 : m1_card_write(RD_DIR, RD_FAVS, RD_FAVS_TMP, out, o, (const void *)0, 0) >= 0;
+    free(out);
+    if (ok > 0) ++rf.serial;
+    return ok;
+}
+
+/* favourites.m3u read whole for a rewrite, *order its rows in file order: 1 ready, 0 not (no memory; a cut file or a NUL in it is never rewritten). rd_favs_close frees both. */
+static int rd_favs_open(rd_list_t *favs, int **order) {
+    int k;
+    memset(favs, 0, sizeof *favs);
+    *order = (int *)0;
+    if (!rd_favs_read(favs) || favs->truncated) return 0;
+    *order = calloc((unsigned)favs->n + 1, sizeof **order);
+    for (k = 0; *order && k < favs->n; ++k) (*order)[k] = k;
+    return *order != 0;
+}
+
+static int rd_favs_close(rd_list_t *favs, int *order, int r) {
+    free(order);
+    rd_list_free(favs);
+    return r;
+}
+
+/* Row i of a and row k of b the same station: name, address and info. */
+static int rd_row_same(const rd_list_t *a, int i, const rd_list_t *b, int k) {
+    return !strcmp(rd_url(a, i), rd_url(b, k)) && !strcmp(rd_name(a, i), rd_name(b, k)) &&
+           !strcmp(rd_info(a, i), rd_info(b, k));
+}
+
+int rd_fav_remove(const rd_list_t *l, const unsigned char *bits) {
+    rd_list_t favs;
+    int *order, k, i, j, occ, n = 0, gone;
+    if (!rd_favs_open(&favs, &order)) return rd_favs_close(&favs, order, -1);
+    for (i = 0; i < l->n;
+         ++i) { /* a marked row: the file row that is its same occurrence of that station (-1: going) */
+        if (!(bits[i >> 3] >> (i & 7) & 1)) continue;
+        for (occ = 0, j = 0; j < i; ++j) occ += rd_row_same(l, j, l, i);
+        for (k = 0; k < favs.n; ++k)
+            if (rd_row_same(l, i, &favs, k) && !occ--) {
+                order[k] = -1;
+                break;
+            }
+    }
+    for (k = 0; k < favs.n; ++k)
+        if (order[k] >= 0) order[n++] = k;
+    gone = favs.n - n;
+    if (gone && rd_favs_put(&favs, order, n, (const char *)0, (const char *)0) <= 0) gone = -1;
+    return rd_favs_close(&favs, order, gone);
+}
+
+int rd_fav_sort(void) {
+    rd_list_t favs;
+    int *order, k, j, moved = 0;
+    if (!rd_favs_open(&favs, &order)) return rd_favs_close(&favs, order, -1);
+    for (k = 0; k < favs.n; ++k) { /* an insertion sort: stable, a sorted file costs one pass */
+        for (j = k; j > 0 && cc_name_cmp(rd_name(&favs, order[j - 1]), rd_name(&favs, k)) > 0; --j)
+            order[j] = order[j - 1];
+        order[j] = k;
+        moved |= j != k;
+    }
+    return rd_favs_close(&favs, order,
+                         !moved                                                                    ? 0
+                         : rd_favs_put(&favs, order, favs.n, (const char *)0, (const char *)0) > 0 ? 1
+                                                                                                   : -1);
+}
+
+int rd_fav_add(const char *name, const char *url) {
+    rd_list_t favs;
+    int *order, r;
+    if (!rd_favs_open(&favs, &order)) return rd_favs_close(&favs, order, -1);
+    if (rd_fav_index(&favs, url) >= 0)
+        r = 0;
+    else if (favs.n >= RD_MAX)
+        r = -2;
+    else
+        r = (r = rd_favs_put(&favs, order, favs.n, name, url))
+                ? r
+                : -1; /* -2: the file would grow past what is read back */
+    return rd_favs_close(&favs, order, r);
+}
+
 static int rd_read_whole(const char *path, rd_list_t *l) {
     char *buf = calloc(RD_FETCH_MAX, 1);
     unsigned n = 0;
@@ -749,8 +844,7 @@ static void rd_apply(int ev) {
         mclSetPause(); /* a paused station restarted on another output stays paused (as stock pauses its restarted track) */
 }
 
-/* hciplayer splits its command on '|' and ends it at '}'. */
-static int rd_playable(const char *u) {
+int rd_playable(const char *u) {
     if (strncasecmp(u, "http://", 7) && strncasecmp(u, "https://", 8)) return 0;
     return !strchr(u, '|') && !strchr(u, '}');
 }

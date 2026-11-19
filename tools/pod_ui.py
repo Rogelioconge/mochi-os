@@ -2860,7 +2860,9 @@ RD_FIELD_W = SCREEN_W - 2 * PS.SE_FIELD_X   # the Radio search field's width (pa
 RD_TEXT_W = RD_FIELD_W - PS.SE_TEXT_X - PS.SE_CLEAR_W
 RD_CREDIT_PX = 14   # the credit line's size (patch/radiopage.c RP_CREDIT_PX)
 RD_SHEET_ROWS = (('add', 'pod_ic_rd_add', 'Add to My Stations', False, False), ('info', 'rm_ic_info', 'Station Info', False, False))   # Radio Now Playing's sheet: two rows, the first's glyph and label swapped for Remove from My Stations by the payload (patch/radionp.c)
-RS_SHEET_ROWS = (('import', 'pod_ic_rd_import', 'Import from Card', False, False), ('clear', 'pod_ic_trash_red', 'Clear Recently Played', False, True))   # the "..." sheets (patch/radiopage.c): My Stations has Import from Card, Recently Played Clear Recently Played (the payload shows one row)
+RS_SHEET_ROWS = (('select', 'pc_ic_select', 'Select', False, False), ('sort', 'pod_ic_order', 'Sort by Name', False, False), ('addurl', 'pod_ic_rd_link', 'Add by URL', False, False),
+                 ('import', 'pod_ic_rd_import', 'Import from Card', False, False), ('clear', 'pod_ic_trash_red', 'Clear Recently Played', False, True),
+                 ('remove', 'pod_ic_trash_red', 'Remove from My Stations', False, True))   # the sheets (patch/radiopage.c): My Stations' "..." shows the first four, Recently Played's Clear Recently Played, a long press on a My Stations row Remove from My Stations
 
 
 def build_radio_page(page):
@@ -2883,6 +2885,7 @@ def build_radio_page(page):
         ('style:pressed:icon', 'pod_nav_list_down'), ('style:normal:icon', 'pod_nav_list'), ('style:over:icon', 'pod_nav_list')])
     view_btn.set('dirty_rect_tolerance', str(NAV_ICON_OVERFLOW))   # (its 60 px glyph paints beyond the 46 px slot, as on the Albums page)
     nb.children.append(hidden(view_btn))
+    nb.children.append(selall_button())   # My Stations' select mode (patch/radiopage.c)
     root.children.append(nb)
     lv = stock_list([], True)
     lv.set('name', 'radio_listview')
@@ -2909,7 +2912,8 @@ def build_radio_page(page):
     hidden(field); field.set('sensitive', 'false')
     root.children.append(field)
     root.children += keyboard_pad_widgets()
-    root.children.extend(sheet_widgets(RN_SHEET, RS_SHEET_ROWS, 1))   # the Stations "..." sheet, last: above everything
+    root.children.append(select_bar('rd_bar', [('rd_del', 'one')]))   # My Stations' select mode: one Delete pill (the Playlists page's)
+    root.children.extend(sheet_widgets(RN_SHEET, RS_SHEET_ROWS, 4))   # the sheets, last: above everything
     return root
 
 

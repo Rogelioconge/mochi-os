@@ -78,6 +78,16 @@ int rd_fav_has(const char *url);
  * from an earlier file) skipped, written once; the files are never touched. Returns the stations added (0 = none new), -1 not written (no card, write failed; nothing changed), -2 no playlist
  * in the folder. *full is 1 when RD_MAX stopped it (what fitted is added). */
 int rd_fav_import(int *full);
+/* My Stations' "..." and Select: for each row of l marked in bits (bit i of byte i / 8), the station of favourites.m3u with its name, address and info, and
+ * the same occurrence of them (the 2nd such row of l is the file's 2nd), taken out; an unmarked row stays, the rest kept in order. Returns the stations removed (0: none, nothing written), -1 not written (nothing changed). */
+int rd_fav_remove(const rd_list_t *l, const unsigned char *bits);
+/* favourites.m3u in name order (cc_name_cmp, stable): 1 rewritten, 0 already in order (not written), -1 not written. */
+int rd_fav_sort(void);
+/* Add URL: a station with no directory info appended: 1 added, 0 its address is there already, -2 full (RD_MAX stations, or the file would pass
+ * RD_FETCH_MAX), -1 not written. */
+int rd_fav_add(const char *name, const char *url);
+/* An address hciplayer opens: http:// or https://, no '|' (it splits its command there) nor '}' (it ends it). */
+int rd_playable(const char *u);
 unsigned rd_serial(
     void); /* bumped by every start and every favourites change: the Stations list and Now Playing's sheet re-read */
 int rd_recent_read(rd_list_t *l);
