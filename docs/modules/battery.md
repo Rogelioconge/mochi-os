@@ -88,6 +88,18 @@ low-battery screen, the on-device update and OTG refusals) never shut down or op
   keeps the real value.
 - The label always shows the real number. A fill of 0 is empty (5% of 16 px is under 1 px).
 
+## A zero gauge
+
+An uncalibrated AXP2101 gauge can read `0` while the battery is healthy (issue 19: a full stock
+battery, a red `0%` with the setting on). The driver returns the gauge register as it is, so on a
+`0` `battery_gauge` also reads `/sys/class/power_supply/battery/voltage_now` (`BP_VOLT`, µV, the file
+stock's `toolsGetBatteryVoltage` reads). It believes the `0` only below `BP_EMPTY_UV` (3535001,
+stock's own bucket-0 level). A higher or unreadable voltage makes the reading unreadable (`-1`).
+`power_capacity` is no witness: while charging it holds stock's +10 animation, which wraps to 0.
+On `-1` the setting keeps stock's look with the label hidden, the [Charge Limit](charging.md)
+releases a hold of its own, and [Battery History](batthist.md) records the level as unknown. A
+charging battery's voltage is above the empty level, so a real 0 while charging is hidden too.
+
 ## The label
 
 `pod_pct` is a hidden, insensitive `label` appended to the right icon group `view_bar_right` of

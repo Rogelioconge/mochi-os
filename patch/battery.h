@@ -10,6 +10,10 @@
 #define BP_TMP "/mnt/data/m1plus/battery-percentage.tmp"
 #define BP_GAUGE \
     "/sys/class/power_supply/battery/capacity" /* the AXP2101 fuel gauge: an integer 0..100 and a newline */
+#define BP_VOLT \
+    "/sys/class/power_supply/battery/voltage_now" /* microvolts and a newline: read only when the gauge says 0 */
+#define BP_EMPTY_UV \
+    3535001 /* below this, stock's get_battery_capacity buckets the battery as 0 (0x35f099 at 0x4e6ec4): a gauge 0 is believed */
 #define BP_LABEL "pod_pct" /* the hidden label tools/pod_ui.py adds to the system bar's right group */
 #define BP_LABEL_DD "pod_pct_dd" /* its twin in the pull-down's own bar (view_sysbar of dropdown_dialog.bin) */
 #define BP_LABEL_LK \

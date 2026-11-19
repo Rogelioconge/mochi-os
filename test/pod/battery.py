@@ -73,7 +73,7 @@ def run(ctx):
     expect(m.names() == ['get_battery_capacity', 'access'] and m.icount < 400, f'off, steady state: stock\'s function and the kill switch test only ({m.names()}, {m.icount} instructions)')
 
     # 3. On with a valid gauge: the real percentage, in power_capacity and the return value; the label shows "N%".
-    for text, pct in ((b'87\n', 87), (b'87', 87), (b'0\n', 0), (b'5\n', 5), (b'6\n', 6), (b'10\n', 10), (b'99\n', 99), (b'100\n', 100), (b'007\n', 7)):
+    for text, pct in ((b'87\n', 87), (b'87', 87), (b'5\n', 5), (b'6\n', 6), (b'10\n', 10), (b'99\n', 99), (b'100\n', 100), (b'007\n', 7)):
         m = machine(gauge=text)
         v = tick(m)
         want = f'{pct}%'
@@ -114,8 +114,25 @@ def run(ctx):
     m = machine(gauge=b'3\n'); m.setword(ext, 1); m.setword(usb, 2); m.u.mem_write(flag, b'\x01'); m.setword(dac, 1)
     expect(tick(m) == 3 and power(m) == 3, 'external power with the DAC charge flag set: the charging picture, the real value')
 
+    # a zero gauge (issue 19): believed only when the battery voltage is below stock's empty level, else unreadable (power_capacity is no witness: stock's charging animation wraps to 0)
+    VOLT, EMPTY = DEFS['BP_VOLT'], DEFS['BP_EMPTY_UV']
+    expect(VOLT == '/sys/class/power_supply/battery/voltage_now' and EMPTY == 0x35f099, 'the voltage file and stock\'s empty level (0x35f099 µV)')
+    for volt, charging, cap, shown in ((b'3400000\n', 0, 0, True), (str(EMPTY - 1).encode(), 0, 40, True), (str(EMPTY).encode() + b'\n', 0, 0, False),
+                                       (b'4100000\n', 0, 0, False), (b'4100000\n', 1, 0, False), (b'4100000\n', 1, 70, False),
+                                       (None, 0, 0, False), (b'', 0, 0, False), (b'abc\n', 0, 0, False), (b'3400000x\n', 0, 0, False), (b'12345678\n', 0, 0, False)):
+        m = machine(gauge=b'0\n', cap=cap)
+        if volt is not None: m.fs[VOLT] = volt
+        if charging: m.setword(ext, 1)
+        v = tick(m)
+        if shown:
+            expect(v == 0 and power(m) == 0 and [t for _, t in texts(m)] == ['0%', '0%'], f'gauge 0, voltage {volt!r}: 0 stored, "0%" shown ({texts(m)})')
+        else:
+            expect(v == cap and power(m) == cap and texts(m) == [], f'gauge 0, voltage {volt!r}, charging {charging}, stock {cap}: stock\'s value, no label ({texts(m)})')
+    m = machine(gauge=b'87\n'); m.fs[VOLT] = b'3400000\n'; tick(m)
+    expect(('open', VOLT, 0) not in m.calls, 'a non-zero gauge never reads the voltage')
+
     # 4. On, but no valid gauge: stock's value; the label hidden (and not shown before: nothing to hide)
-    for text in (None, b'', b'\n', b'abc', b'101\n', b'-5\n', b'+5\n', b'12x\n', b'1234\n', b' 50\n', b'5 0\n', b'50\n50\n', b'1.5\n', b'0x10\n'):
+    for text in (None, b'', b'0\n', b'00\n',b'\n', b'abc', b'101\n', b'-5\n', b'+5\n', b'12x\n', b'1234\n', b' 50\n', b'5 0\n', b'50\n50\n', b'1.5\n', b'0x10\n'):
         m = machine(gauge=text)
         v = tick(m)
         expect(v == STOCK_CAP and power(m) == STOCK_CAP and texts(m) == [] and vis_calls(m) == [], f'on, gauge {text!r}: stock\'s capacity, no label shown')

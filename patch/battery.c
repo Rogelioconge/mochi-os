@@ -47,7 +47,20 @@ int battpct_toggle(void) {
     return next;
 }
 
-/* The gauge as a plain integer 0..100 (digits, then the end or a newline): the value, else -1. Also the Charge Limit's input (patch/charging.c). */
+/* The battery voltage (BP_VOLT, microvolts, the file stock's toolsGetBatteryVoltage reads) is below stock's empty level BP_EMPTY_UV: 1, else 0 (unreadable too). */
+static int bp_volt_empty(void) {
+    char b[12];
+    int fd = open(BP_VOLT, O_RDONLY, 0), n, i = 0, v = 0;
+    if (fd < 0) return 0;
+    n = read(fd, b, sizeof b - 1);
+    close(fd);
+    while (i < n && b[i] >= '0' && b[i] <= '9' && i < 8) v = v * 10 + (b[i++] - '0');
+    if (i == 0 || i > 7 || (i < n && b[i] != '\n')) return 0;
+    return v < BP_EMPTY_UV;
+}
+
+/* The gauge as a plain integer 0..100 (digits, then the end or a newline): the value, else -1. Also the Charge Limit's input (patch/charging.c). A 0 is believed only
+ * while the voltage says empty: an uncalibrated gauge reads 0 with a healthy battery (issue 19, battery.md "A zero gauge"). */
 int battery_gauge(void) {
     char b[8];
     int fd = open(BP_GAUGE, O_RDONLY, 0), n, i = 0, v = 0;
@@ -59,7 +72,8 @@ int battery_gauge(void) {
     while (i < n && b[i] >= '0' && b[i] <= '9' && i < 4) v = v * 10 + (b[i++] - '0');
     if (i == 0 || i > 3 || v > 100) return -1;
     if (i < n && b[i] == '\n') i++;
-    return i == n ? v : -1;
+    if (i != n || (v == 0 && !bp_volt_empty())) return -1;
+    return v;
 }
 
 /* Show the percentage in the label w (the number as its text, its width fitted), or hide it for pct < 0. */
