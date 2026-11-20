@@ -746,9 +746,10 @@ def own_tests(ctx):
         err = check_layout(m, order)
         bound = {n for n in IMG[8:] if (m.widgets[n], O['EVT_CLICK']) in m.bound}
         expect(err is None and bound == {IMG[t] for t in order if t >= 8}, f'{fs!r}: {order} shown at the slots, ours visible and bound, the others of ours hidden ({err}, {sorted(bound)})')
-        expect(not any(c[0] == 'widget_on' and c[1] == m.widgets[IMG[t]] for c in m.calls for t in range(8)), f'{fs!r}: no stock tile is bound again (stock bound them)')
+        expect(not any(c[0] == 'widget_on' and c[1] == m.widgets[IMG[t]] for c in m.calls for t in range(2, 8)), f'{fs!r}: no stock tile besides Wi-Fi/BT hold is bound again (stock bound them)')
     m = PD(fs=None); m.open()
-    expect(m.touched() == [] and not [c for c in m.calls if c[0] == 'widget_on' and c[2] == O['EVT_CLICK']], 'the default: nothing moved, no tile bound (ours stay hidden as the asset has them; the dialog\'s close bind is the gate\'s)')
+    expect(m.touched() == [] and {c[1] for c in m.calls if c[0] == 'widget_on' and c[2] == O['EVT_CLICK']} == {m.widgets[IMG[0]], m.widgets[IMG[1]]},
+           'the default: nothing moved, ours stay hidden as the asset has them, only Wi-Fi and Bluetooth get the hold click guard')
     m = PD(fs=b'9\n'); m.widget_on_fail = frozenset({O['EVT_CLICK']}); m.open()
     expect(m.hidden(IMG[9]) and m.hidden(LAB[9]), 'a tile of ours whose tap cannot be bound is hidden, not shown dead')
     for gone in ('pod_tile_eq', 'pod_cap_settings'):
@@ -1275,4 +1276,191 @@ def close_tests(ctx):
     expect(word(stock, 0x475f94) == 0x2405012e and word(stock, 0x475fb0) == 0x24c60000 | 0x50ec, 'init binds 0x4750ec to 0x12e')
 
 
-SECTIONS = [hook_tests, page_tests, files_tests, own_tests, flags_tests, playtile_tests, stockopen_tests, gate_tests, close_tests]
+class PH(PT):
+    """Pull-down with Wi-Fi and Bluetooth tile long press: supports opening our Wi-Fi and Bluetooth pages and dispatching pointer / click events on their tiles."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.u.mem_write(pod.DATA['WIFI_FLAG'][0], b'\0')
+        self.u.mem_write(pod.DATA['BT_FLAG'][0], b'\0')
+
+    def _hook(self, u, address, size, _):
+        name = self.handlers.get(address)
+        a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+        if name == 'window_open' and self.read_cstr(a0) in ('m1plus_wifi', 'm1plus_bluetooth'):
+            asset = self.read_cstr(a0); self.calls.append(('window_open', asset))
+            if self.windows.get(asset, 1) == 0:
+                ret = 0
+            else:
+                self.push(asset + '_page'); ret = self.stack[-1][1]
+        elif name == 'widget_lookup' and a0 != self.dlg:
+            nm = self.read_cstr(a1); self.calls.append(('widget_lookup', nm))
+            ret = self.lookups.get((a0, nm)) or self.widgets.get(nm) or self.widget(nm)
+        elif name == 'widget_get_prop':
+            ret = 1   # no slide timer_idex in PH (close_tests covers the slide timer)
+        else:
+            return super()._hook(u, address, size, _)
+        u.reg_write(UC_MIPS_REG_V0, ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+
+    def send(self, name, ev, x=49, y=65):
+        """Dispatch event `ev` (pointer or click) to the payload listener on widget `name`; returns the listener's return code."""
+        w = self.widgets[name]
+        fn, ctx = self.bound[(w, ev)]
+        e = self.alloc(0x28); self.u.mem_write(e, bytes(0x28))
+        self.setword(e, ev); self.setword(e + O['PE_X'], x); self.setword(e + O['PE_Y'], y)
+        return self.call(fn, a0=ctx, a1=e, count=3000000)
+
+    def fire_hold(self):
+        """Fire the armed long-press timer callback (pd_on_hold_fire)."""
+        return self.call(PSYMS['pd_on_hold_fire'], a0=0, count=3000000)
+
+
+def hold_tests(ctx):
+    """Long press on the Wi-Fi and Bluetooth pull-down tiles (patch/pulldown.c, docs/modules/pulldown.md): same RM_LONG_MS hold and SC_DRAG_PX move limit as Home Screen pins."""
+    expect = ctx.expect
+    H, P_ = 'home_page', 'playing_page'
+    WIFI, BT = 'm1plus_wifi_page', 'm1plus_bluetooth_page'
+    PDOWN_Y = pod.DATA['PRESSDOWN_Y'][0]
+    pages = lambda c: [x for x in c if x[0] in ('window_open', 'navigator_to', 'switch_to', 'window_close')]
+    EVS = (O['EVT_POINTER_DOWN'], O['EVT_POINTER_MOVE'], O['EVT_POINTER_UP'], O['EVT_POINTER_ABORT'], O['EVT_CLICK'])
+
+    # -- bindings: only shown Wi-Fi / BT tiles; failed early bind skips DOWN so no timer can start
+    m = PD(fs=None); m.open()
+    for t in (0, 1):
+        expect(all((m.widgets[IMG[t]], ev) in m.bound for ev in EVS), f'default layout: {IMG[t]} binds hold pointer + click events')
+    for fs, want_t in ((b'0\n', {0}), (b'1\n', {1}), (b'2345\n', set()), (b'910\n', {0, 1})):
+        m = PD(fs=fs); m.open()
+        got_t = {t for t in (0, 1) if (m.widgets[IMG[t]], O['EVT_POINTER_DOWN']) in m.bound}
+        expect(got_t == want_t, f'{fs!r}: hold bound only on shown Wi-Fi/BT tiles ({got_t} == {want_t})')
+    for fail_ev in (O['EVT_POINTER_MOVE'], O['EVT_POINTER_UP'], O['EVT_POINTER_ABORT'], O['EVT_CLICK']):
+        m = PD(fs=None); m.widget_on_fail = frozenset({fail_ev}); m.open()
+        expect(all((m.widgets[IMG[t]], O['EVT_POINTER_DOWN']) not in m.bound for t in (0, 1)),
+               f'when bind of {fail_ev:#x} fails, DOWN is not bound (no un-cancellable timer)')
+
+    # -- short tap: DOWN arms RM_LONG_MS timer, UP removes it, CLICK returns RET_OK so stock's toggle runs
+    for img in ('img_wifiswitch', 'img_btswitch'):
+        m = PH([H]); m.swipe(b'01234567\n'); m.calls.clear()
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65)
+        armed = [c for c in m.calls if c[0] == 'timer_add']
+        expect(armed == [('timer_add', PSYMS['pd_on_hold_fire'], O['RM_LONG_MS'])], f'{img}: DOWN arms {O["RM_LONG_MS"]} ms hold timer ({armed})')
+        m.calls.clear()
+        m.send(img, O['EVT_POINTER_UP'], 49, 65)
+        expect([c for c in m.calls if c[0] in ('timer_remove', 'dialog_quit')] == [('timer_remove', 0x777)], f'{img}: early UP cancels timer without quitting')
+        r = m.send(img, O['EVT_CLICK'], 49, 65)
+        expect(r == O['RET_OK'], f'{img}: CLICK after short tap returns RET_OK so stock toggle runs ({r})')
+
+    # -- drag cancellation (SC_DRAG_PX): move < 10 px keeps timer; move >= 10 px on x or y cancels it; ABORT and close cancel it
+    for dx, dy, cancel in ((9, 0, False), (0, 9, False), (10, 0, True), (0, 10, True), (-10, 0, True), (0, -10, True)):
+        m = PH([H]); m.swipe(b'01234567\n')
+        m.send('img_wifiswitch', O['EVT_POINTER_DOWN'], 49, 65); m.calls.clear()
+        m.send('img_wifiswitch', O['EVT_POINTER_MOVE'], 49 + dx, 65 + dy)
+        removed = [c for c in m.calls if c[0] == 'timer_remove']
+        expect((len(removed) == 1) == cancel, f'move ({dx},{dy}): {"cancels" if cancel else "keeps"} hold timer ({removed})')
+    m = PH([H]); m.swipe(b'01234567\n')
+    m.send('img_btswitch', O['EVT_POINTER_DOWN'], 123, 65); m.calls.clear()
+    m.send('img_btswitch', O['EVT_POINTER_ABORT'], 123, 65)
+    expect([c for c in m.calls if c[0] == 'timer_remove'] == [('timer_remove', 0x777)], 'ABORT cancels armed hold timer')
+    m = PH([H]); m.swipe(b'01234567\n')
+    m.send('img_wifiswitch', O['EVT_POINTER_DOWN'], 49, 65); m.calls.clear()
+    fn, ctx_c = m.bound[(m.dlg, O['EVT_WINDOW_CLOSE'])]
+    m.call(fn, a0=ctx_c, a1=0, count=3000000)
+    expect([c for c in m.calls if c[0] == 'timer_remove'] == [('timer_remove', 0x777)], 'dialog EVT_WINDOW_CLOSE cancels armed hold timer')
+
+    # -- long press fires: quits dialog with 0xd, resets PRESSDOWN_Y >= 81, suppresses stock CLICK with RET_STOP, opens our page after modal returns
+    for img, asset, page_win, stock_nav, sub_win in (
+        ('img_wifiswitch', 'm1plus_wifi', WIFI, 'systemset/wifi_page', 'm1plus_wifiinfo_page'),
+        ('img_btswitch', 'm1plus_bluetooth', BT, 'systemset/bluetooth_page', 'm1plus_btdevice_page'),
+    ):
+        m = PH([H]); m.swipe(b'01234567\n'); m.setword(PDOWN_Y, 65); m.calls.clear()
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65)
+        m.calls.clear()
+        m.fire_hold()
+        expect([c for c in m.calls if c[0] == 'dialog_quit'] == [('dialog_quit', m.dlg, QUIT)] and m.word(PDOWN_Y) >= 81,
+               f'{img}: hold quits dialog with 0xd and resets pressdown_y >= 81 ({m.calls}, {m.word(PDOWN_Y)})')
+        r_click = m.send(img, O['EVT_CLICK'], 49, 65)
+        expect(r_click == O['RET_STOP'], f'{img}: CLICK on release after hold returns RET_STOP so stock toggle does not run ({r_click})')
+        ret, calls = m.modal()
+        expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', asset)] and m.names_() == [H, page_win],
+               f'{img}: modal return opens our {asset} page, not stock ({pages(calls)}, {m.names_()})')
+        ret2, calls2 = m.modal()
+        expect(ret2 == QUIT and pages(calls2) == [('navigator_to', 'dialog/dropdown_dialog')], f'{img}: pending action runs once')
+
+        # already in front: left alone
+        m = PH([H, page_win]); m.swipe(b'01234567\n')
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold()
+        ret, calls = m.modal()
+        expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')] and m.names_() == [H, page_win],
+               f'{img}: {page_win} already in front is left alone ({pages(calls)})')
+
+        # behind playing_page with a sub-page opened from it: sub-page closed, main page restacked (never opened twice)
+        m = PH([H, page_win, sub_win, P_]); m.swipe(b'01234567\n')
+        h = {n: w for n, w in m.stack}; m.call(PSYMS['pd_note_opener'], a0=h[sub_win], a1=h[page_win])
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold()
+        ret, calls = m.modal()
+        expect(pages(calls)[1:] == [('window_close', sub_win), ('switch_to', P_, page_win, 0)] and m.names_() == [H, P_, page_win],
+               f'{img}: behind player with {sub_win}, closes sub-page and restacks {page_win} ({pages(calls)}, {m.names_()})')
+
+        # our page fails to open: falls back to stock page
+        m = PH([H]); m.swipe(b'01234567\n'); m.windows = {asset: 0}
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold()
+        ret, calls = m.modal()
+        expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', asset), ('navigator_to', stock_nav)],
+               f'{img}: failed open of {asset} falls back to stock {stock_nav} ({pages(calls)})')
+
+        # kill switch: falls back to stock page without opening ours
+        m = PH([H]); m.present.add('/mnt/mmc/m1plus-off'); m.swipe(b'01234567\n')
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold()
+        ret, calls = m.modal()
+        expect(pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('navigator_to', stock_nav)],
+               f'{img}: kill switch opens stock {stock_nav}, not {asset} ({pages(calls)})')
+
+    # -- shared window across Control Center long press and Settings > Wi-Fi / Bluetooth rows
+    for img, asset, page_win, stock_arg in (
+        ('img_wifiswitch', 'm1plus_wifi', WIFI, pod_pages.STOCK_WIFI),
+        ('img_btswitch', 'm1plus_bluetooth', BT, pod_pages.STOCK_BLUETOOTH),
+    ):
+        m = PH([H]); m.swipe(b'01234567\n')
+        m.send(img, O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold(); m.modal()
+        m.push(P_)
+        row = m.alloc(12); m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, pod_pages.ACT_STOCK); m.setword(row + 8, stock_arg)
+        m.calls.clear()
+        m.call(PSYMS['on_row'], a0=row, count=6000000)
+        expect(m.names_() == [H, P_, page_win] and ('switch_to', P_, page_win, 0) in pages(m.calls) and ('window_open', asset) not in m.calls,
+               f'{img}: Settings row restacks the {page_win} opened by long press instead of opening a second ({pages(m.calls)}, {m.names_()})')
+
+    # -- guards: DROPDOWN_BUSY == 2, POWER_USBSTATE == 2, airplayGetFlag() == 2 block hold both at DOWN and at fire
+    for what, setup in (('DROPDOWN_BUSY is 2', lambda m: m.setword(pod.DATA['DROPDOWN_BUSY'][0], 2)),
+                        ('POWER_USBSTATE is 2', lambda m: m.setword(pod.DATA['POWER_USBSTATE'][0], 2)),
+                        ('AirPlay is 2', lambda m: setattr(m, 'airplay', 2))):
+        m = PH([H]); m.swipe(b'01234567\n'); setup(m); m.calls.clear()
+        m.send('img_wifiswitch', O['EVT_POINTER_DOWN'], 49, 65)
+        expect(not [c for c in m.calls if c[0] == 'timer_add'], f'hold DOWN with {what}: no timer armed')
+        m = PH([H]); m.swipe(b'01234567\n')
+        m.send('img_btswitch', O['EVT_POINTER_DOWN'], 123, 65); setup(m); m.calls.clear()
+        m.fire_hold(); ret, calls = m.modal()
+        expect(not [c for c in m.calls if c[0] == 'dialog_quit'] and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')],
+               f'hold fire with {what}: no quit, no page opened')
+
+    # -- dialog_quit failure: pending action cleared, CLICK still suppressed (RET_STOP) so release does not toggle
+    m = PH([H]); m.swipe(b'01234567\n'); m.quit_ret = 1; m.setword(PDOWN_Y, 65)
+    m.send('img_wifiswitch', O['EVT_POINTER_DOWN'], 49, 65); m.fire_hold()
+    r_click = m.send('img_wifiswitch', O['EVT_CLICK'], 49, 65)
+    ret, calls = m.modal()
+    expect(r_click == O['RET_STOP'] and m.word(PDOWN_Y) == 65 and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')],
+           f'failed dialog_quit: pending dropped, pressdown_y untouched, release CLICK still suppressed ({r_click}, {pages(calls)})')
+
+    # -- dialog ended without 0xd: pending action dropped
+    m = PH([H]); m.swipe(b'01234567\n')
+    m.send('img_btswitch', O['EVT_POINTER_DOWN'], 123, 65); m.fire_hold()
+    m.dialog_ret = 0; ret, calls = m.modal()
+    expect(ret == 0 and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')], 'non-0xd dialog end drops pending hold')
+
+    # -- pins: on_wm_tsmove_fun pressdown_y < 81 check is pinned in PULLDOWN_PINS
+    stock, built = stock_demo_bytes(), built_demo_bytes()
+    word = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+    p = [(a, old) for a, old, _ in pod.PULLDOWN_PINS if 0x4cd828 <= a <= 0x4cd834]
+    expect(pod.DATA['PRESSDOWN_Y'][0] == 0xa05a30 and len(p) == 4 and all(word(stock, a) == old and word(built, a) == old for a, old in p),
+           f'pressdown_y (0xa05a30) and the < 81 threshold words in on_wm_tsmove_fun are pinned and stock ({p})')
+
+
+SECTIONS = [hook_tests, page_tests, files_tests, own_tests, hold_tests, flags_tests, playtile_tests, stockopen_tests, gate_tests, close_tests]

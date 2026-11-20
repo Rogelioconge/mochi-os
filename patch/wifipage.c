@@ -878,7 +878,7 @@ static void wi_open(const wf_net *w) {
     if (wi.win) return;
     memset(&wi, 0, sizeof wi);
     memcpy(&wi.net, w, sizeof wi.net);
-    wi.win = window_open("m1plus_wifiinfo");
+    wi.win = pd_window_open("m1plus_wifiinfo");
     if (!wi.win) {
         memset(&wi, 0, sizeof wi);
         return;
@@ -1006,7 +1006,7 @@ static int wk_open(const wf_net *w, int bad) {
     char u[WF_SSID_MAX * 4 + 1], line[WF_SSID_MAX * 4 + 120];
     if (wk.win) return 0;
     memset(&wk, 0, sizeof wk);
-    wk.win = window_open("m1plus_wifipass");
+    wk.win = pd_window_open("m1plus_wifipass");
     if (!wk.win) {
         memset(&wk, 0, sizeof wk);
         return -1;
@@ -1200,7 +1200,7 @@ static void wo_set_sec(int sec) {
 static void wo_open(const wf_net *again) {
     if (wo.win) return;
     memset(&wo, 0, sizeof wo);
-    wo.win = window_open("m1plus_wifiother");
+    wo.win = pd_window_open("m1plus_wifiother");
     if (!wo.win) {
         memset(&wo, 0, sizeof wo);
         return;
@@ -1266,7 +1266,7 @@ static void ws_open(void) {
     int i, cur = wo.sec == WF_OPEN ? 0 : wo.sec == WF_TRANS ? 1 : 2;
     if (ws.win) return;
     memset(&ws, 0, sizeof ws);
-    ws.win = window_open("m1plus_wifisec");
+    ws.win = pd_window_open("m1plus_wifisec");
     if (!ws.win) {
         memset(&ws, 0, sizeof ws);
         return;
@@ -1413,7 +1413,7 @@ static void wp_spin_place(void) {
  * both leave stock's page, opened with stock's navigator_to each time (never restacked: its init scans on every open, 0x4b115c, and a restack runs no init; its EVT_WINDOW_TO_FG handler 0x4b0a34 only rebuilds the list from the old results). Stock ignores the result. A tap on the row only: no state, no timer, not on the boot path. */
 int wifipage_open(void);
 int wifi_hub_open(const char *name) {
-    if (access(KILL_SD, F_OK) != 0 && wifipage_open() == 0) return 0;
+    if (access(KILL_SD, F_OK) != 0 && pd_open_page("m1plus_wifi_page", wifipage_open, 0)) return 0;
     return navigator_to(name); /* a new stock page, its init scans (the result is unused by stock's row) */
 }
 

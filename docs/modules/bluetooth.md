@@ -127,9 +127,11 @@ only lays out and calls the control layer. It touches no Bluetooth word.
   when `bs_codec() == c` (a cancelled reconnect question, a running connect or the guard leave it). The
   LDAC rows use our short keys (stock's do not fit in some languages); the others are stock's `btcode_*`.
 - **Entries.** Settings > Bluetooth stays the `ACT_STOCK` row (value On / Off); `m1plus.c` calls
-  `btpage_open()` first and opens `systemset/bluetooth_page` only when it returns -1. The hub's row is
-  hooked (hook 32, `bt_hub_open`): our page, stock's with `/mnt/mmc/m1plus-off` or where ours will not
-  open. The Control Center Bluetooth tile is unchanged.
+  `pd_open_page` with `btpage_open` and opens `systemset/bluetooth_page` only when it returns 0.
+  The hub's row is hooked (hook 32, `bt_hub_open`): our page, stock's with `/mnt/mmc/m1plus-off` or
+  where ours will not open. On the Control Center Bluetooth tile, a short tap is unchanged and a
+  long press opens or restacks our page rooted ([pulldown](pulldown.md)); the device sub-page opens
+  via `pd_window_open`.
 - **Text.** New 13-language keys in `tools/pod_i18n.py`: Audio Codec, LDAC HQ / Standard / Connection,
   My Devices, Other Devices, Search Again, the note. The label and note are shortened where they would not
   fit.

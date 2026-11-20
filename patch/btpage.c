@@ -417,7 +417,7 @@ static void bd_open(const char *mac) {
         bp_layout();
         return;
     }
-    bd.win = window_open("m1plus_btdevice");
+    bd.win = pd_window_open("m1plus_btdevice");
     if (!bd.win) {
         memset(&bd, 0, sizeof bd);
         return;
@@ -551,7 +551,7 @@ static int bp_on_destroy(void *ctx, void *e) {
  * place with the same argument (the delay slot still loads it). Our page opens unless the kill switch exists or the page will not open; both leave stock's page, opened by stock's navigator_to (its init
  * starts a search on every open). Stock ignores the result. A tap on the row only: no state, no timer, not on the boot path. */
 int bt_hub_open(const char *name) {
-    if (access(KILL_SD, F_OK) != 0 && btpage_open() == 0) return 0;
+    if (access(KILL_SD, F_OK) != 0 && pd_open_page("m1plus_bluetooth_page", btpage_open, 0)) return 0;
     return navigator_to(name);
 }
 

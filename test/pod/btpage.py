@@ -1001,7 +1001,7 @@ def settings_tests(ctx):
     expect(len(bt) == 1 and bt[0].action == P.ACT_STOCK and bt[0].arg == P.STOCK_BLUETOOTH == 1 and P.STOCK_PAGES[1][0] == 'systemset/bluetooth_page' and P.row_kind(bt[0]) == 'value',
            'Settings > Bluetooth is still the stock row (its value shows On / Off), arg 1')
     src = open(os.path.join(ROOT, 'patch', 'm1plus.c')).read()
-    expect(re.search(r'row->arg == 1 /\* STOCK_BLUETOOTH \*/ && btpage_open\(\) == 0\)\s*return RET_OK;[^\n]*\n[\s\S]{0,400}?m1_open_stock\(\s*POD_STOCK\[row->arg\]\.name,\s*POD_STOCK\[row->arg\]\.window\)', src),
+    expect(re.search(r'row->arg == 1 /\* STOCK_BLUETOOTH \*/ && pd_open_page\("m1plus_bluetooth_page", btpage_open, 0\)\)\s*return RET_OK;[^\n]*\n[\s\S]{0,400}?m1_open_stock\(\s*POD_STOCK\[row->arg\]\.name,\s*POD_STOCK\[row->arg\]\.window\)', src),
            'the row opens our page first, and the stock page where it will not open')
     expect(not any(k.startswith('ACT_') and ('BTPAGE' in k or k == 'ACT_BT') for k in vars(P)) and P.ACT_BTCODECSET == 184
            and re.search(r'ACT_BTCODECSET =\s*184', src), 'one action id was added: 184, the picker\'s row')

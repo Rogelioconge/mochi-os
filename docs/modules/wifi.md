@@ -72,9 +72,10 @@ copy is removed and `wifi-networks` is never read.
 
 ## The Wi-Fi page
 
-Settings > Wi-Fi is the `ACT_STOCK` row (value On / Off from `wififlag`). A tap calls `wifipage_open()`
-(`patch/m1plus.c`), and only when that returns -1 (a window or asset that will not open) opens
-`systemset/wifi_page` as before. The hub's row is hooked (hook 21, `wifi_hub_open`): our page, else stock's
+Settings > Wi-Fi is the `ACT_STOCK` row (value On / Off from `wififlag`). A tap calls `pd_open_page`
+with `wifipage_open` (`patch/m1plus.c`), and only when that returns 0 opens `systemset/wifi_page` as
+before; long-pressing the Control Center Wi-Fi tile opens or restacks the same window rooted
+([pulldown](pulldown.md)), and the sub-pages open via `pd_window_open`. The hub's row is hooked (hook 21, `wifi_hub_open`): our page, else stock's
 when `/mnt/mmc/m1plus-off` exists or ours will not open. The stock page is always opened afresh, never
 restacked: its init scans on every open, and a restack would show old networks. The hook runs on a tap
 only and is not on the boot path; it reads the kill switch so the stock page stays reachable for WEP.

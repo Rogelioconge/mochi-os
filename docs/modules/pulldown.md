@@ -119,7 +119,7 @@ set. Both tiles then stayed disabled everywhere until Home cleared the flags.
   record NULL ("rooted": opened by no page). An entry is cleared by its window's `EVT_DESTROY`,
   which also turns the entries opened from it into orphans; a full table drops the entries of
   windows that are gone first, and a window left without an entry is nobody's child (never closed).
-  `pd_open_page(window, open_it, rooted)` is the one policy for the Equalizer and Wi-Fi Transfer tiles (and the Wi-Fi Transfer row), the Volume tap,
+  `pd_open_page(window, open_it, rooted)` is the one policy for the Equalizer and Wi-Fi Transfer tiles (and the Wi-Fi Transfer row), the Wi-Fi and Bluetooth tile long presses (and their Settings / stock hub rows), the Volume tap,
   the Volume page's rows and Settings' Gain / Equalizer / Volume & Sound rows: in front, left alone;
   else every window whose opener chain leads to it is closed (wherever it sits in the stack, and
   nothing else), then it is restacked, else opened. Restacking re-records the opener: the page in
@@ -178,6 +178,15 @@ caption box in ru; both are accepted. The Screenshot row label is too long in ja
   art image, a `POD_ROWS` glyph, a caption key in 13 languages and a case in `pd_run` (a switch has
   none). `m1plus_pulldown_init` hides tiles that are not shown, so a new pair only needs to be in
   the asset and the arrays.
+- **Wi-Fi and Bluetooth long press** (`pd_bind_hold`, `pd_on_hold_*`, `pd_run` `PD_ACT_WIFI` /
+  `PD_ACT_BT`): while shown, `img_wifiswitch` and `img_btswitch` bind pointer and click handlers
+  with the same `RM_LONG_MS` (500 ms) hold and `SC_DRAG_PX` (10 px) drag-cancel limit as Home
+  Screen pins ([pins](pins.md)). Holding quits the dialog with `0xd` while the finger is down,
+  resets `pressdown_y` (`0xa05a30`, pinned) past `on_wm_tsmove_fun`'s `< 81` gate so a residual drag
+  on row 1 cannot re-open the pull-down, and suppresses stock's toggle click on release (`RET_STOP`).
+  Once the modal dialog returns, `pd_open_page` (rooted) opens or restacks our Wi-Fi / Bluetooth
+  page (closing its `pd_window_open` sub-pages), falling back to stock's page on kill switch or open
+  failure. Short taps stay stock's toggles.
 
 ## Power Off
 

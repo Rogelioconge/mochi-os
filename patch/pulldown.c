@@ -54,6 +54,9 @@ enum {
     PD_SHOT
 }; /* the ids of our tiles (AirPlay and DLNA are switches, not actions) */
 
+#define PD_ACT_WIFI (PD_N + 0u) /* long press on the Wi-Fi tile (img_wifiswitch) */
+#define PD_ACT_BT (PD_N + 1u) /* long press on the Bluetooth tile (img_btswitch) */
+
 /* Our tiles' widgets are in the asset (tools/mod_pulldown.py), hidden and insensitive, named pod_tile_* / pod_cap_*. */
 static const char *const PD_IMG[PD_N] = {"img_wifiswitch",   "img_btswitch",      "img_keylockswitch", "img_gainswitch",
                                          "img_usbmode",      "img_outputswitch",  "img_playset",       "img_sysset",
@@ -146,13 +149,15 @@ static void pd_switch(unsigned id, void *img) {
     if (pd_switch_on(id) && networkGetConnectStatus() <= 0) pod_toast(TR("Connect to Wi-Fi first"));
 }
 
+/* The three conditions of the stock tile handlers (0x4754c8): a tile does nothing while they hold. */
+static int pd_blocked(void) {
+    return *(int *)DROPDOWN_BUSY == 2 || *(int *)POWER_USBSTATE == 2 || airplayGetFlag() == 2;
+}
+
 static int pd_on_tile(void *ctx, void *e) {
     unsigned k = (unsigned)((char *)ctx - (char *)pd_tile) / (unsigned)sizeof pd_tile[0];
     (void)e;
-    /* the three conditions of the stock tile handlers (0x4754c8): a tile does nothing while they hold */
-    if (k >= PD_N - PD_STOCK || !pd_tile[k].dlg || *(int *)DROPDOWN_BUSY == 2 || *(int *)POWER_USBSTATE == 2 ||
-        airplayGetFlag() == 2)
-        return RET_OK;
+    if (k >= PD_N - PD_STOCK || !pd_tile[k].dlg || pd_blocked()) return RET_OK;
     if (pd_is_switch(pd_tile[k].id)) { /* stays open */
         pd_switch(pd_tile[k].id, pd_tile[k].img);
         return RET_OK;
@@ -160,6 +165,87 @@ static int pd_on_tile(void *ctx, void *e) {
     pd_pending = pd_tile[k].id + 1;
     if (dialog_quit(pd_tile[k].dlg, PD_QUIT) != RET_OK) pd_pending = 0; /* the dialog stays as it was */
     return RET_OK;
+}
+
+/* Long press on the stock Wi-Fi (0) and Bluetooth (1) tiles (same RM_LONG_MS hold and SC_DRAG_PX move limit as Home Screen pins, patch/pins.c):
+ * holding fires while the finger is still down, stores PD_ACT_WIFI / PD_ACT_BT in pd_pending and quits the dialog with PD_QUIT so pd_open_dialog opens
+ * or restacks the page once the modal dialog returns. Our EVT_CLICK listener is bound after stock's (so runs first) and answers RET_STOP after a fired
+ * hold so stock's toggle never runs on release. Resetting PRESSDOWN_Y stops a residual drag on row 1 (y 51..80 < 81) from re-opening the pull-down. */
+static struct {
+    void *dlg;
+    unsigned timer;
+    unsigned down; /* 1 = Wi-Fi, 2 = Bluetooth, 0 = none */
+    unsigned fired; /* 1 = Wi-Fi, 2 = Bluetooth: long press fired for this touch */
+    m1_tap_t tap;
+} pd_hold __attribute__((section(".scratch")));
+
+static void pd_hold_reset(void) {
+    m1_timer_stop(&pd_hold.timer);
+    memset(&pd_hold, 0, sizeof pd_hold);
+}
+
+static int pd_on_hold_fire(const void *info) {
+    unsigned which = pd_hold.down;
+    void *dlg = pd_hold.dlg;
+    (void)info;
+    pd_hold.timer = 0;
+    pd_hold.down = 0;
+    if (!which || !dlg || pd_blocked()) return RET_OK;
+    pd_hold.fired = which;
+    pd_pending = (which == 1 ? PD_ACT_WIFI : PD_ACT_BT) + 1;
+    if (dialog_quit(dlg, PD_QUIT) == RET_OK)
+        *(volatile int *)PRESSDOWN_Y = 480;
+    else
+        pd_pending = 0;
+    return RET_OK;
+}
+
+static int pd_on_hold_touch(void *ctx, void *e) {
+    unsigned which = (unsigned)(long)ctx;
+    int type = e ? *(int *)e : 0;
+    if (type == EVT_POINTER_DOWN) {
+        m1_timer_stop(&pd_hold.timer);
+        pd_hold.fired = 0;
+        pd_hold.down = 0;
+        if (!e || !pd_hold.dlg || pd_blocked()) return RET_OK;
+        pd_hold.down = which;
+        m1_tap_at(&pd_hold.tap, e);
+        pd_hold.timer = timer_add(pd_on_hold_fire, (void *)0, RM_LONG_MS);
+    } else if (type == EVT_POINTER_MOVE) {
+        if (pd_hold.down == which && (!e || !m1_tap_near(&pd_hold.tap, e))) {
+            m1_timer_stop(&pd_hold.timer);
+            pd_hold.down = 0;
+        }
+    } else if (pd_hold.down == which) { /* UP or ABORT */
+        m1_timer_stop(&pd_hold.timer);
+        pd_hold.down = 0;
+    }
+    return RET_OK;
+}
+
+static int pd_on_hold_click(void *ctx, void *e) {
+    unsigned which = (unsigned)(long)ctx;
+    (void)e;
+    if (pd_hold.fired == which) {
+        pd_hold.fired = 0;
+        return RET_STOP; /* suppress stock's toggle click after a long press */
+    }
+    return RET_OK;
+}
+
+static void pd_bind_hold(void *dlg, void *const *img, unsigned shown) {
+    unsigned t;
+    pd_hold_reset();
+    pd_hold.dlg = dlg;
+    for (t = 0; t < 2; t++) {
+        if (!(shown >> t & 1) || !img[t]) continue;
+        /* Bind DOWN last: if any earlier listener cannot be bound, no hold timer can start. */
+        if (widget_on(img[t], EVT_POINTER_MOVE, pd_on_hold_touch, (void *)(long)(t + 1)) &&
+            widget_on(img[t], EVT_POINTER_UP, pd_on_hold_touch, (void *)(long)(t + 1)) &&
+            widget_on(img[t], EVT_POINTER_ABORT, pd_on_hold_touch, (void *)(long)(t + 1)) &&
+            widget_on(img[t], EVT_CLICK, pd_on_hold_click, (void *)(long)(t + 1)))
+            widget_on(img[t], EVT_POINTER_DOWN, pd_on_hold_touch, (void *)(long)(t + 1));
+    }
 }
 
 /* The window in front is the one called name: it is left alone (window_manager_switch_to with the window itself is not what stock ever does). */
@@ -360,6 +446,13 @@ static void pd_run(unsigned id) {
         pd_open_page("m1plus_wifitransfer_page", pod_open_wifitransfer, 1); /* one window with Network Services' row */
     else if (id == PD_SHOT)
         shot_start(); /* the Developer > Screenshot row's confirm */
+    else if (id == PD_ACT_WIFI) {
+        if (access(KILL_SD, F_OK) == 0 || !pd_open_page("m1plus_wifi_page", wifipage_open, 1))
+            navigator_to("systemset/wifi_page");
+    } else if (id == PD_ACT_BT) {
+        if (access(KILL_SD, F_OK) == 0 || !pd_open_page("m1plus_bluetooth_page", btpage_open, 1))
+            navigator_to("systemset/bluetooth_page");
+    }
 }
 
 /* The hook at on_wm_tsmove_fun's navigator_to("dialog/dropdown_dialog") (tools/pod.py PULLDOWN_DIALOG_SITE): the stock call, then, when the dialog was quit by one of our tiles (its result is
@@ -368,6 +461,7 @@ int pd_open_dialog(const char *name) {
     int ret;
     unsigned act;
     ret = navigator_to(name);
+    pd_hold_reset();
     act = pd_pending;
     pd_pending = 0;
     if (ret == PD_QUIT && act) pd_run(act - 1);
@@ -390,6 +484,7 @@ static void pd_start(void *dlg) {
     }
     n = pd_load(ord);
     for (i = 0; i < n; i++) shown |= 1u << ord[i];
+    pd_bind_hold(dlg, img, shown);
     for (i = 0; i < n; i++)
         if (ord[i] != i) break;
     if (n == PD_STOCK && i == n) return; /* the stock layout (ours stay as the asset has them: hidden) */
@@ -515,6 +610,7 @@ int pd_open_settings(const char *name) {
 static int pd_on_close(void *dlg, void *evt) {
     unsigned v[4]; /* value_t: type at 0, the uint32 at 8 */
     (void)evt;
+    pd_hold_reset();
     if (!dlg || widget_get_prop(dlg, "timer_idex", v) != RET_OK) return RET_OK;
     if (value_uint32(v) == 0xffffffffu || !timer_count()) return RET_OK;
     widget_remove_timer(dlg, value_uint32(v));

@@ -1089,6 +1089,8 @@ PULLDOWN_FLAG_PINS = (   # (address, stock word, what it proves)
     (0x4cde48, 0x0411fb73, 'key long press: bal getFormatString (0x4ccc18)'), (0x4cde4c, 0x24849ae0, 'key long press: a0 = "msg_poweroff"'), (0x4cde60, 0x04110fb9, 'key long press: bal navigator_to_with_context'), (0x4cde64, 0x24844570, 'key long press: a0 = "dialog/confirminfo_dialog"'),
     (0x4cde6c, 0x1443000c, 'key long press: bne v0, 0xa: only Yes goes on'), (0x4cde7c, 0x04110fc0, 'key long press: bal navigator_to'), (0x4cde80, 0x2484412c, 'key long press: a0 = "poweroff_page"'), (0x4cdea4, 0xae200000, 'key long press: sw zero, (s1): standby_mode = 0 after anything but Yes'),
     (0x4cd86c, 0x2403000d, 'on_wm_tsmove_fun: v1 = 0xd, what a tile quits the dialog with'), (0x4cd870, 0x14430014, 'on_wm_tsmove_fun: any other result skips the page opening (bne v0, v1, 0x4cd8c4)'),
+    (0x4cd828, 0x8f82a9b4, 'on_wm_tsmove_fun: lw v0, GOT pressdown_y (0xa05a30)'), (0x4cd82c, 0x8c440000, 'on_wm_tsmove_fun: lw a0, (v0): pressdown_y'),
+    (0x4cd830, 0x28820051, 'on_wm_tsmove_fun: slti v0, a0, 0x51 (81: row 1 tiles start at y 51, so a hold quit resets pressdown_y >= 81)'), (0x4cd834, 0x10400023, 'on_wm_tsmove_fun: beqz v0, return'),
     (0x4754fc, 0x8f82a960, 'System tile handler 0x4754c8: lw v0, GOT 0xa05a00 (DROPDOWN_BUSY; the Playback handler 0x475558 reads the same word at 0x47558c)'), (0x47558c, 0x8f82a960, 'Playback tile handler: the same word'),
     (0x475518, 0x8f99a968, 'System tile handler: lw t9, GOT airplayGetFlag (0x5cfc4c)'), (0x47552c, 0x8f99a838, 'System tile handler: lw t9, GOT dialog_quit (0x64f378)'),
     (0x475530, 0x2405000d, 'System tile handler: a1 = 0xd'), (0x475534, 0x0320f809, 'System tile handler: jalr dialog_quit(a0 = the handler\'s ctx, the dialog)'),

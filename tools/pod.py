@@ -907,6 +907,7 @@ DATA.update({
     'PLAYSET_FLAG':       (0xa05a4c, 'playsetinto_flag'),    # int: the same for Playback Settings
     'LOCK_PAGEFLAG':      (0xa059fc, 'lockscreen_pageflag'),   # int: 1 from the lock page's init until its EVT_WINDOW_CLOSE; on_wm_tsmove_fun opens no pull-down while it is 1 (m1plus_tsdown)
     'DROPDOWN_STATE':     (0xa05a2c, 'dropdown_menu_state'),   # int: 0 idle; 1 / 2 / 3 while the pull-down opens, is open, is closing; its dialog's EVT_WINDOW_CLOSE stores 0 (m1plus_tsdown)
+    'PRESSDOWN_Y':        (0xa05a30, 'pressdown_y'),           # int: pointer-down y recorded by on_wm_tsdown_fun (state 0 or 3); on_wm_tsmove_fun opens the pull-down only for < 81
 })
 FUNCTIONS['window_manager_switch_to'] = ('int', 'void *, void *, void *, int', 0x67891c)   # (wm, current window, target window, close current): stock's own restack of a window already in the stack
 PULLDOWN_PINS += PULLDOWN_FLAG_PINS + TSDOWN_PINS

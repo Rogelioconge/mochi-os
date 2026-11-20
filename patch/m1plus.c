@@ -702,9 +702,9 @@ static int on_row(void *ctx, void *e) {
     else if (row->action == ACT_REGEN)
         dailymix_regen(); /* patch/dailymix.c: no page, a toast when asked; the card is made again when the Home menu is back in front */
     else if (row->action == ACT_STOCK) {
-        if (row->arg == 0 /* STOCK_WIFI */ && wifipage_open() == 0)
+        if (row->arg == 0 /* STOCK_WIFI */ && pd_open_page("m1plus_wifi_page", wifipage_open, 0))
             return RET_OK; /* patch/wifipage.c: our Wi-Fi page; the stock page where it will not open */
-        if (row->arg == 1 /* STOCK_BLUETOOTH */ && btpage_open() == 0)
+        if (row->arg == 1 /* STOCK_BLUETOOTH */ && pd_open_page("m1plus_bluetooth_page", btpage_open, 0))
             return RET_OK; /* patch/btpage.c: our Bluetooth page; the stock page where it will not open */
         {
             void *wm = window_manager(), *top = wm ? window_manager_get_top_main_window(wm) : (void *)0;
