@@ -37,6 +37,7 @@ IDLE_SITE = (pod.IDLE_SITE, 4)  # the timed open's jalr navigator_to, now jal bc
 TIDALKB_SITE = (pod.TIDALKB_SITE, 4)  # the stock Tidal search page's edit_set_focus call, now jal tidal_kb_focus (patch/tidalkb.c, docs/modules/payload.md hook 27)
 BTHUB_SITE = (pod.BTHUB_SITE, 4)  # the Bluetooth row of the same hub: its jalr navigator_to, now jal bt_hub_open (patch/btpage.c, docs/modules/payload.md hook 32)
 AUTOCHANGE_SITE = (pod.AUTOCHANGE_SITE, 4)  # on_wm_idle_status's `jalr mclAutoChange`, now jal rd_auto_change (patch/radio.c, docs/modules/payload.md hook 36)
+USBPOLL_SITE = (pod.USBPOLL_SITE, 4)  # on_wm_idle_status's `bal check_usb_status`, now jal pd_usb_poll (patch/pulldown.c, docs/modules/payload.md hook 38)
 NOTICE_SITES = [(a, 4) for a in pod.NOTICE_SITES]  # on_wm_timer_dialogresponse's `jalr access` of /tmp/notfile and /tmp/notsupport, now jal rd_notice (patch/radio.c, hook 37)
 VOLUME_SITE = (pod.VOLUME_SITE, 4)  # on_wm_tsup_fun's `bal navigator_to_with_context("dialog/volume_dialog", 2)`, now jal vol_tap_open (patch/volume.c, docs/modules/payload.md hook 33)
 LIBUPDATE_BATCH_SITE = pod.LIBUPDATE_BATCH_SITE  # toolsInsertDbTable's batch COMMIT call, now jal lu_batch_exec (hook 34)
@@ -119,6 +120,7 @@ def main():
     for a in LIBUPDATE_COMMIT_SITES + (LIBUPDATE_BATCH_SITE,): allow(va_to_off(s, a), 4, 'scan commit hook')
     allow(va_to_off(s, VOLUME_SITE[0]), VOLUME_SITE[1], 'Volume page hook (the status bar tap)')
     allow(va_to_off(s, AUTOCHANGE_SITE[0]), AUTOCHANGE_SITE[1], 'radio auto change hook (the idle pass)')
+    allow(va_to_off(s, USBPOLL_SITE[0]), USBPOLL_SITE[1], 'USB poll hook (the idle pass)')
     for a, n in NOTICE_SITES: allow(va_to_off(s, a), n, 'radio notice hook (hciplayer failure markers)')
     allow(va_to_off(s, IDLE_SITE[0]), IDLE_SITE[1], 'idle view hook (the timed open)')
     allow(va_to_off(s, TIDALKB_SITE[0]), TIDALKB_SITE[1], 'Tidal search keyboard hook')
@@ -132,6 +134,7 @@ def main():
     allow(va_to_off(s, pod.LOCKROW), 8, 'Display page Lock Screen row hook')
     allow(va_to_off(s, pod.NEXTALBUM_SITE), 8, 'mclNextSong end branch hook (Continue with Next Album)')
     allow(va_to_off(s, pod.KEYS_SITE), 8, 'event1 key table load hook (Swap Prev / Next)')
+    allow(va_to_off(s, pod.USBTAKE_SITE), 8, 'USB page request hook (the response timer)')
     allow(va_to_off(s, pod.TSDOWN), 8, 'touch-down hook (on_wm_tsdown_fun: j m1plus_tsdown; nop, patch/pulldown.c, docs/modules/payload.md hook 30)')
     for q in SHUFFLE_HOOKS: allow(va_to_off(s, q), 8, 'shuffle hook')
     for q in MODE_SITES: allow(va_to_off(s, q), 4, 'play mode display site')
@@ -239,6 +242,10 @@ def main():
     good = sw == 0x041110f8 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
     print(f'Volume page hook {VOLUME_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
     ok = ok and good
+    o = va_to_off(s, USBPOLL_SITE[0]); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]
+    good = sw == 0x0411fcb7 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
+    print(f'USB poll hook {USBPOLL_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
+    ok = ok and good
     o = va_to_off(s, AUTOCHANGE_SITE[0]); sw = struct.unpack_from('<I', s, o)[0]; mw = struct.unpack_from('<I', m, o)[0]
     good = sw == 0x0320f809 and mw >> 26 == 3 and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s))
     print(f'radio auto change hook {AUTOCHANGE_SITE[0]:#x}: {sw:#010x} -> {mw:#010x}', 'ok' if good else 'WRONG')
@@ -292,6 +299,11 @@ def main():
     good = (struct.unpack_from('<II', s, o) == pod.NEXTALBUM_DISPLACED and mw >> 26 == 2 and m[o + 4:o + 8] == bytes(4) and s[o + 8:o + 12] == m[o + 8:o + 12]
             and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s)))
     print(f'mclNextSong end branch hook {pod.NEXTALBUM_SITE:#x}: {s[o:o + 8].hex()} -> {m[o:o + 8].hex()}', 'ok' if good else 'WRONG')
+    ok = ok and good
+    o = va_to_off(s, pod.USBTAKE_SITE); mw = struct.unpack_from('<I', m, o)[0]
+    good = (struct.unpack_from('<II', s, o) == (0x904341b1, 0x1060001c) and mw >> 26 == 2 and m[o + 4:o + 8] == bytes(4) and s[o + 8:o + 12] == m[o + 8:o + 12]
+            and 0xb00000 <= (mw & 0x3ffffff) << 2 < 0xb00000 + (len(m) - len(s)))
+    print(f'USB page request hook {pod.USBTAKE_SITE:#x}: {s[o:o + 8].hex()} -> {m[o:o + 8].hex()}', 'ok' if good else 'WRONG')
     ok = ok and good
     o = va_to_off(s, pod.KEYS_SITE); mw = struct.unpack_from('<I', m, o)[0]
     good = (struct.unpack_from('<II', s, o) == (0x8c420000, 0xafa20058) and mw >> 26 == 2 and m[o + 4:o + 8] == bytes(4) and s[o + 8:o + 12] == m[o + 8:o + 12]

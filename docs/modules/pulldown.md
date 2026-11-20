@@ -247,12 +247,53 @@ stack.
 - A window under another page keeps its word: its init does not run again when the page above
   closes, so a word cleared while it was covered would stay 0 once it is in front again (a second
   pull-down over the first). Such a covered window still blocks the swipe above it, as in stock.
-- Words are only cleared, never set; nothing is closed, destroyed or opened.
+- The two words are only cleared, never set; nothing is closed, destroyed or opened.
 - Reconciling at touch down makes stock's own tsdown store `pressdown_y` for this touch, so the first
   swipe after a stale word already works.
-- **Cost:** both words 0 (the normal case) is two loads and the stock call, with no
-  window-manager call, file, syscall or allocation. A nonzero word reads the kill switch once and
-  walks the window stack. On the kill switch the hook is stock. Pins: `TSDOWN_PINS`.
+- **Cost:** both words 0 and no possible lost USB page (the normal case) is at most five loads and
+  the stock call, with no window-manager call, file, syscall or allocation. A nonzero word, or state 2
+  with the cable in and no page pending (also every touch while USB Storage or USB DAC is open),
+  reads the kill switch once and walks the window stack. On the kill switch the hook is stock. Pins:
+  `TSDOWN_PINS`.
+
+**The USB gate (third word).** `on_wm_tsmove_fun` also refuses while `usblink_status`
+(`POWER_USBSTATE`) is 2, a computer has the card. Stock's card-mount check and auto standby /
+power-off countdown skip it too. Only `check_usb_status` writes 0, 1 and 2, and only `usbmode_exit`
+writes 3. On the host's answer the poll stores 2 and sets the USB page's pending byte
+(`USB_PAGE_PENDING`). The response timer clears the byte, then opens `usbmode_page` and ignores the
+result. The page's close runs `usbmode_exit` (state 3). On an unplug the poll resets only states 1
+(with `storage_config.sh stop`) and 3, so a page that never opened, or one that went without its
+close event, leaves state 2 for good, even after the cable is out. The byte can also stay set:
+Auto Update's modal scan dialog runs inside the response timer, which does not fire again until the
+scan returns, so a reconnect during the scan leaves state 2 and the byte waiting (then the page
+opens late, cable or not).
+
+**Rule: payload hook 38, `pd_usb_poll`** (the idle pass's `check_usb_status` call becomes a call to
+it, then stock's poll). With state 2, no cable and no `usbmode_page` anywhere in the stack (also
+under the lock page) it clears the byte and stores 1, and the same call runs stock's own unplug
+branch for 1: `storage_config.sh stop`, `toolsSetpclinkStatus(0)` (the kernel keeps `pc_check` at 1
+after an enumeration until firmware writes 0) and state 0. The swipe, the card-mount check and auto
+standby come back without a touch, over the scan dialog too: stock's own scan, after a USB page's
+close or from Settings, already runs with state 0 or 3 and the swipe open. A replug during the same
+scan then runs through stock's 0 → 1 → 2: a PC asks for the page again (opened once the scan
+returns), a charger leaves state 1. With `usbmode_page` in the stack (a normal unplug) the state is
+left for its own close, `usbmode_exit`.
+
+**Rule: payload hook 39, `pd_usb_take`** (the response timer's read of the byte, through the asm
+stub `pod_usb_site`). A request whose cable is gone (`POWER_EXT` 0) is cleared and read as none, so
+the timer neither closes a lock page or pull-down for it nor opens USB Storage. With state 2 it then
+calls `pd_usb_poll` at once, so a cable back before the next idle pass meets stock's 0 → 1 → 2, not a
+stale 2. Otherwise the branch is stock's.
+
+- **Cost:** one load and stock's call per idle pass and per timer pass; while state 2 has no cable
+  (also the second or so a normal unplug takes to close `usbmode_page`), the kill switch (read once)
+  and a window stack walk per idle pass. Pins: `USBPOLL_PINS`, `USBTAKE_PINS`.
+
+With the cable in, the touch hook asks again for a lost page: state 2, no page pending and no
+`usbmode_page` in the stack set the byte, so the response timer's next tick opens the page as stock
+meant to. The swipe stays refused until the page is used and closed. State 3 is not stored instead:
+stock's unplug skips `storage_config.sh stop` on 3. A pending page or the page in the stack leaves the
+state to stock.
 
 **The slide timer after the close (second cause, same symptom).** The dialog's close handler stores
 state 0 and removes only the 500 ms refresh timer. The 10 ms slide timer is not removed, and the
@@ -266,4 +307,7 @@ independent: the touch hook repairs a stale state, this one stops one being made
 
 **Limits.** A dialog on top of the stack but off-screen, a lock page on top but not shown, and a
 lock page or dialog left under another page (its word stays set and blocks the swipe there) are left
-to stock.
+to stock. With the cable in, a response timer held by the scan dialog still delays the USB page, and
+the swipe waits for it or the unplug. While the byte at `0xa05aa6` is set (car mode) stock's poll returns at once, so a
+state 2 reset to 1 there waits for car mode to end before stock's unplug runs. A USB page that opened and then went without its close event
+leaves the card as `usbmode_exit` would have found it.

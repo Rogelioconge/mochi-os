@@ -4,7 +4,8 @@ The hook runs the real compiled payload under the harness machine with the stock
 and the tiles' clicks are bound by stock code, which the hook never touches); the dialog's geometry is the built asset's own
 (ui/dialog/dropdown_dialog.bin). The page is the Main Menu page's twin and is tested the way menu.py tests that one."""
 import os, random, struct
-from unicorn import UC_HOOK_MEM_WRITE
+from unicorn import UC_HOOK_MEM_WRITE, UC_HOOK_CODE
+from unicorn.mips_const import UC_MIPS_REG_S0
 import palette
 import cdefs
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
@@ -1036,6 +1037,9 @@ def stockopen_tests(ctx):
 
 TSDOWN, TSMOVE = pod.TSDOWN, 0x4cd788
 LOCKW, STATEW, PRESSW = pod.DATA['LOCK_PAGEFLAG'][0], pod.DATA['DROPDOWN_STATE'][0], 0xa05a30
+USBW, EXTW, PENDB, CHECK_USB = 0xa059f4, 0xa059f8, 0xa041b1, 0x4ce1e8   # usblink_status, usbdet_value, the USB page's pending byte, check_usb_status (TSDOWN_PINS)
+SYSTEM_STUB, SETPCLINK, GETPCLINK = 0x7436e0, 0x5e5fe4, 0x5e5f2c   # stock's lazy stub for system (its GOT slot 0xa03198 holds it), toolsSetpclinkStatus, toolsGetpclinkStatus: the poll's calls, trapped
+SCAN = 'scanmusic_dialog'   # Auto Update's modal scan dialog (opened inside the response timer)
 KILL_SD_ = '/mnt/mmc/m1plus-off'
 
 
@@ -1046,14 +1050,24 @@ class TG(SF):
         super().__init__(stack)
         if stock:
             s = stock_demo_bytes(); self.u.mem_write(TSDOWN, s[pod.fileoff(s, TSDOWN):][:0x4cd8dc - TSDOWN])
+            self.u.mem_write(pod.USBPOLL_SITE, s[pod.fileoff(s, pod.USBPOLL_SITE):][:4])   # the idle pass's check_usb_status call
+            self.u.mem_write(pod.USBTAKE_SITE, s[pod.fileoff(s, pod.USBTAKE_SITE):][:8])   # the response timer's read of the USB page request
         for a in (0xa059e0, 0xa06d00, 0xa059dc, 0xa059f4, 0xa05abc, 0xa045e5, 0x97cae0, 0xa05a34): self.setword(a, 0)   # tsdown's / tsmove's other gates: open
-        self.handlers[0x5cfc4c] = 'airplayGetFlag'
-        self.setword(LOCKW, lock); self.setword(STATEW, state); self.setword(PRESSW, 0x90)   # (a stale press point: only this touch's own store lets the swipe through)
+        self.handlers[0x5cfc4c] = 'airplayGetFlag'; self.handlers.pop(CHECK_USB, None)   # (check_usb_status runs for real)
+        self.setword(LOCKW, lock); self.setword(STATEW, state); self.setword(PRESSW, 0x90); self.pclink = 1   # (a stale press point: only this touch's own store lets the swipe through)
         self.writes = []
         self.write_hooks = [self.u.hook_add(UC_HOOK_MEM_WRITE, lambda u, t, a, s, v, d: self.writes.append((a, v & 0xffffffff)), begin=w, end=w + 3) for w in (LOCKW, STATEW)]
 
     def _hook(self, u, address, size, _):
         if self.handlers.get(address) == 'airplayGetFlag':
+            u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        name = self.handlers.get(address)
+        if name == 'toolsGetpclinkStatus':   # the host's answer (pc_check)
+            self.calls.append((name,)); u.reg_write(UC_MIPS_REG_V0, self.pclink); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'toolsSetpclinkStatus':   # pc_check written: the kernel keeps 1 after an enumeration until firmware writes it
+            self.pclink = u.reg_read(UC_MIPS_REG_A0)
+        if name in ('awake_screen', 'system', 'toolsSetpclinkStatus'):   # check_usb_status's unplug calls (the idle poll, run for real)
+            a0 = u.reg_read(UC_MIPS_REG_A0); self.calls.append((name, self.read_cstr(a0) if name == 'system' else a0))
             u.reg_write(UC_MIPS_REG_V0, 0); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         super()._hook(u, address, size, _)
 
@@ -1070,6 +1084,30 @@ class TG(SF):
         """The move: on_wm_tsmove_fun. True when it called navigator_to("dialog/dropdown_dialog")."""
         self.call(TSMOVE, a0=0, a1=self.pev(y), count=2000000)
         return ('navigator_to', 'dialog/dropdown_dialog') in self.calls
+
+    def _usb_mocks(self):
+        self.handlers[SYSTEM_STUB], self.handlers[SETPCLINK], self.handlers[GETPCLINK] = 'system', 'toolsSetpclinkStatus', 'toolsGetpclinkStatus'; self.u.mem_write(0xa05aa6, b'\0')   # (0xa05aa6 0: the poll runs)
+        self.calls, self._icount, self.limit = [], 0, 4000000
+
+    def poll(self):
+        """The idle pass's USB step, from the call site's own words (0x4cef04 .. 0x4cef10): stock's check_usb_status, or the build's pd_usb_poll then it. Returns the calls."""
+        self._usb_mocks()
+        self.u.reg_write(UC_MIPS_REG_SP, STACK); self.u.reg_write(UC_MIPS_REG_GP, pod.GP)
+        self.u.emu_start(pod.USBPOLL_SITE - 4, pod.USBPOLL_SITE + 8)
+        assert self.u.reg_read(UC_MIPS_REG_PC) == pod.USBPOLL_SITE + 8, 'the poll did not return to its call site'
+        return list(self.calls)
+
+    def take(self):
+        """The response timer's USB page step, from its read of the request (0x4cf254) to the next check (0x4cf2cc), both paths: stock's read, or the build's stub and pd_usb_take. Returns the calls."""
+        self._usb_mocks()
+        sp = STACK - 0x4c0   # (the timer's own frame: its saved gp at 0x18)
+        self.u.reg_write(UC_MIPS_REG_SP, sp); self.setword(sp + 0x18, pod.GP); self.u.reg_write(UC_MIPS_REG_GP, pod.GP); self.u.reg_write(UC_MIPS_REG_V0, 0xa00000)
+        reached = []   # (a code hook at the next check: unicorn's PC register can still read the block's start when an end address stops it)
+        h = self.u.hook_add(UC_HOOK_CODE, lambda u, a, sz, d: (reached.append(u.reg_read(UC_MIPS_REG_S0)), u.emu_stop()), begin=pod.USBTAKE_SKIP, end=pod.USBTAKE_SKIP)
+        try: self.u.emu_start(pod.USBTAKE_SITE, 0, count=1000000)
+        finally: self.u.hook_del(h)
+        assert reached == [0xa00000], f'the timer did not reach its next check with s0 the page: {reached}, {self.calls}'
+        return list(self.calls)
 
     def swipe(self):
         c, w = self.down(); self.after_down = (self.word(LOCKW), self.word(STATEW), self.word(PRESSW))   # (the move itself stores state 1 when it opens)
@@ -1147,9 +1185,101 @@ def gate_tests(ctx):
     c, _ = m.down()
     expect(len([x for x in c if x[0] == 'access']) == 2 and m.word(STATEW) == 0, 'a touch with both words 0 does not read it: the first stale word does')
 
+    # -- the third gate, usblink_status 2 (a computer has the card): left at 2 by a USB page that never opened or closed without usbmode_exit (the report: a reconnect during Auto Update's scan, whose
+    # modal dialog runs inside the response timer, so the page's pending byte stays 1 until the scan returns)
+    def usb(stack, ext=0, pending=0, stock=False, kill=None):
+        m = TG(stack, stock=stock); m.setword(USBW, 2); m.setword(EXTW, ext); m.u.mem_write(PENDB, bytes([pending]))
+        if kill: m.present.add(kill)
+        return m
+    pend = lambda m: m.u.mem_read(PENDB, 1)[0]
+    stop = ('system', 'storage_config.sh stop')
+
+    def plug(m, pc):
+        """A cable in: stock's state-0 branch (storage_config.sh start, then 1; not run here), and for a PC a new enumeration latching pc_check 1."""
+        m.setword(EXTW, 1); m.setword(USBW, m.word(USBW) or 1)
+        if pc: m.pclink = 1
+    for pending, tag in ((0, 'no page pending'), (1, 'the USB page still pending (the scan held the response timer)')):
+        m = usb([H], pending=pending, stock=True); c = m.poll(); o = m.swipe()[0]
+        expect(not o and m.word(USBW) == 2 and pend(m) == pending and stop not in c, f'STOCK, state 2 with no cable, {tag}, no USB page: the poll leaves it, no pull-down ({o}, {m.word(USBW)}, {pend(m)})')
+        m = usb([H], pending=pending); c = m.poll()
+        expect(m.word(USBW) == 0 and pend(m) == 0 and stop in c, f'BUILT, the same: the poll drops the page and runs stock\'s own unplug: storage_config.sh stop, state 0 ({m.word(USBW)}, {pend(m)}, {c})')
+        o = m.swipe()[0]
+        expect(o and m.after_down[2] == 20, f'BUILT, then the pull-down opens ({o})')
+    # over Auto Update's scan dialog: stock's own scan (after a USB page's close, or from Settings) runs with the state 0 or 3, so its swipe is open; the build unplugs a stale 2 there too
+    m = TG([H, SCAN], stock=True); o = m.swipe()[0]
+    expect(o, f'STOCK, state 0 over the scan dialog: the pull-down opens ({o})')
+    m = usb([H, SCAN], pending=1); c = m.poll()
+    expect(m.word(USBW) == 0 and pend(m) == 0 and stop in c and m.pclink == 0, f'BUILT, state 2 with no cable over the scan dialog: the page dropped, stock\'s unplug (stop, pc_check 0, state 0) ({m.word(USBW)}, {c})')
+    # replugs during the same scan run through stock's own 0 -> 1 -> 2: a PC asks for the page (opened once the scan returns), a charger leaves 1
+    plug(m, 1); m.poll()
+    expect(m.word(USBW) == 2 and pend(m) == 1, f'BUILT, the PC back during the scan: stock\'s start and host check, state 2 and the page asked for ({m.word(USBW)}, {pend(m)})')
+    m.setword(EXTW, 0); c = m.poll()
+    expect(m.word(USBW) == 0 and pend(m) == 0 and stop in c and m.pclink == 0, f'BUILT, a second unplug over the scan: unplugged again, pc_check cleared again ({m.word(USBW)}, {c})')
+    plug(m, 0); m.poll(); m.stack = [x for x in m.stack if x[0] != SCAN]; m.sync(); m.poll(); c = m.take()   # (a charger: pc_check as firmware left it)
+    expect(m.word(USBW) == 1 and pend(m) == 0 and not [x for x in c if x[0] == 'navigator_to'], f'BUILT, a charger after it, the scan closed: state 1, no USB Storage ({m.word(USBW)}, {c})')
+    m = usb([H, SCAN], pending=1); m.poll(); plug(m, 1); m.poll(); m.stack = [x for x in m.stack if x[0] != SCAN]; m.sync(); c = m.take()
+    expect(('navigator_to', 'usbmode_page') in c, f'BUILT, the PC back during the scan, the scan closed: the response timer opens USB Storage ({c})')
+    m = usb([H, SCAN], ext=1, pending=1, stock=True); m.poll(); m.setword(EXTW, 0); m.poll(); m.setword(EXTW, 1); m.stack = [x for x in m.stack if x[0] != SCAN]; m.sync(); m.poll()
+    expect(m.word(USBW) == 2 and pend(m) == 1, f'STOCK, the same unplug and replug: the old request is all there is ({m.word(USBW)}, {pend(m)})')
+    # a normal unplug of a USB session: usbmode_page's own close (usbmode_exit, then stock's unplug) is left to run, nothing written meanwhile
+    for pending in (0, 1):
+        m = usb([H, USB], pending=pending); c = m.poll()
+        expect(m.word(USBW) == 2 and not [x for x in c if x[0] in ('system', 'toolsSetpclinkStatus')], f'BUILT, state 2 with no cable and the USB page open, pending {pending}: the state and pc_check kept for usbmode_exit ({c})')
+    # the timer first after the unplug: the request dropped and the state unplugged at once, so a cable back before the next poll meets stock's 0 -> 1 -> 2
+    m = usb([H], pending=1); c = m.take()
+    expect(m.word(USBW) == 0 and pend(m) == 0 and stop in c and m.pclink == 0 and not [x for x in c if x[0] == 'navigator_to'], f'BUILT, the timer takes a request with no cable: dropped, stock\'s unplug at once ({m.word(USBW)}, {c})')
+    plug(m, 1); m.poll()
+    expect(m.word(USBW) == 2 and pend(m) == 1 and ('navigator_to', 'usbmode_page') in m.take(), f'BUILT, then the PC back: the host asked, USB Storage opens ({m.word(USBW)})')
+    m = usb([H], pending=1); m.take(); plug(m, 0); m.poll(); c = m.take()   # (a charger)
+    expect(m.word(USBW) == 1 and not [x for x in c if x[0] == 'navigator_to'], f'BUILT, or a charger: state 1, no USB Storage ({m.word(USBW)}, {c})')
+    # the response timer before the poll: the request is read with the cable already gone
+    for stock in (True, False):
+        m = usb([H], pending=1, stock=stock); c = m.take()
+        expect((('navigator_to', 'usbmode_page') in c) == stock and pend(m) == 0,
+               f'{"STOCK" if stock else "BUILT"}, the timer takes the request with no cable: ' + ('USB Storage opens' if stock else 'dropped, nothing opens') + f' ({c})')
+    m = usb([H, LOCK], pending=1); c = m.take()
+    expect(not [x for x in c if x[0] in ('navigator_to', 'navigator_close', 'window_manager')] and m.names_() == [H, LOCK],
+           f'BUILT, the same over the lock page: the top window is not even asked for, so stock does not close the lock page for the page ({c})')
+    for stock in (True, False):
+        m = usb([H], ext=1, pending=1, stock=stock); c = m.take()
+        expect(('navigator_to', 'usbmode_page') in c and pend(m) == 0, f'{"STOCK" if stock else "BUILT"}, the timer takes the request with the cable in: USB Storage opens ({c})')
+        m = usb([H], ext=1, stock=stock); c = m.take()
+        expect(not [x for x in c if x[0] == 'navigator_to'], f'{"STOCK" if stock else "BUILT"}, nothing pending: nothing opens ({c})')
+    m = usb([H], pending=1, kill=KILL_SD_); c = m.take()
+    expect(('navigator_to', 'usbmode_page') in c, f'kill switch: the timer is stock\'s ({c})')
+    for tag, stack in (('the USB page in the stack', [H, USB]), ('the USB page under the lock page', [H, USB, LOCK])):
+        m = usb(stack, pending=1); m.poll(); c = m.take()
+        expect(m.word(USBW) == 2 and pend(m) == 0 and not [x for x in c if x[0] in ('navigator_to', 'system')], f'BUILT, state 2 with no cable and {tag}: the timer drops the page request, the state kept for usbmode_exit ({m.word(USBW)}, {pend(m)}, {c})')
+    for stock in (True, False):
+        m = usb([H], ext=1, stock=stock); c = m.poll()
+        expect(m.word(USBW) == 2 and pend(m) == 0 and not [x for x in c if x[0] in ('widget_count_children', 'access')],
+               f'{"STOCK" if stock else "BUILT"}, state 2 with the cable in: the poll changes nothing and walks no window stack ({m.word(USBW)}, {c})')
+    # the cable still in: a touch asks for the lost page again
+    for stock in (True, False):
+        m = usb([H], ext=1, stock=stock); o = m.swipe()[0]
+        expect(not o and m.word(USBW) == 2 and pend(m) == (0 if stock else 1),
+               f'{"STOCK" if stock else "BUILT"}, state 2 with the cable in, no page pending and no USB page: blocked, ' + ('nothing pending' if stock else 'the page pending again (the next response tick opens it)') + f' ({o}, {pend(m)})')
+    for tag, stack, pending in (('the page pending (its first 500 ms, or the scan holds the timer)', [H], 1), ('the USB page in the stack (a USB session)', [H, USB], 0),
+                                ('the USB page under the lock page', [H, USB, LOCK], 0)):
+        for stock in (True, False):
+            m = usb(stack, 1, pending, stock); o = m.swipe()[0]
+            expect(not o and m.word(USBW) == 2 and pend(m) == pending, f'{"STOCK" if stock else "BUILT"}, state 2, the cable in, {tag}: blocked, all kept ({o}, {m.word(USBW)}, {pend(m)})')
+    m = usb([H], 1, 1); c, _ = m.down()
+    expect(not [x for x in c if x[0] in ('widget_count_children', 'access')], 'state 2 with the cable in and the page pending: no window stack walk, no kill switch read')
+    for kill in (KILL_SD_, '/mnt/data/m1plus-off'):
+        m = usb([H], 0, 1, kill=kill); c = m.poll()
+        expect(m.word(USBW) == 2 and pend(m) == 1 and stop not in c, f'kill switch {kill}, no cable: the poll is stock\'s ({m.word(USBW)}, {pend(m)})')
+        m = usb([H], 1, kill=kill); o = m.swipe()[0]
+        expect(not o and pend(m) == 0, f'kill switch {kill}, cable in: the touch is stock\'s ({o}, {pend(m)})')
+
     # -- the build
     stock, built = stock_demo_bytes(), built_demo_bytes()
     word = lambda b, a: struct.unpack_from('<I', b, pod.fileoff(b, a))[0]
+    expect(pod.DATA['POWER_USBSTATE'][0] == USBW and pod.DATA['POWER_EXT'][0] == EXTW and pod.DATA['USB_PAGE_PENDING'][0] == PENDB, 'the USB words the hooks read are the pinned ones')
+    expect(word(stock, pod.USBPOLL_SITE) == 0x0411fcb7 and word(built, pod.USBPOLL_SITE) == pod.jal(PSYMS['pd_usb_poll'], pod.USBPOLL_SITE) and pod.FUNCTIONS['check_usb_status'][2] == CHECK_USB
+           and MANIFEST['hook_usbpoll'] == {'addr': pod.USBPOLL_SITE, 'target': PSYMS['pd_usb_poll']}, 'the idle pass calls pd_usb_poll where stock calls check_usb_status (hook 38)')
+    expect((word(stock, pod.USBTAKE_SITE), word(stock, pod.USBTAKE_SITE + 4)) == (0x904341b1, 0x1060001c) and (word(built, pod.USBTAKE_SITE), word(built, pod.USBTAKE_SITE + 4)) == (pod.j(PSYMS['pod_usb_site']), 0)
+           and MANIFEST['hook_usbtake'] == {'addr': pod.USBTAKE_SITE, 'target': PSYMS['pod_usb_site']}, 'the response timer reads the USB page request through pod_usb_site (hook 39)')
     expect(TSDOWN == 0x4cd6e8 and pod.TSDOWN_PROLOGUE == (0x3c1c0053, 0x279c67e8, 0x0399e021) and tuple(word(stock, TSDOWN + 4 * i) for i in range(3)) == pod.TSDOWN_PROLOGUE,
            'stock has the three PIC prologue words the hook pins (on_wm_tsdown_fun)')
     expect((0x53 << 16) + 0x67e8 + TSDOWN == pod.GP, 'the prologue computes $gp = 0xa03ed0 from t9 = the entry')

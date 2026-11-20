@@ -191,6 +191,10 @@ void volpage_go(
     int k); /* the Volume page's second card: row k (0 Max Volume, 1 Equalizer, 2 Volume & Sound) opens its page without a second window */
 int vol_tap_open(const char *name, int ctx); /* payload hook 33: the status bar tap's open of the volume dialog */
 
+/* patch/pulldown.c */
+int pd_usb_poll(
+    void); /* payload hook 38: the idle pass's check_usb_status call (a stale USB state 2 after the unplug) */
+
 /* patch/display.c */
 int disp_light(void); /* stock's backlight time index, 0 never .. 4 five minutes */
 int disp_light_set(int index); /* ... chosen the way stock's own page does; -1 for an index stock does not have */

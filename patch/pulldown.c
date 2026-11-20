@@ -657,7 +657,14 @@ int m1plus_pulldown_init(void *dlg, void *ctx) {
  * on_wm_tsmove_fun opens the pull-down only while lockscreen_pageflag is not 1 (set by the lock page's init, cleared by its EVT_WINDOW_CLOSE) and dropdown_menu_state is 0 (its 0 is the dialog's own
  * EVT_WINDOW_CLOSE). A window that goes away without that event (stock's window manager can drop a close that arrives during an animation) leaves the word set for ever and the swipe dead until a reboot.
  * The hook runs before stock's on_wm_tsdown_fun and only clears: a flag is zeroed when no window of its name is in the window stack (a window under another page keeps its flag); nothing is closed, destroyed or opened, and
- * a flag is never set. With both words 0 (always, but for a lock screen or a pull-down on the way) it is two loads and the stock call. */
+ * a flag is never set. With both words 0 (always, but for a lock screen or a pull-down on the way) it is two loads and the stock call.
+ *
+ * The third gate is usblink_status 2 (a computer has the card). check_usb_status stores it with the USB page's pending byte; the response timer clears the byte and opens usbmode_page (its result ignored), whose
+ * close (usbmode_exit) stores 3. On an unplug the idle poll resets only 1 and 3, so a page that never opened or closed without its event leaves 2 for ever: no swipe, no card mount check, no auto standby.
+ * The byte can also stay 1: Auto Update's modal scan dialog runs inside that timer, which does not fire again until the scan returns (then it opens the page, cable or not). Two hooks: pd_usb_poll wraps
+ * the idle poll's call and, with state 2, the cable gone and no usbmode_page in the stack, drops the byte and stores 1, so the same call runs stock's own unplug (storage_config.sh stop, pc_check 0, state 0),
+ * over the scan dialog too (stock's own scan runs with the state already 0 or 3). pd_usb_take is the timer's read of the byte: a request whose cable is gone is dropped, and its state 2 unplugged at once.
+ * The touch hook covers a page lost with the cable never out: state 2, no page pending and no usbmode_page set the byte again. */
 static int pd_off_state __attribute__((section(".scratch"))); /* 0 not read yet, 1 on, 2 kill switch */
 
 static int pd_off(void) {
@@ -676,17 +683,46 @@ static int pd_present(void *wm, const char *name) {
     return 0;
 }
 
-/* The hook (tools/pod.py TSDOWN): the two words made true, then stock. */
+/* The hook (tools/pod.py TSDOWN): the two words made true, a lost USB page asked for again, then stock. */
 int m1plus_tsdown(void *ctx, void *e) {
     volatile int *lock = (volatile int *)LOCK_PAGEFLAG, *state = (volatile int *)DROPDOWN_STATE;
-    if ((*lock || *state) && !pd_off()) {
+    volatile unsigned char *pending = (volatile unsigned char *)USB_PAGE_PENDING;
+    int lost = *(volatile int *)POWER_USBSTATE == 2 && *(volatile int *)POWER_EXT &&
+               !*pending; /* host has the card, no page on the way */
+    if ((*lock || *state || lost) && !pd_off()) {
         void *wm = window_manager();
         if (wm) {
             if (*lock && !pd_present(wm, "screensaver_page")) *lock = 0;
             if (*state && !pd_present(wm, "dropdown_dialog")) *state = 0;
+            if (lost && !pd_present(wm, "usbmode_page")) *pending = 1; /* the response timer opens the page */
         }
     }
     return stock_tsdown_trampoline(ctx, e);
+}
+
+/* The hook (tools/pod_pins.py USBPOLL_SITE): a USB state 2 whose cable is gone, with no usbmode_page left to run usbmode_exit, made stock's 1, then stock's poll, whose unplug branch runs
+ * storage_config.sh stop, clears pc_check and stores 0. */
+int pd_usb_poll(void) {
+    volatile int *usb = (volatile int *)POWER_USBSTATE;
+    if (*usb == 2 && !*(volatile int *)POWER_EXT && !pd_off()) {
+        void *wm = window_manager();
+        if (wm && !pd_present(wm, "usbmode_page")) {
+            *usb = 1;
+            *(volatile unsigned char *)USB_PAGE_PENDING = 0;
+        }
+    }
+    return check_usb_status();
+}
+
+/* The hook (tools/pod_pins.py USBTAKE_SITE, the pod_usb_site stub): the response timer's USB page request, 0 for none. A request whose cable is gone is dropped, and a state 2 unplugged at once
+ * (pd_usb_poll), so a cable back before the next idle pass meets stock's 0 -> 1 -> 2, not a stale 2. */
+int pd_usb_take(void) {
+    volatile unsigned char *pending = (volatile unsigned char *)USB_PAGE_PENDING;
+    if (*pending && !*(volatile int *)POWER_EXT && !pd_off()) {
+        *pending = 0;
+        if (*(volatile int *)POWER_USBSTATE == 2) pd_usb_poll();
+    }
+    return *pending;
 }
 
 /* ---- the Control Center page */

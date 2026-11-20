@@ -1101,6 +1101,27 @@ PULLDOWN_FLAG_PINS = (   # (address, stock word, what it proves)
     (0x4cfde4, 0x8f99b470, 'on_wm_timer_networkstatus 0x4cfd94: lw t9, GOT airplay_start (0x5076dc), which starts or stops shairport to match the byte'), (0x4cfde8, 0x0320f809, 'on_wm_timer_networkstatus: jalr airplay_start'),
     (0x4cfe18, 0x8f99b474, 'on_wm_timer_networkstatus: lw t9, GOT dmr_serverstart (0x508354), which starts or stops the DLNA renderer to match the byte'), (0x4cfe1c, 0x0320f809, 'on_wm_timer_networkstatus: jalr dmr_serverstart'),
 )
+# Hook 38: on_wm_idle_status's check_usb_status call (`lw t9, GOT; bal`, nop, `lw gp` after; the result is not read) becomes `jal pd_usb_poll` (patch/pulldown.c, docs/modules/pulldown.md "The USB gate").
+# With state 2, no cable and no usbmode_page in the stack it drops the USB page's pending byte and stores 1, so the same call's unplug branch resets it. Every idle pass, from boot: one load, then stock.
+USBPOLL_SITE = 0x4cef08
+USBPOLL_PINS = (
+    (0x4cef04, 0x8f99b430, 'on_wm_idle_status: lw t9, GOT check_usb_status'), (USBPOLL_SITE, 0x0411fcb7, 'on_wm_idle_status: bal check_usb_status (the hook replaces it)'),
+    (0x4cef0c, 0x00000000, 'its delay slot: nop'), (0x4cef10, 0x8fbc0010, 'on_wm_idle_status: lw gp after the call (the result is not read)'),
+    (0x4ce304, 0x1643000b, 'check_usb_status, cable in: bne s2 (the state), 1: only state 1 asks the host'), (0x4ce310, 0x0320f809, 'jalr toolsGetpclinkStatus'),
+    (0x4ce318, 0x1452000d, 'bne v0, s2: no host answer keeps 1 (then 0x4ce324 stores 2 and 0x4ce32c asks for the page)'),
+    (0x4ce1e8, 0x3c1c0053, 'check_usb_status prologue (pd_usb_poll calls it)'), (0x4ce1ec, 0x279c5ce8, 'check_usb_status prologue'), (0x4ce1f0, 0x0399e021, 'check_usb_status prologue'),
+)
+# Hook 39: on_wm_timer_dialogresponse's read of the USB page's pending byte (`lbu v1, 0x41b1(v0)`; `beqz v1, 0x4cf2cc`, delay slot `lw s0, GOT 0xa00000`) becomes `j pod_usb_site; nop`. The stub asks
+# pd_usb_take, which drops the request when the cable is gone (and unplugs a state 2 at once through pd_usb_poll), then runs the branch as stock (both paths get s0, and v0 the 0xa00000 page the open path's `sb zero, 0x41b1(v0)` uses). Every timer pass: one load.
+USBTAKE_SITE, USBTAKE_OPEN, USBTAKE_SKIP = 0x4cf254, 0x4cf260, 0x4cf2cc
+USBTAKE_PINS = (
+    (0x4cf1d0, 0x14620020, 'on_wm_timer_dialogresponse: bne v1, v0, 0x4cf254 (the other way to the site)'), (0x4cf1d4, 0x8f8282c0, 'its delay slot: lw v0, GOT 0xa00000'),
+    (0x4cf250, 0x8f8282c0, 'lw v0, GOT 0xa00000'), (USBTAKE_SITE, 0x904341b1, 'lbu v1, 0x41b1(v0): the pending byte (the hook replaces it)'),
+    (0x4cf258, 0x1060001c, 'beqz v1, 0x4cf2cc: nothing pending (the hook replaces it)'), (0x4cf25c, 0x8f9082c0, 'its delay slot: lw s0, GOT 0xa00000 (the stub runs it on both paths)'),
+    (USBTAKE_OPEN, 0x8f99804c, 'the open path: lw t9, GOT window_manager'), (0x4cf264, 0x0320f809, 'jalr window_manager'), (0x4cf268, 0xa04041b1, 'its delay slot: sb zero, 0x41b1(v0): the byte cleared'),
+    (0x4cf2bc, 0x04110ab0, 'bal navigator_to'), (0x4cf2c0, 0x24849bf0, 'a0 = "usbmode_page"'), (0x4cf2c4, 0x8fbc0018, 'lw gp, 0x18(sp)'), (0x4cf2c8, 0x8f9082c0, 'lw s0, GOT 0xa00000'),
+    (USBTAKE_SKIP, 0x920241b0, 'the next check: lbu v0, 0x41b0(s0) (s0 the page, from either path)'),
+)
 # The swipe's two gates (docs/modules/pulldown.md "Swipe gates and the window stack"): on_wm_tsmove_fun refuses to open the pull-down while lockscreen_pageflag (0xa059fc) is 1 or dropdown_menu_state (0xa05a2c) is not 0;
 # the first is stored only by the lock page's init (1) and its EVT_WINDOW_CLOSE handler (0), the second only by the pull-down's own handlers and tsmove (its 0 by the dialog's EVT_WINDOW_CLOSE handler 0x4750ec).
 TSDOWN_PINS = (   # (address, stock word, what it proves)
@@ -1127,6 +1148,16 @@ TSDOWN_PINS = (   # (address, stock word, what it proves)
     (0x4751b8, 0x10400014, 'pointer-down handler: beqz timer_count: no timer, nothing to cancel'),
     (0x4751d4, 0x8f99a85c, 'pointer-down handler: lw t9, GOT widget_remove_timer (0x668cb0)'), (0x4751d8, 0x0320f809, 'pointer-down handler: jalr widget_remove_timer(dlg, id)'),
     (0x4751ec, 0x0320f809, 'pointer-down handler: jalr value_set_uint32(&v, -1)'), (0x475204, 0x0320f809, 'pointer-down handler: jalr widget_set_prop(dlg, "timer_idex", &v)'),
+    # the third gate, usblink_status (0xa059f4) 2: written only by check_usb_status (0, 1, 2) and usbmode_exit (3); pd_usb_poll stores 1 for a stale 2 so the idle poll's own unplug branch runs
+    (0x4cd7a4, 0x24100002, 'on_wm_tsmove_fun: s0 = 2'), (0x4cd7d0, 0x8f82a964, 'on_wm_tsmove_fun: lw v0, GOT usblink_status'), (0x4cd7d4, 0x8c420000, 'on_wm_tsmove_fun: lw v0, (v0)'),
+    (0x4cd7d8, 0x1050003a, 'on_wm_tsmove_fun: beq v0, s0: only state 2 returns without opening'),
+    (0x4ce228, 0x8f82a910, 'check_usb_status 0x4ce1e8: lw v0, GOT usbdet_value (0xa059f8, POWER_EXT)'), (0x4ce230, 0x14640047, 'check_usb_status: bne v1, 1: no cable goes to the unplug branch 0x4ce350'),
+    (0x4ce320, 0x24030002, 'check_usb_status: v1 = 2 (the host answered)'), (0x4ce324, 0xae230000, 'check_usb_status: sw v1, usblink_status'), (0x4ce32c, 0xa06241b1, 'check_usb_status: sb v0 (1), 0xa041b1: the USB page pending'),
+    (0x4ce350, 0x8e020000, 'check_usb_status unplug: lw v0, usbdet_value'), (0x4ce354, 0x1440ffb2, 'check_usb_status unplug: bnez: a cable returns'),
+    (0x4ce364, 0x7c110844, 'check_usb_status unplug: ins s1, zero, 1, 1 (state & ~2)'), (0x4ce368, 0x1622fff2, 'check_usb_status unplug: bne s1, 1: only states 1 and 3 are reset (2 is skipped)'),
+    (0x4ce380, 0x14510006, 'check_usb_status unplug: bne v0, s1: only state 1 runs storage_config.sh stop'), (0x4ce394, 0x24849b50, 'check_usb_status unplug: a0 = "storage_config.sh stop"'),
+    (0x4ce3a4, 0x0320f809, 'check_usb_status unplug: jalr toolsSetpclinkStatus(0)'), (0x4ce3a8, 0xae000000, 'check_usb_status unplug: sw zero, usblink_status'),
+    (0x545800, 0x8f82a964, 'usbmode_exit: lw v0, GOT usblink_status'), (0x545804, 0x24030003, 'usbmode_exit: v1 = 3'), (0x545808, 0xac430000, 'usbmode_exit: sw v1: its only store, 3'),
 )
 TSDOWN_PROLOGUE = (0x3c1c0053, 0x279c67e8, 0x0399e021)   # on_wm_tsdown_fun's PIC prologue (lui gp, 0x53; addiu gp, gp, 0x67e8; addu gp, gp, t9)
 

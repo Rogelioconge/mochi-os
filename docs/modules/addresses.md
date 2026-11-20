@@ -55,6 +55,8 @@ Other hook sites (call-site words and two-word stubs):
 | 35 event1 key table load | `0x637bc8` | `lw v0, (v0)`; `sw v0, 0x58(sp)` in the event1 thread `0x637870` (table `0x75b324`); resumes `0x637bd0` |
 | 36 end-of-track call | `0x4ce834` | `jalr mclAutoChange` `0x5d621c` (its only caller) |
 | 37 failure markers | `0x4cf5b0`, `0x4cf8d0` | `jalr access` of `/tmp/notfile`, `/tmp/notsupport` in `on_wm_timer_dialogresponse` `0x4cf178` |
+| 38 USB poll call | `0x4cef08` | `bal check_usb_status` `0x4ce1e8` in `on_wm_idle_status` (its only caller) |
+| 39 USB page request | `0x4cf254` | `lbu v1, 0x41b1(v0)`; `beqz v1, 0x4cf2cc` in `on_wm_timer_dialogresponse` `0x4cf178`; resumes `0x4cf260` (open) or `0x4cf2cc` |
 | 34 scan dialog finish refresh | `0x47baec` | `bal 0x47b604` (refresh with `done = 1`) in the dialog's timer callback `0x47bab0`; state word `0xa03a40`, stop byte `0xa0b088`, Auto Update byte `0xa05aa9` ([libupdate](libupdate.md)) |
 | Display page Lock Screen row | `0x4a5ca8` (row handler `0x4a5c10`) | resumes `0x4a5c88` or `0x4a5c94` |
 | Equalizer row | `0x4a0210` | resumes epilogue `0x4a0070` |
@@ -299,7 +301,7 @@ prologues pinned in `PINYIN_PINS`.
 | play mode | `mclSetPlayMode` `0x5d278c` (mode word `0xa0abe0`), `mclSetPlayPos` `0x5d42d8`, position `0xa0abdc`, gapless state `0xa0abd0` | `SHUFFLE_PINS`; raw mode readers `0x5d58fc`, `0x5d5748`, `0x5d0edc` |
 | play mode keys | `0x47a454`, `0x47a4d4`, `0x47a4e8`, `0x47a500` | the More dialog's `playmode_*` labels |
 | lock screen | `screensaver_mode` `0xa05aa3`, `screensaver_timeshow` `0xa05aa2`, `screensaver_picture` `0xa0473c`, `pdeq_screensaverlist` `0xa045cc` | `LOCKSCREEN_PINS`; wallpaper helpers `get_screensaver_image` `0x4d7524`, `toolsGetScreenSaverPic` `0x5e4b64` |
-| pull-down state | `syssetinto_flag` / `playsetinto_flag` `0xa05a48` / `0xa05a4c`; `lockscreen_pageflag` `0xa059fc`; `dropdown_menu_state` `0xa05a2c`; `pressdown_y` `0xa05a30` | `TSDOWN_PINS`; `on_wm_tsmove_fun` `0x4cd788`, slide timer callback `0x47535c`, close handler `0x4750ec` |
+| pull-down state | `syssetinto_flag` / `playsetinto_flag` `0xa05a48` / `0xa05a4c`; `lockscreen_pageflag` `0xa059fc`; `dropdown_menu_state` `0xa05a2c`; `pressdown_y` `0xa05a30`; `usblink_status` `0xa059f4`, USB page pending byte `0xa041b1` | `TSDOWN_PINS`, `USBPOLL_PINS`, `USBTAKE_PINS`; `on_wm_tsmove_fun` `0x4cd788`, slide timer callback `0x47535c`, close handler `0x4750ec`; `check_usb_status` `0x4ce1e8`, `usbmode_exit` state 3 `0x545808` |
 
 ## Theme setting
 

@@ -86,7 +86,7 @@ stock's own behaviour.
 | 27 | Tidal search page focus call, call site `0x4c2088` | [tidalkb](tidalkb.md) | stock `edit_set_focus` |
 | 28 | `on_wm_idle_status` play-history call, call site `0x4ce930` | [subsonic](subsonic.md) | stock `add_playrecord` |
 | 29 | `loadLocalClassList` `0x4ee504` and its tail `deque_assign` call `0x4ee650` | [libload](libload.md) | stock copy (boot) |
-| 30 | `on_wm_tsdown_fun` `0x4cd6e8` (every touch down) | [pulldown](pulldown.md) | two loads (`lockscreen_pageflag`, `dropdown_menu_state`), then stock; clears a stale nonzero word, nothing else |
+| 30 | `on_wm_tsdown_fun` `0x4cd6e8` (every touch down) | [pulldown](pulldown.md) | a few loads (`lockscreen_pageflag`, `dropdown_menu_state`, the USB state), then stock; clears a stale nonzero word or asks again for a lost USB page, nothing else |
 | 31 | `on_wm_idle_status` play-status call, call site `0x4ce968` | [display](display.md) | stock `mclGetPlayStatus` |
 | 32 | Bluetooth row of the All System Settings hub, call site `0x4b1428` | [bluetooth](bluetooth.md) | stock `navigator_to` |
 | 33 | status bar tap's open of the volume dialog, call site `0x4cd964` (`on_wm_tsup_fun`) | [volume](volume.md) | stock `navigator_to_with_context` |
@@ -94,6 +94,8 @@ stock's own behaviour.
 | 35 | event1 input thread's key table load, `0x637bc8` (two words, asm stub `pod_keys_site`) | [keyspower](keyspower.md) | stock's key (boot); previous / next swapped only while Swap Prev / Next is on (one byte read, the file read once) |
 | 36 | `on_wm_idle_status` end-of-track call, call site `0x4ce834` | [radio](radio.md) | stock `mclAutoChange` |
 | 37 | home timer's checks of hciplayer's failure markers, call sites `0x4cf5b0` (`/tmp/notfile`), `0x4cf8d0` (`/tmp/notsupport`) (`on_wm_timer_dialogresponse`) | [radio](radio.md) | stock `access` |
+| 38 | `on_wm_idle_status` USB poll call, call site `0x4cef08` | [pulldown](pulldown.md) | stock `check_usb_status` |
+| 39 | `on_wm_timer_dialogresponse` read of the USB page request, `0x4cf254` (two words, asm stub `pod_usb_site`) | [pulldown](pulldown.md) | stock's read; drops the request when the cable is gone |
 
 Sites without a number:
 
@@ -116,11 +118,14 @@ Rules for the table:
   (bounded work, stock's call on any refusal). Hook 31 runs on every idle pass and does one
   compare of a cached int when LED Light is not Dynamic; hook 36 runs on every idle pass and does
   two compares of the radio's state before stock, plus at most two file checks (the kill switch)
-  while the radio owns the player; hook 37 runs on every home timer pass and does stock's `access`,
+  while the radio owns the player; hook 38 runs on every idle pass and does one load before stock,
+  plus a window stack walk only while a USB state 2 outlives its cable; hook 39 does one load per
+  timer pass (two while a USB page is requested); hook 37 runs on every home timer pass and does stock's `access`,
   then the same checks only when a marker exists.
 - Kill switch `/mnt/mmc/m1plus-off`: scope in [safety](safety.md#kill-switch). Hooks 5, 6, 22 and 33
   never read it (bounded work or tap-only, stock fallback); 13 and 14 use stock's own switch; 16, 36
-  and 37 read both switch files (`home_off`) only while the radio owns the player.
+  and 37 read both switch files (`home_off`) only while the radio owns the player; 30, 38 and 39 read
+  them once (cached) at the first stale word or USB state.
 - `tools/reach.py` decides boot reachability; hooks not marked "boot" are reached only through the navigator's page-init dispatcher, a tap or the status bar, never from `main` / `platform_init`.
 - Credit: hooks 4, 5, 6, 9 - 12, 16 and 19 follow q2-pod's equivalents; hook 31's lamp pins came
   from PR #5.
