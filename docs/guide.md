@@ -54,7 +54,8 @@ Pin up to six albums, playlists, songs or artists to the top of Home, above Cove
 stays in the list it came from (**Artists** or **Album Artists**); with Split Artists off, a pinned
 guest artist says "Can't play" until the setting is on again. If the card cannot be read or
 written, pinning says "Can't update pins" and the list is left alone (delete `.m1plus/home-pins`
-to start again). With six pinned, unpin one before pinning another.
+to start again). With six pinned, unpin one before pinning another. A pin stays until you
+unpin it: if its item is no longer in the library, tapping it says "Not found".
 
 ### Find a song
 

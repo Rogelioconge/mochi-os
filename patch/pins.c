@@ -19,8 +19,8 @@
  *   tiles    the grid's (patch/grid.c with PIN_COVER and PIN_R): an album's cover is its cache file box-reduced, a playlist's the mosaic of its keys (one source a tick), else the
  *            shared placeholder disc; ONE cover (or mosaic quarter) per PIN_TICK_MS tick on the page's timer, paint never decodes.
  *   refresh  EVT_WINDOW_TO_FG reads the file again and redoes only the tiles whose pin changed.
- *   check    once, from the menu's to-foreground at least PIN_CHECK_MS after the menu opened (the stock album list is loaded: never at boot, in a tick or in paint): a pin whose
- *            album or playlist is gone leaves the list and the file. A tap that finds its item gone drops it too.
+ *   check    once, from the menu's to-foreground at least PIN_CHECK_MS after the menu opened (the stock album list is loaded: never at boot, in a tick or in paint): an album pin
+ *            takes its row's new cover key. No pin is ever dropped for a missing item (a library mid-scan lists fewer): a tap on one says "Not found" / "Can't play"; only Unpin removes.
  *   touch    a tile is its cover and its name; a press that begins on one and is released closer than SC_DRAG_PX to it on the same tile opens it (an album: our album page, as
  *            Recently Played does; a playlist: our Songs page on it, as the Playlists page does). A press held RM_LONG_MS opens the sheet (the Queue page's three-row sheet with
  *            other words: Play, Shuffle, and Unpin Album / Unpin Playlist by the tile's type), opened when the held press is released where it was.
@@ -876,70 +876,46 @@ static int pn_pl_find(const pin_t *e) {
     return n ? -1 : -2;
 }
 
-/* The pin is gone from the library: out of the list and the file, the section redone. */
-static void pn_drop(char kind, unsigned key) {
-    pn_unpin(kind, key, (const char *)0, 0);
-    if (pn.win && pn.fg) pn_apply();
-}
-
 /* The sheet's Unpin: the user asked, so a file that cannot be written says "Can't update pins" and the tile stays. */
 static void pn_remove(char kind, unsigned key) {
     pn_unpin(kind, key, (const char *)0, 1);
     if (pn.win && pn.fg) pn_apply();
 }
 
-/* Our album page on the album (the Albums grid's own sequence). Gone: the pin goes. */
+/* Our album page on the album (the Albums grid's own sequence). Not in the list, or no list (empty or failed: not told apart): "Not found", the pin stays (only the user unpins: a library
+ * mid-scan lists fewer). */
 static void pn_open_album(const pin_t *e) {
     void *albums = cc_albums();
     int row;
-    if (!albums) return; /* an empty or failed read: nothing is dropped on that */
+    if (!albums) {
+        pod_toast(TR("Not found"));
+        return;
+    }
     row = pn_find(albums, e, "", 0);
     deque_destroy(albums);
     if (row >= 0)
         cc_open_album((void *)0, 0, row);
     else
-        pn_drop('a', e->key);
+        pod_toast(TR("Not found"));
 }
 
-/* Our Songs page on the playlist, as the Playlists page's tap opens it; the stock page if ours will not open. Gone: the pin goes. */
+/* Our Songs page on the playlist, as the Playlists page's tap opens it; the stock page if ours will not open. Not in the list, or no list (empty or failed): "Not found", the pin stays. */
 static void pn_open_playlist(const pin_t *e) {
-    int r = pn_pl_find(e);
-    if (r == -1) {
-        pn_drop('p', e->key);
+    if (pn_pl_find(e) < 0) {
+        pod_toast(TR("Not found"));
         return;
     }
-    if (r < 0) return;
     if (songs_open_playlist((int)e->key, e->name) != -1) return;
     snprintf((char *)NAV_TITLE, 0x200, "%s", e->name);
     *(int *)(CLASSINFO + CLASSINFO_ARG) = (int)e->key;
     navigator_to_with_context("allmusic_page", (const void *)CLASS_PLAYLIST_SONGS);
 }
 
-/* 1 when some row of the stock list *pdeq_showlist (as loadLocalClassList left it) has `name` inside its title, ASCII case aside: whatever the Split Artists setting, a field that credits the artist ("Lead; Guest") holds the name. */
-static int pn_credited(const char *name) {
-    void *list = *(void **)PDEQ_SHOWLIST;
-    unsigned n = list ? deque_size(list) : 0, i, k, len = (unsigned)strlen(name);
-    for (i = 0; i < n; ++i) {
-        void *r = deque_at(list, i);
-        const char *t;
-        if (*(int *)((char *)r + REC_ID) == -1) continue;
-        for (t = cc_str(r, REC_TITLE); strlen(t) >= len; ++t) {
-            for (k = 0; k < len && (t[k] | ((unsigned)(t[k] - 'A') < 26 ? 0x20 : 0)) ==
-                                       (name[k] | ((unsigned)(name[k] - 'A') < 26 ? 0x20 : 0));
-                 ++k) {
-            }
-            if (k == len) return 1;
-        }
-    }
-    return 0;
-}
-
 /* The artist's row as the Artists page lists it (artists_find) in the list the pin was made from (0 Artists, 1 Album Artists; an old line has none: the list shown now, then the other), one-row deque to
  * destroy. The stock artist_type is left at the list the row came from (the stock queries that follow, the artist's albums and songs, read it) and *prev is what it was: pn_scope_end puts it back.
- * *gone is 1 only when every list the pin may live in was read and nothing in it credits the name at all (an empty or failed list tells nothing; a row that merely has the name inside its field, "Lead; Guest", is a credit the
- * split setting would list on its own): a mode or a list that does not show the artist as a row of its own never drops the pin. */
-static void *pn_artist_row(const pin_t *e, int *gone, int *prev) {
-    int cur = pn_type(), sc = e->path[0] == '1' ? 1 : e->path[0] == '0' ? 0 : -1, k, t, listed = 0, credited = 0;
+ * NULL when no list shows the artist as a row of its own now (gone, Split Artists turned on since, the library mid-scan or unreadable): the caller says so and the pin stays. */
+static void *pn_artist_row(const pin_t *e, int *prev) {
+    int cur = pn_type(), sc = e->path[0] == '1' ? 1 : e->path[0] == '0' ? 0 : -1, k, t;
     void *one = (void *)0;
     *prev = cur;
     for (k = 0; k < (sc < 0 ? 2 : 1) && !one; ++k) {
@@ -952,17 +928,11 @@ static void *pn_artist_row(const pin_t *e, int *gone, int *prev) {
         if (one &&
             cc_nocase(
                 cc_str(deque_at(one, 0), REC_TITLE),
-                e->name)) { /* Split Artists turned on since the pin: artists_find splits the name and answers with its first one ("Lead; Guest" gives Lead's row), not the artist the tile names. No row of its own now: never opened, never dropped */
+                e->name)) { /* Split Artists turned on since the pin: artists_find splits the name and answers with its first one ("Lead; Guest" gives Lead's row), not the artist the tile names */
             deque_destroy(one);
             one = (void *)0;
-            continue;
-        }
-        if (!one && loadLocalClassList(CLASS_ARTISTS) > 0) {
-            ++listed;
-            credited |= pn_credited(e->name);
         }
     }
-    *gone = !one && listed == (sc < 0 ? 2 : 1) && !credited;
     if (!one && pn_type() != cur) { /* nothing found: back to the list shown */
         *(volatile int *)ARTIST_TYPE = cur;
         *(volatile unsigned char *)ARTIST_RELOAD = 1;
@@ -978,16 +948,12 @@ static void pn_scope_end(int prev) {
 }
 
 /* Our Albums page on the artist, as a tap on the Artists row (Cover Flow if that window will not open). The page reads its albums by the stock artist_type each time it loads, so a pin made in
- * the other list switches the setting to its own, as the Show group does (saved, the Artists page follows). Gone: the pin goes. */
+ * the other list switches the setting to its own, as the Show group does (saved, the Artists page follows). No row: "Not found", the pin stays. */
 static void pn_open_artist(const pin_t *e) {
-    int gone, prev;
-    void *one = pn_artist_row(e, &gone, &prev);
+    int prev;
+    void *one = pn_artist_row(e, &prev);
     if (!one) {
-        if (gone)
-            pn_drop('r', e->key);
-        else
-            pod_toast(TR(
-                "Can't play")); /* the list does not show it as a row of its own now (Split Artists, or the library list could not be read): the pin stays */
+        pod_toast(TR("Not found"));
         return;
     }
     if (pn_type() != prev) write_int_config(pn_type(), "PLAYSET", "ARTISTTYPE");
@@ -995,19 +961,16 @@ static void pn_open_artist(const pin_t *e) {
     deque_destroy(one);
 }
 
-/* All the artist's songs, in order or shuffled: the scoped Albums page's Play and Shuffle (songs_play_artist), read in the list the pin was made from. Gone: the pin goes. */
+/* All the artist's songs, in order or shuffled: the scoped Albums page's Play and Shuffle (songs_play_artist), read in the list the pin was made from. No row or no play: "Can't play", the pin stays. */
 static void pn_play_artist(const pin_t *e, int how) {
-    int gone, prev, r = -1;
-    void *one = pn_artist_row(e, &gone, &prev);
+    int prev, r = -1;
+    void *one = pn_artist_row(e, &prev);
     if (one) {
         r = songs_play_artist(deque_at(one, 0), CLASS_ARTISTS, how);
         deque_destroy(one);
         pn_scope_end(prev);
     }
-    if (gone)
-        pn_drop('r', e->key);
-    else if (r < 0)
-        pod_toast(TR("Can't play"));
+    if (r < 0) pod_toast(TR("Can't play"));
 }
 
 /* The whole album as the queue, from the first song (SO_IN_ORDER) or a random one in the stock Shuffle mode (SO_SHUFFLE), then Now Playing: the album page's Play pill and
@@ -1067,83 +1030,54 @@ static int pn_missing(const char *path) {
     return pn_absent();
 }
 
-/* A song tile's tap and Play: the album from the pinned track on. A file that is gone (the card is in) drops the pin; one that fails to open for another reason, or an album the library cannot
- * find, says "Can't play" and keeps it. */
+/* A song tile's tap and Play: the album from the pinned track on. A file that is gone (the card is in) says so, one that fails to open for another reason or an album the library cannot find
+ * says "Can't play"; the pin stays either way (only the user unpins). */
 static void pn_play_song(const pin_t *e) {
     if (so_card() && pn_missing(e->path)) {
-        pn_drop('s', e->key);
         pod_toast(so_missing());
         return;
     }
     if (pn_play_album(e, SO_IN_ORDER) < 0) pod_toast(TR("Can't play"));
 }
 
-/* The whole playlist the same way (the Songs page's Play and Shuffle: classinfo[1] the playlist id, loadLocalClassList, so_play). */
+/* The whole playlist the same way (the Songs page's Play and Shuffle: classinfo[1] the playlist id, loadLocalClassList, so_play). -1 when nothing plays: not in the list, no list (empty or failed),
+ * no songs. */
 static int pn_play_playlist(const pin_t *e, int how) {
     void *list;
-    int r = pn_pl_find(e);
-    if (r < 0) return r == -1 ? -1 : 0; /* gone: the pin goes; a list that cannot be told: nothing happens */
+    if (pn_pl_find(e) < 0) return -1;
     *(int *)(CLASSINFO + CLASSINFO_ARG) = (int)e->key;
-    if (loadLocalClassList(CLASS_PLAYLIST_SONGS) <= 0) return 0;
+    if (loadLocalClassList(CLASS_PLAYLIST_SONGS) <= 0) return -1;
     list = *(void **)PDEQ_SHOWLIST;
-    if (!list || !deque_size(list)) return 0;
+    if (!list || !deque_size(list)) return -1;
     *(int *)G_CLASS_TYPE = CLASS_PLAYLIST_SONGS;
     so_play(CLASS_PLAYLIST_SONGS, list, how == SO_SHUFFLE ? -1 : 0, how, pod_open_player);
     return 0;
 }
 
-/* Everything the pinned items still need to exist: once, the first to-foreground after PIN_CHECK_MS. Loads the stock album list and the playlists; a list that comes back empty
- * drops nothing (an empty answer is not told apart from a failed one). */
+/* Once, the first to-foreground after PIN_CHECK_MS: an album pin whose row now has another cover key takes it (as Recently Played re-keys). Nothing is ever dropped here: the library can be
+ * mid-scan (Auto Update rebuilds songtable after a card insert or a USB transfer, and a list read then is short) or unreadable, so a pin leaves only by the user's Unpin. */
 static void pn_check(void) {
     void *albums = (void *)0;
     pin_t old[PIN_MAX];
-    unsigned i, on, changed = 0;
-    int have_a = 0;
+    unsigned i, changed = 0;
     if (pn_load() < 0) return; /* an unreadable file is not checked (nor written): the next to-foreground tries again */
     pn.checked = 1;
+    for (i = 0; i < pn.n && pn.ent[i].kind != 'a'; ++i) {
+    }
+    if (i == pn.n || !(albums = cc_albums())) return;
     memcpy(old, pn.ent, sizeof old);
-    on = pn.n;
-    for (i = 0; i < pn.n;) {
+    for (i = 0; i < pn.n; ++i) {
         pin_t *e = &pn.ent[i];
-        int gone = 0;
-        if (e->kind == 'a') {
-            if (!have_a) {
-                albums = cc_albums();
-                have_a = 1;
-            }
-            if (albums) {
-                int at = pn_find(albums, e, "", 0);
-                gone = at < 0;
-                if (!gone && cc_album_key(deque_at(albums, (unsigned)at)) != e->ck[0]) {
-                    e->ck[0] =
-                        cc_album_key(deque_at(albums, (unsigned)at)); /* the row's key, as Recently Played re-keys */
-                    changed = 1;
-                }
-            }
-        } else if (e->kind == 's') {
-            gone = pn_missing(e->path);
-        } else if (e->kind == 'r') {
-            int prev;
-            void *one = pn_artist_row(
-                e, &gone, &prev); /* (the list the pin was made from; an empty or failed list tells nothing) */
-            if (one) deque_destroy(one);
-            pn_scope_end(prev);
-        } else {
-            gone = pn_pl_find(e) == -1;
-        }
-        if (gone) {
-            unsigned k;
-            for (k = i; k + 1 < pn.n; ++k) memcpy(&pn.ent[k], &pn.ent[k + 1], sizeof pn.ent[0]);
-            --pn.n;
+        int at;
+        if (e->kind != 'a' || (at = pn_find(albums, e, "", 0)) < 0) continue;
+        if (cc_album_key(deque_at(albums, (unsigned)at)) != e->ck[0]) {
+            e->ck[0] = cc_album_key(deque_at(albums, (unsigned)at));
             changed = 1;
-        } else
-            ++i;
+        }
     }
-    if (albums) deque_destroy(albums);
-    if (changed && pn_save() != 0) {
+    deque_destroy(albums);
+    if (changed && pn_save() != 0)
         memcpy(pn.ent, old, sizeof old); /* not written: the list is the file's still (the next menu checks again) */
-        pn.n = on;
-    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1244,7 +1178,7 @@ static void pn_sheet(int tile, int act) {
         r = pn_play_album(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
     else
         r = pn_play_playlist(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
-    if (r < 0) pn_drop(e.kind, e.key);
+    if (r < 0) pod_toast(TR("Can't play")); /* not in the library now (or it could not be read): the pin stays */
 }
 
 /* A row of the sheet opened for a Recently Played tile (the sheet has closed): Play, Shuffle, Pin Album / Unpin Album. Home stays in front, so no to-foreground redoes the section: the pin

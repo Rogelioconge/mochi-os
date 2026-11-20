@@ -48,8 +48,8 @@ event and the scroll view takes every drag.
 
 - **Tap** (released within `SC_DRAG_PX` of the press, same tile): an album opens our album page
   (`cc_open_album`, as Recently Played); a playlist opens our Songs page (`songs_open_playlist`, the
-  Playlists page's tap, the stock page if ours will not open). An item the library no longer has is
-  dropped from the list and the file.
+  Playlists page's tap, the stock page if ours will not open). An item the library does not list now (or an empty or failed list)
+  says "Not found"; the pin stays.
 - **Long press** (`RM_LONG_MS`, `rowmenu_hold_start`) lifts the tile (see Reorder) and opens at once the bottom sheet (a drag of `SC_DRAG_PX` closes it again; a release where it was leaves it open) of the Queue page's three-row form
   (`rowmenu_bind_queue`; `rm_scrim` and `rm_card` are the window's last two children, over the bar). Rows:
   **Play**, **Shuffle**, **Unpin Album** / **Unpin Playlist** (the label follows the tile's type; glyphs
@@ -112,13 +112,12 @@ One line per pin, in the user's order (a new pin is appended), at most six.
   (junk, a short or cut file, a later version's kind, a seventh pin, too big) is **unreadable**: the display keeps
   its list (a read error) or shows none (a malformed file), and `pn_save` refuses while the last load did not
   succeed, so a pin, unpin, reorder or library check leaves the file as it is. Pin and Unpin show "Can't update
-  pins" (`PINS_FAIL`); the automatic drops (a gone library item) are silent and wait. A malformed file is not
+  pins" (`PINS_FAIL`). A malformed file is not
   repaired or backed up: it may be one a later version wrote, and a guess could erase pins. The user deletes
-  `.m1plus/home-pins` (Settings > Files, Wi-Fi Transfer) to start again. A pin is removed for a missing file only on
-  `ENOENT` / `ENOTDIR` (`pn_missing`), never on `EIO` or a busy card.
+  `.m1plus/home-pins` (Settings > Files, Wi-Fi Transfer) to start again.
 - **A failed write changes nothing** (`pn_pin`, `pn_unpin`, `pn_check`, `pn_commit`): the list in memory is put back as
   the file has it, so the section redone from it keeps the tile. Pin and Unpin (API and the sheet's Unpin) say "Can't
-  update pins" and answer failure; the library check's drops stay silent and wait.
+  update pins" and answer failure; the library check's re-key stays silent and waits.
 - **Writing** (`home_write_atomic`): control bytes in tags become spaces and long fields are cut on a UTF-8
   boundary, so a tag never makes the file invalid.
 
@@ -140,9 +139,14 @@ words and glyph at each open; `sg_pin` takes the mosaic keys from the list the p
 
 Once per menu, at the first to-foreground at least `PIN_CHECK_MS` (5 s) after the menu opened
 (`pn_check`; the stock album list is loaded there, as for Recently Played's key resolve, never at boot,
-in a tick or in paint), a pin whose album or playlist is gone leaves the list and the file; an album
-whose row has another cover key takes it. An empty or failed list drops nothing (it is not told apart).
-A tap on a missing item drops it at once.
+in a tick or in paint), an album pin whose row has another cover key takes it.
+
+No pin is ever removed for a missing item, by the check or by a tap: only Unpin removes. A list read
+while Auto Update rebuilds `songtable` (after a card insert or the end of a USB transfer, 100 rows
+per commit) is short but not empty, so it cannot tell a gone item from one not scanned yet. A tap
+on an item the library does not list (or with no list at all, empty or failed) says "Not found" (album, playlist, artist) or "Can't play"
+(Play / Shuffle); a song whose file is gone (`ENOENT` / `ENOTDIR` with the card in, `pn_missing`)
+says "File not found".
 
 ## Failure behaviour
 
@@ -165,9 +169,9 @@ A missing widget, refused registration, no timer or no memory leaves the plain m
   (every row of the file, the CUE rows told apart by start) and `pn_find` looks the record's album title up in the album
   list before the saved cover key, the title and the representative path (the whole tag is compared, up to
   `PN_TAG` 512 bytes; a record with no album tag is the stock **Unknown Album** row, `REC_ID` -1), so a changed representative track or cover
-  key of the album does not break the pin. A file that is gone drops the pin, with the card in (`ENOENT` only); one that
-  fails to open otherwise, or an album the library cannot find, says "Can't play" and keeps it. The sheet has two rows, **Play** and **Unpin Song** (the Shuffle slot reused, third row
-  hidden, `rowmenu_set_rows(2)`). The library check drops a song whose file is missing, only with the card in.
+  key of the album does not break the pin. A file that is gone says "File not found" (card in, `ENOENT` only); one that
+  fails to open otherwise, or an album the library cannot find, says "Can't play". The pin stays. The sheet has two rows, **Play** and **Unpin Song** (the Shuffle slot reused, third row
+  hidden, `rowmenu_set_rows(2)`).
 - **Entry:** the track row sheet (row "..." and row long press) has a sixth row **Pin Song** / **Unpin Song**
   (`RM_ROWS` 6, `rm_item5`, glyph `rm_ic_pin` / `rm_ic_unpin`) for a song of the card; a source's row (Navidrome) keeps the
   five rows and the five-row glass (`rowmenu_set_rows`: card moved and resized, `style:normal:bg_image` set, as
@@ -194,6 +198,6 @@ photo's cache key (`patch/artistphoto.c`), name = the artist, path = the **scope
 - **Scope:** `pn_artist_row` sets `artist_type` (and `ARTIST_RELOAD`) to the pin's scope while `artists_find` and the stock queries run; a pin with no scope tries the list shown, then the other. The row is therefore found even when the shown list lacks the artist (a guest artist is in Artists, not in Album Artists).
 - **Tap:** `pn_open_artist`: `artists_find(name)`, `albums_open_artist(row, 0, CLASS_ARTISTS)` (Cover Flow when that window will not open), as an Artists row. The albums page reads its albums by `artist_type` each time it loads, so a pin from the other list leaves the setting at the pin's scope, saved (`write_int_config`) as the Show group does; Play / Shuffle (`pn_play_artist`) put it back after the call. **Sheet** (hold): Play, Shuffle (`songs_play_artist`, all the artist's songs; the toast
   "Can't play" when there are none), **Unpin Artist**.
-- **Check:** a pin whose artist is credited by nothing in the list it was pinned from (both lists when no scope) leaves the list and the file; a tap that finds no row drops it too. "Credited" is a case-insensitive substring of a stock row's title (`pn_credited`), so "Lead; Guest" still credits "Guest" with Split Artists off. An empty or failed list, or an artist with no row of its own in the mode shown, drops nothing; such a tap says "Can't play" and keeps the pin. A row must be the artist the tile names: with Split Artists on, a joined name ("Lead; Guest") gets its first name's row, which `pn_artist_row` refuses (tap, Play, Shuffle: "Can't play", the pin stays).
+- **Missing:** with no row of the artist the tile names in the pin's list (gone, the library mid-scan or unreadable, or a joined name "Lead; Guest" that Split Artists turned on since answers with its first name's row, which `pn_artist_row` refuses), a tap says "Not found" and Play / Shuffle "Can't play"; the pin stays.
 - **Entries:** the Artists page row long press (`ar_on_hold`: Play, Shuffle, Pin Artist / Unpin Artist; [artists](artists.md)) and the artist's Albums page "..." card, Select's slot 7 (`al_pin_row`; [albums](albums.md)). API: `pins_pin_artist(name)`, `pins_has_artist`, `pins_unpin_artist`,
   `pins_label_artist`. Strings "Pin Artist", "Unpin Artist".

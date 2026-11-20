@@ -616,7 +616,7 @@ def artist_tests(ctx):
     c = paint(m)[2]
     expect(px(m, c[0], 45, 45) >> 8 & 255 > 180 and px(m, c[0], 0, 0) >> 24 == 0, 'a photo that appears while the menu is behind replaces the placeholder at the next to-foreground')
 
-    # ---- tap: the artist's Albums page (as the Artists row), the pin goes when the library has no such artist
+    # ---- tap: the artist's Albums page (as the Artists row); an artist the library does not list says "Not found" and the pin stays
     def tap(m, i, n=2):
         """A tap on tile i's cover (the first row of n tiles); the calls of the pages it asked for."""
         x, y = pod_ui.pin_x(i, n) + O['PIN_COVER'] // 2, O['HOME_PAD'] + m.y_of(m.pins) - m.yoff() + O['PIN_TOP'] + O['PIN_COVER'] // 2
@@ -630,7 +630,8 @@ def artist_tests(ctx):
     m.ret['albums_open_artist'] = -1
     expect([c[0] for c in tap(m, 0)] == ['albums_open_artist', 'coverflow_artist'], 'a window that will not open falls back to Cover Flow, as the Artists page does')
     m = mk([me, ns], library=('Nina Simone',))
-    expect(not tap(m, 0) and [e[0] for e in H.parse(m.fs[PINS])] == ['r'] and H.parse(m.fs[PINS])[0][3] == 'Nina Simone', 'an artist the library no longer has opens nothing and leaves the list and the file')
+    m.calls = []
+    expect(not tap(m, 0) and [e[3] for e in H.parse(m.fs[PINS])] == ['Miles Davis', 'Nina Simone'] and toasts(m) == ['Not found'], 'an artist the library does not list opens nothing, says Not found and keeps the pin')
     m = mk([me, ns], library=())
     tap(m, 0)
     expect(len(H.parse(m.fs[PINS])) == 2, 'an empty or failed artist list tells nothing: the pin stays')
@@ -650,14 +651,12 @@ def artist_tests(ctx):
     m.call(PSYMS['pn_open_sheet'], a0=0, count=900000000); m.click('rm_item2', count=900000000)
     expect([e[3] for e in H.parse(m.fs[PINS])] == ['Nina Simone'], 'Unpin Artist removes the line')
 
-    # ---- the library check drops an artist the library no longer has (only with a non-empty list)
-    m = PH(entries=[me, ns, bt]); m.showlist = [m.record(title='Nina Simone', rid=1)]; m.begin()
-    m.clock = O['PIN_CHECK_MS'] + 1000
-    m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
-    expect([e[3] for e in H.parse(m.fs[PINS])] == ['Nina Simone'], 'the check drops the artists the library has no row for')
-    m = PH(entries=[me, ns]); m.showlist = []; m.begin(); m.clock = O['PIN_CHECK_MS'] + 1000
-    m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
-    expect(len(H.parse(m.fs[PINS])) == 2, 'an empty artist list drops nothing')
+    # ---- the library check never drops an artist, even one a non-empty list lacks (a library mid-scan lists fewer)
+    for why, rows in (('a short list', ['Nina Simone']), ('an empty list', [])):
+        m = PH(entries=[me, ns, bt]); m.showlist = [m.record(title=n, rid=i + 1) for i, n in enumerate(rows)]; m.begin()
+        m.clock = O['PIN_CHECK_MS'] + 1000
+        m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
+        expect(m.fs[PINS] == H.dump([me, ns, bt]), f'the check keeps every artist pin ({why})')
 
 
 def tap_tile(m, i, n=2):
@@ -691,30 +690,28 @@ def read_error_tests(ctx):
     for why, data in (('empty', b''), ('absent', None)):
         m = machine(data)
         expect(pin_album(m, ENTRIES[0]) == 0 and H.parse(m.fs[PINS]) == ENTRIES[:1], f'a file that is {why} is no pins: the first pin writes the list')
-    # the section's own writes: a reorder commit, the library check and a drop
+    # the section's own writes: a reorder commit and the library check
     m = PH(entries=ENTRIES[:3]); m.begin()
     m.fail.add(('open', PINS))
     pt = lambda i, dx=0: (pod_ui.pin_x(i, 3) + O['PIN_COVER'] // 2 + dx, O['HOME_PAD'] + m.y_of(m.pins) - m.yoff() + O['PIN_TOP'] + O['PIN_COVER'] // 2)
     m.gesture([('d', *pt(0), 0)]); m.call(PSYMS['rm_on_hold'], count=900000000)
     m.gesture([('m', *pt(0, 30), 20), ('m', *pt(2), 20), ('u', *pt(2), 30)])
     expect(m.fs[PINS] == H.dump(ENTRIES[:3]), 'a drop to reorder while the file cannot be read writes nothing')
-    m.call(PSYMS['pn_drop'], a0=ord('a'), a1=ENTRIES[0][1], count=900000000)
-    expect(m.fs[PINS] == H.dump(ENTRIES[:3]) and not toasts(m), 'dropping a pin the library no longer has needs the file: nothing is written, nothing said')
     m = PH(entries=ENTRIES[:3]); m.showlist = [m.record(album='Nothing', artist='Else', rid=3)]; m.begin()
     m.clock = O['PIN_CHECK_MS'] + 1000; m.fail.add(('open', PINS))
     m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
     expect(m.fs[PINS] == H.dump(ENTRIES[:3]), 'the library check on a file that cannot be read writes nothing')
     m.fail.clear(); m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
-    expect([e[0] for e in H.parse(m.fs[PINS])] == ['p'], 'and it runs at the next to-foreground (the albums the library lacks go, the playlist stays)')
-    # a song file that cannot be opened is not a file that is gone
+    expect(m.fs[PINS] == H.dump(ENTRIES[:3]), 'and it runs at the next to-foreground: the albums the library lacks stay')
+    # a tap on a song never drops its pin: a file that is gone says File not found, one that fails to open otherwise Can't play
     S = song('/mnt/mmc/Artist/Album/01 Track.flac', 'Track', 'Artist', 'Album')
     path = '/mnt/mmc/Artist/Album/01 Track.flac'
-    for why, fail, kept in (('EIO', True, True), ('not there', False, False)):
+    for why, fail, say in (('EIO', True, "Can't play"), ('not there', False, 'File not found')):
         m = PH(entries=[S, ENTRIES[0]]); m.present.add('/tmp/mmc_add')   # (the card is in: so_card)
         if fail: m.fs[path] = b'x'; m.fail.add(('open', path))
         m.begin(); m.calls = []
         tap_tile(m, 0)
-        expect(([e[0] for e in H.parse(m.fs[PINS])] == ['s', 'a']) == kept, f'a song file that fails to open ({why}) {"keeps" if kept else "drops"} its pin on a tap')
+        expect([e[0] for e in H.parse(m.fs[PINS])] == ['s', 'a'] and toasts(m) == [say], f'a song file that fails to open ({why}) keeps its pin on a tap and says {say} ({toasts(m)})')
     m = PH(entries=[S, ENTRIES[0]]); m.present.add('/tmp/mmc_add'); m.fs[path] = b'x'; m.fail.add(('open', path)); m.showlist = [m.record(album='Kind of Blue', artist='Miles Davis', path='/mnt/mmc/Miles Davis/Kind of Blue/1.flac', rid=2)]; m.begin()
     m.clock = O['PIN_CHECK_MS'] + 1000; m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
     expect([e[0] for e in H.parse(m.fs[PINS])] == ['s', 'a'], 'the library check keeps a song whose file fails to open for another reason than "not there"')
@@ -775,7 +772,7 @@ def artist_scope_tests(ctx):
     m.call(PSYMS['pn_open_sheet'], a0=0, count=900000000); m.calls = []; m.click('rm_item0', count=900000000)
     expect([c[1:] for c in m.calls if c[0] == 'songs_play_artist'] == [(('Guest',), 0xf004, 1)] and m.type_seen == [0] and m.word(AT) == 1 and len(H.parse(m.fs[PINS])) == 2,
            f'Play reads the guest in the Artists list and puts Album Artists back ({m.type_seen}, {m.word(AT)})')
-    # the library check never drops what the shown list lacks
+    # the library check never drops an artist pin, in any list
     for why, entries, lists, type_, left in (
             ('a guest pinned in Artists, Album Artists shown', [guest], (('Guest',), ('Host',)), 1, 1),
             ('a pin from Album Artists, Artists shown', [artist('Host', '1')], (('Guest',), ('Host',)), 0, 1),
@@ -786,28 +783,28 @@ def artist_scope_tests(ctx):
         m.setword(AT, type_); m.begin(); m.clock = O['PIN_CHECK_MS'] + 1000
         m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
         got = H.parse(m.fs[PINS])
-        want = ['Host'] if why == 'an artist in neither list' else [e[3] for e in entries][:left]
+        want = [e[3] for e in entries]
         expect([e[3] for e in got] == want, f'check, {why}: {[e[3] for e in got]}')
         expect(m.word(AT) == type_, f'check, {why}: the stock artist_type is as it was ({m.word(AT)})')
 
-    # Split Artists off after the pin was made with it on: the unsplit list has no row "Guest", the field "Lead; Guest" credits it. Never "gone"; a tap says so and keeps the pin
-    for why, lists, kept in (('credited in a field', (('Lead; Guest', 'Host'), ('Host',)), 1), ('credited, other case', (('LEAD feat. GUEST',), ()), 1), ('credited by no one', (('Lead', 'Host'), ('Host',)), 0)):
+    # Split Artists off after the pin was made with it on: the unsplit list has no row "Guest". Whether or not a field credits it, a tap says Not found and the pin stays, and the check keeps it
+    for why, lists in (('credited in a field', (('Lead; Guest', 'Host'), ('Host',))), ('credited, other case', (('LEAD feat. GUEST',), ())), ('credited by no one', (('Lead', 'Host'), ('Host',)))):
         m = mk([guest, artist('Host', '1')], *lists)
         got = tap_tile(m, 0)
         say = [c[1] for c in got if c[0] == 'toast']
         opened = [c for c in got if c[0] in ('albums_open_artist', 'coverflow_artist')]
-        expect(len(H.parse(m.fs[PINS])) == 1 + kept and not opened and (say == ["Can't play"]) == bool(kept), f'tap, {why}: the pin {"stays and the tap says Can\'t play" if kept else "goes"} ({say}, {len(H.parse(m.fs[PINS]))})')
+        expect(len(H.parse(m.fs[PINS])) == 2 and not opened and say == ['Not found'], f'tap, {why}: the pin stays and the tap says Not found ({say}, {len(H.parse(m.fs[PINS]))})')
         m = PH(entries=[guest]); m.showlist = [m.record(title=n, rid=i + 1) for i, n in enumerate(lists[0])]; m.album_artists = [m.record(title=n, rid=i + 1) for i, n in enumerate(lists[1])]
         m.begin(); m.clock = O['PIN_CHECK_MS'] + 1000
         m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
-        expect(len(H.parse(m.fs[PINS])) == kept, f'check, {why}: the pin {"stays" if kept else "goes"}')
+        expect(len(H.parse(m.fs[PINS])) == 1, f'check, {why}: the pin stays')
 
-    # Split Artists turned on after "Lead; Guest" was pinned with it off: the tile still reads "Lead; Guest", so a tap must not open Lead's albums (artists_find splits the name and takes the first one). No exact row: the pin stays and the tap says "Can't play"; Play / Shuffle likewise
+    # Split Artists turned on after "Lead; Guest" was pinned with it off: the tile still reads "Lead; Guest", so a tap must not open Lead's albums (artists_find splits the name and takes the first one). No exact row: the pin stays and the tap says "Not found"; Play / Shuffle keep it too
     joined = artist('Lead; Guest', '0')
     m = mk([joined], ('Lead', 'Guest'), ('Lead',), cls=PHS); m.fs['/mnt/data/m1plus/library-artist-split'] = b'm23\n'
     got = tap_tile(m, 0, 1)
-    expect(not [c for c in got if c[0] in ('albums_open_artist', 'coverflow_artist')] and [c[1] for c in got if c[0] == 'toast'] == ["Can't play"] and len(H.parse(m.fs[PINS])) == 1,
-           f'split on, pinned "Lead; Guest": a tap opens no other artist, says Can\'t play and keeps the pin ({[c for c in got if c[0] != "toast"][:3]})')
+    expect(not [c for c in got if c[0] in ('albums_open_artist', 'coverflow_artist')] and [c[1] for c in got if c[0] == 'toast'] == ['Not found'] and len(H.parse(m.fs[PINS])) == 1,
+           f'split on, pinned "Lead; Guest": a tap opens no other artist, says Not found and keeps the pin ({[c for c in got if c[0] != "toast"][:3]})')
     m = mk([joined], ('Lead', 'Guest'), ('Lead',), cls=PHS); m.fs['/mnt/data/m1plus/library-artist-split'] = b'm23\n'
     m.call(PSYMS['pn_open_sheet'], a0=0, count=900000000); m.calls = []; m.click('rm_item0', count=900000000)
     expect(not [c for c in m.calls if c[0] == 'songs_play_artist'] and len(H.parse(m.fs[PINS])) == 1, 'split on, pinned "Lead; Guest": Play plays no other artist and keeps the pin')
@@ -911,10 +908,25 @@ def pin_write_tests(ctx):
     expect(m.call(PSYMS['pins_unpin_album'], a0=m.cstr('Homogenic'), count=4000000) == 0 and m.fs[PINS] == H.dump(ENTRIES[:3]) and toasts(m) == ["Can't update pins"], f'the API\'s Unpin answers 0 and says so ({toasts(m)})')
     m.calls = []
     expect(pin_album(m, ENTRIES[4]) == -2 and m.fs[PINS] == H.dump(ENTRIES[:3]) and toasts(m) == ["Can't update pins"], 'a pin that cannot be written says so too')
-    # ---- the library check: a drop that cannot be written keeps the tiles
-    m = mk(ENTRIES[:4], showlist=('Nothing',)); m.fail.add(('rename', PINS)); m.clock = O['PIN_CHECK_MS'] + 1000
+    # ---- the library check: albums the list lacks stay; an album whose row has another cover key takes it, and a re-key that cannot be written leaves the file
+    m = mk(ENTRIES[:4], showlist=('Nothing',)); m.clock = O['PIN_CHECK_MS'] + 1000
     m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
-    expect(m.fs[PINS] == H.dump(ENTRIES[:4]) and m.s32(m.pins + 0xc) == 256, f'the check\'s drop that cannot be written leaves the tiles as the file has them (h {m.s32(m.pins + 0xc)})')
+    expect(m.fs[PINS] == H.dump(ENTRIES[:4]) and m.s32(m.pins + 0xc) == 256, f'the check keeps the albums the library does not list (h {m.s32(m.pins + 0xc)})')
+    stale = [(e[0], e[1], (0x1234, 0, 0, 0), e[3], e[4]) if i == 0 else e for i, e in enumerate(ENTRIES[:4])]
+    m = mk(stale, showlist=('Kind of Blue',)); m.fail.add(('rename', PINS)); m.clock = O['PIN_CHECK_MS'] + 1000
+    m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
+    expect(m.fs[PINS] == H.dump(stale) and m.s32(m.pins + 0xc) == 256, f'a re-key that cannot be written leaves the file and the tiles (h {m.s32(m.pins + 0xc)})')
+    m = mk(stale, showlist=('Kind of Blue',)); m.clock = O['PIN_CHECK_MS'] + 1000
+    m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=900000000)
+    got = H.parse(m.fs[PINS])
+    expect(len(got) == 4 and got[0][2][0] not in (0x1234, 0) and got[1:] == stale[1:], f'the check re-keys the album to its row\'s cover key and keeps the rest ({got[0][2] if got else None})')
+    # an empty (or failed) album or playlist list: the tap says Not found, Play says Can't play, the pins stay
+    m = mk(ENTRIES[:2]); m.showlist = []
+    for i, what in ((0, 'album'), (1, 'playlist')):
+        tap_tile(m, i)
+        expect([c[1] for c in m.calls_all if c[0] == 'toast'] == ['Not found'] and m.fs[PINS] == H.dump(ENTRIES[:2]), f'no {what} list: a tap says Not found and the pin stays')
+        m.call(PSYMS['pn_open_sheet'], a0=i, count=900000000); m.calls = []; m.click('rm_item0', count=900000000)
+        expect(toasts(m) == ["Can't play"] and not m.plays and m.fs[PINS] == H.dump(ENTRIES[:2]), f'no {what} list: Play says Can\'t play and the pin stays ({toasts(m)})')
 
     # ---- playlists by id and name
     old, new = playlist(3, 'Old', (11,)), playlist(3, 'New', (22,))
