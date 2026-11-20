@@ -341,7 +341,7 @@ def view_card(s, im, rows, glass_name, hairs, pressed=None):
     ticks = any(r[2] for r in rows)   # a card of action rows only (nothing ticked, nothing tickable) has no tick column: the glyph at the tick's x, the label the same gap after it (vs_fit)
     gx = o['VS_GLYPH_X'] if ticks else o['VS_TICK_X']
     x_of = lambda glyph: gx + o['VS_LABEL_X_GLYPH'] - o['VS_GLYPH_X'] if glyph else o['VS_LABEL_X']
-    need = [x_of(g) + max(s.font.width(PS.tr(s, k), 18), s.font.width(sb, 15) if sb else 0) for k, g, _, sb in rows]
+    need = [x_of(r[1]) + max(s.font.width(PS.tr(s, r[0]), 18), s.font.width(r[3], 15) if r[3] else 0) for r in rows]
     cw = max(o['VS_CARD_MIN'], min(o['PL_CARD_MAX'], max(need) + o['VS_LABEL_R']))
     cx, cy, ch = o['PL_CARD_RIGHT'] - cw, o['PL_CARD_Y'], len(rows) * o['VS_ROW_H']
     g = s.img(glass_name); t = g.width // 3
@@ -351,7 +351,7 @@ def view_card(s, im, rows, glass_name, hairs, pressed=None):
     glass.paste(g.crop((t, 0, g.width - t, g.height)).resize((cw - 2 * t, g.height)), (t, 0))
     im.alpha_composite(glass, (cx, cy))
     rh = o['VS_ROW_H']
-    for i, (key, glyph, ticked, sb) in enumerate(rows):
+    for i, (key, glyph, ticked, sb, *red) in enumerate(rows):   # (a fifth element True: the destructive row's red label)
         y = cy + i * rh
         if pressed == i: im.alpha_composite(Image.new('RGBA', (cw, rh), (255, 255, 255, 0x10)), (cx, y))
         if i in hairs: im.alpha_composite(Image.new('RGBA', (cw, 1), (255, 255, 255, 0x22)), (cx, y))   # the hairlines, between the groups
@@ -364,7 +364,7 @@ def view_card(s, im, rows, glass_name, hairs, pressed=None):
             s.text(im, x, y + o['VS_LABEL2_Y'] + o['VS_LABEL2_H'] / 2, PS.tr(s, key), 18)
             s.text(im, x, y + o['VS_SUB_Y'] + o['VS_SUB_H'] / 2, sb, 15, (0xAA, 0xAA, 0xAA))
         else:
-            s.text(im, x, y + rh / 2, PS.tr(s, key), 18)
+            s.text(im, x, y + rh / 2, PS.tr(s, key), 18, (0xFF, 0x6B, 0x6B) if red and red[0] else (255, 255, 255))
     return im
 
 def rounded(c, r, k=4):

@@ -915,8 +915,8 @@ SCREEN_Y0 = 30 + 50
 ROW_ROOT, ROW_LIST, TOP, VIEW_H = 52, 64, 60, O['GRID_VIEW_H']
 SC_YOFF = O['SC_YOFF']
 PAGE_WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_search', 'label_title', 'sg_title', 'label_status', 'label_row_title', 'label_row_sub', 'img_nb_fade', 'label_grid_title', 'label_grid_sub', 'label_hdr', 'label_rail', 'label_rail_on',
-                'sg_rail', 'sg_bubble', 'sg_bubble_letter', 'rd_credit', 'kb_field', 'radio_listview', 'btn_radioview', 'btn_more', 'rd_sh_scrim', 'rd_sh_card', 'btn_selall', 'rd_bar', 'rd_del')
-PAGE_WIDGETS += tuple(f'rd_sh_{s}{h}' for s in ('select', 'sort', 'addurl', 'import', 'clear', 'remove') for h in ('', '_hr'))
+                'sg_rail', 'sg_bubble', 'sg_bubble_letter', 'rd_credit', 'kb_field', 'radio_listview', 'btn_radioview', 'btn_more', 'rd_sh_scrim', 'rd_sh_card', 'vs_scrim', 'vs_card', 'vs_hair', 'btn_selall', 'rd_bar', 'rd_del')
+PAGE_WIDGETS += tuple(f'rd_sh_remove{h}' for h in ('', '_hr')) + tuple(f'vs_item{i}' for i in range(10)) + tuple(f'vs_label{i}' for i in range(10)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_glyph{i}' for i in range(4, 10))
 ICONS = ('pod_ic_rd_stations', 'pod_ic_rd_top', 'pod_ic_rd_country', 'pod_ic_rd_genre', 'pod_ic_nowplaying', 'pod_ic_recent', 'pod_ic_rd_browser')
 NP_WIDGETS = ('rn_art', 'rn_art_ic', 'btn_return', 'btn_play', 'btn_prev', 'btn_next', 'btn_fav', 'rn_title', 'rn_artist', 'rn_station', 'rn_info', 'rn_elapsed', 'rn_live', 'rn_more', 'rd_sh_scrim', 'rd_sh_card', 'rd_sh_add', 'rd_sh_add_ic', 'rd_sh_add_tx', 'rd_sh_add_hr', 'rd_sh_info', 'rd_sh_info_hr')
 NP_WIN = 0x20002000
@@ -1006,6 +1006,11 @@ def destroy_np(m, win=None):
 
 def ui(name): return awtk_ui.parse(open(os.path.join(UI_DIR, name + '.bin'), 'rb').read())
 u8 = undo
+CARD_NAMES = {4: 'grid', 5: 'list', 6: 'select', 7: 'sort', 8: 'addurl', 9: 'import'}
+def card_rows(m):
+    """The "..." card's rows shown, top to bottom (slot 9 reads Clear when the page retexted it)."""
+    rows = sorted((m.props.get((m.widgets[f'vs_item{k}'], 'y'), 0), k) for k in CARD_NAMES if m.props.get((m.widgets[f'vs_item{k}'], 'visible'), 0) == 1)
+    return ['clear' if k == 9 and text_of(m, 'vs_label9') == 'Clear History' else CARD_NAMES[k] for _, k in rows]
 def text_of(m, name): return u8(m.wtext.get(m.widgets[name]))
 
 
@@ -1037,8 +1042,8 @@ def asset_tests(ctx):
            and fld.x + fld.w == 320 - se.x and fld.y >= 50 and f('kb_clear').x + f('kb_clear').w == fld.w and f('kb_text').x + f('kb_text').w <= f('kb_clear').x and f('kb_hint').w == f('kb_text').w,
            "Radio's search field is the Search page's (x, height, radius, colour) and runs the page's width (margin each side, no round X beside it), under the 50 px navbar; the clear button ends it and the text stops short of it")
     names_ = [c.name for c in root.children]
-    expect(names_.index('radio_listview') < names_.index('kb_field') and names_.index('rd_sh_card') > names_.index('kb_field') and names_[-2:] == ['rd_sh_scrim', 'rd_sh_card'] and f('rd_sh_add') is None
-           and f('rd_sh_import') is not None and f('rd_sh_scrim').get('visible') == 'false' and f('rd_sh_card').get('visible') == 'false', 'the pad lies over the list; the Stations sheet (Import from Card) is last, above everything, hidden; a station is added to Stations from Now Playing')
+    expect(names_.index('radio_listview') < names_.index('kb_field') and names_.index('rd_sh_card') > names_.index('kb_field') and names_[-2:] == ['rd_sh_scrim', 'rd_sh_card'] and names_.index('vs_card') > names_.index('kb_field') and f('rd_sh_add') is None
+           and f('rd_sh_remove') is not None and f('rd_sh_scrim').get('visible') == 'false' and f('rd_sh_card').get('visible') == 'false' and f('vs_card').get('visible') == 'false', 'the pad lies over the list; the "..." card and the long press sheet (Remove) are last, above everything, hidden; a station is added to Stations from Now Playing')
     expect(f('sg_rail') is not None and f('sg_rail').x == O['SG_RAIL_X'] and f('sg_bubble_letter') is not None and f('label_grid_title').get('style:normal:font_size') == '18' and f('label_grid_sub').get('style:normal:text_color') == '#AAAAAA'
            and f('label_hdr') is not None, "the countries' rail, its bubble and header style, and the Albums grid's two text styles are in the asset")
     item = next(i for i, r in enumerate(P.ITEMS) if r.label == 'Radio')
@@ -1072,9 +1077,11 @@ def asset_tests(ctx):
            and rows2[1].y == O['PM_ROW_H'] and g('rd_sh_info_ic').get('image') == 'rm_ic_info' and g('rd_sh_info_tx').get('text') in ('Station Info', None) and g('rd_sh_info_tx').get('style:normal:text_color') == '#FFFFFF',
            "Radio Now Playing's sheet has two rows: Add to / Remove from My Stations, Station Info (Lucide info), white, the card two rows high")
     cr_ = f('rd_sh_card')
-    expect([c.name for c in cr_.children] == [f'rd_sh_{s}' for s in ('select', 'sort', 'addurl', 'import', 'clear', 'remove')] and f('rd_sh_clear_ic').get('image') == 'pod_ic_trash_red' and f('rd_sh_clear_tx').get('style:normal:text_color') == '#FF6B6B'
-           and f('rd_sh_remove_tx').get('style:normal:text_color') == '#FF6B6B' and f('rd_sh_import_ic').get('image') == 'pod_ic_rd_import' and f('rd_sh_addurl_ic').get('image') == 'pod_ic_rd_link' and cr_.h == 4 * O['PM_ROW_H'],
-           "the stations page's sheets: Select, Sort by Name, Add by URL, Import from Card (My Stations), Clear Recently Played, Remove from My Stations (a long press; red), the card four rows high")
+    expect([c.name for c in cr_.children] == ['rd_sh_remove'] and f('rd_sh_remove_tx').get('style:normal:text_color') == '#FF6B6B' and f('rd_sh_remove_ic').get('image') == 'pod_ic_trash_red' and cr_.h == O['PM_ROW_H'],
+           "the long press sheet: Remove from My Stations (red), one row")
+    expect([(f(f'vs_glyph{k}').get('image'), f(f'vs_label{k}').get('tr_text') or f(f'vs_label{k}').get('text')) for k in (6, 7, 8, 9)] == [('pod_ic_vsselect', 'Select'), ('pod_ic_vsorder', 'Sort by Name'), ('pod_ic_vslink', 'Add by URL'), ('pod_ic_vsimport', 'Import from Card')]
+           and f('vs_card').get('style:normal:bg_image') == 'vs_glass7' and f('vs_card').get('visible') == 'false' and f('btn_more').x == 214,
+           "the stations page's \"...\" card is the shared view-sort card: Select, Sort by Name, Add by URL, Import from Card (slots 6..9) over Grid and List")
     expect(f('btn_selall') is not None and f('rd_bar') is not None and f('rd_del') is not None and f('rd_bar').get('visible') == 'false', 'My Stations select mode: Select All in the navbar, the Delete pill bar hidden')
     ri = ui('m1plus_radioinfo'); h = ri.find
     expect(ri.name == 'm1plus_radioinfo_page' == P.RADIOINFO.name and P.RADIOINFO.kind == 'radioinfo' and P.RADIOINFO.title == 'Station Info' and all(h(n) is not None for n in SI_WIDGETS + ('ri_scrollview', 'btn_return', 'label_title'))
@@ -1120,13 +1127,13 @@ def asset_tests(ctx):
                 if StbText(font, px).layout(t)[1] > w_.w: over.append((loc, key, StbText(font, px).layout(t)[1], w_.w))
     expect(not over, f'the sheet row\'s two texts fit its label in all 13 languages ({over[:4]})')
     over = []
-    for w_, keys in ((np_.find('rd_sh_info_tx'), ('Station Info',)), (f('rd_sh_clear_tx'), ('Clear Recently Played',)), (f('rd_sh_import_tx'), ('Import from Card',))):
+    for w_, keys in ((np_.find('rd_sh_info_tx'), ('Station Info',)), (f('vs_label8'), ('Add by URL',)), (f('vs_label9'), ('Import from Card', 'Clear History')), (f('vs_label7'), ('Sort by Name',))):
         px = int(w_.get('style:normal:font_size') or 17)
         for loc in pod_i18n.LOCALES:
             for key in keys:
                 t = built[loc].get(key, key)
                 if StbText(font, px).layout(t)[1] > w_.w: over.append((loc, key, StbText(font, px).layout(t)[1], w_.w))
-    expect(not over, f'the new sheet rows (Station Info, Clear Recently Played) fit their labels in all 13 languages ({over[:4]})')
+    expect(not over, f'the sheet and card rows (Station Info, the card\'s actions) fit their labels in all 13 languages ({over[:4]})')
     over = []
     for loc in pod_i18n.LOCALES:
         for key in ('Stream URL', 'Logo URL', 'Country', 'Codec', 'Bitrate', 'Source', 'Status'):
@@ -1134,7 +1141,7 @@ def asset_tests(ctx):
         for key in ('Radio Browser', 'Imported', 'Playing', 'Connecting…', 'Paused', 'Stopped', "Can't play"):
             if StbText(font, 18).layout(built[loc].get(key, key))[1] > 288: over.append((loc, key))
         if StbText(font, 22).layout(built[loc].get('Station Info', 'Station Info'))[1] > h('label_title').w: over.append((loc, 'the navbar title'))
-    expect(not over and all(k in pod_i18n.TEXT for k in ('Station Info', 'Stream URL', 'Logo URL', 'Country', 'Codec', 'Bitrate', 'Source', 'Imported', 'Playing', 'Clear Recently Played', 'Cleared Recently Played', 'Could not clear Recently Played')),
+    expect(not over and all(k in pod_i18n.TEXT for k in ('Station Info', 'Stream URL', 'Logo URL', 'Country', 'Codec', 'Bitrate', 'Source', 'Imported', 'Playing', 'Clear History', 'Cleared Recently Played', 'Could not clear Recently Played')),
            f'Station Info: every label and word fits one line in all 13 languages, the navbar title fits, and the new texts have their translations ({over[:4]})')
     over = [(loc, StbText(font, 21).layout(built[loc]['My Stations'])[1]) for loc in pod_i18n.LOCALES if StbText(font, 21).layout(built[loc]['My Stations'])[1] > 252 - 24]
     expect(not over, f'the root row "My Stations" fits the row text in all languages ({over})')
@@ -1726,44 +1733,44 @@ def favs_tests(ctx):
     m = page_machine(view=None); m.put_text(FAVS, FAV_TEXT); m.put_text(RADIO_DIR + '/jazz.m3u', '#EXTM3U\n#EXTINF:-1,Jazz One\nhttp://jazz.example/1\n#EXTINF:-1,Fav Dup\nhttp://fav.example/1\n')
     open_radio(m); np_widgets(m); tap_row(m, 0, root=True)
     calls = click(m, 'btn_more')
-    shown = lambda m: [s for s in ('select', 'sort', 'addurl', 'import', 'clear', 'remove') if m.props.get((m.widgets[f'rd_sh_{s}'], 'visible'), 0) == 1]
-    expect(vis(m, 'rd_sh_card') == (1, 1) and vis(m, 'rd_sh_scrim') == (1, 1) and shown(m) == ['select', 'sort', 'addurl', 'import'] and vis(m, 'rd_sh_select_hr')[0] == 0 and vis(m, 'rd_sh_import_hr')[0] == 1
-           and m.props.get((m.widgets['rd_sh_card'], 'style:normal:bg_image')) == 'pc_sheet4' and m.props.get((m.widgets['rd_sh_import'], 'y')) == 3 * O['PM_ROW_H'],
-           f'the "..." opens the sheet: Select, Sort by Name, Add by URL, Import from Card (four rows, a hairline over each but the first) ({shown(m)})')
+    shown = lambda m: card_rows(m)
+    expect(vis(m, 'vs_card') == (1, 1) and vis(m, 'vs_scrim') == (1, 1) and m.props.get((m.widgets['rd_sh_card'], 'visible'), 0) != 1 and shown(m) == ['select', 'sort', 'addurl', 'import', 'grid', 'list'] and vis(m, 'vs_hair')[0] == 1 and m.props.get((m.widgets['vs_hair'], 'y')) == 4 * O['VS_ROW_H']
+           and m.props.get((m.widgets['vs_card'], 'style:normal:bg_image')) == 'vs_glass6' and m.props.get((m.widgets['vs_item9'], 'y')) == 3 * O['VS_ROW_H'] and (m.props.get((m.widgets['vs_tick4'], 'visible')), m.props.get((m.widgets['vs_tick5'], 'visible'))) == (0, 1),
+           f'the "..." opens the floating card: Select, Sort by Name, Add by URL, Import from Card, a hairline, Grid, List (six rows, the tick on the list) ({shown(m)})')
     m.calls.clear(); click(m, 'btn_return')
-    expect(vis(m, 'rd_sh_card') == (0, 0) and ('navigator_back',) not in m.calls and rows_text(m) == ['Fav One', 'Fav Two', 'Fav Three'], 'Back with the sheet open closes the sheet only')
-    click(m, 'btn_more'); click(m, 'rd_sh_scrim')
-    expect(vis(m, 'rd_sh_card') == (0, 0) and vis(m, 'rd_sh_import') == (0, 0) and b'Jazz One' not in m.fs[FAVS], 'the scrim closes it; nothing imported')
+    expect(vis(m, 'vs_card') == (0, 0) and ('navigator_back',) not in m.calls and rows_text(m) == ['Fav One', 'Fav Two', 'Fav Three'], 'Back with the card open closes the card only')
+    click(m, 'btn_more'); click(m, 'vs_scrim')
+    expect(vis(m, 'vs_card') == (0, 0) and vis(m, 'vs_scrim') == (0, 0) and b'Jazz One' not in m.fs[FAVS], 'the scrim closes it; nothing imported')
     click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
-    expect(toasts(calls) == ['Added 1 station'] and rows_text(m) == ['Fav One', 'Fav Two', 'Fav Three', 'Jazz One'] and b'Jazz One' in m.fs[FAVS] and vis(m, 'rd_sh_card') == (0, 0),
+    calls = click(m, 'vs_item9')
+    expect(toasts(calls) == ['Added 1 station'] and rows_text(m) == ['Fav One', 'Fav Two', 'Fav Three', 'Jazz One'] and b'Jazz One' in m.fs[FAVS] and vis(m, 'vs_card') == (0, 0),
            f'Import from Card: "Added 1 station", the sheet closed, the list refreshed in place with the new station last ({toasts(calls)}, {rows_text(m)})')
     click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['No new stations'] and rows_text(m)[-1] == 'Jazz One', f'again: "No new stations" ({toasts(calls)})')
     m.fs.pop(RADIO_DIR + '/jazz.m3u'); click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['No playlists in the Radio folder'], f'no playlist file: "No playlists in the Radio folder" ({toasts(calls)})')
     m.put_text(RADIO_DIR + '/two.m3u', '#EXTM3U\n#EXTINF:-1,T1\nhttp://t.example/1\n#EXTINF:-1,T2\nhttp://t.example/2\n')
     m.card_mounted = False; click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['Could not save My Stations'], f'no card: the save-failure message ({toasts(calls)})')
     m.card_mounted = True; click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['Added 2 stations'] and m.fs[FAVS].endswith(row('T1', 'http://t.example/1') + row('T2', 'http://t.example/2')), f'two stations: "Added 2 stations" ({toasts(calls)})')
     # an empty Stations imports too, and its caption goes
     m = page_machine(view=None); m.put_text(RADIO_DIR + '/two.m3u', '#EXTM3U\n#EXTINF:-1,T1\nhttp://t.example/1\n#EXTINF:-1,T2\nhttp://t.example/2\n')
     open_radio(m); tap_row(m, 0, root=True)
     expect(vis(m, 'label_status') == (1, 1), 'an empty Stations')
     click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
-    expect(toasts(calls) == ['Added 2 stations'] and rows_text(m) == ['T1', 'T2'] and vis(m, 'label_status') == (0, 0) and vis(m, 'view_grid') == (1, 1) and vis(m, 'btn_radioview') == (1, 1),
-           f'Import into an empty Stations: the stations, no caption, the toggle ({toasts(calls)}, {rows_text(m)})')
+    calls = click(m, 'vs_item9')
+    expect(toasts(calls) == ['Added 2 stations'] and rows_text(m) == ['T1', 'T2'] and vis(m, 'label_status') == (0, 0) and vis(m, 'view_grid') == (1, 1) and vis(m, 'btn_radioview') == (0, 0) and vis(m, 'btn_more') == (1, 1),
+           f'Import into an empty Stations: the stations, no caption, the "..." alone ({toasts(calls)}, {rows_text(m)})')
     # the cap
     m = page_machine(view=None); m.put_text(FAVS, '#EXTM3U\n' + ''.join(f'#EXTINF:-1,F{i}\nhttp://f.example/{i}\n' for i in range(300)))
     m.put_text(RADIO_DIR + '/two.m3u', '#EXTM3U\n#EXTINF:-1,T1\nhttp://t.example/1\n')
     open_radio(m); tap_row(m, 0, root=True); click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_import')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['My Stations is full'] and b'http://t.example/1' not in m.fs[FAVS], f'at the cap: "Stations is full", nothing added ({toasts(calls)})')
     manage_tests(ctx, shown)
     # no "..." on Radio Browser
@@ -1793,13 +1800,13 @@ def manage_tests(ctx, shown):
 
     # ---- the sheet's rows follow the list
     m = stations('#EXTM3U\n#EXTINF:-1,Solo\nhttp://s.example/\n'); click(m, 'btn_more')
-    expect(shown(m) == ['select', 'addurl', 'import'], f'one station: no Sort by Name ({shown(m)})')
+    expect(shown(m) == ['select', 'addurl', 'import', 'grid', 'list'], f'one station: no Sort by Name ({shown(m)})')
     m = stations(None); click(m, 'btn_more')
-    expect(shown(m) == ['addurl', 'import'], f'an empty My Stations: Add by URL and Import from Card only ({shown(m)})')
+    expect(shown(m) == ['addurl', 'import'] and m.props.get((m.widgets['vs_card'], 'style:normal:bg_image')) == 'vs_glass2', f'an empty My Stations: Add by URL and Import from Card only, no view rows ({shown(m)})')
     # ---- Select: the mode, a mark per tap, Delete asks, then removes the marked stations
     m = stations()
-    click(m, 'btn_more'); click(m, 'rd_sh_select')
-    expect(vis(m, 'rd_sh_card')[0] == 0 and vis(m, 'rd_bar')[0] == 1 and vis(m, 'btn_selall')[0] == 1 and vis(m, 'btn_more')[0] == 0 and vis(m, 'btn_radioview')[0] == 0 and vis(m, 'btn_backtoplayer')[0] == 0,
+    click(m, 'btn_more'); click(m, 'vs_item6')
+    expect(vis(m, 'vs_card')[0] == 0 and vis(m, 'rd_bar')[0] == 1 and vis(m, 'btn_selall')[0] == 1 and vis(m, 'btn_more')[0] == 0 and vis(m, 'btn_radioview')[0] == 0 and vis(m, 'btn_backtoplayer')[0] == 0,
            'Select: the sheet closes, the Delete bar and Select All show, the capsule goes')
     tap_row(m, 1)
     expect(not [c for c in m.calls if c[0] == 'navigator_to_with_context'] and m.fs[FAVS] == FAV_TEXT.encode(), 'a tap in the mode marks the row: nothing plays, nothing is written')
@@ -1808,37 +1815,37 @@ def manage_tests(ctx, shown):
     m.confirm_yes = True; m.calls.clear(); click(m, 'rd_del')
     expect(names(m) == [b'Fav One', b'Fav Three'] and rows_text(m) == ['Fav One', 'Fav Three'] and vis(m, 'rd_bar')[0] == 0 and vis(m, 'btn_more')[0] == 1 and vis(m, 'btn_backtoplayer')[0] == 1
            and b'#M1+:Germany\tMP3\t128' in m.fs[FAVS] and b'#M1+:France\tAAC\t64' in m.fs[FAVS], f'Yes: the marked station leaves the file and the list, the others keep their info, the mode ends ({names(m)})')
-    m = stations(); click(m, 'btn_more'); click(m, 'rd_sh_select'); tap_row(m, 0); m.calls.clear(); click(m, 'btn_return')
+    m = stations(); click(m, 'btn_more'); click(m, 'vs_item6'); tap_row(m, 0); m.calls.clear(); click(m, 'btn_return')
     expect(vis(m, 'rd_bar')[0] == 0 and rows_text(m) == ALL and m.fs[FAVS] == FAV_TEXT.encode() and ('navigator_back',) not in m.calls, 'the x ends the mode: nothing removed, the page stays')
-    m = stations(); click(m, 'btn_more'); click(m, 'rd_sh_select'); click(m, 'btn_selall'); m.confirm_yes = True
+    m = stations(); click(m, 'btn_more'); click(m, 'vs_item6'); click(m, 'btn_selall'); m.confirm_yes = True
     m.fail.add(('rename', FAVS)); m.calls.clear(); click(m, 'rd_del')
     expect(tl(m) == ['Could not save My Stations'] and m.fs[FAVS] == FAV_TEXT.encode() and vis(m, 'rd_bar')[0] == 1, f'a write that fails: the message; the file and the mode stay ({tl(m)})')
     m.fail.discard(('rename', FAVS)); m.calls.clear(); click(m, 'rd_del')
     expect(asked(m) == ['Remove 3 stations from My Stations?'] and names(m) == [] and text_of(m, 'label_status') == 'Add stations from Radio Browser or import .m3u files from the card.',
            f'Select All, then Delete: every station out, the empty hint ({asked(m)})')
     m = stations('#EXTM3U\n#EXTINF:-1,Same A\nhttp://same.example/\n#EXTINF:-1,Other\nhttp://o.example/\n#EXTINF:-1,Same B\nhttp://same.example/\n')
-    click(m, 'btn_more'); click(m, 'rd_sh_select'); tap_row(m, 2); m.confirm_yes = True; m.calls.clear(); click(m, 'rd_del')
+    click(m, 'btn_more'); click(m, 'vs_item6'); tap_row(m, 2); m.confirm_yes = True; m.calls.clear(); click(m, 'rd_del')
     expect(asked(m) == ['Remove 1 station from My Stations?'] and names(m) == [b'Same A', b'Other'] and rows_text(m) == ['Same A', 'Other'],
            f'two stations of one address: only the marked one goes, as many as the question said ({names(m)})')
     twin = '#EXTM3U\n#M1+:Canada\tMP3\t128\n#EXTINF:-1,Twin\nhttp://t.example/\n#M1+:France\tAAC\t64\n#EXTINF:-1,Twin\nhttp://t.example/\n#EXTINF:-1,Twin\nhttp://t.example/\n#EXTINF:-1,Twin\nhttp://t.example/\n'
     for at, left in ((1, [b'Canada', b'', b'']), (3, [b'Canada', b'France', b''])):
-        m = stations(twin); click(m, 'btn_more'); click(m, 'rd_sh_select'); tap_row(m, at); m.confirm_yes = True; m.calls.clear(); click(m, 'rd_del')
+        m = stations(twin); click(m, 'btn_more'); click(m, 'vs_item6'); tap_row(m, at); m.confirm_yes = True; m.calls.clear(); click(m, 'rd_del')
         got = [(re.search(rb'#M1\+:(\w+)', c) or re.match(rb'()', c)).group(1) for c in m.fs[FAVS].split(b'#EXTINF')[1:]]
         expect(got == left and names(m).count(b'Twin') == 3, f'one name and address twice with other info, or twice the same: the marked row itself goes (row {at}: {got})')
-    m = stations(); click(m, 'btn_more'); click(m, 'rd_sh_select'); tap_row(m, 1); m.confirm_yes = True
+    m = stations(); click(m, 'btn_more'); click(m, 'vs_item6'); tap_row(m, 1); m.confirm_yes = True
     m.fail.add(('open', RADIO_DIR)); m.calls.clear(); click(m, 'rd_del')
     expect(names(m) == [b'Fav One', b'Fav Three'] and rows_text(m) == ['Fav One', 'Fav Three'] and not tl(m) and vis(m, 'rd_bar')[0] == 0,
            f"the file replaced but the folder's sync failing: the list follows the file, no failure message ({names(m)}, {tl(m)})")
     m.fail.discard(('open', RADIO_DIR))
     # ---- Sort by Name
     m = stations('#EXTM3U\n#EXTINF:-1,beta\nhttp://b.example/\n#EXTINF:-1,Alpha\nhttp://a.example/\n#M1+:X\tMP3\t1\n#EXTINF:-1,Gamma\nhttp://g.example/\n')
-    click(m, 'btn_more'); click(m, 'rd_sh_sort')
-    expect(names(m) == [b'Alpha', b'beta', b'Gamma'] and rows_text(m) == ['Alpha', 'beta', 'Gamma'] and b'#EXTINF:-1,Gamma\n#M1+:X\tMP3\t1\nhttp://g.example/\n' in m.fs[FAVS] and vis(m, 'rd_sh_card')[0] == 0,
+    click(m, 'btn_more'); click(m, 'vs_item7')
+    expect(names(m) == [b'Alpha', b'beta', b'Gamma'] and rows_text(m) == ['Alpha', 'beta', 'Gamma'] and b'#EXTINF:-1,Gamma\n#M1+:X\tMP3\t1\nhttp://g.example/\n' in m.fs[FAVS] and vis(m, 'vs_card')[0] == 0,
            f'Sort by Name: the file in name order (case aside), the info kept, the list read again ({names(m)})')
-    m.calls.clear(); click(m, 'btn_more'); click(m, 'rd_sh_sort')
+    m.calls.clear(); click(m, 'btn_more'); click(m, 'vs_item7')
     expect(not [c for c in m.calls if c[0] == 'rename'] and not tl(m), 'already in order: nothing written, no message')
     # ---- Add by URL: the address, then the name
-    m = stations(); click(m, 'btn_more'); click(m, 'rd_sh_addurl')
+    m = stations(); click(m, 'btn_more'); click(m, 'vs_item8')
     expect(vis(m, 'kb_field')[0] == 1 and vis(m, 'view_grid')[0] == 0 and text_of(m, 'label_title') == 'Add by URL' and kbtext(m) == 'http://' and vis(m, 'kb_go')[1] == 0,
            f'Add by URL: the field and pad over no rows, the field starts at the scheme, Next dimmed ({kbtext(m)!r})')
     for bad in ('ftp://x.example/', 'http://', 'http:///x', 'http://a b', 'http://:80', 'http://?x', 'http://a.example/x|y', 'http://a.example/}', 'http://listener@/stream', 'http://[::1/x', 'http://[]/'):
@@ -1849,21 +1856,21 @@ def manage_tests(ctx, shown):
     go(m)
     expect(kbtext(m) == 'stream.example.com' and vis(m, 'kb_go')[1] == 1, f'Next: the name, the host to start with ({kbtext(m)!r})')
     for url, host in (('http://user:pw@radio.example:8000/x', 'radio.example'), ('http://[2001:db8::1]:8000/live', '2001:db8::1')):
-        m2 = stations(); click(m2, 'btn_more'); click(m2, 'rd_sh_addurl'); typed(m2, url)
+        m2 = stations(); click(m2, 'btn_more'); click(m2, 'vs_item8'); typed(m2, url)
         expect(vis(m2, 'kb_go')[1] == 1, f'{url!r}: Next works'); go(m2)
         expect(kbtext(m2) == host, f'{url!r}: the name starts as the host alone ({kbtext(m2)!r})')
     typed(m, 'My FM'); m.calls.clear(); go(m)
     expect(tl(m) == ['Added to My Stations'] and m.fs[FAVS].endswith(row('My FM', 'https://stream.example.com:8000/live')) and rows_text(m) == ALL + ['My FM'] and vis(m, 'kb_field')[0] == 0 and vis(m, 'view_grid')[0] == 1,
            f'Done: the station appended, the list back with it ({tl(m)}, {rows_text(m)})')
-    click(m, 'btn_more'); click(m, 'rd_sh_addurl'); typed(m, 'http://fav.example/1'); go(m); typed(m, 'Again'); m.calls.clear(); go(m)
+    click(m, 'btn_more'); click(m, 'vs_item8'); typed(m, 'http://fav.example/1'); go(m); typed(m, 'Again'); m.calls.clear(); go(m)
     expect(tl(m) == ['Already in My Stations'] and names(m).count(b'Again') == 0, f'an address already listed: "Already in My Stations", nothing added ({tl(m)})')
     big = '#EXTM3U\n' + ''.join(row(f'S{k:03} ' + 'n' * 880, f'http://s.example/{k}').decode() for k in range(280))
     big += row('Last ' + 'z' * (256 * 1024 - 2 - len(big) - len(row('Last ', 'http://l.example/')) - 4), 'http://l.example/').decode()
-    m2 = stations(big); click(m2, 'btn_more'); click(m2, 'rd_sh_addurl'); typed(m2, 'http://more.example/'); go(m2); typed(m2, 'More'); m2.calls.clear(); go(m2)
+    m2 = stations(big); click(m2, 'btn_more'); click(m2, 'vs_item8'); typed(m2, 'http://more.example/'); go(m2); typed(m2, 'More'); m2.calls.clear(); go(m2)
     expect(tl(m2) == ['My Stations is full'] and m2.fs[FAVS] == big.encode() and not [c for c in m2.calls if c[0] == 'rename'],
            f'a station that would grow the file past what is read back: "My Stations is full", nothing written ({tl(m2)})')
     before = m.fs[FAVS]
-    click(m, 'btn_more'); click(m, 'rd_sh_addurl'); typed(m, 'http://new.example/'); m.calls.clear(); click(m, 'btn_return')
+    click(m, 'btn_more'); click(m, 'vs_item8'); typed(m, 'http://new.example/'); m.calls.clear(); click(m, 'btn_return')
     expect(m.fs[FAVS] == before and vis(m, 'kb_field')[0] == 0 and rows_text(m)[-1] == 'My FM' and ('navigator_back',) not in m.calls, 'Back leaves Add by URL: nothing written, the list back')
     # ---- a long press on a My Stations row: Remove from My Stations
     holds = lambda m: [c for c in m.calls if c[0] == 'timer_add' and c[1] == PSYMS['rm_on_hold']]
@@ -1871,7 +1878,7 @@ def manage_tests(ctx, shown):
     m.touch('down', 100, SCREEN_Y0 + TOP + ROW_LIST + 20, 1000, fn='rp_on_down')
     expect(len(holds(m)) == 1 and m.props.get((m.widgets['rd_sh_card'], 'visible'), 0) != 1, 'a press on a station arms the long press')
     m.call(PSYMS['rm_on_hold'], count=900000000)
-    expect(shown(m) == ['remove'] and m.props.get((m.widgets['rd_sh_card'], 'style:normal:bg_image')) == 'pc_sheet1', f'held: the one-row sheet, Remove from My Stations ({shown(m)})')
+    expect(m.props.get((m.widgets['rd_sh_remove'], 'visible'), 0) == 1 and vis(m, 'vs_card')[0] != 1 and m.props.get((m.widgets['rd_sh_card'], 'style:normal:bg_image')) == 'pc_sheet1', 'held: the one-row sheet, Remove from My Stations')
     m.calls.clear(); m.touch('up', 100, SCREEN_Y0 + TOP + ROW_LIST + 20, 1700, fn='rp_on_up')
     expect(not [c for c in m.calls if c[0] == 'navigator_to_with_context'] and vis(m, 'rd_sh_card')[0] == 1, 'the release plays nothing and leaves the sheet open')
     m.calls.clear(); click(m, 'rd_sh_remove')
@@ -1891,25 +1898,26 @@ def recent_tests(ctx):
     x = lambda m, n: m.props.get((m.widgets[n], 'x'), 214)
     m = page_machine(view=None); m.put_text(RECENT, rec); open_radio(m); np_widgets(m)
     tap_row(m, 2, root=True, gap=24)
-    expect(rows_text(m) == ['Rec One', 'Rec Two'] and vis(m, 'btn_more') == (1, 1) and vis(m, 'btn_radioview') == (1, 1) and vis(m, 'btn_search') == (0, 0)
-           and (x(m, 'btn_more'), x(m, 'btn_radioview'), x(m, 'btn_backtoplayer')) == (168, 214, 260) and icon_of(m, 'btn_backtoplayer') == 'ah_nav_play'
-           and icon_of(m, 'btn_radioview') == 'pod_nav_grid', 'Recently Played: the capsule [... | toggle | Now Playing] as My Stations has it (the "..." 168, the toggle 214, Now Playing 260), no Search')
+    expect(rows_text(m) == ['Rec One', 'Rec Two'] and vis(m, 'btn_more') == (1, 1) and vis(m, 'btn_radioview') == (0, 0) and vis(m, 'btn_search') == (0, 0)
+           and (x(m, 'btn_more'), x(m, 'btn_backtoplayer')) == (214, 260) and icon_of(m, 'btn_backtoplayer') == 'ah_nav_play',
+           'Recently Played: the capsule [... | Now Playing] as My Stations has it (the "..." 214, Now Playing 260), no toggle, no Search')
     click(m, 'btn_more')
-    expect(vis(m, 'rd_sh_card') == (1, 1) and vis(m, 'rd_sh_scrim') == (1, 1) and vis(m, 'rd_sh_clear') == (1, 1) and m.props.get((m.widgets['rd_sh_import'], 'visible'), 0) == 0 and vis(m, 'rd_sh_clear_hr')[0] == 0
-           and m.props.get((m.widgets['rd_sh_card'], 'style:normal:bg_image')) == 'pc_sheet1', 'the "..." opens a one-row sheet: Clear Recently Played, not Import from Card')
+    expect(vis(m, 'vs_card') == (1, 1) and vis(m, 'vs_scrim') == (1, 1) and card_rows(m) == ['grid', 'list', 'clear'] and text_of(m, 'vs_label9') == 'Clear History' and m.props.get((m.widgets['vs_card'], 'style:normal:bg_image')) == 'vs_glass3'
+           and m.props.get((m.widgets['vs_glyph9'], 'image')) == 'pod_ic_vstrash' and m.props.get((m.widgets['vs_label9'], 'style:normal:text_color')) == '#FF6B6B' and m.props.get((m.widgets['vs_hair'], 'y')) == 2 * O['VS_ROW_H'] and vis(m, 'vs_hair')[0] == 1,
+           'the "..." opens the card: Grid, List, then Clear History (red, last, a hairline above it), not Import from Card')
     m.calls.clear(); click(m, 'btn_return')
-    expect(vis(m, 'rd_sh_card') == (0, 0) and ('navigator_back',) not in m.calls and rows_text(m) == ['Rec One', 'Rec Two'] and RECENT in m.fs and b'Rec One' in m.fs[RECENT], 'Back with the sheet open closes the sheet only')
-    click(m, 'btn_more'); click(m, 'rd_sh_scrim')
-    expect(vis(m, 'rd_sh_card') == (0, 0) and vis(m, 'rd_sh_clear') == (0, 0) and b'Rec One' in m.fs[RECENT], 'the scrim closes it; nothing cleared')
+    expect(vis(m, 'vs_card') == (0, 0) and ('navigator_back',) not in m.calls and rows_text(m) == ['Rec One', 'Rec Two'] and RECENT in m.fs and b'Rec One' in m.fs[RECENT], 'Back with the sheet open closes the sheet only')
+    click(m, 'btn_more'); click(m, 'vs_scrim')
+    expect(vis(m, 'vs_card') == (0, 0) and vis(m, 'vs_scrim') == (0, 0) and b'Rec One' in m.fs[RECENT], 'the scrim closes it; nothing cleared')
     click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_clear')
-    expect(toasts(calls) == ['Cleared Recently Played'] and m.fs[RECENT] == b'#EXTM3U\n' and RECENT + '.tmp' not in m.fs and vis(m, 'rd_sh_card') == (0, 0),
+    calls = click(m, 'vs_item9')
+    expect(toasts(calls) == ['Cleared Recently Played'] and m.fs[RECENT] == b'#EXTM3U\n' and RECENT + '.tmp' not in m.fs and vis(m, 'vs_card') == (0, 0),
            f'Clear Recently Played: the toast, radio-recent emptied through the atomic writer, the sheet closed ({toasts(calls)}, {m.fs[RECENT]!r})')
     expect(text_of(m, 'label_status') == 'No recently played stations' and vis(m, 'label_status') == (1, 1) and vis(m, 'view_grid') == (0, 0) and vis(m, 'btn_radioview') == (0, 0)
            and vis(m, 'btn_more') == (1, 1) and x(m, 'btn_more') == 214 and x(m, 'btn_backtoplayer') == 260 and text_of(m, 'sg_title') == 'Recently Played',
            'the list refreshed in place: the caption, the "..." on the 214 slot, no toggle (as an empty My Stations)')
     # the empty level keeps the "..." and Clear still works (nothing to clear: the same toast)
-    m.calls.clear(); click(m, 'btn_more'); calls = click(m, 'rd_sh_clear')
+    m.calls.clear(); click(m, 'btn_more'); calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['Cleared Recently Played'] and text_of(m, 'label_status') == 'No recently played stations', 'Clear on the empty level: the same toast and caption')
     m.calls.clear(); click(m, 'btn_return')
     expect(('navigator_back',) not in m.calls and rows_text(m)[:3] == ['My Stations', 'Recently Played', 'Radio Browser'] and vis(m, 'btn_more') == (0, 0), 'Back from the empty caption: the root, the page stays, no "..."')
@@ -1926,7 +1934,7 @@ def recent_tests(ctx):
     open_radio(m); np_widgets(m)
     tap_row(m, 2, root=True, gap=24)
     expect(rows_text(m) == ['One'], f'Recently Played lists it ({rows_text(m)})')
-    m.proc = []; m.calls.clear(); click(m, 'btn_more'); calls = click(m, 'rd_sh_clear')
+    m.proc = []; m.calls.clear(); click(m, 'btn_more'); calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['Cleared Recently Played'] and m.call(PSYMS['rd_running']) == 1 and m.call(PSYMS['rd_state']) == ST['CONNECTING'] and not stops(m) and m.fs[RECENT] == b'#EXTM3U\n',
            'clearing does not stop the station')
     click(m, 'btn_return')
@@ -1934,17 +1942,17 @@ def recent_tests(ctx):
     # nothing running: Clear takes the root's Now Playing row with it (the history is the last played)
     m = page_machine(view=None); m.put_text(RECENT, rec); open_radio(m)
     expect(rows_text(m)[0] == 'Now Playing', 'idle with a recent station: the Now Playing row')
-    tap_row(m, 2, root=True, gap=24); click(m, 'btn_more'); click(m, 'rd_sh_clear'); click(m, 'btn_return')
+    tap_row(m, 2, root=True, gap=24); click(m, 'btn_more'); click(m, 'vs_item9'); click(m, 'btn_return')
     expect(rows_text(m) == ['My Stations', 'Recently Played', 'Radio Browser'], f'Clear Recently Played with nothing running: the Now Playing row is gone ({rows_text(m)})')
     # a card/settings write that fails: the list stays and says so
     m = page_machine(view=None); m.put_text(RECENT, rec); open_radio(m); tap_row(m, 2, root=True, gap=24)
     m.fail.add(('rename', RECENT)); click(m, 'btn_more'); m.calls.clear()
-    calls = click(m, 'rd_sh_clear')
+    calls = click(m, 'vs_item9')
     expect(toasts(calls) == ['Could not clear Recently Played'] and rows_text(m) == ['Rec One', 'Rec Two'] and b'Rec One' in m.fs[RECENT], f'a write that cannot be made: "Could not clear Recently Played", the list as it was ({toasts(calls)})')
-    # the toggle still works on this level and the mode is shared
+    # the card's views work on this level and the mode is shared
     m = page_machine(view=None); m.put_text(RECENT, rec); open_radio(m); tap_row(m, 2, root=True, gap=24)
-    click(m, 'btn_radioview')
-    expect(grid_titles(m) == ['Rec One', 'Rec Two'] and m.fs.get(VIEW) == b'1\n', 'the toggle on Recently Played switches the mode')
+    click(m, 'btn_more'); click(m, 'vs_item4')
+    expect(grid_titles(m) == ['Rec One', 'Rec Two'] and m.fs.get(VIEW) == b'1\n' and vis(m, 'vs_card') == (0, 0), 'the Grid row on Recently Played switches the mode')
 
 
 def np_machine(**kw):
@@ -2407,11 +2415,14 @@ def view_tests(ctx):
     click(m, 'btn_return'); click(m, 'btn_return')
     m.put_text(FAVS, FAV_TEXT)
     tap_row(m, 0, root=True)
-    expect(vis(m, 'btn_radioview') == (1, 1) and vis(m, 'btn_search') == (0, 0) and vis(m, 'btn_more') == (1, 1), 'Stations: the toggle and the "..." show, no Search (the directory is Radio Browser)')
-    expect(m.props.get((m.widgets['btn_more'], 'x'), 214) == 168 and m.props.get((m.widgets['btn_radioview'], 'x'), 214) == 214 and m.props.get((m.widgets['btn_backtoplayer'], 'x'), 260) == 260,
-           'the capsule [... | toggle | Now Playing]: "..." 168 (left cap, where Search sits), the toggle 214 (middle), Now Playing 260 (right cap)')
-    expect(icon_of(m, 'btn_radioview') == icon_of(m, 'btn_radioview', 'over') == 'pod_nav_grid' and icon_of(m, 'btn_radioview', 'pressed') == 'pod_nav_grid_down'
-           and icon_of(m, 'btn_backtoplayer') == 'ah_nav_play' and m.props[(m.widgets['label_title'], 'w')] == 168 - 58, 'the list shows the grid glyph (the mode a tap gives, the middle piece), Now Playing is the right cap, the small title ends at the "..."')
+    expect(vis(m, 'btn_radioview') == (0, 0) and vis(m, 'btn_search') == (0, 0) and vis(m, 'btn_more') == (1, 1), 'Stations: the "..." shows, no toggle (the card holds the view), no Search (the directory is Radio Browser)')
+    expect(m.props.get((m.widgets['btn_more'], 'x'), 214) == 214 and m.props.get((m.widgets['btn_backtoplayer'], 'x'), 260) == 260 and icon_of(m, 'btn_backtoplayer') == 'ah_nav_play',
+           'the capsule [... | Now Playing]: "..." 214 (the left cap), Now Playing 260 (the right cap)')
+    expect(m.props[(m.widgets['label_title'], 'w')] == 214 - 58, 'the small title ends at the "..."')
+    click(m, 'btn_more'); click(m, 'vs_item4')
+    g1 = (m.fs.get(VIEW), grid_titles(m)[:1])
+    click(m, 'btn_more'); click(m, 'vs_item5')
+    expect(vis(m, 'vs_card') == (0, 0) and g1[0] == b'1\n' and m.fs.get(VIEW) == b'0\n' and text_of(m, 'sg_title') == 'My Stations', f'the card\'s Grid and List rows set the mode in place and save it ({g1}, {m.fs.get(VIEW)})')
     click(m, 'btn_return')
     expect(vis(m, 'btn_radioview') == (0, 0) and vis(m, 'btn_search') == (0, 0) and vis(m, 'btn_more') == (0, 0), 'Back to the root: the toggle and the "..." go')
     m = opened_view(None); tap_row(m, 1, root=True)

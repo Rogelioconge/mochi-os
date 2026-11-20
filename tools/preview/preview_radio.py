@@ -63,13 +63,28 @@ def navbar(s, im, title, search=False, view=None):
     d = ImageDraw.Draw(im); d.rectangle((0, 0, W - 1, NAV - 1), fill=(0, 0, 0))
     PS.glass(s, im, 'ah_nav_back', 7, 44)
     glyph = {'list': 'pod_nav_grid', 'grid': 'pod_nav_list'}.get(view)
-    if search and not view: PS.glass(s, im, 'ah_nav_np', 260, 60)
+    if view == 'more':   # My Stations, Recently Played: [... | Now Playing], the "..." the left cap on the 214 slot (the view is in its card)
+        PS.glass(s, im, 'pod_nav_more', 214); PS.glass(s, im, 'ah_nav_play', 260, 60)
+    elif search and not view: PS.glass(s, im, 'ah_nav_np', 260, 60)
     elif search:   # [toggle (left cap) | Now Playing]
         PS.glass(s, im, glyph + 'l', 214); PS.glass(s, im, 'ah_nav_play', 260, 60)
     elif view:   # [Search | toggle | Now Playing]
         PS.glass(s, im, 'pod_nav_search', O['NAV_CF_X']); PS.glass(s, im, glyph, 214); PS.glass(s, im, 'ah_nav_play', 260, 60)
     else:   # the capsule: Search | Now Playing
         PS.glass(s, im, 'pod_nav_search', 214); PS.glass(s, im, 'ah_nav_play', 260, 60)
+
+
+def stations_card(s, recent=False, grid=False):
+    """My Stations (or Recently Played) with the "..." card open (patch/radiopage.c rp_card): the list under the scrim's dim, the card as vs_fit lays it out. My Stations: Select, Sort by Name, Add by URL, Import from Card,
+    a hairline, Grid, List (the tick on the current view); Recently Played: Grid, List, a hairline, Clear Recently Played (red, last)."""
+    im = (grid_page if grid else list_page)(s, 'Recently Played' if recent else 'My Stations')
+    navbar(s, im, 'Recently Played' if recent else 'My Stations', False, 'more')
+    im.alpha_composite(Image.new('RGBA', im.size, (0, 0, 0, 0x82)))
+    views = [('Grid', 'pod_ic_vsgrid', grid, None), ('List', 'pod_ic_vslist', not grid, None)]
+    if recent:
+        return PI.view_card(s, im, views + [('Clear History', 'pod_ic_vstrash', False, None, True)], 'vs_glass3', (2,))
+    acts = [('Select', 'pod_ic_vsselect', False, None), ('Sort by Name', 'pod_ic_vsorder', False, None), ('Add by URL', 'pod_ic_vslink', False, None), ('Import from Card', 'pod_ic_vsimport', False, None)]
+    return PI.view_card(s, im, acts + views, 'vs_glass6', (4,))
 
 
 def credit(s, im, x, y):
@@ -211,7 +226,7 @@ def main():
     a = ap.parse_args()
     s = PI.Side(a.workdir, True, a.lang)
     panels = [('Radio: Now Playing group, no separator', root_page(s)), ('By Country: A-Z list, rail', countries_page(s)), ('Top Stations: list (default)', list_page(s, 'Top Stations')),
-              ('Top Stations: grid', grid_page(s, 'Top Stations')), ('Search results: list', list_page(s, 'Search', TOP_SEARCH, True)), ('By Genre: the rows', genres_page(s))]
+              ('Top Stations: grid', grid_page(s, 'Top Stations')), ('My Stations: the "..." card', stations_card(s)), ('Recently Played: the "..." card', stations_card(s, True, True)), ('Search results: list', list_page(s, 'Search', TOP_SEARCH, True)), ('By Genre: the rows', genres_page(s))]
     kb, root = PKV.Page(s), field_tree(s, 'm1plus_radio')
     panels += [('Radio search: keyboard up (field 296 wide)', search_screen(s, kb, root, False, True).crop((0, PKV.BAR, W, PKV.BAR + 450))),
                ('Radio search: results (toggle + Now Playing)', search_screen(s, kb, root, True, False).crop((0, PKV.BAR, W, PKV.BAR + 450))),

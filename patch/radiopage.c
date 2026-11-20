@@ -31,6 +31,7 @@
 #include "radio.h"
 #include "rowmenu.h"
 #include "selmode.h"
+#include "viewsort.h"
 
 #define RP_ASSET "m1plus_radio"
 #define RP_W 320
@@ -71,9 +72,9 @@ static const char *const RP_ICON_NAME[RI_N] = {"pod_ic_rd_stations", "pod_ic_rd_
 static const char *const RP_ROW_TEXT[RR_N] = {"Now Playing",  "My Stations", "Recently Played", "Radio Browser",
                                               "Top Stations", "By Country",  "By Genre"};
 static const int RP_ROW_ICON[RR_N] = {RI_NOW, RI_STATIONS, RI_RECENT, RI_BROWSER, RI_TOP, RI_COUNTRY, RI_GENRE};
-/* The sheets' rows (tools/pod_ui.py RS_SHEET_ROWS): My Stations' "..." the first four, Recently Played's Clear, a long press on a My Stations row Remove. */
-enum { SH_SELECT, SH_SORT, SH_ADD, SH_IMPORT, SH_CLEAR, SH_REMOVE, SH_N };
-static const char *const RP_SH_ID[SH_N] = {"select", "sort", "addurl", "import", "clear", "remove"};
+/* The sheet's row (tools/pod_ui.py RS_SHEET_ROWS): a long press on a My Stations row, Remove. */
+enum { SH_REMOVE, SH_N };
+static const char *const RP_SH_ID[SH_N] = {"remove"};
 #define RP_SCHEME "http://" /* what an empty Add by URL address starts as, and what its clear button leaves */
 
 #define P(w, off) (*(void **)((char *)(w) + (off)))
@@ -81,7 +82,8 @@ static const char *const RP_SH_ID[SH_N] = {"select", "sort", "addurl", "import",
 static struct {
     void *win, *view, *sv, *lv, *status, *title, *big, *fade, *back, *np, *find, *st_title, *st_sub, *st_gtitle,
         *st_gsub, *credit, *field, *view_btn, *more, *sh_scrim, *sh_card, *btn_selall, *bar, *del;
-    void *sh[SH_N], *sh_hr[SH_N]; /* the sheets' rows and their hairlines */
+    void *sh[SH_N], *sh_hr[SH_N]; /* the sheet's row and its hairline */
+    vs_t vs; /* the "..." card (patch/viewsort.c) */
     void *chev, *ic[RI_N];
     m1_sel_t ms; /* My Stations' select mode (patch/selmode.c) */
     int select, entry,
@@ -381,11 +383,14 @@ static void rp_size(void) {
 }
 
 /* The view toggle is for the station lists (rows in view, no caption); it shows the other mode's glyph. */
-static int rp_toggle_on(void) { return rp.level == L_LIST && rp.nrows && !rp.note; }
+static int rp_toggle_on(void) {
+    return rp.level == L_LIST && rp.nrows && !rp.note &&
+           (rp.search || !rp.local); /* (My Stations and Recently Played keep the view in the "..." card) */
+}
 
-/* The capsule, right to left: Now Playing (the right cap), the toggle on the 214 slot (the middle piece), Search on the 168 slot (the left cap), or on the Stations level "..." in
- * Search's place (also with no toggle: an empty Stations). Without the toggle the left cap takes the 214 slot; on the search page Search is gone and the toggle (the left cap piece)
- * takes 214 beside Now Playing, or Now Playing is the glass disc alone. */
+/* The capsule, right to left: Now Playing (the right cap), the toggle on the 214 slot (the middle piece), Search on the 168 slot (the left cap). My Stations and Recently Played have "..." alone
+ * on the 214 slot (the left cap, the Artists page's capsule; the view is in its card). Without the toggle the left cap takes the 214 slot; on the search page Search is gone and the toggle
+ * (the left cap piece) takes 214 beside Now Playing, or Now Playing is the glass disc alone. */
 static int rp_find_on(void) {
     return !rp.search && (rp.level == L_DIR || rp.level == L_PICK || (rp.level == L_LIST && !rp.local));
 }
@@ -400,7 +405,7 @@ static void rp_nav(void) {
     m1_show(rp.find, find && !more);
     m1_show(rp.more, more);
     widget_move(rp.find, tog ? NAV_CF_X : NAV_VIEW_X, 0);
-    widget_move(rp.more, tog ? NAV_CF_X : NAV_VIEW_X, 0);
+    widget_move(rp.more, NAV_VIEW_X, 0);
     m1_show(rp.view_btn, tog);
     snprintf(n, sizeof n, "%s%s", g, find ? "" : "l");
     snprintf(nd, sizeof nd, "%s_down", n);
@@ -758,13 +763,11 @@ static int rp_on_find(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The view toggle: the other mode in place (the Albums page's: a coasting list stops), the first station in view stays at the top, the choice saved. */
-static int rp_on_view(void *ctx, void *e) {
+/* The station lists' mode, list or grid, in place (the Albums page's: a coasting list stops), the first station in view stays at the top, the choice saved. */
+static void rp_set_view(int list) {
     int first, off;
     void *wa;
-    (void)ctx;
-    (void)e;
-    if (!rp.view || !rp_toggle_on()) return RET_OK;
+    if (!rp.view || (rp.vlist != 0) == list) return;
     wa = P(rp.sv, SC_WA);
     if (wa && I(wa, SC_AN_STATE) == SC_AN_RUNNING &&
         P(wa, SC_AN_WIDGET) == rp.sv) { /* a coasting list stops (patch/scroll.c sc_down) */
@@ -772,12 +775,19 @@ static int rp_on_view(void *ctx, void *e) {
         stock_scroll_done(rp.sv, (void *)0);
     }
     first = rp_first(), off = rp_off();
-    rp.vlist = !rp.vlist, rp.dir = 1, rp.seen = off;
+    rp.vlist = list, rp.dir = 1, rp.seen = off;
     rp.sel[L_LIST] =
         off - rp_top() <= 0 ? off : rp_top() + (rp.vlist ? first * LIST_ROW_H : first / GRID_COLS * GRID_PITCH);
     rp_show_level(L_LIST, 1);
     rp.seen = rp_off();
     home_write_atomic(RD_VIEW_FILE, RD_VIEW_TMP, rp.vlist ? "0\n" : "1\n");
+}
+
+/* The navbar toggle: the other mode. */
+static int rp_on_view(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    if (rp.view && rp_toggle_on()) rp_set_view(!rp.vlist);
     return RET_OK;
 }
 
@@ -1015,7 +1025,7 @@ static void rp_on_add_go(void) {
 }
 
 /* ---------------------------------------------------------------------------
- * The "..." sheet of the My Stations level (Import from Card) and of Recently Played (Clear Recently Played): the same widget set as Radio Now Playing's sheet, one row shown
+ * The long press sheet (Remove from My Stations): the same widget set as Radio Now Playing's sheet, one row
  */
 static void rp_sheet_close(void) {
     int i;
@@ -1035,57 +1045,69 @@ static void rp_sheet_open(const int *ids, int n) {
     m1_sheet_rows(rp.sh_scrim, rp.sh_card, RP_W, rows, hrs, n);
 }
 
-/* My Stations: Select (with a station and the mode's widgets), Sort by Name (two stations or more), Add by URL, Import from Card; Recently Played: Clear Recently Played. */
+/* ---------------------------------------------------------------------------
+ * The "..." card (patch/viewsort.c): My Stations: Select (with a station and the mode's widgets), Sort by Name (two stations or more), Add by URL, Import from Card, then Grid and List (with
+ * stations in view); Recently Played: Grid and List (with stations in view), then Clear Recently Played, red, last (slot 9 retexted: the card's tail). Slots: 6 Select, 7 Sort, 8 Add, 9 Import / Clear.
+ */
+static int rp_view_rows(void) { return rp.nrows && !rp.note; }
+
+static void rp_card(int on) {
+    if (!rp.vs.card) return;
+    if (on) {
+        unsigned mask = rp_view_rows() ? VS_WITH_VIEWS : 0;
+        static const char *const COL[3] = {"style:normal:text_color", "style:disable:text_color",
+                                           "style:focused:text_color"};
+        int i;
+        if (rp.favs) {
+            if (rp_my() && rp.list.n && rp_select_ok()) mask |= VS_WITH_SEARCH;
+            if (rp_my() && rp.list.n > 1) mask |= VS_WITH_SELECT;
+            mask |= VS_WITH_ACT2 | VS_WITH_ACT3;
+        } else
+            mask |= VS_WITH_ACT3 | VS_TAIL;
+        widget_set_tr_text(rp.vs.label[VS_ACT3], rp.favs ? "Import from Card" : "Clear History");
+        widget_set_prop_str(rp.vs.glyph[VS_ACT3 - VS_SORTS], "image", rp.favs ? "pod_ic_vsimport" : "pod_ic_vstrash");
+        for (i = 0; i < 3; ++i)
+            widget_set_prop_str(rp.vs.label[VS_ACT3], COL[i],
+                                rp.favs ? "#FFFFFF" : "#FF6B6B"); /* (the red of every destructive row) */
+        vs_offer(&rp.vs, mask);
+    }
+    vs_menu(&rp.vs, on, 0, 0, rp.vlist);
+}
+
 static int rp_on_more(void *ctx, void *e) {
-    int ids[SH_N], n = 0;
     (void)ctx;
     (void)e;
     if (!rp.view || !rp_more_on() || rp.sheet) return RET_OK;
-    if (!rp.favs)
-        ids[n++] = SH_CLEAR;
-    else {
-        if (rp_my() && rp.list.n && rp_select_ok()) ids[n++] = SH_SELECT;
-        if (rp_my() && rp.list.n > 1) ids[n++] = SH_SORT;
-        ids[n++] = SH_ADD;
-        ids[n++] = SH_IMPORT;
-    }
-    rp_sheet_open(ids, n);
+    rp_card(!rp.vs.on);
     return RET_OK;
 }
 
-static int rp_on_sh_select(void *ctx, void *e) {
+static int rp_on_card_scrim(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    rp_sheet_close();
-    rp_select(1);
+    rp_card(0);
     return RET_OK;
 }
+
+static void rp_do_select(void) { rp_select(1); }
 
 /* Sort by Name: favourites.m3u rewritten in name order, the list read again from its top. */
-static int rp_on_sort(void *ctx, void *e) {
+static void rp_do_sort(void) {
     int r;
-    (void)ctx;
-    (void)e;
-    rp_sheet_close();
-    if (!rp_my()) return RET_OK;
+    if (!rp_my()) return;
     r = rd_fav_sort();
     if (r < 0) {
         pod_toast(TR("Could not save My Stations"));
-        return RET_OK;
+        return;
     }
     rp_stations(0);
-    return RET_OK;
 }
 
-static int rp_on_addurl(void *ctx, void *e) {
-    (void)ctx;
-    (void)e;
-    rp_sheet_close();
-    if (!rp.view || !rp_more_on() || !rp.favs || !rp.field) return RET_OK;
+static void rp_do_addurl(void) {
+    if (!rp.view || !rp_more_on() || !rp.favs || !rp.field) return;
     if (!rp.note) rp.sel[L_LIST] = rp_off();
     rp.note = 0;
     rp_entry(1);
-    return RET_OK;
 }
 
 /* The long press's Remove from My Stations: that one station out of the file. */
@@ -1109,13 +1131,10 @@ static int rp_on_sheet_scrim(void *ctx, void *e) {
 }
 
 /* Import from Card: the card's playlists appended to favourites.m3u, a toast, the list read again where it is. */
-static int rp_on_import(void *ctx, void *e) {
+static void rp_do_import(void) {
     char msg[64];
     int full = 0, r;
-    (void)ctx;
-    (void)e;
-    rp_sheet_close();
-    if (!rp.view || !rp_more_on() || !rp.favs) return RET_OK;
+    if (!rp.view || !rp_more_on() || !rp.favs) return;
     r = rd_fav_import(&full);
     if (r == -1)
         pod_toast(TR("Could not save My Stations"));
@@ -1133,21 +1152,38 @@ static int rp_on_import(void *ctx, void *e) {
         if (!rp.note) rp.sel[L_LIST] = rp_off();
         rp_stations(1);
     }
-    return RET_OK;
 }
 
 /* Clear Recently Played: radio-recent emptied, a toast, the level read again in place (its caption). A station that plays goes on (and keeps the root's Now Playing row); with none playing the row goes. */
-static int rp_on_clear(void *ctx, void *e) {
-    (void)ctx;
-    (void)e;
-    rp_sheet_close();
-    if (!rp.view || !rp_more_on() || rp.favs) return RET_OK;
+static void rp_do_clear(void) {
+    if (!rp.view || !rp_more_on() || rp.favs) return;
     if (!rd_recent_clear()) {
         pod_toast(TR("Could not clear Recently Played"));
-        return RET_OK;
+        return;
     }
     pod_toast(TR("Cleared Recently Played"));
     rp_recent();
+}
+
+/* A tap on a card row (the slot in ctx): the card closes first. */
+static int rp_on_item(void *ctx, void *e) {
+    int k = (int)(long)ctx;
+    (void)e;
+    rp_card(0);
+    if (k == VS_SORTS || k == VS_SORTS + 1) {
+        if (rp_view_rows() && rp_more_on()) rp_set_view(k == VS_SORTS + 1);
+    } else if (k == VS_SEARCH)
+        rp_do_select();
+    else if (k == VS_SELECT)
+        rp_do_sort();
+    else if (k == VS_ACT2)
+        rp_do_addurl();
+    else if (k == VS_ACT3) {
+        if (rp.favs)
+            rp_do_import();
+        else
+            rp_do_clear();
+    }
     return RET_OK;
 }
 
@@ -1157,8 +1193,9 @@ static int rp_on_clear(void *ctx, void *e) {
 static int rp_on_back(void *ctx, void *e) {
     (void)ctx;
     (void)e;
-    if (rp.sheet) { /* the Stations sheet: Back closes it only */
+    if (rp.sheet || rp.vs.on) { /* the long press sheet or the "..." card: Back closes it only */
         rp_sheet_close();
+        rp_card(0);
         return RET_OK;
     }
     if (rp.select) { /* the x: the select mode ends, nothing removed */
@@ -1335,8 +1372,7 @@ int radio_open(void) {
     rp.sh_scrim = m1_bind(rp.win, "rd_sh_scrim", rp_on_sheet_scrim, (void *)0);
     rp.sh_card = widget_lookup(rp.win, "rd_sh_card", 1);
     for (i = 0; i < SH_N; ++i) {
-        static int (*const RP_SH_FN[SH_N])(void *, void *) = {rp_on_sh_select, rp_on_sort,  rp_on_addurl,
-                                                              rp_on_import,    rp_on_clear, rp_on_remove};
+        static int (*const RP_SH_FN[SH_N])(void *, void *) = {rp_on_remove};
         char name[24];
         snprintf(name, sizeof name, "rd_sh_%s", RP_SH_ID[i]);
         rp.sh[i] = m1_bind(rp.win, name, RP_SH_FN[i], (void *)0);
@@ -1344,6 +1380,10 @@ int radio_open(void) {
         rp.sh_hr[i] = widget_lookup(rp.win, name, 1);
         sh_ok = sh_ok && rp.sh[i] && rp.sh_hr[i];
     }
+    if (vs_bind(&rp.vs, rp.win, rp_on_item, rp_on_card_scrim,
+                VS_WITH_VIEWS | VS_WITH_SEARCH | VS_WITH_SELECT | VS_WITH_ACT2 | VS_WITH_ACT3))
+        sh_ok = 0;
+    vs_dated(&rp.vs, 0);
     rp.btn_selall = m1_bind(rp.win, "btn_selall", rp_on_selall, (void *)0); /* the select mode's widgets */
     rp.bar = widget_lookup(rp.win, "rd_bar", 1);
     rp.del = m1_bind(rp.win, "rd_del", rp_on_delete, (void *)0);

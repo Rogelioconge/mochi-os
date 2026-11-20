@@ -258,6 +258,8 @@ of its row count.
   ticked row. `vs_dated(v, mask)` picks which sort rows read Newest First / Oldest First (default
   rows 2 and 3; Songs passes row 3 alone).
 - The Artists page's Show group uses view rows 4 and 5 (a click arrives as `VS_SORTS` or `+1`).
+- `VS_TAIL` in the offered mask moves slot 9 after the view rows as the card's last row, the
+  hairline above it (Radio's Clear History, retexted and red by the page).
 - Widget names are per window, so the same `vs_*` names work on every page.
 - Per page: Songs ([songs](songs.md)) folds Search, Sort, Select and Recently Added's view toggle
   into one card; Folders: Select + Name, Date Modified, Type (`vs_glass4`); Playlists: two cards on

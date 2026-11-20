@@ -1699,9 +1699,9 @@ TEXT = dict([
        'Додайте станції з Огляду радіо або імпортуйте .m3u з картки.'),
     _t('No recently played stations', '没有最近播放的电台', '沒有最近播放的電台', '最近再生した局はありません', '최근 재생한 방송국 없음', 'Aucune station lue récemment', 'Keine zuletzt gespielten Sender',
        'No hay emisoras reproducidas recientemente', 'Nessuna stazione riprodotta di recente', 'ไม่มีสถานีที่เล่นล่าสุด', 'Brak ostatnio odtwarzanych stacji', 'Нет недавно воспроизведённых станций', 'Немає нещодавно відтворених станцій'),
-    # Recently Played's "..." sheet (patch/radiopage.c) and Radio Now Playing's Station Info page (patch/radioinfo.c, patch/radionp.c; docs/modules/radio.md)
-    _t('Clear Recently Played', '清除最近播放', '清除最近播放', '最近再生した局を消去', '최근 재생 지우기', 'Effacer les lus récemment', 'Zuletzt gespielte löschen',
-       'Borrar recientes', 'Cancella riprodotte di recente', 'ล้างรายการที่เล่นล่าสุด', 'Wyczyść ostatnio odtwarzane', 'Очистить недавние', 'Очистити нещодавно відтворені'),
+    # Recently Played's "..." card (patch/radiopage.c: its red last row, short to fit the card in every language) and Radio Now Playing's Station Info page (patch/radioinfo.c, patch/radionp.c; docs/modules/radio.md)
+    _t('Clear History', '清除历史记录', '清除記錄', '履歴を消去', '기록 지우기', 'Effacer l’historique', 'Verlauf löschen',
+       'Borrar historial', 'Cancella cronologia', 'ล้างประวัติ', 'Wyczyść historię', 'Очистить историю', 'Очистити історію'),
     _t('Cleared Recently Played', '已清除最近播放', '已清除最近播放', '最近再生した局を消去しました', '최근 재생을 지웠습니다', 'Lus récemment effacés', 'Zuletzt gespielte gelöscht',
        'Reproducidas recientemente borradas', 'Riprodotte di recente cancellate', 'ล้างรายการที่เล่นล่าสุดแล้ว', 'Wyczyszczono ostatnio odtwarzane', 'Недавно воспроизведённые очищены', 'Нещодавно відтворені очищено'),
     _t('Could not clear Recently Played', '无法清除最近播放', '無法清除最近播放', '最近再生した局を消去できません', '최근 재생을 지울 수 없음', 'Impossible d’effacer les lus récemment', 'Zuletzt gespielte nicht gelöscht',

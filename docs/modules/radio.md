@@ -45,17 +45,22 @@ One window with the Folders page's structure (glass navbar, large title, rows in
   Radio Browser or a level under it.
 - **Station list modes:** Top Stations, a country's or genre's stations, My Stations, Recently
   Played and search results use the Albums page's list and grid ([albums](albums.md)). The choice is
-  one file, `/mnt/data/m1plus/radio-view` (`1` grid, otherwise list). The toggle shows on station
-  levels with rows in view (never on the root, Radio Browser, countries or genres). It shows the other
-  mode's glyph; a tap keeps the first visible station. List rows are 64 px (52 px logo, name, "Country · CODEC 128k"); the
+  one file, `/mnt/data/m1plus/radio-view` (`1` grid, otherwise list). The navbar toggle shows on the
+  online station levels with rows in view (never on the root, Radio Browser, countries, genres, My
+  Stations or Recently Played, whose "..." card has Grid and List). It shows the other mode's glyph; a
+  tap or a card row keeps the first visible station. List rows are 64 px (52 px logo, name, "Country · CODEC 128k"); the
   grid is two columns of 144 px covers. A station without a logo gets a grey tile with the radio
   glyph.
 - **Navbar:** the magnifier shows only on Radio Browser, its countries, genres and the online
   station lists (Top Stations, a country's, a genre's); never on the root, My Stations or Recently
-  Played. My Stations and Recently Played have the "..." in its place.
+  Played. My Stations and Recently Played have the "..." alone on the 214 slot (the capsule's left
+  cap, as the Artists page) and no toggle; it opens the shared floating view-sort card
+  ([albums](albums.md) "View sort card", `rp_card`), right edge and width as there.
 - **My Stations** lists `favourites.m3u` in file order; new stations are appended. Add to and
-  Remove from My Stations are on Now Playing. The level's "..." sheet has **Select** (with a
-  station), **Sort by Name** (with two or more), **Add by URL** and **Import from Card**. A long
+  Remove from My Stations are on Now Playing. The level's "..." card has, top to bottom, **Select**
+  (with a station and the mode's widgets), **Sort by Name** (with two or more; a one-shot action, not
+  a ticked sort), **Add by URL** and **Import from Card** (slots 6..9), a hairline, then **Grid** and
+  **List** (tick on the current one; only with rows in view). A long
   press on a station (`rowmenu_hold_start`, list or grid) opens a one-row sheet, **Remove from My
   Stations** (toast "Removed from My Stations").
 - **Select** is the shared select mode ([select mode](selmode.md)): Back becomes the x, Select All,
@@ -78,7 +83,8 @@ One window with the Folders page's structure (glass navbar, large title, rows in
   files) and appends the stations not yet listed, up to 300, writing the file once. The user's
   files are never modified, so importing again adds nothing. Toasts say "Added N stations" / "Added 1 station", or why not ("No new stations", "No playlists in the Radio folder", "Stations is full", "Could not
   save Stations").
-- **Recently Played** has a "..." sheet with **Clear Recently Played** (toast "Cleared Recently
+- **Recently Played**'s "..." card has **Grid**, **List** (with rows in view), a hairline and
+  **Clear History** last, in red (slot 9 retexted, `VS_TAIL`; toast "Cleared Recently
   Played", or "Could not clear Recently Played" and the list stays); it keeps the root's Now
   Playing row if a station is running, else clearing the history clears "last played".
 

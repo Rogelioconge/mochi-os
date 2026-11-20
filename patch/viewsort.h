@@ -14,8 +14,9 @@ typedef struct {
     int on;
     int sort, rev; /* what vs_menu last showed: the ticked sort row and its direction */
     unsigned
-        sorts; /* the rows offered, bit i = row i (the view rows' bits VS_SORTS.. only with VS_WITH_VIEWS, the Search row's only with VS_WITH_SEARCH, Select's with VS_WITH_SELECT, slots 8 and 9 with VS_WITH_ACT2 / VS_WITH_ACT3) */
+        sorts; /* the rows offered, bit i = row i (the view rows' bits VS_SORTS.. only with VS_WITH_VIEWS, the Search row's only with VS_WITH_SEARCH, Select's with VS_WITH_SELECT, slots 8 and 9 with VS_WITH_ACT2 / VS_WITH_ACT3; VS_TAIL: slot 9 is the last row, after the views) */
     int rows; /* how many rows the card has */
+    int tail; /* slot 9 is the card's last row (VS_TAIL), after the views, with the hairline above it */
     int bare; /* sort row 0's top border (the hairline between the groups) is off: no view rows above it */
     unsigned
         dated; /* the sort rows whose direction line reads Newest First / Oldest First (bit i = row i); the others read A-Z / Z-A. vs_bind sets rows 2 and 3 (Recently Added, Year); a page changes it with vs_dated */

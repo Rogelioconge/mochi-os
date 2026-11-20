@@ -1712,6 +1712,7 @@
 #define VS_ALL_SORTS ((1u << VS_SORTS) - 1)
 #define VS_WITH_ACT2 (1u << VS_ACT2) /* the vs_bind mask bits that offer slots 8 and 9 */
 #define VS_WITH_ACT3 (1u << VS_ACT3)
+#define VS_TAIL (1u << VS_ROWS) /* the vs_bind / vs_offer mask bit that moves slot 9 (offered) after the view rows, a destructive last row with the hairline above it (Radio's Clear Recently Played) */
 #define VS_WITH_SEARCH (1u << VS_SEARCH) /* the vs_bind mask bit that offers the Search row */
 #define VS_WITH_SELECT (1u << VS_SELECT) /* the vs_bind mask bit that offers the Select row */
 #define VS_WITH_VIEWS (((1u << VS_VIEWS) - 1) << VS_SORTS) /* the vs_bind mask bits that offer the two view rows (Grid, List; the Artists page's Show group Artists, Album Artists) */

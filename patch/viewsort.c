@@ -19,9 +19,9 @@ static const unsigned char VS_ORDER[VS_ROWS] = {VS_SEARCH,    VS_SELECT, VS_ACT2
 
 static void vs_fit(vs_t *v);
 
-/* How many rows of the first group (Search, Select, slots 8 and 9) the page offers. */
+/* How many rows of the first group (Search, Select, slots 8 and 9) the page offers; a slot 9 offered as the tail (VS_TAIL) is not one of them. */
 static int vs_actions(const vs_t *v) {
-    return vs_has(v, VS_SEARCH) + vs_has(v, VS_SELECT) + vs_has(v, VS_ACT2) + vs_has(v, VS_ACT3);
+    return vs_has(v, VS_SEARCH) + vs_has(v, VS_SELECT) + vs_has(v, VS_ACT2) + (vs_has(v, VS_ACT3) && !v->tail);
 }
 
 void vs_offer(vs_t *v, unsigned mask) {
@@ -29,12 +29,13 @@ void vs_offer(vs_t *v, unsigned mask) {
     char key[32], glass[16];
     int i;
     v->sorts = mask & (VS_ALL_SORTS | VS_WITH_VIEWS | VS_WITH_SEARCH | VS_WITH_SELECT | VS_WITH_ACT2 | VS_WITH_ACT3);
+    v->tail = v->sorts >> VS_ACT3 & 1 && mask & VS_TAIL;
     for (i = 0, v->rows = 0; i < VS_ROWS; ++i) v->rows += vs_has(v, i);
     for (i = 0; i < VS_ROWS; ++i)
         m1_show(v->item[i], vs_has(v, i)); /* a row the page does not offer: hidden and insensitive, the widgets stay */
     widget_set_visible(
-        v->hair, vs_actions(v) && v->rows > vs_actions(v),
-        0); /* (the hairline under the first group goes with it, or when nothing follows; it stays insensitive) */
+        v->hair, vs_actions(v) ? v->rows > vs_actions(v) : v->tail && v->rows > 1,
+        0); /* (the hairline under the first group, or above the tail row, goes with it, or when nothing follows; it stays insensitive) */
     snprintf(glass, sizeof glass, VS_GLASS_FMT, v->rows); /* the glass of that height, the one picture of its height */
     for (i = 0; i < 3; ++i) {
         snprintf(key, sizeof key, "style:%s:bg_image", ST[i]);
@@ -112,7 +113,7 @@ static int vs_text_w(void *w) {
 static void vs_fit(vs_t *v) {
     int i, y, w = 0, ok = 1;
     int gx =
-        v->rows > vs_actions(v)
+        v->rows > vs_actions(v) + v->tail
             ? VS_GLYPH_X
             : VS_TICK_X; /* a card of action rows only has nothing to tick: its glyphs start at the tick column's edge and the labels follow with the same gap */
     int lx = gx + VS_LABEL_X_GLYPH - VS_GLYPH_X;
@@ -140,13 +141,15 @@ static void vs_fit(vs_t *v) {
         widget_resize(v->card, w, v->rows * VS_ROW_H);
     } else
         w = PL_CARD_MAX;
-    if (vs_actions(v)) { /* the hairline under the first group (Search, Select), as wide as the card */
-        widget_move(v->hair, 0, vs_actions(v) * VS_ROW_H);
+    if (vs_actions(v) ||
+        v->tail) { /* the hairline under the first group (Search, Select), or above the tail row, as wide as the card */
+        widget_move(v->hair, 0, (vs_actions(v) ? vs_actions(v) : v->rows - 1) * VS_ROW_H);
         widget_resize(v->hair, w, 1);
     }
-    for (i = 0, y = 0; i < VS_ROWS; ++i) {
-        int k = VS_ORDER[i], x0 = k >= VS_SORTS ? lx : VS_LABEL_X, two = k == v->sort;
-        if (!vs_has(v, k)) continue;
+    for (i = 0, y = 0; i <= VS_ROWS; ++i) {
+        int k = i == VS_ROWS ? VS_ACT3 : VS_ORDER[i], x0 = k >= VS_SORTS ? lx : VS_LABEL_X, two = k == v->sort;
+        if (!vs_has(v, k) || (i == VS_ROWS ? !v->tail : v->tail && k == VS_ACT3))
+            continue; /* (the tail row last, in the extra pass) */
         if (k >= VS_SORTS && v->glyph[k - VS_SORTS]) widget_move(v->glyph[k - VS_SORTS], gx, (VS_ROW_H - VS_GLYPH) / 2);
         widget_move(v->item[k], 0, y), y += VS_ROW_H; /* the rows shown are packed from the top */
         widget_resize(v->item[k], w, VS_ROW_H);

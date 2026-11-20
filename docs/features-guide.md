@@ -24,6 +24,9 @@ To manage **My Stations**, use its **…** menu:
 - **Select** marks stations; **Delete** removes them after asking.
 - **Sort by Name** puts the list in A–Z order.
 - **Add by URL** takes a stream address (`http://` or `https://`), then a name.
+- **Import from Card** adds the playlists in `Radio/` (below).
+- **Grid** and **List** switch the station view. **Recently Played** has the same two rows and
+  **Clear History**.
 
 You can also hold a station and choose **Remove from My Stations**.
 

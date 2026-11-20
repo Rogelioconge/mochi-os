@@ -2860,9 +2860,8 @@ RD_FIELD_W = SCREEN_W - 2 * PS.SE_FIELD_X   # the Radio search field's width (pa
 RD_TEXT_W = RD_FIELD_W - PS.SE_TEXT_X - PS.SE_CLEAR_W
 RD_CREDIT_PX = 14   # the credit line's size (patch/radiopage.c RP_CREDIT_PX)
 RD_SHEET_ROWS = (('add', 'pod_ic_rd_add', 'Add to My Stations', False, False), ('info', 'rm_ic_info', 'Station Info', False, False))   # Radio Now Playing's sheet: two rows, the first's glyph and label swapped for Remove from My Stations by the payload (patch/radionp.c)
-RS_SHEET_ROWS = (('select', 'pc_ic_select', 'Select', False, False), ('sort', 'pod_ic_order', 'Sort by Name', False, False), ('addurl', 'pod_ic_rd_link', 'Add by URL', False, False),
-                 ('import', 'pod_ic_rd_import', 'Import from Card', False, False), ('clear', 'pod_ic_trash_red', 'Clear Recently Played', False, True),
-                 ('remove', 'pod_ic_trash_red', 'Remove from My Stations', False, True))   # the sheets (patch/radiopage.c): My Stations' "..." shows the first four, Recently Played's Clear Recently Played, a long press on a My Stations row Remove from My Stations
+RS_SHEET_ROWS = (('remove', 'pod_ic_trash_red', 'Remove from My Stations', False, True),)   # the sheet (patch/radiopage.c): a long press on a My Stations row, Remove from My Stations
+RS_CARD_ACTS, RS_CARD_GLYPHS = ('Select', 'Sort by Name', 'Add by URL', 'Import from Card'), ('pod_ic_vsselect', 'pod_ic_vsorder', 'pod_ic_vslink', 'pod_ic_vsimport')   # the stations' "..." card's four actions (slots 6..9; Recently Played retexts slot 9 to Clear Recently Played, red, as the last row)
 
 
 def build_radio_page(page):
@@ -2913,7 +2912,8 @@ def build_radio_page(page):
     root.children.append(field)
     root.children += keyboard_pad_widgets()
     root.children.append(select_bar('rd_bar', [('rd_del', 'one')]))   # My Stations' select mode: one Delete pill (the Playlists page's)
-    root.children.extend(sheet_widgets(RN_SHEET, RS_SHEET_ROWS, 4))   # the sheets, last: above everything
+    root.children.extend(view_sort_card(sort_keys=('Name',) * len(VS_SORT_KEYS), act_keys=RS_CARD_ACTS, act_glyphs=RS_CARD_GLYPHS))   # the "..." card (My Stations: the four actions, Grid, List; Recently Played: Grid, List, Clear Recently Played)
+    root.children.extend(sheet_widgets(RN_SHEET, RS_SHEET_ROWS, 1))   # the long press sheet, last: above everything
     return root
 
 
