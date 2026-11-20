@@ -617,7 +617,7 @@ def play_tests(ctx):
     ls = [c for c in calls if c[0] == 'loadSongList']
     expect(pl and m.played[1] == 1 and m.played[0] == m.songs and m.word(G_CLASS) == LIB and ls[0][1:] == ('1.flac', 0, LIB) and [c for c in calls if c[0] == 'pod_open_player'],
            'a tap on a track: loadSongList of the album (class 0xff10), Now Playing at that row through the stock row handler\'s tail (pod_open_player)')
-    expect(not any(c[0] == 'mclSetPlayMode' for c in calls), 'a track tap keeps the play mode (the stock row)')
+    expect(not any(c[0] == 'mclSetPlayMode' for c in calls), 'a track tap from List play keeps the play mode (already in order)')
     for label, dx, dy in (('a drag', 0, 14), ('a slide sideways', 12, 0)):
         expect(not [c for c in tap(m, 150, row_y(2) + 20, dx, dy) if c[0] == 'navigator_to_with_context'], f'{label} plays nothing')
     expect(not [c for c in tap(m, 150, 100) if c[0] == 'navigator_to_with_context'] and not [c for c in tap(m, 150, 330) if c[0] == 'navigator_to_with_context'], 'a tap on the header (the cover, the lines, the gap above the first row) plays nothing')
@@ -631,12 +631,17 @@ def play_tests(ctx):
     _, _, fills = paint(m)
     expect(not any(f_[0] == O['AB_PRESS'] for f_ in fills), 'and a release')
     m.call(PSYMS['ab_on_destroy'], count=4000000)
-    # Play: the first track in order (Shuffle and Repeat one become List play); Shuffle: a random track in the stock Shuffle mode
+    # Play and a track tap: in order (Shuffle and Repeat one become List play; List play and Repeat all stay); Shuffle: a random track in the stock Shuffle mode
     for before, after in ((0, 0), (1, 0), (2, 0), (3, 3)):
         m = opened(); m.mode = before
         calls = click(m, 'btn_play')
         expect(m.played[1] == 0 and m.played[0] == m.songs and m.mode == after and (('mclSetPlayMode', after) in calls) == (before != after) and [c for c in calls if c[0] == 'loadSongList'][0][1:] == ('0.flac', 0, LIB),
                f'Play from mode {before}: the first track of the album, mode {after}')
+        m.call(PSYMS['ab_on_destroy'], count=4000000)
+        m = opened(); m.mode = before
+        calls = tap(m, 150, row_y(2) + 20)
+        expect(m.played[1] == 2 and m.played[0] == m.songs and m.mode == after and (('mclSetPlayMode', after) in calls) == (before != after) and [c for c in calls if c[0] == 'loadSongList'][0][1:] == ('2.flac', 0, LIB),
+               f'a track tap from mode {before}: that track of the album in order, mode {after}')
         m.call(PSYMS['ab_on_destroy'], count=4000000)
     m = opened(); m.mode = 0
     calls = click(m, 'btn_shuffle')
@@ -647,11 +652,14 @@ def play_tests(ctx):
         m.seed = 100 + 7 * k; click(m, 'btn_shuffle'); picks.add(m.played[1])
     expect(len(picks) >= 3, f'Shuffle starts at different tracks ({sorted(picks)})')
     m.call(PSYMS['ab_on_destroy'], count=4000000)
-    # a missing file: the usual message, the page stays
-    m = opened()
+    # a missing file: the usual message, the page stays and the play mode is untouched
+    m = opened(); m.mode = 2
     m.present.discard('/mnt/mmc/m/0.flac'); m.played = None
     calls = click(m, 'btn_play')
-    expect(m.played is None and any(c[0] == 'toast' and c[1] == 'Storage unavailable' for c in calls), 'a track that is not on the card: "Storage unavailable", nothing starts')
+    expect(m.played is None and m.mode == 2 and any(c[0] == 'toast' and c[1] == 'Storage unavailable' for c in calls), 'a track that is not on the card: "Storage unavailable", nothing starts, mode untouched')
+    m.present.discard('/mnt/mmc/m/2.flac')
+    calls = tap(m, 150, row_y(2) + 20)
+    expect(m.played is None and m.mode == 2 and any(c[0] == 'toast' and c[1] == 'Storage unavailable' for c in calls), 'a missing tapped track: "Storage unavailable", nothing starts, mode untouched')
     # the album's class and record: another page changed the browsing record: it is put back before the query and before loadSongList
     m = opened()
     ci_before = bytes(m.u.mem_read(CI, O['CLASSINFO_SIZE']))
@@ -935,8 +943,8 @@ def source_tests(ctx):
     m.played_src = None
     calls = tap(m, 150, row_y(3) + 20)
     pl = [c for c in calls if c[0] == 'fake_ap_play']
-    expect(pl and pl[0][2] == 3 and pl[0][3] == 0 and m.played_src[0] == [f'nd://t{i}' for i in range(5)] and not any(c[0] in ('loadSongList', 'start_player') for c in calls),
-           f'a row tap plays through src->play at its index, how LS_PLAY_KEEP: {pl}')
+    expect(pl and pl[0][2] == 3 and pl[0][3] == 3 and m.played_src[0] == [f'nd://t{i}' for i in range(5)] and not any(c[0] in ('loadSongList', 'start_player') for c in calls),
+           f'a row tap plays through src->play at its index, how LS_PLAY_ROW_ORDER: {pl}')
     calls = click(m, 'btn_play')
     pl = [c for c in calls if c[0] == 'fake_ap_play']
     expect(pl and pl[0][2] == 0 and pl[0][3] == 1, f'Play: index 0, in order: {pl}')

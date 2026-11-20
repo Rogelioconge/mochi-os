@@ -1171,8 +1171,8 @@ static int nd_play(const lib_src_t *s, void *list, int at, int how, void (*open)
         return -1;
     }
     sba_queue_keep();
-    if (how == LS_PLAY_ORDER)
-        pod_set_in_order_for_queue(); /* Play: the list in order, even after a Shuffle; a row tap keeps the mode, as stock */
+    if (how == LS_PLAY_ORDER || how == LS_PLAY_ROW_ORDER)
+        pod_set_in_order_for_queue(); /* in-order start (Play, or an album track tap): clears Shuffle and Repeat one; LS_PLAY_KEEP keeps the mode, as stock */
     else if (how == LS_PLAY_SHUFFLE)
         pod_set_mode_for_queue(MODE_SHUFFLE);
     *(int *)G_CLASS_TYPE = cls;

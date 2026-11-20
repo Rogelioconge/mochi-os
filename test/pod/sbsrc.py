@@ -372,9 +372,9 @@ def play_setup(m, items):
     return listing(m, LS_SONGS, deque_row(m, ah, 0))[0]
 
 
-def playit(m, h, at, how=0, cls=0xf003):
+def playit(m, h, at, how=0, cls=0xf003, mode=0):
     m.played = None
-    m.mode = 0
+    m.mode = mode
     r = call(m, F_PLAY, LIB, h, at, how, OPEN, cls)
     return r, queue_of(m)
 
@@ -422,11 +422,15 @@ def play(ctx):
     expect(m.call(PSYMS['sbs_playing_ours'], count=2000000) == 0 and one('sbs_playing_album') == (None, None) and one('sbs_playing_artist') == (None, None), 'nothing playing: not ours, no album, no artist')
     expect(m.call(PSYMS['sbs_playing'], a0=m.cstr('t4'), count=2000000) == 0, 'nothing playing: 0')
     expect(call(m, F_PLAYING, LIB, m.deques[h][3]) == 0, 'lib_nd.playing: nothing playing, 0')
-    # Play and Shuffle set the mode; a row tap keeps it
-    r, q = playit(m, h, 0, 1)
+    # Play, Shuffle and an in-order row tap (LS_PLAY_ROW_ORDER) set the mode; LS_PLAY_KEEP keeps it
+    r, q = playit(m, h, 0, 1, mode=2)
     expect(r == 0 and m.mode == 0, f'Play starts in order ({m.mode})')
     r, q = playit(m, h, 0, 2)
     expect(m.mode == 2, f'Shuffle sets stock\'s shuffle mode ({m.mode})')
+    r, q = playit(m, h, 2, 0, mode=2)
+    expect(r == 0 and m.mode == 2, f'LS_PLAY_KEEP keeps the mode ({m.mode})')
+    r, q = playit(m, h, 2, 3, mode=2)
+    expect(r == 0 and m.mode == 0 and m.played[1] == 2, f'LS_PLAY_ROW_ORDER clears Shuffle and opens at the tapped row ({m.mode}, {m.played and m.played[1]})')
     m.seed = 3
     r, q = playit(m, h, -1)
     expect(r == 0 and q and q[0]['title'].startswith('Song '), 'at -1 starts a random track')
@@ -523,10 +527,14 @@ def play(ctx):
     expect(r == 0 and [x['path'] for x in q] == [f1, f2] and m.played[1] == 0 and not any(c[0] == 'toast' for c in m.calls), f'Play with Wi-Fi off and the first track not on the card: the downloaded ones play from the first of them, no message ({r})')
     r, q = playit(m, h, 0)
     expect(r == -1 and q is None, f'a tap on that first row still refuses ({r}, {q and [x["path"][:40] for x in q]})')
+    r, q = playit(m, h, 0, 3, mode=2)
+    expect(r == -1 and q is None and m.mode == 2, f'LS_PLAY_ROW_ORDER on an offline row still refuses without skipping or changing the mode ({r}, {m.mode})')
     m = machine()
     h = play_setup(m, [trk(1, suffix='dsf'), trk(2), trk(3)])
     r, q = playit(m, h, 0, 1)
     expect(r == 0 and [x['title'] for x in q] == ['Song 2', 'Song 3'] and m.played[1] == 0, 'Play on a list whose first track is DSD and not on the card: it starts at the next one, no question')
+    r, q = playit(m, h, 0, 3, mode=2)
+    expect(r == -2 and q is None and m.mode == 2, f'LS_PLAY_ROW_ORDER on an undownloaded DSD row still asks (-2) without skipping or changing the mode ({r}, {m.mode})')
     m = machine()
     h = play_setup(m, [trk(1, suffix='dsf'), trk(2, suffix='dsf')])
     expect(playit(m, h, 0, 1)[0] == -2, 'Play with nothing that can play: the first row\'s own answer (DSD: -2, the page asks)')

@@ -119,8 +119,8 @@ Track taps, Play and Shuffle use `so_play` in `patch/songops.c`.
 A missing starting file shows Storage unavailable. An unresolved queue starts nothing
 and changes no play mode.
 
-Play sets an in-order mode: Shuffle and Repeat one become List play; List play and
-Repeat all are retained. Shuffle chooses a random starting track and sets the stock
+Play and track taps set an in-order mode: Shuffle and Repeat one become List play;
+List play and Repeat all are retained. Shuffle chooses a random starting track and sets the stock
 Shuffle mode for this album queue. Mode changes use the stock notification/config path.
 Selection shares Add/Delete operations with [Songs](songs.md) and the chrome with every list page ([selmode](selmode.md)): Back
 is the glass close x (`ab_on_back` leaves the mode), the title reads "Select Items" / "N Selected" from `NAV_TITLE_X`, Select All /

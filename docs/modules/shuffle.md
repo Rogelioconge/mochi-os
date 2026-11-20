@@ -38,7 +38,7 @@ for any list. Shuffle and Repeat are independent: Shuffle plus Repeat all is all
   `sh_load_playlist` lets stock load the queue, moves the song at the load index to slot 0 and
   shuffles the rest (`shuffle_load`, under the lock). Every loader goes through it, including
   `refresh_playqueue`. After a reboot the order is not saved: the resumed song plays first and the
-  rest is reshuffled. Explicit Play buttons call `pod_set_in_order` first, which turns the flag off.
+  rest is reshuffled. Explicit Play buttons and album page track taps call `pod_set_in_order` first, which turns the flag off.
 - **Shuffle Songs** draws a random first song (started on the drawn row itself when the queue has the
   same file, since `loadSongList` matches by file name and CUE start). **Shuffle Albums/Folders**
   build one queue already in play order, play it with the flag off and keep Repeat all (Repeat one
@@ -139,7 +139,7 @@ and the flag separately.
   slot. Peak memory is what a song tap in Songs uses plus the index (1 MB at the cap).
 - **Play mode** is set as Play settings does: `mclSetPlayMode(m)`, `notifyPlayMode()`,
   `dmrSendPlayMode(shown mode)`, `write_int_config(m, "PLAYSET", "PLAYMODE")`; nothing when the mode is
-  already right. `pod_set_in_order` (Play buttons of the album page, Songs, Podcasts, Daily Mix)
+  already right. `pod_set_in_order` (Play buttons and album track taps; Songs, Podcasts, Daily Mix Play)
   turns the flag off and maps Repeat one to List play. `pod_set_mode(MODE_SHUFFLE)` (Shuffle buttons)
   turns the flag on over List play. The mode stays afterwards.
 - **Errors** (stock message box, nothing played, mode untouched): "Update Local Music first" (empty),

@@ -1024,7 +1024,7 @@ static int ab_on_up(void *ctx, void *e) {
         else if (more) {
             if (ab_in_zone(e)) ab_open_menu(a); /* (a press that began on the "..." and ended off it does nothing) */
         } else
-            ab_play_at(a, SO_KEEP);
+            ab_play_at(a, SO_ROW_ORDER);
     }
     return RET_OK;
 }

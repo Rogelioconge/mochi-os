@@ -333,8 +333,8 @@ int so_play_with(int cls, void *list, int at, int how, so_open_fn open, int rev,
             pod_toast(TR("Update Local Music first"));
         return -1;
     }
-    if (how == SO_IN_ORDER)
-        pod_set_in_order_for_queue(); /* Play: the list in order, even after a Shuffle; a row tap keeps the mode, as stock */
+    if (how == SO_IN_ORDER || how == SO_ROW_ORDER)
+        pod_set_in_order_for_queue(); /* in-order start (Play, or an album track tap): clears Shuffle and Repeat one; SO_KEEP keeps the mode, as stock */
     else if (how == SO_SHUFFLE)
         pod_set_mode_for_queue(MODE_SHUFFLE);
     *(int *)G_CLASS_TYPE = cls; /* as allmusic_page_init leaves it */

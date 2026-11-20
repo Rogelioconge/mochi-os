@@ -32,8 +32,9 @@ enum {
 enum {
     LS_PLAY_KEEP,
     LS_PLAY_ORDER,
-    LS_PLAY_SHUFFLE
-}; /* a row tap keeps the play mode, Play plays in order, Shuffle shuffles (patch/songops.h SO_*) */
+    LS_PLAY_SHUFFLE,
+    LS_PLAY_ROW_ORDER
+}; /* a row tap keeps the play mode (or LS_PLAY_ROW_ORDER: plays that row in order, never skipping it), Play plays in order, Shuffle shuffles (patch/songops.h SO_*) */
 
 /* How a track row is dressed beyond its text: what sbsrc fills for the page's row painter (the stock source leaves it all 0). */
 enum { LS_DL_NONE = 0, LS_DL_WAIT, LS_DL_ACTIVE, LS_DL_DONE, LS_DL_FAILED };

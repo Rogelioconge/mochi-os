@@ -11,8 +11,9 @@
 enum {
     SO_KEEP,
     SO_IN_ORDER,
-    SO_SHUFFLE
-}; /* the play mode a start sets: a row tap keeps it (as stock), Play plays in order, Shuffle shuffles */
+    SO_SHUFFLE,
+    SO_ROW_ORDER
+}; /* the play mode a start sets: SO_KEEP keeps it (as stock), SO_IN_ORDER / SO_ROW_ORDER play in order (Play pill vs a row tap), SO_SHUFFLE shuffles */
 
 /* How the queue is shown: Now Playing opens on queue at idx with class cls (the caller's way: the Songs page's navigator_to_with_context, the album page's pod_open_player). */
 typedef void (*so_open_fn)(void *queue, int idx, int cls);
