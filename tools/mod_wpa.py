@@ -246,14 +246,15 @@ def elf_info(path):
         if verneed:
             for vn, auxes in verneed.iter_versions():
                 for a in auxes: need_by_idx[a['vna_other']] = (vn.name, a.name)
-        imports = []
+        imports, defined = [], set()
         for i, s in enumerate(dynsym.iter_symbols()):
+            if s['st_shndx'] != 'SHN_UNDEF' and s.name: defined.add(s.name)
             if s['st_shndx'] != 'SHN_UNDEF' or not s.name: continue
             idx = vers.get_symbol(i)['ndx'] if vers else None
             lib, ver = need_by_idx.get(idx, (None, None)) if isinstance(idx, int) else (None, None)
             imports.append((s.name, lib, ver, s['st_info']['bind']))
         return {'type': e['e_type'], 'flags': e['e_flags'], 'interp': interp, 'needed': needed, 'imports': imports,
-                'stack': stack}
+                'defined': defined, 'stack': stack}
 
 
 def exports(path):
@@ -284,6 +285,7 @@ def verify(path, stock):
     check(new['flags'] & 0x400 and new['flags'] & 0x1000, 'e_flags lack NaN2008 / o32')
     check(new['interp'] == INTERP == old['interp'], f'interpreter {new["interp"]}')
     check(new['stack'] is not None and not new['stack'] & 1, 'stack is executable or PT_GNU_STACK is missing')
+    check('_IO_stdin_used' in new['defined'], '_IO_stdin_used is not exported (glibc would use the old stdio ABI)')
     check(not set(new['needed']) - set(LIBS), f'unexpected NEEDED {sorted(set(new["needed"]) - set(LIBS))}')
     libs = {}
     for soname in new['needed']:

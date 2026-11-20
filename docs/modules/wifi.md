@@ -250,7 +250,7 @@ source and five Debian 10 mipsel packages, of which only `usr/include` is extrac
   against the stock `.so` files as link inputs. Debian's crt files are legacy-NaN, which lld refuses to mix,
   so `assets/wpa/start.S` and `shim.c` replace them. The result is cached by input hash and reproducible.
 - `verify()` fails the build unless the binary has the stock supplicant's `e_type` and `e_flags`, the NaN2008
-  interpreter, a non-executable stack, only NEEDED libraries that exist on the stock rootfs, and every
+  interpreter, a non-executable stack, `_IO_stdin_used` exported (crt1's new-stdio marker; `shim.c` defines it), only NEEDED libraries that exist on the stock rootfs, and every
   imported symbol exported by the stock library at a version <= glibc 2.28.
 - The build adds `usr/lib/m1plus` and the binary (`added_rels`) after `mod_cacerts`. The package packs
   to 55,615,488 bytes against stock's 55,738,368: little headroom, which is why debug output is compiled

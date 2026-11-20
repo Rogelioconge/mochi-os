@@ -8,6 +8,11 @@
 #include <stddef.h>
 #include <sys/stat.h>
 
+/* crt1.o's marker for the new stdio ABI. libc.so.6 reads it through a weak reference; without it glibc assumes the
+ * old FILE layout and _IO_cleanup crashes in free() at exit. It must be in the executable's .dynsym, which lld does
+ * because libc.so.6 references it. */
+const int _IO_stdin_used = 0x20001;
+
 extern int main(int, char **, char **);
 extern int __libc_start_main(int (*)(int, char **, char **), int, char **, void (*)(int, char **, char **),
                              void (*)(void), void (*)(void), void *);
