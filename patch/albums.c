@@ -232,7 +232,8 @@ static int al_coff(void) { return al_off() - al_top(); }
  * is the navbar's once the large one has scrolled away (m1_title_gone, the rule every large-title page shares); without the scroll events it stays. */
 static void al_fade(void) {
     m1_title_set(al.small, &al.title_on,
-                 al.noscroll || m1_title_gone(al_off(), al.head ? AL_HEAD_COLLAPSE - al_gone() : 0));
+                 al.noscroll || (!al.count && al.head && !al.src) ||
+                     m1_title_gone(al_off(), al.head ? AL_HEAD_COLLAPSE - al_gone() : 0));
     if (!al.fade) return;
     grid_fade(al.fade, al_off() > 0);
 }
@@ -1265,9 +1266,10 @@ static void al_empty(void) {
     int st = LS_ST_READY;
     if (al.src && !al.count && al.src->state)
         st = al.src->state(al.src, LS_ALBUMS, al.artist_row ? deque_at(al.artist_row, 0) : (void *)0);
-    m1_show(al.view, al.src != (const lib_src_t *)0 && !al.count);
+    /* The large title stays; an artist's header page without a source has nothing to show over: the navbar's title instead (al_fade, at the end) */
+    m1_show(al.view, !al.head || al.src);
     ls_room(al.status, al.spin,
-            LS_ROOM_NAV + (!al.src || al.count ? 0
+            LS_ROOM_NAV + (al.count ? 0
                            : al.head
                                ? AL_HEAD_END - al_gone()
                                : SG_TITLE_H)); /* (under the title, or the artist's header, the source's page keeps) */
@@ -1277,6 +1279,7 @@ static void al_empty(void) {
     widget_set_tr_text(al.status, al.count                  ? "Not enough memory"
                                   : al.artist_row || al.src ? ls_empty_key(st, "No albums")
                                                             : "Update Local Music first");
+    al_fade(); /* (al_open returns after al_empty: the navbar title is set here) */
 }
 
 /* The source's gen moved: the list is read again and, if it changed, the tiles are made again (the scroll position stays where the content allows). A list that is the same swaps the records only:

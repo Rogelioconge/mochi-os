@@ -720,11 +720,8 @@ static void pl_load(void) {
     m1_sel_reset(&pl.sel, pl.count); /* none: no select mode (the menu's Delete opens the stock page) */
     {
         int st = pl.src && !pl.count && pl.src->state ? pl.src->state(pl.src, LS_PLAYLISTS, (void *)0) : LS_ST_READY;
-        m1_show(pl.view,
-                pl.count != 0 ||
-                    pl.src != (const lib_src_t *)0); /* (a source's page keeps the large title when it has no rows) */
-        ls_room(pl.status, pl.spin,
-                LS_ROOM_NAV + (pl.src ? SG_TITLE_H : 0)); /* (under the title the source's page keeps) */
+        m1_show(pl.view, 1); /* (the large title stays when there are no rows) */
+        ls_room(pl.status, pl.spin, LS_ROOM_NAV + SG_TITLE_H);
         m1_show(pl.status, pl.count == 0 && !(st == LS_ST_LOADING && pl.spin));
         ls_spin(pl.spin, st == LS_ST_LOADING && pl.count == 0 && pl.spin != (void *)0);
         if (!pl.count) widget_set_tr_text(pl.status, pl.src ? ls_empty_key(st, "No playlists") : "No playlists");

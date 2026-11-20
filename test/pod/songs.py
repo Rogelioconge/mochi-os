@@ -1451,7 +1451,7 @@ def lists_tests(ctx):
         expect([c[2] for c in m.calls if c[0] == 'widget_set_visible' and c[1] == m.widgets['label_title']] == [1], f'{nm}: the small title collapses in like the others (cut with an ellipsis to its room)')
         m.call(PSYMS['sg_on_destroy'], count=4000000)
     m = list_machine(titles, fav); m.class_lists[fav] = []; m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000)
-    expect(vis(m, 'label_status') == (1, 1) and m.wtext[m.widgets['label_status']] == 'No songs' and vis(m, 'view_grid') == (0, 0), 'an empty list says "No songs"')
+    expect(vis(m, 'label_status') == (1, 1) and m.wtext[m.widgets['label_status']] == 'No songs' and vis(m, 'view_grid') == (1, 1) and vis(m, 'sg_title')[0] == 1 and ('widget_move', m.widgets['label_status'], 10, (50 + O['SG_TITLE_H']) + (450 - 50 - O['SG_TITLE_H'] - 30) // 2) in m.calls, 'an empty list says "No songs" under its large title')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
     m = list_machine(titles, fav); m.windows['m1plus_songs'] = 0; m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000)
     expect(('stock_resume', str(O['HOME_FAV'])) in m.calls, 'a window that will not open leaves the stock page of the tile')
@@ -1618,7 +1618,7 @@ def lists_tests(ctx):
     # an empty playlist: the page says so (no header to show over nothing)
     m = list_machine(titles); m.playlist_songs = {7: []}
     m.call(PSYMS['songs_open_playlist'], a0=7, a1=m.cstr('Empty'), count=900000000)
-    expect(vis(m, 'label_status') == (1, 1) and vis(m, 'view_grid') == (0, 0), 'an empty playlist: "No songs", the view hidden')
+    expect(vis(m, 'label_status') == (1, 1) and vis(m, 'view_grid') == (0, 0) and m.props.get((m.widgets['label_title'], 'visible')) == 1, 'an empty playlist: "No songs", the view hidden, the navbar title shown')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
     # an asset without the two labels, or no tile ring: the plain look (the large title, the pills where they were)
     m = list_machine(titles); m.playlist_songs = {7: list(m.songs[:5])}; del m.widgets['sg_hname']
@@ -2145,7 +2145,7 @@ def src_tests(ctx):
     m = list_machine(['Stock'])
     src = fake_source(m, {})
     m.call(OPEN, a0=src, a1=LS_DOWNLOADED, a2=m.cstr('Downloaded'), count=900000000)
-    expect(vis(m, 'label_status')[0] == 1 and vis(m, 'view_grid')[0] == 0, 'an empty list shows the status line')
+    expect(vis(m, 'label_status')[0] == 1 and vis(m, 'view_grid')[0] == 1 and vis(m, 'sg_title')[0] == 1 and ('widget_move', m.widgets['label_status'], 10, (50 + O['SG_TITLE_H']) + (450 - 50 - O['SG_TITLE_H'] - 30) // 2) in m.calls, 'an empty Downloaded list keeps the large title with the status line under it')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
     # an incomplete list: no rail, grows on gen without losing the place; complete: the rail comes
     n0 = 60

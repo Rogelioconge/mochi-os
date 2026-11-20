@@ -227,7 +227,7 @@ What a list is:
 - **A list read again keeps its tiles** when it is the same rows (`sg_load`: count, cover key,
   section and a 24 bit hash of both text lines in `song_t.sig`). A play does not flash covers to
   placeholders.
-- **Empty**: "No songs"; the library keeps "Update Local Music first".
+- **Empty**: a list without a header keeps its large title with the grey line centred under it (`ls_room`): "No songs", the library's "Update Local Music first".
 
 ### A genre's songs
 

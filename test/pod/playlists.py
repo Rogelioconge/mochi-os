@@ -941,8 +941,9 @@ def stock_tests(ctx):
 
     # 10. The empty state: a centred line, no grid; the menu is still there
     m = PM([]); open_page(m)
-    expect(vis(m, 'view_grid')[0] == 0 and vis(m, 'label_status')[0] == 1 and ('widget_set_tr_text', m.widgets['label_status'], 'No playlists') in m.calls,
-           'with no playlist the grid is hidden and the status line says "No playlists"')
+    expect(vis(m, 'view_grid')[0] == 1 and vis(m, 'label_status')[0] == 1 and ('widget_set_tr_text', m.widgets['label_status'], 'No playlists') in m.calls
+           and ('widget_move', m.widgets['label_status'], 10, 50 + O['SG_TITLE_H'] + (450 - 50 - O['SG_TITLE_H'] - 30) // 2) in m.calls,
+           'with no playlist the large title stays and the status line says "No playlists" under it')
     m.click('btn_more')
     expect(vis(m, 'vs_card') == (1, 1) and vis(m, 'vs_scrim') == (1, 1), 'the "..." menu opens on the empty page')
     m.click('vs_scrim'); m.click('btn_plactions')
@@ -1286,9 +1287,9 @@ def stock_tests(ctx):
            'select mode: the small title shows "N Selected", the large title is not hidden')
     m.click('btn_return')
     expect(m.props.get((m.widgets['label_title'], 'visible')) == 0, 'back from select mode the small title is hidden again at the top')
-    # no playlists: the title goes with the empty grid, as the Albums page's empty state
+    # no playlists: the large title stays over the status line, as the Albums page's empty state
     m = PM([]); open_page(m)
-    expect(vis(m, 'view_grid') == (0, 0) and m.props.get((m.widgets['label_title'], 'visible'), 0) == 0, 'the empty page hides the grid and its title; the small title stays hidden')
+    expect(vis(m, 'view_grid') == (1, 1) and m.props.get((m.widgets['label_title'], 'visible'), 0) == 0, 'the empty page keeps the large title; the small title stays hidden')
 
 
 SECTIONS = [stock_tests, src_tests]

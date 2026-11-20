@@ -673,7 +673,8 @@ static int sg_on_load(const void *unused) {
  * The navbar's title: the large title is in the content; once it has scrolled away the navbar shows the small one
  */
 static void sg_title_update(void) {
-    int on = sg.noscroll || sg.select || m1_title_gone(sg_off(), sg.head ? PH_COLLAPSE + sg.tsh : 0);
+    int on = sg.noscroll || sg.select || (sg.head && !sg.count && !sg.wait) ||
+             m1_title_gone(sg_off(), sg.head ? PH_COLLAPSE + sg.tsh : 0);
     m1_title_set(sg.title, &sg.title_on, on);
     /* The navbar's fade (an insensitive image, built hidden) is for rows passing under the bar: shown while the list is scrolled, hidden at rest, where
      * it would darken the large title (as the Albums and Playlists pages). Never a touch target. No fade widget = nothing happens. */
@@ -1004,8 +1005,11 @@ static void sg_load(int keep) {
         grid_drop(&sg.g);
     sg_head_prep();
     if (!same) grid_placeholder(&sg.g);
-    m1_show(sg.view,
-            sg.count != 0 || sg.wait); /* (a source's list still loading: the title block, with the spinner under it) */
+    m1_show(
+        sg.view,
+        sg.count != 0 || sg.wait ||
+            !sg.head); /* (a list still loading, or an empty one without a header: the title block, the spinner or the status line under it) */
+    if (!sg.head) ls_room(sg.status, (void *)0, LS_ROOM_NAV + SG_TITLE_H);
     m1_show(sg.status, sg.count == 0 && !(sg.wait && sg.spin));
     if (sg.foot)
         widget_set_visible(sg.foot, !sg.rv && !sg.wait && !sg.part,

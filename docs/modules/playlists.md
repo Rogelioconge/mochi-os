@@ -25,8 +25,7 @@ playlists in the saved order; no list-plus button, "..." or Now Playing; a tap a
 - **The tile** is a 2 x 2 mosaic of the playlist's albums: four fill the quadrants (A B / C D),
   three repeat the first (A B / C A), two (A B / B A), one is that cover full size, none (empty
   playlist, or no album has a cache file) is the placeholder disc.
-- Empty: the grid and large title are hidden and a centred "No playlists" shows; the card is still
-  there.
+- Empty: the large title stays with a centred "No playlists" under it; the card is still there.
 
 The view is saved in `/mnt/data/m1plus/playlists-view` (`1` grid, `0` list, else the grid), apart
 from Albums' file. A switch is in place (`pl_set_mode`: tiles remade, first playlist kept).

@@ -841,8 +841,8 @@ def taps_list_tests(ctx):
     m = albums_machine(0)
     open_grid(m)
     expect(('widget_set_text_utf8', m.widgets['label_status'], 'Update Local Music first') in m.calls, 'an empty library says so')
-    expect(('widget_set_visible', m.widgets['view_grid'], 0) in m.calls and ('widget_set_sensitive', m.widgets['view_grid'], 0) in m.calls,
-           'and hides the (insensitive) view')
+    expect(('widget_set_visible', m.widgets['view_grid'], 0) not in m.calls and ('widget_move', m.widgets['label_status'], 10, 50 + O['SG_TITLE_H'] + (450 - 50 - O['SG_TITLE_H'] - 30) // 2) in m.calls,
+           'and keeps the large title with the line under it')
     m = albums_machine(3); del m.widgets['view_grid']
     open_grid(m)
     expect('navigator_back' in m.names(), 'an asset without view_grid leaves the page')
@@ -1934,6 +1934,13 @@ def title_tests(ctx):
                f'{mode}: the scoped page\'s large and small titles are the artist')
         end = O['AL_HEAD_END'] - O['PH_SHIFT']   # no photo in this card: the header without the circle and the pills end the block (PH_SHIFT higher: test/pod/artists.py scoped_plain_tests); the list's first row is RGAP under it, the grid's gap is its own
         expect(content_h(m) == end + (RGAP + 2 * PITCH if mode == 'grid' else RGAP + 4 * ROW), f'{mode}: the scoped content starts under the title and the pills ({content_h(m)})')
+    # a library artist's page that opens empty (al_open returns after al_empty): the header's view is hidden, so the navbar's title names the page at once
+    m = artists_machine(albums_page=True); m.artist_albums['Miles Davis'] = []
+    m.call(PSYMS['artists_open'], a0=0, count=20000000); m.calls = []
+    m.call(PSYMS['ar_open'], a0=0, count=40000000)
+    small = m.widgets['label_title']
+    expect(('widget_set_text_utf8', small, 'Miles Davis') in m.calls and m.props.get((small, 'visible')) == 1 and m.props.get((m.widgets['view_grid'], 'visible')) == 0,
+           'an empty artist page: the view is hidden and the navbar title shows the artist from the first frame')
 
 
 FAKE_PIC = '/mnt/mmc/.m1plus/subsonic/covers/fa000001-168.jpg'   # (the fake source's picture file of its artist)
