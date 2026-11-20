@@ -40,4 +40,13 @@ int mb_blur_alloc(mb_blur_t *b); /* 0: off (the SD file m1plus-noblur, or no mem
 void mb_blur_enable(mb_blur_t *b); /* after every handler is registered */
 void mb_blur_paint(mb_blur_t *b, void *canvas); /* the card's EVT_BEFORE_PAINT */
 void mb_blur_free(mb_blur_t *b);
+
+/* Radio mode shared by the Home mini bar and the lock screen (patch/minibar.c, patch/lockscreen.c). */
+int mb_radio_active(
+    void); /* 1 while a station owns the bar/card (running, or Error/Stopped with no local track alive) */
+void mb_radio_line(char *out, unsigned n); /* "Live" / "Connecting…" / "Paused" / "Stopped" / "Can't play: ..." */
+int mb_radio_playing(void); /* 1 when the play/stop button should show the stop square, 0 for play */
+void mb_radio_play_click(void); /* stop, resume or retry the station */
+int mb_radio_art(mb_art_t *a, void *win,
+                 int *pending); /* 36 px rounded station logo or radio glyph into a; 1 when bitmap changed */
 #endif

@@ -547,6 +547,11 @@ class Machine:
         elif name == 'widget_set_sensitive':
             self.props[(a0, 'sensitive')] = a1
             self.calls.append(('widget_set_sensitive', a0, a1))
+        elif name == 'widget_set_enable':
+            self.props[(a0, 'enable')] = a1
+            self.calls.append(('widget_set_enable', a0, a1))
+        elif name == 'airplayGetFlag':
+            ret = getattr(self, 'airplay', 0)
         elif name == 'widget_set_opacity':
             self.props[(a0, 'opacity')] = a1 & 0xff
             self.calls.append(('widget_set_opacity', a0, a1 & 0xff))

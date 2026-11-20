@@ -30,13 +30,30 @@ class LK(BM):
         self.handlers[INIT + 12] = 'stock_lockscreen_resume'
         self.init_ret = 0
         self.w = {n: self.widget(n) for n in names}
+        self.wtext = {}
+        self.airplay = 0
         if setting is not None: self.fs[FILE] = setting
         self.log = []
 
     def _hook(self, u, address, size, _):
-        if self.handlers.get(address) == 'stock_lockscreen_resume':
+        name = self.handlers.get(address)
+        if name == 'stock_lockscreen_resume':
             self.calls.append(('stock_lockscreen_resume', u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)))
             u.reg_write(UC_MIPS_REG_V0, self.init_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'widget_set_text_utf8':
+            a0, a1 = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+            self.wtext[a0] = self.read_cstr(a1)
+        elif name == 'mclStop':
+            self.status = 1; self.hs = 0
+        elif name == 'mcl_tidalStartPlayer':
+            self.status = 2
+        elif name == 'widget_get_text':
+            a0 = u.reg_read(UC_MIPS_REG_A0)
+            s = self.wtext.get(a0)
+            if s is not None:
+                raw = s.encode('latin-1').decode('utf-8', 'replace').encode('utf-32-le') + bytes(4)
+                p = self.alloc(len(raw)); u.mem_write(p, raw)
+                u.reg_write(UC_MIPS_REG_V0, p); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         return super()._hook(u, address, size, _)
 
     def open(self, win=WIN):
@@ -1029,4 +1046,177 @@ def date_tests(ctx):
            f'every language\'s widest date, centred, ends at least 4 px before the label at {lab.x}, and the font has every character ({wide})')
 
 
-SECTIONS = [hook_tests, layout_tests, life_tests, bar_tests, setting_tests, wallpaper_tests, redirect_tests, date_tests]
+def radio_tests(ctx):
+    """Radio on the lock screen (patch/lockscreen.c, docs/modules/lockscreen.md): both Large Cover and Mini Player show the playing station instead of the stale local queue's song."""
+    expect = ctx.expect
+    ST_ = dict(IDLE=0, CONNECTING=1, PLAYING=2, ERROR=3, STOPPED=4, PAUSED=5)
+    STAT = '#EXTM3U\n#EXTINF:-1,Alpha FM\n#M1+:DE\tMP3\t128\thttp://logo.example/a.png\nhttp://one.example/a\n#EXTINF:-1,Beta\nhttp://two.example/b\n'
+
+    def set_radio(m, st, at=0, err='', text=STAT, own=1):
+        l = m.call(PSYMS['rd_list'])
+        rd = l - 36
+        b = m.alloc(len(text) + 1); m.u.mem_write(b, text.encode() + b'\0')
+        if not m.word(l + 8): m.call(PSYMS['rd_list_set'], a0=l, a1=b, a2=len(text), a3=0, count=40000000)
+        m.setword(rd, st); m.setword(rd + 4, at); m.u.mem_write(l + 3628, err.encode().ljust(72, b'\0')); m.setword(l + 3628 + 72, own)
+
+    def u8(s):
+        if s is None: return None
+        try: return s.encode('latin-1').decode('utf-8')
+        except Exception: return s   # noqa: BLE001
+
+    def labels(m):
+        return (u8(m.wtext.get(m.w['view_scrlabel_title'])), u8(m.wtext.get(m.w['view_scrlabel_artist'])))
+
+    def nxt_state(m, mini):
+        n = m.w['btn_next']
+        sens = m.props.get((n, 'sensitive'), 1)
+        if mini:
+            ic = tuple(m.props.get((n, f'style:{s}:icon')) for s in ('normal', 'over', 'pressed'))
+            if not sens and ic == ('mb_next_off',) * 3: return 'grey'
+            if sens and ic == ('mb_next', 'mb_next', 'mb_next_down'): return 'live'
+            return (sens, ic)
+        bg = tuple(m.props.get((n, f'style:{s}:bg_image')) for s in ('normal', 'disable', 'focused', 'over', 'pressed'))
+        if not sens and bg == ('np_next_off',) * 5: return 'grey'
+        if sens and bg == ('np_next',) * 4 + ('np_next_down',): return 'live'
+        return (sens, bg)
+
+    def play_icons(m):
+        return tuple(m.props.get((m.w['btn_play'], f'style:{s}:icon')) for s in ('normal', 'over', 'pressed'))
+
+    # -- 1. both layouts show the station (not the stale local song) immediately on init, hide stock cover, grey next, and keep geometry untouched in Large Cover
+    for mini, setting, stop_g, play_g in (
+        (0, b'0', ('np_stop', 'np_stop', 'np_stop_down'), ('np_play', 'np_play', 'np_play_down')),
+        (1, b'1', ('mb_stop', 'mb_stop', 'mb_stop_down'), ('mb_play', 'mb_play', 'mb_play_down')),
+    ):
+        tag = 'mini' if mini else 'large'
+        for st, want_line, want_g in (
+            (ST_['CONNECTING'], 'Connecting…', stop_g),
+            (ST_['PLAYING'], 'Live', stop_g),
+            (ST_['PAUSED'], 'Paused', play_g),
+            (ST_['STOPPED'], 'Stopped', play_g),
+            (ST_['ERROR'], "Can't play: No response", play_g),
+        ):
+            m = LK(setting=setting); m.placeholder(); m.track(title='Old Song', artist='Old Artist'); m.cover()
+            m.wtext[m.w['view_scrlabel_title']] = 'Old Song'; m.wtext[m.w['view_scrlabel_artist']] = 'Old Artist'
+            m.status = 3 if st == ST_['PAUSED'] else 2 if st in (ST_['CONNECTING'], ST_['PLAYING']) else 1
+            m.hs = 1 if st == ST_['PLAYING'] else 0
+            set_radio(m, st, err='No response' if st == ST_['ERROR'] else '')
+            m.open()
+            expect(labels(m) == ('Alpha FM', want_line), f'{tag} state {st}: immediate radio labels, not stale local song ({labels(m)})')
+            expect(m.props.get((m.w['view_img_icon'], 'visible'), 1) == 0, f'{tag} state {st}: stock cover hidden at init')
+            expect(play_icons(m) == want_g and nxt_state(m, mini) == 'grey', f'{tag} state {st}: play glyph {play_icons(m)}, next {nxt_state(m, mini)}')
+            if not mini:
+                expect(m.nc('widget_move') == 0 and m.nc('widget_resize') == 0, f'large state {st}: card geometry untouched')
+
+        # -- 2. no local song queued: stock hid and disabled view_bottomview, payload re-shows and re-enables it
+        m = LK(setting=setting); m.placeholder(); m.play_pos = -1; m.status = 2; m.hs = 1
+        m.props[(m.card(), 'visible')] = 0; m.props[(m.card(), 'enable')] = 0
+        set_radio(m, ST_['PLAYING'])
+        m.open()
+        expect(m.props.get((m.card(), 'visible')) == 1 and m.props.get((m.card(), 'enable')) == 1 and labels(m) == ('Alpha FM', 'Live'),
+               f'{tag}: no local queue -> card shown and enabled for playing radio')
+
+        # -- 3. stock's 20 ms timer fires screensaver_refresh (overwrites labels, hides card, swaps style) -> repaired on next tick
+        m.first()
+        m.wtext[m.w['view_scrlabel_title']] = 'Old Song'; m.wtext[m.w['view_scrlabel_artist']] = 'Old Artist'
+        m.props[(m.card(), 'visible')] = 0; m.props[(m.card(), 'enable')] = 0
+        m.props[(m.w['view_img_icon'], 'visible')] = 1
+        m.setword(m.w['btn_play'] + O['WIDGET_STYLE'], m.cstr('btn_imgplay1_style'))
+        m.calls = []; m.tick()
+        expect(labels(m) == ('Alpha FM', 'Live') and m.props.get((m.card(), 'visible')) == 1 and m.props.get((m.card(), 'enable')) == 1
+               and m.props.get((m.w['view_img_icon'], 'visible')) == 0 and play_icons(m) == stop_g,
+               f'{tag}: stock refresh overwrite is repaired on next tick ({labels(m)}, {play_icons(m)})')
+        # steady tick does not rewrite matching labels (preserves hscroll_label scrolling)
+        m.calls = []; m.tick()
+        expect(not [c for c in m.calls if c[0] == 'widget_set_text_utf8'], f'{tag}: steady tick leaves matching labels alone')
+
+        # -- 4. cover art: logo when cached, radio glyph on #2C2C2E when absent
+        m = LK(setting=setting); m.placeholder(); m.track(); m.cover(); m.status = 2; m.hs = 1
+        set_radio(m, ST_['PLAYING'], text='#EXTM3U\n#EXTINF:-1,Plain\nhttp://p.example/a\n')
+        m.images['pod_ic_rd_art'] = (96, 96, bytes((142, 142, 147, 255)) * 96 * 96)
+        m.open(); m.first()
+        m.fills = []; blits = m.paint()
+        if mini:
+            expect(len(blits) == 1 and blits[0][2] == (O['MB_ART_X'], O['MB_ART_Y'], O['MB_ART'], O['MB_ART']), 'mini no-logo: rounded radio tile painted')
+            edge = tuple(m.pixels()[3][4 * (18 * 36 + 2):][:3])
+            mid = tuple(m.pixels()[3][4 * (18 * 36 + 18):][:3])
+            expect(edge == (0x2c, 0x2c, 0x2e) and mid == (142, 142, 147), f'mini no-logo: radio glyph on #2C2C2E ({edge}, {mid})')
+        else:
+            expect((0xff2e2c2c, 12, 12, 264, 264) in m.fills and len(blits) == 1 and blits[0][2] == (12 + 84, 12 + 84, 96, 96),
+                   f'large no-logo: #2C2C2E 264x264 card + 96x96 centred radio glyph ({m.fills}, {blits})')
+
+        m = LK(setting=setting); m.placeholder(); m.track(); m.cover(); m.status = 2; m.hs = 1
+        set_radio(m, ST_['PLAYING'])
+        ua = m.cstr('http://logo.example/a.png')
+        h = m.call(PSYMS['rd_logo_hash'], a0=ua, count=100000); lp = f'/mnt/mmc/Radio/.logos/{h:08x}.jpg'
+        m.present.add(lp); m.blobs[lp] = b'\x89PNG\r\n\x1a\n\0\0\0\rIHDR' + struct.pack('>II', 192, 192)
+        m.images['file://' + lp] = (192, 192, bytes((220, 40, 20, 255)) * 192 * 192); m.load_image = 0
+        m.open(); m.first()
+        m.fills = []; blits = m.paint()
+        if mini:
+            expect(len(blits) == 1 and tuple(m.pixels()[3][4 * (18 * 36 + 18):][:3]) == (220, 40, 20), 'mini logo: cached station logo decoded')
+        else:
+            expect((0xffffffff, 12, 12, 264, 264) in m.fills and len(blits) == 1 and blits[0][2] == (12 + 36, 12 + 36, 192, 192),
+                   f'large logo: white 264x264 card + 192x192 centred logo ({m.fills}, {blits})')
+
+        # uncached logo: never fetched while dark, fetched when lit, and painted once cached
+        m = LK(setting=setting); m.placeholder(); m.track(); m.cover(); m.status = 2; m.hs = 1
+        set_radio(m, ST_['PLAYING'])
+        for sym in ('rd_logo_running', 'rd_logo_start'): m.handlers[PSYMS[sym]] = sym
+        m.screen(False); m.open(); m.calls = []; m.first()
+        expect(not [c for c in m.calls if c[0] == 'rd_logo_start'], f'{tag}: uncached logo is not downloaded while screen is dark')
+        m.screen(True); m.calls = []; m.tick()
+        expect([c for c in m.calls if c[0] == 'rd_logo_start'] == [('rd_logo_start', 'http://logo.example/a.png')], f'{tag}: logo download starts once screen wakes')
+        m.present.add(lp); m.blobs[lp] = b'\x89PNG\r\n\x1a\n\0\0\0\rIHDR' + struct.pack('>II', 192, 192)
+        m.images['file://' + lp] = (192, 192, bytes((20, 180, 90, 255)) * 192 * 192); m.load_image = 0
+        m.tick(); m.fills = []; blits = m.paint()
+        if mini:
+            expect(tuple(m.pixels()[3][4 * (18 * 36 + 18):][:3]) == (20, 180, 90), 'mini logo: picked up once cached')
+        else:
+            expect((0xffffffff, 12, 12, 264, 264) in m.fills and len(blits) == 1 and blits[0][2] == (12 + 36, 12 + 36, 192, 192), 'large logo: picked up once cached')
+
+        # -- 5. buttons: play stops/resumes/retries radio and returns RET_STOP; next returns RET_STOP (never triggers local queue)
+        m = LK(setting=setting); m.placeholder(); m.track(); m.status = 2; m.hs = 1
+        set_radio(m, ST_['PLAYING']); m.open(); m.first()
+        m.cmds = []; r = m.handler(m.w['btn_play'], 'EVT_CLICK')
+        expect(r == O['RET_STOP'] and m.cmds == [('mclStop',)] and m.call(PSYMS['rd_state']) == ST_['STOPPED'] and labels(m) == ('Alpha FM', 'Stopped') and play_icons(m) == play_g,
+               f'{tag} tap play while playing: stops radio, RET_STOP, Stopped + play glyph ({r}, {m.cmds}, {labels(m)})')
+        m.cmds = []; r = m.handler(m.w['btn_next'], 'EVT_CLICK')
+        expect(r == O['RET_STOP'] and not m.cmds, f'{tag} tap next while radio: RET_STOP, no stock next ({r}, {m.cmds})')
+        m.status = 1; m.hs = 0; m.cmds = []; r = m.handler(m.w['btn_play'], 'EVT_CLICK')
+        expect(r == O['RET_STOP'] and m.cmds[-1:] == [('start', 'http://one.example/a')] and m.call(PSYMS['rd_state']) == ST_['CONNECTING'] and play_icons(m) == stop_g,
+               f'{tag} tap play while stopped: restarts station ({r}, {m.cmds})')
+        set_radio(m, ST_['PAUSED']); m.status = 3; m.tick()
+        m.cmds = []; r = m.handler(m.w['btn_play'], 'EVT_CLICK')
+        expect(r == O['RET_STOP'] and m.cmds == [('mclSetResume',)], f'{tag} tap play while paused: resumes stream ({r}, {m.cmds})')
+
+        # -- 6. hand-over while locked: local track starts (rd_owns cleared) -> restores local track, white sensitive next, RET_OK on click
+        set_radio(m, ST_['STOPPED'], own=0); m.status = 2; m.hs = 1; m.track(title='Local Song', artist='Local Artist'); m.cover()
+        m.calls = []; m.tick()
+        expect(nxt_state(m, mini) == 'live' and labels(m) == ('Local Song', 'Local Artist'), f'{tag} hand-over to local: next restored, local labels ({nxt_state(m, mini)}, {labels(m)})')
+        if not mini:
+            expect(m.props.get((m.w['view_img_icon'], 'visible')) == 1 and not m.bitmaps, 'large hand-over: stock cover restored, radio bitmap freed')
+        expect(m.handler(m.w['btn_play'], 'EVT_CLICK') == 0 and m.handler(m.w['btn_next'], 'EVT_CLICK') == 0, f'{tag} hand-over: click handlers return RET_OK for stock')
+
+        # -- 7. external source guard (BT receiver / USB DAC / AirPlay) leaves stock hiding alone
+        for guard, setup in (
+            ('btrecv', lambda mm: mm.setword(pod.DATA['BT_RECV_PAGE'][0], 2)),
+            ('usbdac', lambda mm: mm.setword(pod.DATA['POWER_USBSTATE'][0], 2)),
+            ('airplay', lambda mm: setattr(mm, 'airplay', 2)),
+        ):
+            m = LK(setting=setting); m.placeholder(); set_radio(m, ST_['STOPPED']); setup(m)
+            m.props[(m.card(), 'visible')] = 0; m.props[(m.card(), 'enable')] = 0
+            m.open()
+            expect(m.props.get((m.card(), 'visible')) == 0 and (m.w['btn_play'], O['EVT_CLICK']) not in m.bound,
+                   f'{tag} external {guard}: stock hidden card untouched, no radio takeover')
+
+    # -- 8. destroy frees large cover radio bitmap cleanly
+    m = LK(setting=b'0'); m.placeholder(); set_radio(m, ST_['PLAYING']); m.status = 2; m.hs = 1; m.load_image = 0
+    m.images['pod_ic_rd_art'] = (96, 96, bytes((142, 142, 147, 255)) * 96 * 96)
+    m.open(); m.first()
+    expect(len(m.bitmaps) == 1, 'large radio: one bitmap resident')
+    m.handler(WIN, 'EVT_DESTROY')
+    expect(not m.bitmaps and not m.paint(), 'large radio destroy: bitmap freed, paint is a no-op')
+
+
+SECTIONS = [hook_tests, layout_tests, life_tests, bar_tests, radio_tests, setting_tests, wallpaper_tests, redirect_tests, date_tests]

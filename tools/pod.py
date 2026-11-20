@@ -125,6 +125,7 @@ FUNCTIONS = {
     'widget_get_prop_str':     ('const char *', 'void *, const char *, const char *', 0x6685e0),
     'widget_set_prop_str':     ('int', 'void *, const char *, const char *', 0x66f8a8),
     'widget_set_sensitive':    ('int', 'void *, int', 0x666b9c),
+    'widget_set_enable':       ('int', 'void *, int', 0x669320),
     'widget_set_opacity':      ('int', 'void *, int', 0x669140),   # (the Regenerate Daily Mix row, dimmed: opacity byte +0x34, widget_paint's global alpha)
     'widget_use_style':        ('int', 'void *, const char *', 0x66aa64),
     'hscroll_label_set_only_parent_focus': ('int', 'void *, int', 0x6092e8),

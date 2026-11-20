@@ -30,7 +30,7 @@ def blur_under(im, ox, oy):
         im.putpixel((ox + x, oy + y), (r << 3 | r >> 2, g << 2 | g >> 4, b << 3 | b >> 2, 255))
 
 
-def draw(im, ox, oy, img, text, clip, title, artist, art, playing=True, blur=True):
+def draw(im, ox, oy, img, text, clip, title, artist, art, playing=True, blur=True, radio=False):
     """The pill at (ox, oy) of im. img(name) -> RGBA of an asset image; text(im, x, centre_y, string, px, rgb or None) draws a left-aligned line; clip(string, px, width) -> the
     string cut to the box; art: the cover (MB_ART px RGBA, not yet rounded)."""
     if blur: blur_under(im, ox, oy)
@@ -39,6 +39,8 @@ def draw(im, ox, oy, img, text, clip, title, artist, art, playing=True, blur=Tru
     x = ox + U.MB_TEXT_X
     text(im, x, oy + U.MB_TITLE_Y + U.MB_TITLE_H / 2, clip(title, U.MB_TITLE_PX, U.MB_TEXT_W), U.MB_TITLE_PX, None)
     text(im, x, oy + U.MB_ARTIST_Y + U.MB_ARTIST_H / 2, clip(artist, U.MB_ARTIST_PX, U.MB_TEXT_W), U.MB_ARTIST_PX, tuple(int(U.MB_ARTIST_RGB[i:i + 2], 16) for i in (1, 3, 5)))
-    for name, bx in (('mb_pause' if playing else 'mb_play', U.MB_PLAY_X), ('mb_next', U.MB_NEXT_X)):
+    play_ic = ('mb_stop' if radio else 'mb_pause') if playing else 'mb_play'
+    next_ic = 'mb_next_off' if radio else 'mb_next'
+    for name, bx in ((play_ic, U.MB_PLAY_X), (next_ic, U.MB_NEXT_X)):
         g = img(name)
         im.alpha_composite(g, (ox + bx + (U.MB_BTN_W - g.width) // 2, oy + (U.MB_H - g.height) // 2))

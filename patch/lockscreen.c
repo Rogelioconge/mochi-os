@@ -21,6 +21,9 @@
 #include "palette.h"
 #include "battery.h"
 #include "i18n.h"
+#include "podcasts.h"
+#include "radio.h"
+#include "fnv.h"
 #include "entries.h"
 
 #define LK_N 6
@@ -59,13 +62,19 @@ static void lk_str(void *w, const char *prop, const char *val) {
     }
 }
 
-/* The mini layout, the widgets left in w; false (nothing changed) when a widget is missing. */
-static int lk_mini(void *win, void **w) {
+static int lk_find(void *win, void **w) {
     int i;
     for (i = 0; i < LK_N; ++i) {
         w[i] = widget_lookup(win, lk_names[i], 1);
         if (!w[i]) return 0;
     }
+    return 1;
+}
+
+/* The mini layout, the widgets left in w; false (nothing changed) when a widget is missing. */
+static int lk_mini(void *win, void **w) {
+    int i;
+    if (!lk_find(win, w)) return 0;
     for (i = 0; i < LK_N; ++i) {
         widget_move(w[i], lk_rect[i][0], lk_rect[i][1]);
         widget_resize(w[i], lk_rect[i][2], lk_rect[i][3]);
@@ -80,47 +89,71 @@ static int lk_mini(void *win, void **w) {
 int lk_layout(void);
 
 /* ---------------------------------------------------------------------------
- * The bar as the Home bar draws it (patch/minibar.c shares the cover and the blur): the cover is our own rounded bitmap, the glyphs are the Home bar's, the pill behind it is blurred.
- * One page-scoped timer; nothing runs after the window's destroy.
+ * The bar as the Home bar draws it (patch/minibar.c shares the cover, the blur and the radio mode), plus radio support for the Large Cover layout:
+ * stock's lock screen only knows the local play queue (which mcl_tidalStartPlayer leaves intact), so while radio owns playback this takes over the
+ * card in both layouts (station name, live/state line, cached logo or radio glyph, Stop/Play button, greyed inert Next) and repairs stock's 20 ms
+ * refresh if it fires while locked. One page-scoped timer; nothing runs after the window's destroy.
  */
 #define LK_TICK_MS \
-    100 /* lit: a stock glyph swap is put right within this; the blur's partial frames are repaired within it */
+    100 /* lit: a stock glyph swap or refresh is put right within this; the blur's partial frames are repaired within it */
 #define LK_PAUSE_STYLE "btn_imgpause1_style"
+#define LK_COVER_XY 12 /* tools/mod_lockscreen.py PAD, COVER_SIZE */
+#define LK_COVER_SZ 264
+#define LK_RADIO_LOGO 192 /* radionp.c RN_LOGO: the station logo's cached size */
+#define LK_RADIO_GLYPH 96 /* mod_icons.py RADIO_ART_PX: pod_ic_rd_art */
+#define LK_CARD_LOGO 0xffffffffu
+#define LK_CARD_GLYPH 0xff2e2c2cu /* #2C2C2E, radionp.c RN_CARD_GLYPH */
 
 static struct {
     void *win, *card, *icon, *title, *artist, *play, *next;
     unsigned timer; /* the one-shot or the repeating timer, 0 none */
     unsigned interval; /* repeating timer interval last accepted by timer_modify */
     int fg; /* the window is in front */
-    int playing; /* the glyph made: 1 pause, 0 play, -1 none yet */
+    int mini; /* 1 mini player layout, 0 large cover layout */
+    int radio; /* 1 showing radio on the card, 0 local track */
+    int playing; /* the glyph made: 1 pause/stop, 0 play, -1 none yet */
     int kind; /* the style stock's play button used when it was made: 1 btn_imgpause1_style, 0 the other, -1 none yet */
-    unsigned key; /* the track the cover was made for, 0 none */
+    unsigned key; /* the track or radio (url, state, err) key, 0 none */
+    unsigned rkey; /* the station the cover was made for (url hash), 0 none */
+    int rlogo; /* the station's logo is not cached yet: look again on the next ticks */
+    void *rart; /* large cover layout: 192 px logo or 96 px radio glyph bitmap */
+    int rart_logo; /* 1 rart is the 192 px logo (white card), 0 the 96 px glyph (#2C2C2E card) */
     mb_art_t art;
     mb_blur_t bl;
 } lk __attribute__((section(".scratch")));
 
+/* Radio owns the lock screen card whenever the Home mini bar shows radio, except while stock hides the card for BT receiver, USB DAC or AirPlay. */
+static int lk_want_radio(void) {
+    if (!mb_radio_active()) return 0;
+    if (*(volatile int *)BT_RECV_PAGE == 2 || *(volatile int *)POWER_USBSTATE == 2 || airplayGetFlag() == 2) return 0;
+    return 1;
+}
+
 /* The play button's glyph. Stock swaps the button's own style (widget_use_style) between its pause and play styles and only when the status changes; the glyphs are overrides in the
  * widget's mutable style (the way the Home bar sets them), so they hold over either theme style. Made again whenever the status differs from the one shown or stock's style name changed
- * since (a swap that cleared them would show the large np_ glyph for at most one tick). */
+ * since (a swap that cleared them would show stock's glyph for at most one tick). */
 static void lk_play_look(int playing) {
     static const char *const key[3] = {"style:normal:icon", "style:over:icon", "style:pressed:icon"};
-    const char *g = playing ? "mb_pause" : "mb_play", *d = playing ? "mb_pause_down" : "mb_play_down";
+    const char *g = lk.mini ? (playing ? (lk.radio ? "mb_stop" : "mb_pause") : "mb_play")
+                            : (playing ? (lk.radio ? "np_stop" : "np_pause") : "np_play");
+    const char *d = lk.mini ? (playing ? (lk.radio ? "mb_stop_down" : "mb_pause_down") : "mb_play_down")
+                            : (playing ? (lk.radio ? "np_stop_down" : "np_pause_down") : "np_play_down");
     int i;
     for (i = 0; i < 3; ++i) widget_set_prop_str(lk.play, key[i], i == 2 ? d : g);
 }
 
 static void lk_glyph(void) {
-    int playing = mclGetPlayStatus() == MB_PLAYING;
+    int playing = lk.radio ? mb_radio_playing() : mclGetPlayStatus() == MB_PLAYING;
     const char *name = *(const char *const *)((char *)lk.play + WIDGET_STYLE);
     int kind = name && strcmp(name, LK_PAUSE_STYLE) == 0;
     if (playing == lk.playing && kind == lk.kind) return;
     lk.playing = playing;
     lk.kind = kind;
     lk_play_look(playing);
-    widget_invalidate_force(lk.card, (void *)0); /* the whole pill, not the glyph's rectangle (see the blur) */
+    widget_invalidate_force(lk.card, (void *)0); /* the whole card/pill, not the glyph's rectangle (see the blur) */
 }
 
-/* The next button: the Home bar's glyph (the page's own is the bg_image np_next, cleared). */
+/* The next button in mini mode for a local track (clears the page's np_next bg_image, sets Home bar icons without touching sensitivity). */
 static void lk_next_look(void) {
     static const char *const state[5] = {"normal", "disable", "focused", "over", "pressed"};
     char name[40];
@@ -134,11 +167,191 @@ static void lk_next_look(void) {
     widget_set_prop_str(lk.next, "style:pressed:icon", "mb_next_down");
 }
 
-static void lk_work(void) {
+/* The next button when entering (live = 0: greyed, insensitive) or leaving (live = 1: white, sensitive) radio mode. */
+static void lk_next_radio(int live) {
+    static const char *const state[5] = {"normal", "disable", "focused", "over", "pressed"};
+    char name[40];
+    int i;
+    if (lk.mini) {
+        const char *n = live ? "mb_next" : "mb_next_off";
+        widget_set_prop_str(lk.next, "style:normal:icon", n);
+        widget_set_prop_str(lk.next, "style:over:icon", n);
+        widget_set_prop_str(lk.next, "style:pressed:icon", live ? "mb_next_down" : n);
+    } else {
+        for (i = 0; i < 5; ++i) {
+            snprintf(name, sizeof name, "style:%s:bg_image", state[i]);
+            widget_set_prop_str(lk.next, name, live ? (i == 4 ? "np_next_down" : "np_next") : "np_next_off");
+        }
+    }
+    widget_set_sensitive(lk.next, live);
+    widget_invalidate_force(lk.card, (void *)0);
+}
+
+static void lk_rart_free(void) {
+    if (lk.rart) bitmap_destroy(lk.rart);
+    lk.rart = (void *)0;
+    lk.rart_logo = 0;
+}
+
+/* Write want when forced or when the widget's text differs from want (so hscroll_label keeps scrolling on steady ticks while a stock screensaver_refresh overwrite is repaired). */
+static int lk_set_label(void *w, const char *want, int force) {
+    char cur[200];
+    int got = force ? -1 : m1_text_utf8(w, cur, sizeof cur);
+    if (!force && (got < 0 || strcmp(cur, want) == 0)) return 0;
+    widget_set_text_utf8(w, want);
+    return 1;
+}
+
+static void lk_radio_labels(int force) {
+    const rd_list_t *l = rd_list();
+    int at = rd_at(), dirty = 0;
+    const char *name = l->n && at < l->n ? rd_name(l, at) : "";
+    char line[200];
+    mb_radio_line(line, sizeof line);
+    dirty |= lk_set_label(lk.title, name[0] ? name : TR("Radio"), force);
+    dirty |= lk_set_label(lk.artist, line, force);
+    if (dirty) widget_invalidate_force(lk.card, (void *)0);
+}
+
+/* Large Cover radio art: 192 px station logo (on white 264 px card), else 96 px radio glyph composited on #2C2C2E (matching Radio Now Playing). Decoded on the timer, never in paint. */
+static void lk_large_radio_cover(void) {
+    const rd_list_t *l = rd_list();
+    int at = rd_at(), st;
+    char fav[RD_FAV_MAX + 1], path[48], url[64];
+    void *b = (void *)0;
+    unsigned *px;
+    lk_rart_free();
+    lk.rlogo = 0;
+    fav[0] = 0;
+    if (l->n && at < l->n) rd_favicon(rd_info(l, at), fav, sizeof fav);
+    if (fav[0]) {
+        st = rd_logo_file(rd_logo_hash(fav), path, sizeof path);
+        if (st == 1 && pc_cover_ok(path)) {
+            snprintf(url, sizeof url, "file://%s", path);
+            b = bitmap_create_ex(LK_RADIO_LOGO, LK_RADIO_LOGO, LK_RADIO_LOGO * 4, BITMAP_RGBA8888);
+            px = b ? (unsigned *)bitmap_lock_buffer_for_write(b) : (unsigned *)0;
+            if (px && bitmap_get_line_length(b) == LK_RADIO_LOGO * 4 &&
+                cc_decode(lk.win, url, 1, LK_RADIO_LOGO, 1, px)) {
+                bitmap_unlock_buffer(b);
+                lk.rart = b;
+                lk.rart_logo = 1;
+                widget_invalidate_force(lk.card, (void *)0);
+                return;
+            }
+            if (px) bitmap_unlock_buffer(b);
+            if (b) bitmap_destroy(b);
+            b = (void *)0;
+        } else if (st == 0) {
+            lk.rlogo = 1;
+            if (m1_screen_lit() && !rd_logo_running()) rd_logo_start(fav);
+        }
+    }
+    b = bitmap_create_ex(LK_RADIO_GLYPH, LK_RADIO_GLYPH, LK_RADIO_GLYPH * 4, BITMAP_RGBA8888);
+    px = b ? (unsigned *)bitmap_lock_buffer_for_write(b) : (unsigned *)0;
+    if (px && bitmap_get_line_length(b) == LK_RADIO_GLYPH * 4 &&
+        cc_decode(lk.win, "pod_ic_rd_art", 0, LK_RADIO_GLYPH, 1, px)) {
+        unsigned i;
+        for (i = 0; i < LK_RADIO_GLYPH * LK_RADIO_GLYPH; ++i) {
+            unsigned a = px[i], c = 0xff000000u, k;
+            for (k = 0; k < 24; k += 8) {
+                unsigned av = a >> k & 255, bv = LK_CARD_GLYPH >> k & 255;
+                c |= (av > bv ? av : bv) << k;
+            }
+            px[i] = c;
+        }
+        bitmap_unlock_buffer(b);
+        lk.rart = b;
+        lk.rart_logo = 0;
+    } else {
+        if (px) bitmap_unlock_buffer(b);
+        if (b) bitmap_destroy(b);
+    }
+    widget_invalidate_force(lk.card, (void *)0);
+}
+
+static void lk_work_radio(void) {
+    const rd_list_t *l = rd_list();
+    int at = rd_at(), pending = 0;
+    unsigned skey = l->n && at < l->n ? cc_fnv(FNV_SEED, rd_url(l, at)) : 0, key;
+    char fav[RD_FAV_MAX + 1], path[48];
+    skey |= !skey;
+    key = cc_fnv((skey ^ (unsigned)rd_state()) * FNV_PRIME, rd_error());
+    key |= !key;
+    if (!widget_get_visible(lk.card)) {
+        widget_set_visible(lk.card, 1, 0);
+        widget_set_enable(lk.card, 1);
+        lk.key = 0; /* stock's refresh hid the card: repair labels and glyph too */
+        lk.playing = lk.kind = -1;
+    }
+    if (key != lk.key) {
+        lk.key = key;
+        lk_radio_labels(1);
+    } else {
+        lk_radio_labels(0);
+    }
+    fav[0] = 0;
+    if (l->n && at < l->n) rd_favicon(rd_info(l, at), fav, sizeof fav);
+    if (lk.rlogo && fav[0]) {
+        pending = rd_logo_file(rd_logo_hash(fav), path, sizeof path);
+        if (pending == 0 && m1_screen_lit() && !rd_logo_running()) rd_logo_start(fav);
+    }
+    if (skey != lk.rkey || (lk.rlogo && fav[0] && pending != 0)) {
+        lk.rkey = skey;
+        if (lk.mini) {
+            if (mb_radio_art(&lk.art, lk.win, &lk.rlogo)) widget_invalidate_force(lk.card, (void *)0);
+        } else {
+            lk_large_radio_cover();
+        }
+    }
+    lk_glyph();
+    if (widget_get_visible(lk.icon)) widget_set_visible(lk.icon, 0, 0);
+    if (lk.mini && lk.bl.fix) {
+        lk.bl.fix = 0;
+        widget_invalidate_force(lk.card, (void *)0);
+    }
+}
+
+/* Radio gave up the player while locked (e.g. a hardware key started a local track): hand the card back to stock / local mode. */
+static void lk_leave_radio(void) {
     void *t = cc_playing();
+    lk.radio = 0;
+    lk.key = lk.rkey = 0;
+    lk.rlogo = 0;
+    lk.playing = lk.kind = -1;
+    lk_next_radio(1);
+    if (!lk.mini) {
+        lk_rart_free();
+        widget_set_visible(lk.icon, 1, 0);
+    }
+    if (t) {
+        const char *title = cc_str(t, REC_TITLE);
+        if (!*title) title = cc_str(t, REC_NAME);
+        widget_set_text_utf8(lk.title, title);
+        widget_set_text_utf8(lk.artist, cc_str(t, REC_ARTIST));
+    } else {
+        widget_set_visible(lk.card, 0, 0);
+        widget_set_enable(lk.card, 0);
+    }
+    widget_invalidate_force(lk.card, (void *)0);
+}
+
+static void lk_work(void) {
+    void *t;
     unsigned key;
+    if (lk.radio) {
+        if (lk_want_radio()) {
+            lk_work_radio();
+            return;
+        }
+        lk_leave_radio();
+    }
+    t = cc_playing();
     if (!t) { /* nothing queued: stock hides the card */
         lk.key = 0;
+        return;
+    }
+    if (!lk.mini) { /* Large Cover after hand-over from radio: keep btn_play's mutable icon override in sync with stock */
+        lk_glyph();
         return;
     }
     key = mb_track_key(t);
@@ -184,6 +397,7 @@ static void lk_unarm(void) { m1_timer_stop(&lk.timer); }
 
 static void lk_stop(void) {
     lk_unarm();
+    lk_rart_free();
     mb_art_free(&lk.art);
     mb_blur_free(&lk.bl);
     memset(&lk, 0, sizeof lk);
@@ -211,11 +425,23 @@ static int lk_on_foreground(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The card's EVT_AFTER_PAINT: the resident cover, as the Home bar draws it. Nothing is decoded here. */
+/* The card's EVT_AFTER_PAINT: the resident cover (mini bar's 36 px rounded cover, or Large Cover's 264 px radio art). Nothing is decoded here. */
 static int lk_on_paint(void *ctx, void *e) {
     void *canvas = e ? *(void **)((char *)e + EVENT_PAINT_CANVAS) : (void *)0;
     (void)ctx;
-    if (canvas && lk.win && lk.key) mb_art_paint(&lk.art, canvas);
+    if (!canvas || !lk.win) return RET_OK;
+    if (lk.mini) {
+        if (lk.radio ? lk.rkey : lk.key) mb_art_paint(&lk.art, canvas);
+    } else if (lk.radio) {
+        canvas_set_fill_color(canvas, lk.rart && lk.rart_logo ? LK_CARD_LOGO : LK_CARD_GLYPH);
+        canvas_fill_rect(canvas, LK_COVER_XY, LK_COVER_XY, LK_COVER_SZ, LK_COVER_SZ);
+        if (lk.rart) {
+            int sz = lk.rart_logo ? LK_RADIO_LOGO : LK_RADIO_GLYPH;
+            int off = LK_COVER_XY + (LK_COVER_SZ - sz) / 2;
+            int src[4] = {0, 0, sz, sz}, dst[4] = {off, off, sz, sz};
+            canvas_draw_image(canvas, lk.rart, src, dst);
+        }
+    }
     return RET_OK;
 }
 
@@ -234,6 +460,22 @@ static int lk_on_touch(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* Radio click handlers (bound after stock's, so they run first): RET_STOP while radio owns the card; RET_OK after hand-over so stock handles local music. */
+static int lk_on_play(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    if (!lk.win || !lk.radio) return RET_OK;
+    mb_radio_play_click();
+    lk_work();
+    return RET_STOP;
+}
+
+static int lk_on_next(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    return lk.win && lk.radio ? RET_STOP : RET_OK;
+}
+
 /* The blur is optional and last (no plane, the SD file m1plus-noblur or a refused handler: the glass over the sharp wallpaper). */
 static void lk_blur_setup(void) {
     static void *const *btn[2] = {&lk.play, &lk.next};
@@ -249,18 +491,22 @@ static void lk_blur_setup(void) {
         mb_blur_free(&lk.bl);
 }
 
-/* The lock page's bar is laid out (lk_mini): take over its cover and glyphs. Anything missing or refused leaves stock's cover and glyphs as lk_mini left them (the moved stock widgets). */
-static void lk_start(void *win, void *const *w) {
+/* Take over the lock card (mini layout for local or radio; large layout only for radio). Anything missing or refused leaves stock's widgets as they were. */
+static void lk_start(void *win, void *const *w, int mini, int radio) {
     if (lk.win) { /* an earlier page that never said it was gone */
         lk_stop();
     }
     lk.win = win;
     lk.card = w[0], lk.icon = w[1], lk.title = w[2], lk.artist = w[3], lk.play = w[4], lk.next = w[5];
+    lk.mini = mini;
+    lk.radio = radio;
     lk.playing = lk.kind = -1;
     lk.fg = 1;
     if (!widget_on(win, EVT_DESTROY, lk_on_destroy, win) || !widget_on(win, EVT_WINDOW_TO_BG, lk_on_background, win) ||
         !widget_on(win, EVT_WINDOW_TO_FG, lk_on_foreground, win) ||
-        !widget_on(lk.card, EVT_AFTER_PAINT, lk_on_paint, (void *)0)) {
+        !widget_on(lk.card, EVT_AFTER_PAINT, lk_on_paint, (void *)0) ||
+        (radio && (!widget_on(lk.play, EVT_CLICK, lk_on_play, (void *)0) ||
+                   !widget_on(lk.next, EVT_CLICK, lk_on_next, (void *)0)))) {
         lk_stop(); /* a handler that was registered finds no window of ours any more */
         return;
     }
@@ -269,14 +515,24 @@ static void lk_start(void *win, void *const *w) {
         lk_stop();
         return;
     }
-    lk_blur_setup();
-    /* the look is taken over only now that everything runs: the Home bar's one-line labels, glyphs and no stock cover */
-    widget_set_prop_int(lk.title, "ellipses", 1);
-    widget_set_prop_int(lk.title, "only_parent_focus", 1);
-    widget_set_prop_int(lk.artist, "ellipses", 1);
-    widget_set_prop_int(lk.artist, "only_parent_focus", 1);
-    lk_next_look();
+    if (mini) {
+        lk_blur_setup();
+        /* the look is taken over only now that everything runs: the Home bar's one-line labels, glyphs and no stock cover */
+        widget_set_prop_int(lk.title, "ellipses", 1);
+        widget_set_prop_int(lk.title, "only_parent_focus", 1);
+        widget_set_prop_int(lk.artist, "ellipses", 1);
+        widget_set_prop_int(lk.artist, "only_parent_focus", 1);
+        lk_next_look();
+    }
     widget_set_visible(lk.icon, 0, 0);
+    if (radio) {
+        /* immediate takeover before first paint: show card even with empty local queue, replace stale local labels and glyphs */
+        widget_set_visible(lk.card, 1, 0);
+        widget_set_enable(lk.card, 1);
+        lk_next_radio(0);
+        lk_radio_labels(1);
+        lk_glyph();
+    }
 }
 
 /* The date line in the language's own order (docs/modules/lockscreen.md "The date"). The asset's format is the key "W, MMM D" ("Wed, Nov 11"); its translation is the
@@ -301,10 +557,17 @@ int m1plus_lockscreen_init(void *win, void *ctx) {
     int ret = stock_lockscreen_init_trampoline(win, ctx);
     void *w[LK_N];
     if (ret == RET_OK && win && access(KILL_SD, F_OK) != 0) {
+        int mini, radio;
         lk_date(win);
         lk_clock(win);
         bp_lock(win); /* the Battery Percentage beside the page's gauge (patch/battery.c) */
-        if (lk_layout() == 1 && lk_mini(win, w)) lk_start(win, w);
+        mini = lk_layout() == 1;
+        radio = lk_want_radio();
+        if (mini) {
+            if (lk_mini(win, w)) lk_start(win, w, 1, radio);
+        } else if (radio && lk_find(win, w)) {
+            lk_start(win, w, 0, 1);
+        }
     }
     return ret;
 }

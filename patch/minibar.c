@@ -423,7 +423,7 @@ static int mb_local_alive(void) {
 }
 
 /* The bar shows the radio while a station connects, plays or is paused, and in Error or Stopped after a session (so a tap plays it again) unless local music took over. */
-static int mb_radio(void) {
+int mb_radio_active(void) {
     if (rd_running()) return 1;
     if (!rd_list()->n || rd_at() >= rd_list()->n || mb_local_alive()) return 0;
     return rd_state() == RD_ERROR ||
@@ -438,7 +438,7 @@ static void mb_fav(const rd_list_t *l, int at, char *fav, unsigned n) {
 }
 
 /* The line under the station's name, with radio Now Playing's words (radionp.c rn_line); a playing stream is "Live" (the bar is narrow: the codec caption is Now Playing's). */
-static void mb_radio_line(char *out, unsigned n) {
+void mb_radio_line(char *out, unsigned n) {
     int st = rd_state();
     if (st == RD_ERROR)
         snprintf(out, n, rd_error()[0] ? "%s: %s" : "%s", TR("Can't play"), rd_error());
@@ -452,6 +452,29 @@ static void mb_radio_line(char *out, unsigned n) {
         snprintf(out, n, "%s", TR("Live"));
 }
 
+int mb_radio_playing(void) {
+    int st = rd_state();
+    return st == RD_CONNECTING || ((st == RD_PLAYING || st == RD_PAUSED) && mclGetPlayStatus() != 3);
+}
+
+void mb_radio_play_click(void) {
+    switch (rd_state()) {
+    case RD_PAUSED:
+        rd_resume();
+        break;
+    case RD_PLAYING:
+    case RD_CONNECTING:
+        rd_stop();
+        break;
+    case RD_ERROR:
+    case RD_STOPPED:
+        if (rd_list()->n) rd_play(rd_list(), rd_at()); /* a retry of the same station */
+        break;
+    default:
+        break;
+    }
+}
+
 static void mb_radio_labels(const rd_list_t *l, int at) {
     char line[200];
     const char *name = l->n && at < l->n ? rd_name(l, at) : "";
@@ -461,53 +484,56 @@ static void mb_radio_labels(const rd_list_t *l, int at) {
     widget_invalidate_force(mb.card, (void *)0);
 }
 
-/* The station's cover into mb.bmp: its cached logo (the engine's logo worker makes the file; radionp.c rn_logo reads it the same way), else the radio glyph on radio Now Playing's card
- * grey, else the stock disc. A logo not cached yet starts the worker and asks for another look on the next ticks (mb.rlogo). */
-static void mb_radio_cover(const rd_list_t *l, int at) {
+/* The station's cover into a->bmp: its cached logo (the engine's logo worker makes the file; radionp.c rn_logo reads it the same way), else the radio glyph on radio Now Playing's card
+ * grey, else the stock disc. A logo not cached yet starts the worker (when the screen is lit) and sets *pending so the caller looks again on the next ticks. */
+int mb_radio_art(mb_art_t *a, void *win, int *pending) {
+    const rd_list_t *l = rd_list();
+    int at = rd_at();
     char fav[RD_FAV_MAX + 1], path[48], url[64];
     unsigned *px, g[MB_GLYPH * MB_GLYPH], i, x, y, o;
     int ok = 0, st;
-    px = mb_art_begin(&mb.art);
-    if (!px) return;
-    mb.art.fkey = 0, mb.art.settle = 0, mb.rlogo = 0;
+    px = mb_art_begin(a);
+    if (!px) return 0;
+    a->fkey = 0, a->settle = 0;
+    if (pending) *pending = 0;
     mb_fav(l, at, fav, sizeof fav);
     if (fav[0]) {
         st = rd_logo_file(rd_logo_hash(fav), path, sizeof path);
         if (st == 1 && pc_cover_ok(path)) {
             snprintf(url, sizeof url, "file://%s", path);
-            ok = cc_decode(mb.win, url, 1, MB_ART, 1, px);
+            ok = cc_decode(win, url, 1, MB_ART, 1, px);
         } else if (st == 0) {
-            mb.rlogo = 1;
-            if (!rd_logo_running()) rd_logo_start(fav);
+            if (pending) *pending = 1;
+            if (m1_screen_lit() && !rd_logo_running()) rd_logo_start(fav);
         }
     }
     if (!ok) {
         for (i = 0; i < MB_ART * MB_ART; ++i) px[i] = MB_RADIO_CARD;
         memset(g, 0, sizeof g);
-        if (cc_decode(mb.win, "pod_ic_rd_art", 0, MB_GLYPH, 1,
+        if (cc_decode(win, "pod_ic_rd_art", 0, MB_GLYPH, 1,
                       g)) { /* decoded over black: per channel the lighter of the glyph and the card */
             o = (MB_ART - MB_GLYPH) / 2;
             for (y = 0; y < MB_GLYPH; ++y)
                 for (x = 0; x < MB_GLYPH; ++x) {
-                    unsigned a = g[y * MB_GLYPH + x], b = px[(o + y) * MB_ART + o + x], c = 0xff000000u, k;
-                    for (k = 0; k < 24; k += 8) c |= ((a >> k & 255) > (b >> k & 255) ? a : b) & (255u << k);
+                    unsigned ap = g[y * MB_GLYPH + x], b = px[(o + y) * MB_ART + o + x], c = 0xff000000u, k;
+                    for (k = 0; k < 24; k += 8) c |= ((ap >> k & 255) > (b >> k & 255) ? ap : b) & (255u << k);
                     px[(o + y) * MB_ART + o + x] = c;
                 }
         } else {
             for (i = 0; i < MB_ART * MB_ART; ++i) px[i] = MB_GREY;
-            cc_decode(mb.win, "p_default", 0, MB_ART, 1, px);
+            cc_decode(win, "p_default", 0, MB_ART, 1, px);
         }
     }
-    mb_art_end(&mb.art, px);
-    widget_invalidate_force(mb.card, (void *)0);
+    mb_art_end(a, px);
+    return 1;
+}
+
+static void mb_radio_cover(void) {
+    if (mb_radio_art(&mb.art, mb.win, &mb.rlogo)) widget_invalidate_force(mb.card, (void *)0);
 }
 
 static void mb_glyph(void) {
-    int playing = mclGetPlayStatus() == MB_PLAYING;
-    if (mb.radio) { /* the stop glyph (in the pause button) while connecting or playing; play when paused and in Error. Stock's status 3 / 2 leads the engine's tick, so a tap shows at once */
-        int st = rd_state();
-        playing = st == RD_CONNECTING || ((st == RD_PLAYING || st == RD_PAUSED) && mclGetPlayStatus() != 3);
-    }
+    int playing = mb.radio ? mb_radio_playing() : mclGetPlayStatus() == MB_PLAYING;
     if (playing == mb.playing) return;
     mb.playing = playing;
     m1_show(mb.play, !playing);
@@ -543,7 +569,7 @@ static void mb_work_radio(void) {
     }
     if (!mb.shown || skey != mb.rkey || (mb.rlogo && fav[0] && pending != 0)) {
         mb.rkey = skey;
-        mb_radio_cover(l, at);
+        mb_radio_cover();
     }
     if (!mb.shown) {
         mb.playing = -1;
@@ -560,7 +586,7 @@ static void mb_work_radio(void) {
 static void mb_work(void) {
     void *t;
     unsigned key;
-    if (mb_radio()) {
+    if (mb_radio_active()) {
         mb_work_radio();
         return;
     }
@@ -674,21 +700,7 @@ static int mb_on_play(void *ctx, void *e) {
     (void)e;
     if (!mb.win) return RET_OK;
     if (mb.radio) { /* a station has no pause here: Stop while it connects or plays, Play resumes a pause made elsewhere (the engine's tick reconciles Paused with stock's status 3) */
-        switch (rd_state()) {
-        case RD_PAUSED:
-            rd_resume();
-            break;
-        case RD_PLAYING:
-        case RD_CONNECTING:
-            rd_stop();
-            break;
-        case RD_ERROR:
-        case RD_STOPPED:
-            if (rd_list()->n) rd_play(rd_list(), rd_at()); /* a retry of the same station */
-            break;
-        default:
-            break;
-        }
+        mb_radio_play_click();
         mb_work();
         return RET_OK;
     }

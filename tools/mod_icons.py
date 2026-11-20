@@ -392,7 +392,9 @@ WIFI_LOCK = {f'wifi_{i}': i for i in range(1, 5)}                               
 # [, disc px]). 'pil:NAME' = the solid glyph drawn with PIL (g_play ... below; the transport glyphs, which read better than
 # Tabler's filled ones); a disc px puts a flat translucent white disc of that diameter behind the glyph (star and More).
 NP = {'np_play': ('pil:play', 44, 0, 'fg', 'np_play_down'), 'np_pause': ('pil:pause', 44, 0, 'fg', 'np_pause_down'),
+      'np_stop': ('pil:stop', 44, 0, 'fg', 'np_stop_down'),   # the Large Cover lock screen's play/stop button while radio plays (patch/lockscreen.c)
       'np_next': ('pil:next', 44, 0, 'fg', 'np_next_down'), 'np_prev': ('pil:prev', 44, 0, 'fg', 'np_prev_down'),
+      'np_next_off': ('pil:next', 44, 0, 'off', None),   # the Large Cover lock screen's next button while radio plays: NP_OFF grey, inert
       'mb_play': ('pil:mb_play', 32, 0, 'white', 'mb_play_down'), 'mb_pause': ('pil:mb_pause', 32, 0, 'white', 'mb_pause_down'),
       'mb_stop': ('pil:mb_stop', 32, 0, 'white', 'mb_stop_down'),   # the play/pause slot while a station connects or plays (patch/minibar.c mb_glyph): a tap stops
       'mb_next': ('pil:mb_next', (34, 24), 0, 'white', 'mb_next_down'),

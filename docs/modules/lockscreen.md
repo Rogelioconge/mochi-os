@@ -115,10 +115,27 @@ the only lock-specific thing; the look is the Home bar's.
   on, 1000 ms off, so the cover is right when the screen wakes). Only when all of that is up are the
   cover widget hidden and the labels and next restyled. Background removes the timer, foreground arms
   the one-shot again, destroy removes it and frees the bitmap and the plane (`lk_stop`). A missing widget, a refused `widget_on` or no
-  timer leaves the moved stock widgets with stock's cover and glyphs. The radio is not shown here
-  (stock's lock screen has no radio support; the bar follows the play queue).
+  timer leaves the moved stock widgets with stock's cover and glyphs.
 - Nothing in stock's lock screen code moves, resizes or restyles a widget, so the layout survives
   every refresh and track change. Any failure leaves the large card.
+
+## Radio mode
+
+Radio plays through hciplayer and leaves stock's local play queue intact ([radio](radio.md)), so
+while `mb_radio_active()` holds (running, or Stopped / Error while radio owns playback and no
+external BT receiver / USB DAC / AirPlay source is hiding the card), hook 25 takes over the card in
+both Large Cover and Mini Player layouts:
+
+- Shows and enables `view_bottomview` even with an empty local queue, hides `view_img_icon`, sets
+  the station name and state line (`Live`, `Connecting…`, `Paused`, `Stopped`, `Can't play: …`),
+  greys and disables `btn_next` (`np_next_off` / `mb_next_off`) and swaps `btn_play` to Stop while
+  connecting or playing (`np_stop` / `mb_stop`) and Play otherwise.
+- Art: Mini Player shares `mb_radio_art` (36 px rounded logo or radio glyph); Large Cover paints
+  the 192 px cached logo on a white 264 px square or the 96 px `pod_ic_rd_art` glyph on `#2C2C2E`
+  (decoded on the timer, never in paint).
+- Click handlers bound after stock's return `RET_STOP` while radio owns the card (`btn_play` stops,
+  resumes or retries; `btn_next` is ignored) and `RET_OK` once a local track takes over. The tick
+  repairs stock's `screensaver_refresh` if it overwrites labels or hides the card.
 
 ## The date
 

@@ -46,6 +46,20 @@ def fmt_time(fmt, t, wdays=WDAYS, months=MONTHS):
     return out
 
 TITLE, ARTIST = 'Harvest Moon', 'Neil Young'
+RADIO_TITLE, RADIO_LIVE, RADIO_STOPPED = 'FIP Radio', 'Live', 'Stopped'
+
+
+def synthetic_radio_logo(size=192):
+    """A sample circular station emblem on white (matches pv_shrink's 192 px white-ground logo cache)."""
+    im = Image.new('RGBA', (size, size), (255, 255, 255, 255))
+    d = ImageDraw.Draw(im)
+    m = size // 10
+    d.ellipse([m, m, size - m - 1, size - m - 1], fill=(226, 0, 122, 255))
+    r2 = size // 4
+    d.ellipse([r2, r2, size - r2 - 1, size - r2 - 1], outline=(255, 255, 255, 255), width=max(4, size // 24))
+    c = size // 2
+    d.ellipse([c - size // 12, c - size // 12, c + size // 12, c + size // 12], fill=(255, 255, 255, 255))
+    return im
 
 class Theme:
     """Button styles from the page theme (styles/screensaver_page.bin), then default.bin."""
@@ -101,8 +115,24 @@ class Painter:
         layer = Image.new('RGBA', (W, H)); ImageDraw.Draw(layer).text((x, top + f.getmetrics()[0]), s, font=f,
                                                                    fill=wd.get('style:normal:text_color', '#FFFFFF'), anchor='ls')
         im.alpha_composite(layer.crop(clip), clip[:2])
-    def render(self, root, pct, charging, idle, mini=False, number=False, lang='en_US'):
+    def radio_art(self, size, logo=False):
+        if logo:
+            if size >= 200:
+                card = Image.new('RGBA', (size, size), (255, 255, 255, 255))
+                em = synthetic_radio_logo(192)
+                card.alpha_composite(em, ((size - em.width) // 2, (size - em.height) // 2))
+                return card
+            return synthetic_radio_logo(size)
+        card = Image.new('RGBA', (size, size), (0x2c, 0x2c, 0x2e, 255))
+        g = self.icon('pod_ic_rd_art')
+        if g:
+            if size < 100: g = g.resize((16, 16), Image.LANCZOS)
+            card.alpha_composite(g, ((size - g.width) // 2, (size - g.height) // 2))
+        return card
+
+    def render(self, root, pct, charging, idle, mini=False, number=False, lang='en_US', radio=None, playing=True):
         self.number = number; self.date = pod_i18n.lock_date(lang)
+        self.radio, self.playing = radio, playing
         if self.wallpaper == 'stock':
             im = self.icon('screensaver_default').resize((W, H))
         elif self.wallpaper == 'busy':
@@ -115,7 +145,12 @@ class Painter:
         self.walk(im, root, 0, 0, (0, 0, W, H), pct, charging, idle)
         if mini and not idle:   # the bar is drawn as the Home bar's (tools/preview/preview_minibar.py: blur model, glass, rounded cover, Home glyphs) over the wallpaper
             x, y = mod_lockscreen.MINI_RECT['view_bottomview'][:2]
-            preview_minibar.draw(im, x, y, self.icon, self.line, self.cut, TITLE, ARTIST, synthetic_cover(36, 36))
+            if radio:
+                art = self.radio_art(36, logo=(radio == 'logo'))
+                sub = RADIO_LIVE if playing else RADIO_STOPPED
+                preview_minibar.draw(im, x, y, self.icon, self.line, self.cut, RADIO_TITLE, sub, art, playing=playing, radio=True)
+            else:
+                preview_minibar.draw(im, x, y, self.icon, self.line, self.cut, TITLE, ARTIST, synthetic_cover(36, 36), playing=playing)
         return im
     def cut(self, s, px, room):
         f = self.font(px)
@@ -142,8 +177,10 @@ class Painter:
         bgi = self.icon(wd.get('style:normal:bg_image')) if t == 'view' else None      # a glass card: drawn 1:1 at the widget's origin, straight alpha
         if bgi: im.alpha_composite(bgi.crop((c[0] - r[0], c[1] - r[1], c[2] - r[0], c[3] - r[1])), c[:2])
         if t == 'image' and name != 'img_screensaver':
-            img = synthetic_cover(r[2], r[3]) if name == 'view_img_icon' else \
-                self.icon('screens_charge' if name == 'img_battery' and charging else wd.get('image'))
+            if name == 'view_img_icon':
+                img = self.radio_art(r[2], logo=(self.radio == 'logo')) if self.radio else synthetic_cover(r[2], r[3])
+            else:
+                img = self.icon('screens_charge' if name == 'img_battery' and charging else wd.get('image'))
             if img:
                 if wd.get('draw_type') == 'scale_auto': img = img.resize((r[2], r[3]), Image.LANCZOS)
                 im.alpha_composite(img.crop((c[0] - r[0], c[1] - r[1], c[2] - r[0], c[3] - r[1])), c[:2])
@@ -152,12 +189,22 @@ class Painter:
         elif t == 'label' and name == mod_lockscreen.PCT_WIDGET:
             self.text(im, c, r, f'{pct}%', wd)
         elif t == 'hscroll_label':
-            self.text(im, c, r, {'view_scrlabel_title': TITLE, 'view_scrlabel_artist': ARTIST}.get(name, wd.get('text', '')), wd)
+            if self.radio:
+                txt = {'view_scrlabel_title': RADIO_TITLE, 'view_scrlabel_artist': RADIO_LIVE if self.playing else RADIO_STOPPED}.get(name, wd.get('text', ''))
+            else:
+                txt = {'view_scrlabel_title': TITLE, 'view_scrlabel_artist': ARTIST}.get(name, wd.get('text', ''))
+            self.text(im, c, r, txt, wd)
         elif t == 'progress_bar':
             if wd.get('show_text') == 'true': self.text(im, c, r, wd.get('format', '%d%%') % pct, wd)
             else: dr.rectangle([r[0], r[1], r[0] + r[2] * pct // 100 - 1, r[1] + r[3] - 1], fill=wd.get('style:normal:fg_color', '#FFFFFF'))
         elif t == 'button':
-            img = self.icon(wd.get('style:normal:bg_image') or self.theme.get('button', wd.get('style', 'default'), 'normal', 'icon'))
+            if self.radio and name == 'btn_play':
+                ic_name = 'np_stop' if self.playing else 'np_play'
+            elif self.radio and name == 'btn_next':
+                ic_name = 'np_next_off'
+            else:
+                ic_name = wd.get('style:normal:bg_image') or self.theme.get('button', wd.get('style', 'default'), 'normal', 'icon')
+            img = self.icon(ic_name)
             if img: im.alpha_composite(img, (r[0] + (r[2] - img.width) // 2, r[1] + (r[3] - img.height) // 2))
         for ch in wd.children: self.walk(im, ch, r[0], r[1], c, pct, charging, idle)
 
@@ -170,12 +217,14 @@ def main():
     for spec in a.panels:
         label, rest = spec.split('=', 1); path, *opts = rest.split(',')
         pct = next((int(o[4:]) for o in opts if o.startswith('pct=')), 86); charging, idle, mini, number = 'charging' in opts, 'idle' in opts, 'mini' in opts, 'number' in opts
+        radio = 'logo' if 'radio_logo' in opts else ('glyph' if 'radio' in opts else None)
+        playing = 'stopped' not in opts
         raw = next((o[4:] for o in opts if o.startswith('raw=')), a.raw)
         p = painters.setdefault(raw, Painter(raw, a.wallpaper))
         state = ('nothing queued, ' if idle else '') + f'{pct}%{", charging" if charging else ""}'
         root = awtk_ui.parse(open(path, 'rb').read())
         if mini: mod_lockscreen.apply_mini(root)
-        shots.append((f'{label}  ({state})', p.render(root, pct, charging, idle, mini, number, next((o[5:] for o in opts if o.startswith('lang=')), 'en_US'))))
+        shots.append((f'{label}  ({state})', p.render(root, pct, charging, idle, mini, number, next((o[5:] for o in opts if o.startswith('lang=')), 'en_US'), radio=radio, playing=playing)))
     top, pad = 18, 10
     out = Image.new('RGB', (len(shots) * (W + pad) + pad, H + top + 18), (40, 40, 40)); d = ImageDraw.Draw(out)
     for i, (label, im) in enumerate(shots):
