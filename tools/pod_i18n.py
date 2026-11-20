@@ -546,11 +546,11 @@ TEXT = dict([
     # The pins file could not be read (the card errors, or the list is one this version does not understand): a pin or unpin refuses and leaves the file as it is (patch/pins.c pn_load).
     _t("Can't update pins", '无法更新固定项', '無法更新釘選項目', 'ピン留めを更新できません', '고정 항목을 업데이트할 수 없음', 'Épingles non modifiables', 'Pins nicht änderbar',
        'No se pueden actualizar los fijados', 'Impossibile aggiornare i fissati', 'อัปเดตรายการที่ปักหมุดไม่ได้', 'Nie można zaktualizować przypięć', 'Не удалось обновить закреплённое', 'Не вдалося оновити закріплене'),
-    # A playlist's "..." > Clean Up Playlist (patch/songs.c sg_clean; docs/modules/playlists.md "Clean Up Playlist"): the card's row, the confirm text (the key by
+    # A playlist's "..." > Clean Up (patch/songs.c sg_clean; docs/modules/playlists.md "Clean Up Playlist"): the card's row, the confirm text (the key by
     # 1 / more; ru, pl, uk, th and the CJK languages need no plural), the messages; "File not found" is the toast of a song whose file is not on the card that is in
     # (patch/songops.c so_missing). Machine translations, unreviewed.
-    _t('Clean Up Playlist', '清理歌单', '清理歌單', 'プレイリストを整理', '재생 목록 정리', 'Nettoyer la playlist', 'Playlist bereinigen',
-       'Limpiar lista', 'Pulisci playlist', 'ล้างเพลย์ลิสต์', 'Wyczyść playlistę', 'Очистить плейлист', 'Очистити плейлист'),
+    _t('Clean Up', '清理', '清理', '整理', '정리', 'Nettoyer', 'Bereinigen',
+       'Limpiar', 'Pulisci', 'ล้าง', 'Wyczyść', 'Очистить', 'Очистити'),
     _t('Remove %d missing song from this playlist?', '从此歌单移除 %d 首缺失歌曲？', '從此歌單移除 %d 首缺失歌曲？', '存在しない曲を%d曲、このプレイリストから削除しますか？',
        '없는 곡 %d곡을 이 재생 목록에서 제거할까요?', 'Retirer %d titre manquant de cette playlist ?', '%d fehlenden Titel aus dieser Playlist entfernen?',
        '¿Quitar %d canción que falta de esta lista?', 'Rimuovere %d brano mancante da questa playlist?', 'ลบเพลงที่ไม่พบ %d เพลงออกจากเพลย์ลิสต์นี้?',

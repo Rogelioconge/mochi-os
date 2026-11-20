@@ -203,8 +203,8 @@ Shuffle check the first file with `access` and toast **"File not found"** with t
 "Storage unavailable" without it: `so_missing`.)
 
 **The row.** A stock playlist's songs page has the "..." in place of Select (`sg_cleans`); its card
-is two rows in `vs_glass2`: **Select**, then **Clean Up Playlist** (slot 8, `VS_ACT2`, glyph
-`pod_ic_vsclean`). A server playlist keeps the Select button. It works on this playlist only:
+is two rows in `vs_glass2`: **Select**, then **Clean Up** (slot 8, `VS_ACT2`, glyph
+`pod_ic_vsclean`, Lucide broom). A server playlist keeps the Select button. It works on this playlist only:
 
 1. **Check** (`sg_gone`, `so_gone_mark`): each row whose path starts with `/mnt/mmc/` is tested
    with `access`. Other paths (USB, none) are never tested, marked or written.

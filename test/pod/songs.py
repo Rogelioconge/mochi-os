@@ -2537,14 +2537,14 @@ def clean_tests(ctx):
     f = ui().find
     import mod_icons
     xx = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/images/xx')
-    expect(f('vs_label8').get('tr_text') == 'Clean Up Playlist' and f('vs_glyph8').get('image') == 'pod_ic_vsclean' and f('vs_label7').get('tr_text') == 'Select'
+    expect(f('vs_label8').get('tr_text') == 'Clean Up' and f('vs_glyph8').get('image') == 'pod_ic_vsclean' and f('vs_label7').get('tr_text') == 'Select'
            and f('vs_item8').get('enable') == 'true' and f('vs_label8').get('sensitive') == 'false' and f('vs_glyph8').get('sensitive') == 'false' and f('vs_tick8') is None
            and f('vs_label9').get('tr_text') == 'Pin Playlist' and f('vs_glyph9').get('image') == 'pod_ic_vspin' and f('vs_item9').get('enable') == 'true' and f('vs_tick9') is None,
-           'the Songs asset\'s card has a third and a fourth action row: slot 8 Clean Up Playlist with the list-x glyph, slot 9 Pin Playlist with the pin glyph, no ticks')
-    expect(mod_icons.SONGS_IMAGES['pod_ic_vsclean'] == ('list-x', mod_icons.WHITE, None, 20)
+           'the Songs asset\'s card has a third and a fourth action row: slot 8 Clean Up with the broom glyph, slot 9 Pin Playlist with the pin glyph, no ticks')
+    expect(mod_icons.SONGS_IMAGES['pod_ic_vsclean'] == ('broom', mod_icons.WHITE, None, 20)
            and open(os.path.join(xx, 'pod_ic_vsclean.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, 'pod_ic_vsclean.png'), 'rb').read(),
-           'pod_ic_vsclean is Lucide list-x on the cards\' 20 px canvas, the committed PNG in the package')
-    expect('Clean Up Playlist' not in pod_pages.PLAYLIST_MENU and len(pod_pages.PLAYLIST_MENU) == 4, 'the Playlists list page\'s actions card has no clean-up row (the action is the playlist\'s own)')
+           'pod_ic_vsclean is Lucide broom on the cards\' 20 px canvas, the committed PNG in the package')
+    expect('Clean Up' not in pod_pages.PLAYLIST_MENU and len(pod_pages.PLAYLIST_MENU) == 4, 'the Playlists list page\'s actions card has no clean-up row (the action is the playlist\'s own)')
 
     # the card: Select, Clean Up Playlist, in the two-row glass; other lists do not offer slot 8
     m = page()
@@ -2553,7 +2553,7 @@ def clean_tests(ctx):
     expect(vis(m, 'vs_card') == (1, 1) and [vis(m, f'vs_item{i}') for i in range(10)] == [(0, 0)] * 7 + [(1, 1)] * 3
            and all(m.props.get((card, f'style:{st}:bg_image')) == 'vs_glass3' for st in ('normal', 'pressed', 'over'))
            and ('widget_move', m.widgets['vs_item7'], 0, 0) in m.calls and ('widget_move', m.widgets['vs_item8'], 0, 50) in m.calls and ('widget_move', m.widgets['vs_item9'], 0, 100) in m.calls,
-           'a playlist\'s card: Select, Clean Up Playlist, then Pin Playlist, three rows in vs_glass3')
+           'a playlist\'s card: Select, Clean Up, then Pin Playlist, three rows in vs_glass3')
     m.click('vs_scrim', count=900000000)
     expect(vis(m, 'vs_card') == (0, 0), 'the scrim closes it')
     m.call(PSYMS['sg_on_destroy'], count=4000000)

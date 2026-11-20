@@ -1353,7 +1353,7 @@ def build_songs_page(page):
     root.children.extend(azlist_labels())
     root.children.extend(azlist_rail())
     root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))
-    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up Playlist', 'Pin Playlist'),
+    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up', 'Pin Playlist'),
                                         act_glyphs=('pod_ic_vssearch', 'pod_ic_vsselect', 'pod_ic_vsclean', 'pod_ic_vspin')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Clean Up Playlist (slot 8) and Pin Playlist / Unpin Playlist (slot 9), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; the Search Songs row is never offered, Search is the navbar button)
     root.children.extend(row_menu())   # last: above everything (the track rows' "..." menu, patch/rowmenu.c)
     return root

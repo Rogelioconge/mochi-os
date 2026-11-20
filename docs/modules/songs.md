@@ -70,7 +70,7 @@ the glass of its row count).
 | Songs (library) | Select, hairline, Title, File Name, Format, Recently Added | `vs_glass5` |
 | Recently Added, songs view | Select, hairline, Albums, Songs (ticked) | `vs_glass3` |
 | Recently Added, albums view | Albums (ticked), Songs; Select goes (`vs_offer` repacks) | `vs_glass2` |
-| a stock playlist | Select, Clean Up Playlist ([playlists](playlists.md) "Clean Up Playlist") | `vs_glass2` |
+| a stock playlist | Select, Clean Up ([playlists](playlists.md) "Clean Up Playlist") | `vs_glass2` |
 | Favorites, Recently Played, Most Played, Hi-Res, a genre, an artist, a server playlist | no card: the Select button | - |
 
 **Select** is a Tabler `circle-check` glyph (`pod_ic_vsselect`); it works only with songs listed and
