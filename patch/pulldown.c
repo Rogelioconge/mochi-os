@@ -468,11 +468,20 @@ int pd_open_dialog(const char *name) {
     return ret;
 }
 
+/* The Control Labels switch (Settings > Appearance): on by default; "0" hides every tile caption while keeping the discs in place. */
+int pd_labels_setting(void) { return set_read(PDLABELS_FILE, '1') != '0'; }
+
+int pd_labels_toggle(void) {
+    int next = !pd_labels_setting();
+    return home_write_atomic(PDLABELS_FILE, PDLABELS_TMP, next ? "1\n" : "0\n") != 0 ? -1 : next;
+}
+
 static void pd_start(void *dlg) {
     void *img[PD_N], *lab[PD_N];
     int px[PD_N], py[PD_N], dx[PD_N], dy[PD_N];
     unsigned char ord[PD_N];
     unsigned i, n, shown = 0;
+    int labels;
     for (i = 0; i < PD_N; i++) {
         img[i] = widget_lookup(dlg, PD_IMG[i], 1);
         lab[i] = widget_lookup(dlg, PD_LAB[i], 1);
@@ -482,16 +491,21 @@ static void pd_start(void *dlg) {
         dx[i] = widget_get_prop_int(lab[i], "x", 0) - px[i];
         dy[i] = widget_get_prop_int(lab[i], "y", 0) - py[i];
     }
+    labels = pd_labels_setting();
     n = pd_load(ord);
     for (i = 0; i < n; i++) shown |= 1u << ord[i];
     pd_bind_hold(dlg, img, shown);
     for (i = 0; i < n; i++)
         if (ord[i] != i) break;
-    if (n == PD_STOCK && i == n) return; /* the stock layout (ours stay as the asset has them: hidden) */
+    if (n == PD_STOCK && i == n) { /* the stock layout (ours stay as the asset has them: hidden) */
+        if (!labels)
+            for (i = 0; i < PD_STOCK; i++) m1_show(lab[i], 0);
+        return;
+    }
     for (i = 0; i < n; i++) { /* shown tile ord[i] takes tile i's place (the places were read above) */
         unsigned id = ord[i];
         widget_move(img[id], px[i], py[i]);
-        widget_move(lab[id], px[i] + dx[id], py[i] + dy[id]);
+        if (labels) widget_move(lab[id], px[i] + dx[id], py[i] + dy[id]);
         if (id >= PD_STOCK) { /* ours: bound to a tap, then shown (one that cannot be bound stays hidden) */
             pd_tile[id - PD_STOCK].dlg = dlg;
             pd_tile[id - PD_STOCK].img = img[id];
@@ -499,16 +513,18 @@ static void pd_start(void *dlg) {
             if (widget_on(img[id], EVT_CLICK, pd_on_tile, &pd_tile[id - PD_STOCK])) {
                 if (pd_is_switch(id)) pd_switch_art(id, img[id]);
                 m1_show(img[id], 1);
-                m1_show(lab[id], 1);
+                if (labels) m1_show(lab[id], 1);
             } else
                 shown &= ~(1u << id);
         }
     }
-    for (i = 0; i < PD_N; i++)
+    for (i = 0; i < PD_N; i++) {
         if (!(shown >> i & 1)) {
             m1_show(img[i], 0);
             m1_show(lab[i], 0);
-        }
+        } else if (!labels)
+            m1_show(lab[i], 0);
+    }
 }
 
 /* ---- the Playback / System Settings tiles

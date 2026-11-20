@@ -161,7 +161,8 @@ Open **Settings → Playback → EQ** for the [equalizer](equalizer-guide.md), o
 
 **Background** is Black or Tinted; Tinted washes the dark greys with the chosen accent. **Accent**
 chooses Neutral, Red, Orange, Green, Teal, Purple or Champagne and applies at once. **Control Center**
-customizes the pull-down tiles; see [Home Screen and Control Center](#home-screen-and-control-center).
+customizes the pull-down tiles, and **Control Labels** toggles the text under them; see
+[Home Screen and Control Center](#home-screen-and-control-center).
 
 ### Buttons & Power
 

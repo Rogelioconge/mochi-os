@@ -97,6 +97,9 @@
 #define PULLDOWN_FILE \
     "/mnt/data/m1plus/pulldown-tiles" /* the pull-down's tiles: the shown ones' ids in order, optionally '-' and the hidden ones (patch/pulldown.c); missing or invalid = all eight in stock order */
 #define PULLDOWN_TMP "/mnt/data/m1plus/pulldown-tiles.tmp"
+#define PDLABELS_FILE \
+    "/mnt/data/m1plus/pulldown-labels" /* Control Labels (patch/pulldown.c): "0" = hide the pull-down's tile captions, anything else or missing = shown (the default) */
+#define PDLABELS_TMP "/mnt/data/m1plus/pulldown-labels.tmp"
 #define RECENT_FILE \
     CARD_DIR \
     "/recently-played" /* the albums played last, most recent first (patch/recent.c): on the card, like the keys and paths it holds; missing, malformed or no card = none */
@@ -348,6 +351,9 @@ extern int azrail_setting(void); /* patch/azlist.c: Settings > Library > Index R
 extern int azrail_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern int azhead_setting(void); /* patch/azlist.c: Settings > Library > Section Headers: 1 on (the default), 0 off */
 extern int azhead_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
+extern int
+pd_labels_setting(void); /* patch/pulldown.c: Settings > Appearance > Control Labels: 1 on (the default), 0 off */
+extern int pd_labels_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 
 /* patch/m1plus.c (stages with the home feature) */
 extern int m1plus_open_entry(void);

@@ -142,6 +142,9 @@ TEXT = dict([
     # state (High / Low, USB AUDIO / DAC / Storage)
     _t('Control Center', '控制中心', '控制中心', 'コントロールセンター', '제어 센터', 'Centre de contrôle', 'Kontrollzentrum',
        'Centro de control', 'Centro di Controllo', 'ศูนย์ควบคุม', 'Centrum sterowania', 'Пункт управления', 'Пункт керування'),
+    # Settings > Appearance > Control Labels (patch/pulldown.c, docs/modules/pulldown.md); machine translations, unreviewed
+    _t('Control Labels', '控制项标签', '控制項標籤', 'ラベルを表示', '컨트롤 레이블', 'Libellés', 'Beschriftungen',
+       'Etiquetas', 'Etichette', 'ป้ายควบคุม', 'Etykiety', 'Подписи плиток', 'Підписи плиток'),
     _t('Gain', '增益', '增益', 'ゲイン', '게인', 'Gain', 'Verstärkung',
        'Ganancia', 'Guadagno', 'เกน', 'Wzmocnienie', 'Усиление', 'Підсилення'),
     _t('USB Mode', 'USB 模式', 'USB 模式', 'USBモード', 'USB 모드', 'Mode USB', 'USB-Modus',

@@ -10,6 +10,7 @@ import cdefs
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 
 FILE, TMP = '/mnt/data/m1plus/pulldown-tiles', '/mnt/data/m1plus/pulldown-tiles.tmp'
+LABELS_FILE, LABELS_TMP = '/mnt/data/m1plus/pulldown-labels', '/mnt/data/m1plus/pulldown-labels.tmp'
 IMG = ('img_wifiswitch', 'img_btswitch', 'img_keylockswitch', 'img_gainswitch', 'img_usbmode', 'img_outputswitch', 'img_playset', 'img_sysset', 'pod_tile_sleep', 'pod_tile_settings', 'pod_tile_eq', 'pod_tile_power', 'pod_tile_airplay', 'pod_tile_dlna', 'pod_tile_transfer', 'pod_tile_shot')
 LAB = ('label_wifi', 'label_bt', 'label_lock', 'label_gain', 'label_usbmode', 'label_outputway', 'label_playset', 'label_sysset', 'pod_cap_sleep', 'pod_cap_settings', 'pod_cap_eq', 'pod_cap_power', 'pod_cap_airplay', 'pod_cap_dlna', 'pod_cap_transfer', 'pod_cap_shot')
 UI = os.path.join('rootfs', 'release/assets/default/raw/ui/dialog/dropdown_dialog.bin')
@@ -232,9 +233,9 @@ def page_tests(ctx):
     sysrows = [r.label for r in P.SETTINGS_PAGE.rows]
     a_i = next(i for i, r in enumerate(P.SETTINGS_PAGE.rows) if r.action == P.ACT_PAGE and r.arg == P.APPEARANCE_PAGE_INDEX)
     expect(P.SETTINGS_PAGE.rows[a_i].label == 'Appearance' and sysrows[sysrows.index('Display') + 1] == 'Appearance' and sysrows[sysrows.index('Display') + 2] == 'Buttons & Power'
-           and P.PAGES[P.APPEARANCE_PAGE_INDEX] is P.APPEARANCE_PAGE and P.APPEARANCE_PAGE.title == 'Appearance' and [r.label for r in P.APPEARANCE_PAGE.rows] == ['Background', 'Accent', 'Control Center']
+           and P.PAGES[P.APPEARANCE_PAGE_INDEX] is P.APPEARANCE_PAGE and P.APPEARANCE_PAGE.title == 'Appearance' and [r.label for r in P.APPEARANCE_PAGE.rows] == ['Background', 'Accent', 'Control Center', 'Control Labels']
            and P.PAGES[P.PULLDOWN_PAGE_INDEX] is P.PULLDOWN_PAGE and P.PULLDOWN_PAGE.title == 'Control Center' and P.PULLDOWN_PAGE.rows == [] and P.PULLDOWN_PAGE.kind == 'pdcfg',
-           'Settings has an Appearance link row after Display; its page has Background and Accent, then the Control Center row in a card of its own, which opens the page of that title (Lock Screen is on Display)')
+           'Settings has an Appearance link row after Display; its page has Background and Accent, then Control Center and Control Labels in the second card (Lock Screen is on Display)')
     arrow = lambda m, i: m.click(f'pod_row{i}', x=ZX + ZW // 2)
 
     def open_page(data=None):
@@ -1463,4 +1464,69 @@ def hold_tests(ctx):
            f'pressdown_y (0xa05a30) and the < 81 threshold words in on_wm_tsmove_fun are pinned and stock ({p})')
 
 
-SECTIONS = [hook_tests, page_tests, files_tests, own_tests, hold_tests, flags_tests, playtile_tests, stockopen_tests, gate_tests, close_tests]
+def labels_tests(ctx):
+    """Settings > Appearance > Control Labels (ACT_PDLABELS, /mnt/data/m1plus/pulldown-labels): on by default; off hides every tile caption while keeping the discs in place."""
+    expect, P = ctx.expect, pod_pages
+    A = P.APPEARANCE_PAGE
+    li = next(i for i, r in enumerate(A.rows) if r.action == P.ACT_PDLABELS)
+    expect(P.ACT_PDLABELS == 209 and P.ACT_PDLABELS in P.SWITCH_ACTIONS and P.row_kind(A.rows[li]) == 'switch'
+           and A.rows[li].label == 'Control Labels' and A.rows[li - 1].label == 'Control Center'
+           and 'pulldown-labels' in P.SETTING_FILES,
+           'Control Labels switch (ACT_PDLABELS 209) sits under Control Center on Appearance and is listed in Settings Files')
+    src = open(os.path.join(ROOT, 'patch', 'setfiles.c')).read()
+    expect('{PDLABELS_FILE, K_CHAR}' in src, 'patch/setfiles.c lists PDLABELS_FILE as K_CHAR')
+
+    # -- pull-down init with stock order: off hides the 8 stock captions without moving any disc; default/1/invalid keeps labels shown
+    for name, val in (('0 with newline', b'0\n'), ('bare 0', b'0')):
+        m = PD(); m.fs[LABELS_FILE] = val; ret = m.open()
+        expect(ret == 0 and not [c for c in m.calls if c[0] == 'widget_move']
+               and all(m.hidden(n) for n in LAB)
+               and all(m.pos(n) == m.geo[n][:2] and not m.hidden(n) for n in IMG[:N])
+               and all(m.hidden(n) for n in IMG[N:]),
+               f'stock order, labels off ({name}): all captions hidden and insensitive, stock discs unmoved and visible')
+    for name, val in (('missing', None), ('1', b'1\n'), ('invalid', b'x\n'), ('empty', b'')):
+        m = PD()
+        if val is not None: m.fs[LABELS_FILE] = val
+        ret = m.open()
+        expect(ret == 0 and m.touched() == [] and check_layout(m, list(range(N))) is None,
+               f'stock order, labels on ({name}): stock layout untouched')
+
+    # -- custom order including our tiles: discs move to slots and show; all 16 captions stay hidden and unmoved
+    order = [8, 10, 0, 1]
+    m = PD(fs=b'8a01\n'); m.fs[LABELS_FILE] = b'0\n'; ret = m.open()
+    want_pos = {IMG[t]: m.geo[IMG[k]][:2] for k, t in enumerate(order)}
+    expect(ret == 0
+           and all(m.pos(IMG[t]) == want_pos[IMG[t]] and m.props.get((m.widgets[IMG[t]], 'visible'), 1) == 1 and m.props.get((m.widgets[IMG[t]], 'sensitive'), 1) == 1 for t in order)
+           and all(m.hidden(IMG[t]) and m.pos(IMG[t]) == m.geo[IMG[t]][:2] for t in range(NT) if t not in order)
+           and all(m.hidden(n) and m.pos(n) == m.geo[n][:2] for n in LAB),
+           'custom order with our tiles, labels off: shown discs moved and visible, hidden discs and all 16 captions hidden and unmoved')
+
+    # -- Appearance page switch row: default on, saved off, toggle off/on atomically, failed save keeps state
+    def open_appearance(saved=None):
+        m = Machine()
+        names = ['btn_return', 'btn_backtoplayer'] + [f'pod_{k}{i}' for k in ('row', 'value', 'label', 'switch') for i in range(len(A.rows))]
+        m.widgets = {n: 0x30000000 + 0x100 * i for i, n in enumerate(names)}
+        if saved is not None: m.fs[LABELS_FILE] = saved
+        row = m.alloc(12)
+        m.setword(row, m.cstr('pod_row0')); m.setword(row + 4, P.ACT_PAGE); m.setword(row + 8, P.APPEARANCE_PAGE_INDEX)
+        m.call(PSYMS['on_row'], a0=row, count=6000000)
+        return m
+
+    sw_img = lambda m: [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets[f'pod_switch{li}']]
+    m = open_appearance()
+    expect(sw_img(m)[-1:] == ['sset_on'] and LABELS_FILE not in m.fs, 'Appearance opens with Control Labels on by default, writing nothing')
+    m = open_appearance(b'0\n')
+    expect(sw_img(m)[-1:] == ['sset_off'], 'Appearance shows Control Labels off when file has 0')
+    m = open_appearance()
+    m.click(f'pod_row{li}')
+    expect(m.fs.get(LABELS_FILE) == b'0\n' and LABELS_TMP not in m.fs and ('rename', LABELS_TMP, LABELS_FILE) in m.calls and sw_img(m)[-1:] == ['sset_off'],
+           'tapping Control Labels turns it off atomically')
+    m.click(f'pod_row{li}')
+    expect(m.fs.get(LABELS_FILE) == b'1\n' and LABELS_TMP not in m.fs and sw_img(m)[-1:] == ['sset_on'],
+           'tapping again turns it back on')
+    m = open_appearance(b'0\n'); m.fail.add(('write', LABELS_TMP))
+    m.click(f'pod_row{li}')
+    expect(m.fs.get(LABELS_FILE) == b'0\n' and LABELS_TMP not in m.fs and sw_img(m) == [], 'failed save leaves file and switch unchanged')
+
+
+SECTIONS = [hook_tests, page_tests, labels_tests, files_tests, own_tests, hold_tests, flags_tests, playtile_tests, stockopen_tests, gate_tests, close_tests]

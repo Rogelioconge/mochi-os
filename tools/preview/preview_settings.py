@@ -22,7 +22,7 @@ RAW = PI.RAW
 WT_STATE = {'values': {'pod_big0_t': '192.168.100.100:8888'}}   # Wi-Fi Transfer: the big card's text, four three-digit groups (the digits are tabular: 255.255.255.255 is as wide)
 STATE = {
     'm1plus_settings': {'values': {'pod_value0': 'Off', 'pod_value1': 'Off', 'pod_value6': 'Rock'}},   # Wi-Fi, Bluetooth and EQ (the 10-Band EQ's curve name, or Off)
-    'm1plus_appearance': {'values': {'pod_value0': 'Neutral'}},
+    'm1plus_appearance': {'values': {'pod_value0': 'Black', 'pod_value1': 'Neutral'}, 'switches': {'pod_switch3': True}},
     'm1plus_general': {'values': {'pod_value3': 'English'}},   # Language
     'm1plus_background': {'shown': {'pod_check1'}},
     'm1plus_accent': {'shown': {'pod_check0'}},

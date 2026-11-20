@@ -24,7 +24,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | (card) | General | About, Software Update; Date & Time, Keyboards, Language | [General](#general) |
 | | Display | our page | [display](display.md) |
 | | Buttons & Power | our page | [keyspower](keyspower.md) |
-| | Appearance | Background, Accent, Control Center | [accent](accent.md), [pulldown](pulldown.md) |
+| | Appearance | Background, Accent, Control Center, Control Labels | [accent](accent.md), [pulldown](pulldown.md) |
 | | Battery | Battery Percentage, Charge Limit, Battery History | [battery](battery.md), [charging](charging.md) |
 | General | Software Update | our page `m1plus_update` (link row, glyph `download`) | [update](update.md) |
 | | Date & Time | Set Automatically, Time Zone (43 zones), Date and Time, 24-Hour Time | [datetime](datetime.md) |
@@ -194,6 +194,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `podcast-online-search` | Podcast Discover | `0` off; missing/other on (the default); gates Discover and the search level ([podcasts](podcasts.md)) |
 | `podcast-directory` | Podcast Directory | `1` Podcast Index; missing/other Apple Podcasts (the default); where the search and the id lookup go ([podcasts](podcasts.md) "Podcast Directory") |
 | `podcast-region` | Podcast Region | the storefront's two capital letters and a line feed (one of the 34 in `tools/pcregion.py`); missing/other Automatic ([podcasts](podcasts.md) "Region") |
+| `pulldown-labels` | Control Labels | `0` hides the Control Center tile captions; missing/other shown (the default) ([pulldown](pulldown.md)) |
 | `pulldown-tiles` | Control Center | tile ids `0`-`9`, `a` and `b` in order (at most eight), optional `-` then the hidden ids; invalid = the eight stock tiles in stock order ([pulldown](pulldown.md)) |
 | `radio-recent` | Recent radio stations | an `.m3u` of up to 10 stations, newest first ([radio](radio.md)) |
 | `radio-view` | Radio station lists view | `1` grid; missing/other list ([radio](radio.md)) |

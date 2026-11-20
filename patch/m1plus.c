@@ -206,7 +206,8 @@ enum {
     ACT_GSSEP6 = 205,
     ACT_GSSEP7 = 206,
     ACT_GSSEP8 = 207,
-    ACT_GSSEP9 = 208
+    ACT_GSSEP9 = 208,
+    ACT_PDLABELS = 209 /* Settings > Appearance: Control Labels, a switch (patch/pulldown.c) */
 };
 
 struct pod_row {
@@ -242,8 +243,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 57 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 58, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 59 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 59, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -806,6 +807,7 @@ static const struct pod_switch {
     {ACT_LEDFOLLOW, disp_follow, disp_follow_toggle},
     {ACT_TAPWAKE, kp_tap, kp_tap_toggle},
     {ACT_SWAPKEYS, kp_swap, kp_swap_toggle},
+    {ACT_PDLABELS, pd_labels_setting, pd_labels_toggle},
     {ACT_STANDBY, kp_standby, kp_standby_toggle},
     {ACT_ROTATE, disp_rotate, disp_rotate_toggle},
     {ACT_CARMODE, kp_car, kp_car_toggle},

@@ -85,7 +85,9 @@ dispatcher, the pointer binds and the tile visitor's click bind.
   first frame instead of one timer tick later.
 - The file is read. Shown tile k takes the place of stock tile k (positions read from the widgets)
   and its caption keeps its own offset; the other tiles and captions get `visible=false` **and**
-  `sensitive=false`. The default file moves nothing. No widget is renamed or deleted.
+  `sensitive=false`. When **Control Labels** (Settings > Appearance, `/mnt/data/m1plus/pulldown-labels`,
+  `0` off, missing/other on) is off, all sixteen tile captions get `visible=false` and `sensitive=false`
+  while the discs stay in their stock positions. The default files move nothing. No widget is renamed or deleted.
 - Stock handlers find tiles by name, so a moved or hidden tile keeps working. Stock code never sets
   a tile's visibility or position. The dialog binds pointer events only, so hardware keys cannot
   reach a hidden tile; `sensitive=false` stops a touch (this AWTK hit-tests hidden widgets,
