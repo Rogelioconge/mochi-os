@@ -350,6 +350,12 @@
 #define AB_FOOT_PAD 18         /* the content ends this far under the line (14 + 20 + 18 = 52, the Songs page's count has the same) */
 #define AB_FOOT_R 10           /* the right margin */
 #define AB_FOOT_PX 15
+/* A multi-disc album (two or more runs of REC_DISC, every track's above 0, no disc twice): a "Disc N" heading AB_DISC_H high before each disc's first row, its line (AB_TEXT_H high,
+ * AB_DISC_PX grey, label_row_disc) AB_DISC_Y down the band at AB_NUM_X; the numbers start at 1 on each disc. More than AB_DISC_MAX discs: one list, numbered through. */
+#define AB_DISC_H 44
+#define AB_DISC_Y 16
+#define AB_DISC_PX 17
+#define AB_DISC_MAX 16
 #define REC_CUE_END 0x4c       /* the CUE track's end (loadSongList's twin of REC_CUE_START); the stock row shows a CUE track by its file name when either is set (@0x524c98) */
 /* Our Queue page (patch/queuepage.c, docs/modules/queue.md; ui/m1plus_queue.bin, tools/pod_ui.py build_queue_page, which reads this file and must equal it), in place of the stock
  * queue drawer. Window rows (the list is the whole window, QP_WIN_H, the glass Back floats over it): the playing track's QP_COVER px cover (QP_COVER_R corners cut in

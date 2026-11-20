@@ -19,7 +19,7 @@ artist = 歌手 / Künstler ...).
 """
 
 LOCALES = ['en_US', 'zh_CN', 'zh_HK', 'ja_JP', 'ko_KR', 'fr_FR', 'ge_DE', 'sp_ES', 'it_IT', 'th_TH', 'po_PL', 'ru_RU', 'uk_UK']
-COUNT_PREFIXES = ('%d', 'Added %d', 'Downloading %d', 'See All (', 'Remove %d ', 'Scan %d ')   # keys whose text holds the count as %d (the checks of tools/mod_strings.py and test/pod/i18n.py)
+COUNT_PREFIXES = ('%d', 'Added %d', 'Downloading %d', 'See All (', 'Remove %d ', 'Scan %d ', 'Disc %d')   # keys whose text holds the count as %d (the checks of tools/mod_strings.py and test/pod/i18n.py)
 TWINS = {'de_DE': 'ge_DE', 'es_ES': 'sp_ES', 'pl_PL': 'po_PL'}      # unreachable stub tables -> the table that holds their language
 ALL_TABLES = sorted(LOCALES + list(TWINS))
 
@@ -417,6 +417,7 @@ TEXT = dict([
     _t('Rebuilding artist photos…', '正在重建艺人照片…', '正在重建藝人照片…', 'アーティスト写真を再構築中…', '아티스트 사진 다시 만드는 중…', 'Reconstruction des photos…', 'Künstlerfotos werden neu erstellt…',
        'Reconstruyendo fotos de artistas…', 'Ricostruzione foto artisti…', 'กำลังสร้างรูปศิลปินใหม่…', 'Odbudowa zdjęć wykonawców…', 'Пересоздание фото исполнителей…', 'Перестворення фото виконавців…'),
     _t('%d track, %s', '%d 首歌，%s', '%d 首歌，%s', '%d曲、%s', '%d곡, %s', '%d titre, %s', '%d Titel, %s', '%d canción, %s', '%d brano, %s', '%d เพลง, %s', 'Utwory: %d, %s', 'Песен: %d, %s', 'Пісень: %d, %s'),
+    _t('Disc %d', '光盘 %d', '光碟 %d', 'ディスク%d', '디스크 %d', 'Disque %d', 'CD %d', 'Disco %d', 'Disco %d', 'แผ่นที่ %d', 'Płyta %d', 'Диск %d', 'Диск %d'),
     _t('%d tracks, %s', '%d 首歌，%s', '%d 首歌，%s', '%d曲、%s', '%d곡, %s', '%d titres, %s', '%d Titel, %s', '%d canciones, %s', '%d brani, %s', '%d เพลง, %s', 'Utwory: %d, %s', 'Песен: %d, %s', 'Пісень: %d, %s'),
     _t('%d minute', '%d 分钟', '%d 分鐘', '%d分', '%d분', '%d minute', '%d Minute', '%d minuto', '%d minuto', '%d นาที', '%d min', '%d мин', '%d хв'),
     _t('%d minutes', '%d 分钟', '%d 分鐘', '%d分', '%d분', '%d minutes', '%d Minuten', '%d minutos', '%d minuti', '%d นาที', '%d min', '%d мин', '%d хв'),

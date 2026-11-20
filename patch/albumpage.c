@@ -57,6 +57,10 @@ static struct {
     vs_t
         vs; /* the shared "..." card: a source's page Download Album; the library's Select and, for an album with a title, Pin / Unpin Album */
     void *st_num, *st_title; /* hidden labels whose styles are the number's and the title's */
+    void *st_disc; /* the "Disc N" headings' (NULL: the asset has none, no headings) */
+    int ndisc; /* the discs of a multi-disc album (ab_discs), 0 for one list */
+    unsigned dstart[AB_DISC_MAX + 1]; /* disc k's first track; dstart[ndisc] = count */
+    int dnum[AB_DISC_MAX]; /* its REC_DISC */
     void *
         st_dim; /* a source's: the title of a row that cannot play (NULL: the asset has none, the row is drawn as the others) */
     void *
@@ -139,12 +143,42 @@ static int ab_playing(void *rec) {
 }
 
 /* ---------------------------------------------------------------------------
- * Geometry: the header is AH_HDR_H high (the cover at AH_ART_Y, the controls' band over its first rows), AH_TITLE_LH more with a two-line title (ab.tsh), then one ROW per track
+ * Geometry: the header is AH_HDR_H high (the cover at AH_ART_Y, the controls' band over its first rows), AH_TITLE_LH more with a two-line title (ab.tsh), then one ROW per track; a
+ * multi-disc album has an AB_DISC_H heading before each disc's first track
  */
 static int ab_hdr(void) { return AH_HDR_H + ab.tsh; }
-static int ab_row_y(int i) { return ab_hdr() + i * ROW; }
+
+/* The discs, read from the list once it is read: stock sorts an album's tracks by disc, then track (getMusicByAlbum's comparator @0x4e9020), a source lists them in the server's order.
+ * Headings only when there are two or more runs of one REC_DISC, every one above 0 (an untagged track has none to go under) and none twice (a list in another order), at most
+ * AB_DISC_MAX; else one list numbered through. */
+static void ab_discs(void) {
+    unsigned i;
+    int k, n = 0;
+    ab.ndisc = 0;
+    if (!ab.st_disc || ab.count < 2) return;
+    for (i = 0; i < ab.count; ++i) {
+        int d = I(deque_at(ab.list, i), REC_DISC);
+        if (d <= 0) return;
+        if (n && d == ab.dnum[n - 1]) continue;
+        if (n == AB_DISC_MAX) return;
+        for (k = 0; k < n; ++k)
+            if (ab.dnum[k] == d) return;
+        ab.dstart[n] = i, ab.dnum[n++] = d;
+    }
+    ab.dstart[n] = ab.count;
+    if (n >= 2) ab.ndisc = n;
+}
+
+/* The disc of track i (i = count: the last), 0 for one list. */
+static int ab_disc_of(int i) {
+    int k = 0;
+    while (k + 1 < ab.ndisc && (unsigned)i >= ab.dstart[k + 1]) ++k;
+    return k;
+}
+static int ab_head_y(int k) { return ab_hdr() + (int)ab.dstart[k] * ROW + k * AB_DISC_H; } /* disc k's heading */
+static int ab_row_y(int i) { return ab_hdr() + i * ROW + (ab.ndisc ? (ab_disc_of(i) + 1) * AB_DISC_H : 0); }
 static int ab_content(void) {
-    return ab_hdr() + (int)ab.count * ROW + (ab.count && ab.dur ? AB_FOOT_GAP + AB_FOOT_TEXT_H + AB_FOOT_PAD : 0) +
+    return ab_row_y((int)ab.count) + (ab.count && ab.dur ? AB_FOOT_GAP + AB_FOOT_TEXT_H + AB_FOOT_PAD : 0) +
            (ab.select ? SG_BAR_H : 0); /* (the bar covers the foot of the window: the last track clears it) */
 }
 
@@ -153,24 +187,47 @@ static int ab_max_scroll(void) {
     return m > 0 ? m : 0;
 }
 
-/* The track under content point y, -1 for the header and the air below the last row. */
+/* The track whose row holds content point y (*head: y is on a disc heading, the track is the one under it), or the first track below it; count past the last row, -1 above the first. */
+static int ab_row_at(int y, int *head) {
+    int k = ab.ndisc ? ab.ndisc - 1 : 0, top;
+    *head = 0;
+    while (k > 0 && y < ab_head_y(k)) --k;
+    top = ab.ndisc ? ab_head_y(k) + AB_DISC_H : ab_hdr();
+    if (y < top) {
+        *head = ab.ndisc && y >= ab_head_y(k);
+        return *head ? (int)ab.dstart[k] : -1;
+    }
+    {
+        int i = (int)(ab.ndisc ? ab.dstart[k] : 0) + (y - top) / ROW;
+        return i > (int)ab.count ? (int)ab.count : i;
+    }
+}
+
+/* The track under content point y, -1 for the header, a disc heading and the air below the last row. */
 static int ab_at(int y) {
-    int i = (y - ab_hdr()) / ROW;
-    return y < ab_hdr() || i >= (int)ab.count ? -1 : i;
+    int head, i = ab_row_at(y, &head);
+    return head || i >= (int)ab.count ? -1 : i;
 }
 
 /* The rows [*r0, *r1] that touch the view (r1 < r0 for none). */
 static void ab_span(int *r0, int *r1) {
-    int s = grid_sv_off(ab.sv), n = (int)ab.count, h = ab_hdr();
-    *r0 = s <= h ? 0 : (s - h) / ROW;
-    *r1 = s + AH_WIN_H - 1 < h ? -1 : (s + AH_WIN_H - 1 - h) / ROW;
+    int s = grid_sv_off(ab.sv), n = (int)ab.count, head, e;
+    *r0 = ab_row_at(s, &head);
+    if (*r0 < 0) *r0 = 0;
+    e = ab_row_at(s + AH_WIN_H - 1, &head);
+    *r1 = e < 0            ? -1
+          : head || e >= n ? e - 1
+                           : e; /* (a heading or the air at the bottom: the row before it is the last) */
     if (*r1 > n - 1) *r1 = n - 1;
 }
+
+/* The number a track shows: its place in its disc (in the album for one list). */
+static int ab_pos(int i) { return i + 1 - (ab.ndisc ? (int)ab.dstart[ab_disc_of(i)] : 0); }
 
 /* The select mode moves the rows' content right by one column. */
 static int ab_shift(void) { return ab.select ? SG_SEL_COL : 0; }
 static int ab_numw(int i) {
-    return i + 1 >= 100 ? ROW_NUM_W3 : ROW_NUM_W;
+    return ab_pos(i) >= 100 ? ROW_NUM_W3 : ROW_NUM_W;
 } /* the number's column: 22 px, 32 for three digits */
 static int ab_tx(int i) { return AB_NUM_X + ab_shift() + ab_numw(i) + AB_NUM_GAP; } /* the title's x */
 
@@ -213,9 +270,10 @@ static void ab_retext(void) {
 static void ab_number(void *canvas, int i, int y) {
     unsigned w[8], n = 0, d;
     int rect[4];
-    for (d = 1; (unsigned)(i + 1) / d >= 10; d *= 10) {
+    unsigned v = (unsigned)ab_pos(i);
+    for (d = 1; v / d >= 10; d *= 10) {
     }
-    for (; d; d /= 10) w[n++] = '0' + ((unsigned)(i + 1) / d) % 10;
+    for (; d; d /= 10) w[n++] = '0' + (v / d) % 10;
     rect[0] = AB_NUM_X + ab_shift(), rect[1] = y + AB_NUM_Y, rect[2] = ab_numw(i), rect[3] = AB_TEXT_H;
     canvas_draw_text_in_rect(canvas, w, n, rect); /* the scroll_view's clip cuts it at the window's edges */
 }
@@ -226,6 +284,25 @@ static void ab_paint_wave(void *canvas, int i, int y) {
 }
 
 static void ab_paint_pill(void *canvas, int off);
+
+/* The "Disc N" headings in view (a multi-disc album): grey at AB_NUM_X, with the rows' select-mode shift, AB_DISC_Y down their band. */
+static void ab_paint_discs(void *canvas, int off) {
+    int k;
+    if (!ab.ndisc) return;
+    widget_prepare_text_style(ab.st_disc, canvas);
+    for (k = 0; k < ab.ndisc; ++k) {
+        int y = ab_head_y(k) - off, rect[4];
+        char line[48];
+        unsigned w[48], n = 0;
+        if (y + AB_DISC_H <= 0 || y >= AH_WIN_H) continue;
+        snprintf(line, sizeof line, TR("Disc %d"), ab.dnum[k]);
+        tk_utf8_to_utf16_ex(line, strlen(line), w, 47);
+        while (n < 47 && w[n]) ++n;
+        rect[0] = AB_NUM_X + ab_shift(), rect[1] = y + AB_DISC_Y, rect[2] = AB_TEXT_END - AB_NUM_X - ab_shift(),
+        rect[3] = AB_TEXT_H;
+        canvas_draw_text_in_rect(canvas, w, n, rect);
+    }
+}
 
 /* A source's row marks. The group (downloaded disc or download ring, DSD tag) sits at the right, ending at ab_text_end(); the title is cut for the room it takes (grid_tile_t.xw). Painted only
  * for a non-stock source. */
@@ -288,6 +365,7 @@ static void ab_paint(void *canvas) {
             }
         }
     }
+    ab_paint_discs(canvas, off);
 }
 
 static int ab_on_paint(void *ctx, void *e) {
@@ -729,6 +807,7 @@ static void ab_load(int keep) {
         ab.list = list, ab.first = deque_at(list, 0);
     else if (ab.src && list)
         deque_destroy(list);
+    ab_discs(); /* (before the sizes: the headings are part of the content) */
     if (ab.src && !ab.count && !list && ab.src->state) st = ab.src->state(ab.src, LS_SONGS, deque_at(ab.srow_d, 0));
     ab.wait = st == LS_ST_LOADING;
     m1_show(ab.view,
@@ -1116,6 +1195,7 @@ static int ab_open(const lib_src_t *src, unsigned cls, void *row) {
     ab.st_num = widget_lookup(ab.win, "label_row_num", 1);
     ab.st_title = widget_lookup(ab.win, "label_row_title", 1);
     ab.st_dim = widget_lookup(ab.win, "label_row_dim", 1);
+    ab.st_disc = widget_lookup(ab.win, "label_row_disc", 1);
     ab.hname = widget_lookup(ab.win, "ab_title", 1);
     ab.hname2 = widget_lookup(ab.win, "ab_title2", 1);
     ab.hartist = widget_lookup(ab.win, "ab_artist", 1);

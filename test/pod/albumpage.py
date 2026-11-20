@@ -23,7 +23,7 @@ UI = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_album.bi
 ALBUM, ARTIST = 'Kind of Blue', 'Miles Davis'
 RED = (190, 50, 55)
 NAMES = ['So What', 'Freddie Freeloader', 'Blue in Green', 'All Blues', 'Flamenco Sketches', 'Flamenco Sketches (Alt)', 'So What (Alt)', 'Blue in Green (Alt)']
-WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_selall', 'sg_bar', 'sg_add', 'sg_del', 'btn_play', 'btn_shuffle', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_val',
+WIDGETS = ('view_grid', 'btn_return', 'btn_backtoplayer', 'btn_selall', 'sg_bar', 'sg_add', 'sg_del', 'btn_play', 'btn_shuffle', 'label_status', 'label_row_num', 'label_row_title', 'label_row_dim', 'label_row_disc', 'label_row_val',
            'ab_title', 'ab_title2', 'ab_artist', 'ab_meta', 'ab_foot', 'ab_spin', 'ab_glyph', 'ab_play_text', 'label_title', 'img_ah_tint',
            'btn_more', 'vs_scrim', 'vs_card', 'vs_hair') + tuple(f'vs_item{i}' for i in range(9)) + tuple(f'vs_label{i}' for i in range(9)) + tuple(f'vs_tick{i}' for i in range(6)) + tuple(f'vs_sub{i}' for i in range(4)) + tuple(f'vs_glyph{i}' for i in range(4, 9))
 NAV_BTNS = ('btn_return', 'btn_backtoplayer', 'btn_more', 'btn_selall', 'sg_add', 'sg_del')
@@ -93,7 +93,7 @@ class AM(SG.SongsMachine):
         u.reg_write(UC_MIPS_REG_V0, ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
 
 
-def album_machine(n=8, album=ALBUM, artist=ARTIST, rgb=RED, cover='file', titles=None, year=1959, cues=(), others=2):
+def album_machine(n=8, album=ALBUM, artist=ARTIST, rgb=RED, cover='file', titles=None, year=1959, cues=(), others=2, discs=None):
     """The page's widgets as widget structs (window > list_view > scroll_view > view_grid, for demo's own widget_to_local), the album's n tracks, the library's album list (the
     album first) and the cover cache file of the album: cover 'file' (a flat rgb picture), 'marker' (the empty "no art" file) or None (no file)."""
     m = AM(); m.real_album = True
@@ -110,6 +110,7 @@ def album_machine(n=8, album=ALBUM, artist=ARTIST, rgb=RED, cover='file', titles
         r = m.record(album=album, artist=artist, path=f'/mnt/mmc/m/{i}.flac', title=title, name=f'{i}.flac', rid=100 + i)
         m.setword(r + O['REC_YEAR'], year)
         if i in cues: m.setword(r + O['REC_CUE_START'], 1000 * i)
+        if discs: m.setword(r + O['REC_DISC'], discs[i])
         m.present.add(f'/mnt/mmc/m/{i}.flac')
         recs.append(r)
     m.songs, m.album_tracks = recs, {album: recs}
@@ -568,6 +569,41 @@ def rows_tests(ctx):
     expect(m3.props[(m3.sv, 'virtual_h')] == 450, f'two tracks without a footer: 346 + 2 x 52 = 450 px, the window\'s height ({m3.props[(m3.sv, "virtual_h")]})')
     m3.call(PSYMS['ab_on_destroy'], count=4000000)
     m.call(PSYMS['ab_on_destroy'], count=4000000)
+
+
+def disc_tests(ctx):
+    """6b. A multi-disc album: a "Disc N" heading before each disc, numbers from 1 on each; anything else is one list numbered through."""
+    expect = ctx.expect
+    DH = O['AB_DISC_H']
+    discs = [1, 1, 1, 2, 2, 2, 2, 2]
+    def dy(i): return row_y(i) + (1 if i < 3 else 2) * DH   # track i's row: one heading above disc 1's rows, two above disc 2's
+    m = opened(discs=discs)
+    expect(m.props[(m.sv, 'virtual_h')] == max(WIN_H, HDR + 8 * ROW + 2 * DH), f'the content is the rows and two headings ({m.props[(m.sv, "virtual_h")]})')
+    scroll_to(m, 200)
+    _, texts, _ = paint(m)
+    heads = [(t, r) for (t, r), s in texts if s == 'label_row_disc']
+    num = {r[1] + 200: t for (t, r), s in texts if s == 'label_row_num'}
+    expect(heads == [('Disc 1', (12, HDR + O['AB_DISC_Y'] - 200, 298 - 12, 22)), ('Disc 2', (12, HDR + 3 * ROW + DH + O['AB_DISC_Y'] - 200, 298 - 12, 22))],
+           f'"Disc 1" over the first row and "Disc 2" over the fourth, grey at x 12, AB_DISC_Y down their AB_DISC_H band: {heads}')
+    expect([num.get(dy(i) + O['AB_NUM_Y']) for i in range(8) if dy(i) + O['AB_NUM_Y'] - 200 < WIN_H] == ['1', '2', '3', '1', '2', '3', '4', '5'][:len([i for i in range(8) if dy(i) + O['AB_NUM_Y'] - 200 < WIN_H])],
+           f'the numbers start at 1 on each disc, each row under its heading: {sorted(num.items())}')
+    expect(not [c for c in tap(m, 150, HDR + 3 * ROW + DH + 20 - 200) if c[0] == 'navigator_to_with_context'], 'a tap on a heading plays nothing')
+    calls = tap(m, 150, dy(3) + 20 - 200)
+    expect([c for c in calls if c[0] == 'navigator_to_with_context'] and m.played[1] == 3, f'a tap on disc 2\'s first row plays the fourth track ({m.played[1] if m.played else None})')
+    scroll_to(m, m.props[(m.sv, 'virtual_h')] - WIN_H)
+    _, texts, _ = paint(m)
+    expect([t for (t, r), s in texts if s == 'label_row_title'][-1:] == [NAMES[7]], 'scrolled to the end: the last row is the last painted')
+    scroll_to(m, 100000)
+    paint(m)
+    expect(not any(c[0] == 'deque_at_oob' for c in m.calls), 'pulled past the end: no read beyond the list')
+    m.call(PSYMS['ab_on_destroy'], count=4000000)
+    for label, ds in (('one disc', [1] * 8), ('an untagged track', [1, 1, 1, 0, 2, 2, 2, 2]), ('no disc tags', [0] * 8), ('a disc twice', [1, 1, 2, 2, 1, 1, 2, 2])):
+        m = opened(discs=ds)
+        _, texts, _ = paint(m)
+        num = [t for (t, r), s in texts if s == 'label_row_num']
+        expect(not [1 for _, s in texts if s == 'label_row_disc'] and num == [str(i + 1) for i in range(len(num))] and m.props[(m.sv, 'virtual_h')] == max(WIN_H, HDR + 8 * ROW),
+               f'{label}: no headings, one list numbered through ({num})')
+        m.call(PSYMS['ab_on_destroy'], count=4000000)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1376,4 +1412,4 @@ def title_tests(ctx):
     m.call(PSYMS['ab_on_destroy'], count=4000000)
 
 
-SECTIONS = [asset_tests, open_tests, header_tests, title_tests, cover_tests, rows_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests, pin_tests]   # tools/check.py runs each as its own task
+SECTIONS = [asset_tests, open_tests, header_tests, title_tests, cover_tests, rows_tests, disc_tests, play_tests, select_tests, source_tests, loading_tests, marks_tests, dsd_tests, nextalbum_tests, more_tests, pin_tests]   # tools/check.py runs each as its own task

@@ -25,6 +25,9 @@ also offers artist photos, grid/list and album order. Composers are under Extras
 In Albums, Year order groups the list by year and the grid by decade. The list has a decades rail;
 albums without a year appear under Unknown. View and sort choices are remembered.
 
+An album whose tracks carry disc numbers in their tags shows a **Disc 1**, **Disc 2**… heading
+before each disc, and numbers each disc's tracks from 1. Run **Update Library** after tagging.
+
 ### Repair a playlist
 
 After moving music files, run **Update Library**, then open the playlist and choose **… → Clean Up

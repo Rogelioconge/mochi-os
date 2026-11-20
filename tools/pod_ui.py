@@ -1367,7 +1367,8 @@ def build_songs_page(page):
 # transparent. The glass controls are the window's last child, so they paint and take touches over the rows: Back, Select | Now Playing as one capsule (the genre songs list's), and
 # in select mode the close x (Back), "N Selected" and Select All in the navbar and the bottom bar with Add to Playlist and Delete. Two hidden labels carry the rows' text styles (the number, the title; the playing row's number is the ah_wave image); label_title (hidden) is the page's title for the i18n and asset tests.
 AB_STYLES = (('label_row_num', OFFSETS['AB_NUM_PX'], SUB_RGB, 'right'), ('label_row_title', LIST_TITLE_PX, INK_RGB),   # the number (the grey line's colour) and the title (white) at the list title size like every list
-             ('label_row_dim', LIST_TITLE_PX, DIM_RGB))   # a source's rows: the title of a row that cannot play
+             ('label_row_dim', LIST_TITLE_PX, DIM_RGB),   # a source's rows: the title of a row that cannot play
+             ('label_row_disc', OFFSETS['AB_DISC_PX'], SUB_RGB))   # a multi-disc album's "Disc N" headings
 AB_META = (('ab_title', 'AH_TITLE_Y', 'AH_TITLE_H', 22, INK_RGB), ('ab_artist', 'AH_ARTIST_Y', 'AH_ARTIST_H', 18, SUB_RGB), ('ab_meta', 'AH_META_Y', 'AH_META_H', 15, '#9C9C9C'))   # srlabel_ah{title,artist,meta}_style
 AB_FOOT_RGB = SUB_RGB   # the footer's grey: the artist line's (not the meta line's #9C9C9C)
 AB_PLAY_TEXT_W = OFFSETS['AB_PLAY_TEXT_W']   # the English "Play" at 18 px, where the payload cannot measure it; the payload centres the pair for the language

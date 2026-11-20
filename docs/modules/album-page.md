@@ -37,12 +37,21 @@ list so an enclosing view cannot intercept the whole navigation band.
 | Metadata | 15 px at y 267: year and track count, or track count alone |
 | Playback | Shuffle target 44 × 44 at x 42 with a 40 px disc (the pill's height); Play target 180 × 44 at x 96 (12 px after the disc); y 292. A playlist's page (the Songs page with its header) copies this group (`patch/common.c` `m1_pill_place` / `m1_pill_paint`; [Songs](songs.md)) |
 | Tracks | Number column (20 px, 28 from track 100; `ROW_NUM_W`, `ROW_NUM_W3`) in grey at 17 px (`AB_NUM_PX`; its line sits at `AB_NUM_Y` 15 so the digits are centred on the title's capitals) and white title at the list title size (20 px) in a 22 px line 16 px down the 52 px row (`AB_TEXT_Y`: the capitals sit on the middle of the row above the hairline), 20% white press fill, 13% white hairline. The playing track keeps its white title; a 12 px wave (`ah_wave`, `#EEEEEC`, four round bars, the rows' `np_row_playing` scaled; static) replaces its number, right-aligned in the number column, 1 px above the centre of the title's line so it sits on the centre of the capitals (`AB_WAVE`, `AB_WAVE_Y`) |
+| Discs | A multi-disc album has a "Disc N" heading (`label_row_disc`, 17 px grey `AB_DISC_PX`, a 22 px line `AB_DISC_Y` 16 px down a 44 px band `AB_DISC_H`, at x 12 plus the select-mode shift) before each disc's first row, and the numbers restart at 1 on each disc. A heading takes no tap and no press |
 | Footer | `ab_foot` (`13 tracks, 49 minutes`): 15 px `#AAAAAA` left-aligned label at x 12 (`AB_NUM_X`, the number column's left edge), `AB_FOOT_GAP` 14 px under the last row, 20 px high; only when the duration is known (52 px of content), else none |
 
 Each track ends with a grey "..." (24 px `#8C8C8C`, a 44 px tap zone at x 266..310) that opens the Play Next / Play After / Add to Playlist menu ([rowmenu](rowmenu.md)); the title ends at **x 269**, 10 px before the glyph's ink, so it never runs under it. A press held 500 ms on a track opens the same menu. Select mode has neither. The window's last two children are the menu's `rm_scrim` and `rm_card`, above the glass navbar.
 
 Year is the first track year in 1000..2999.
 Track numbers use a wider column from 100 onward. CUE titles use the file name.
+
+The numbers are positions in the list (in the disc, for a multi-disc album), not the track tags.
+The discs come from each record's `REC_DISC` (`songtable.cd_num`). Stock fills it at scan time:
+Shanling's TagLib packs the disc into the high half of `taglib_tag_track` (Xiph `DISCNUMBER` /
+`DISC`, ID3v2 `TPOS`, MP4 `disk`, APE `Disc`), and `getMusicByAlbum` and its variants sort by disc,
+then track (comparator `0x4e9020`). A source's records carry the server's disc. `ab_discs` shows
+headings only for two or more runs of one disc, every one above 0, none repeated (a list in
+another order) and at most `AB_DISC_MAX` (16); anything else is one list numbered through.
 
 ## Album length
 
