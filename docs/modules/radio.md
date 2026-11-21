@@ -1,10 +1,11 @@
 # Radio
 
 **Sources:** `patch/radio.c` / `radio.h` (parsers, card files, playback state machine, directory
-worker), `patch/radiopage.c` (stations page), `patch/radionp.c` (Now Playing), `patch/radioinfo.c`
-(Station Info); `build_radio_page`, `build_radionp_page`, `build_radioinfo_page` in
-`tools/pod_ui.py`; hooks `START_PLAYER`, `SAVE_STOP`, `SAVE_START`, `AUTOCHANGE_SITE`, `NOTICE_SITES` in `tools/pod.py`; pins
-`RADIO_PINS` in `tools/pod_pins.py`.
+worker), `patch/icy.h` / `patch/icy.c` (read-only hciplayer ICY metadata tap), `patch/radiopage.c`
+(stations page), `patch/radionp.c` (Now Playing), `patch/radioinfo.c` (Station Info);
+`build_radio_page`, `build_radionp_page`, `build_radioinfo_page` in `tools/pod_ui.py`; hooks
+`START_PLAYER`, `SAVE_STOP`, `SAVE_START`, `AUTOCHANGE_SITE`, `NOTICE_SITES` in `tools/pod.py`;
+`ICY_CALLS` in `tools/mod_player.py`; pins `RADIO_PINS` in `tools/pod_pins.py`.
 
 Internet radio: My Stations (one saved list, with Import from Card), Recently Played and the
 [radio-browser.info](https://api.radio-browser.info) directory (top stations, countries, genres,
@@ -147,8 +148,32 @@ HTTPS MP3 and HTTP AAC:
 3. Make the start not ask the play queue, send the URL, then unmute again.
 
 **Stop, not Pause:** a live stream cannot hold a position, so Stop is `mclStop()`, which waits for
-hciplayer's exit reply and is safe in any state. The line under the name is "Country · CODEC 128k"
-from the directory: ICY stream titles do not reach the payload.
+hciplayer's exit reply and is safe in any state. While playing, live ICY stream titles show on Radio Now
+Playing, the mini bar and the lock screen ([ICY metadata](#icy-metadata)).
+
+### ICY metadata
+
+Stock hciplayer already requests `Icy-MetaData: 1` on both HTTP (`stream/http.c`) and HTTPS
+(`libavformat/http.c`). A read-only tap in `patch/icy.c` (`tools/mod_player.py`, `ICY_CALLS`)
+hooks two pinned calls — MPlayer's `mp_msg("\nICY Info: %s\n", ...)` (`0x4be4d0`) and FFmpeg's
+`av_opt_set(..., "icy_metadata_packet", ...)` (`0x5020cc`) — copies the raw packet into
+`/tmp/m1plus-icy` (`icy_record`, `patch/icy.h`), and always forwards to the stock function unchanged:
+
+- **Only while radio plays:** `rd_begin` writes a fresh mark (`ICY_MAGIC`, `seq = 0`, monotonic
+  `gen`); stop, error, local handover and `rd_icy_boot` (called from `home_boot`) unlink it. Local
+  playback pays zero writes and the kill switch skips publishing.
+- **Reading and parsing:** `rd_poll` reads `/tmp/m1plus-icy` (retrying on `seq != seq_end`,
+  ignoring stale `gen` values) while connecting or playing. `rd_icy_parse` extracts `StreamTitle`
+  (preserving unescaped apostrophes, falling back from invalid UTF-8 to CP1252/Latin-1, ignoring
+  empty/placeholder strings and matches to the station name) and splits `"Artist - Title"` /
+  `"Artist – Title"` into Artist, Title and `"Artist – Title"` (en-dash). Packets with other ICY
+  keys and no `StreamTitle` keep the current track; an empty `StreamTitle=''` clears it back to the
+  station caption / "Live". State words (`Connecting…`, `Paused`, `Stopped`, errors) always take
+  precedence over track metadata.
+- **Layout, as a song:** `rd_meta_head` / `rd_meta_sub` give the two lines of Radio Now Playing,
+  the mini bar and the lock screen. Split metadata puts the title on top and the artist under it;
+  unsplit metadata keeps the station's name on top with the text under it. Outside `RD_PLAYING`
+  both fall back, so the station's name and the state's words come back.
 
 ### What the tick reads
 
@@ -246,8 +271,9 @@ itself open its own screen (local music stops the radio first).
 
 - grabber, a 264 px art card (the station's logo on white, else a grey card with the broadcast
   glyph), the window tinted from the logo (neutral grey without one);
-- the station's name over one grey line: "Can't play: reason", Connecting…, Paused, Stopped, or
-  "Country · CODEC 128k";
+- two lines: the track title over its artist while split ICY metadata plays; else the station's
+  name over one grey line: "Can't play: reason", Connecting…, Paused, Stopped, unsplit ICY text,
+  or "Country · CODEC 128k";
 - a round "..." that opens a two-row sheet: **Add to My Stations** / **Remove from My Stations**,
   and **Station Info**; every station has the Add row, also one started from Recently Played.
   Toasts: "Added to My Stations", "Removed from My Stations", "Could not save My Stations";
@@ -273,16 +299,19 @@ an empty value left out:
 | Bitrate | with " kbps", omitted for 0 |
 | Source | "Radio Browser" when the station has `#M1+:` info, else "Imported" |
 | Status | Connecting… / Playing / Paused / Stopped, or the error text |
+| Title, Artist (or Now Playing) | live ICY track metadata while playing (split into Title and Artist when `"Artist - Title"`, else Now Playing; omitted when none) |
 
-The station is the one the engine has when the page opens. Only the Status block updates while
+The station is the one the engine has when the page opens. Status and live ICY metadata update while
 the page is open. Text only: nothing is copied or written. Back returns to Radio Now Playing.
 
 ## Safety
 
 - The engine's 500 ms timer (UI thread) is the only timer outside a page; it exists only while a
   station is running, so standby and the DAC timer are held with no radio page open.
-- No process is started and no file goes to `/tmp` other than the logo's temporary download.
-- Stock functions called are pinned in `RADIO_PINS` with a stock fallback.
+- No process is started and no file goes to `/tmp` other than the logo's temporary download and
+  `/tmp/m1plus-icy` while a station runs.
+- Stock functions called are pinned in `RADIO_PINS` with a stock fallback; the two hciplayer ICY
+  calls are pinned in `tools/mod_player.py` and always call stock.
 - The volume is the DAC's own; there is no soft volume.
 - `mclStop` blocks the calling thread until hciplayer answers (stock's own stop does the same).
 
@@ -290,5 +319,5 @@ the page is open. Text only: nothing is copied or written. Back returns to Radio
 
 - Media keys outside our pages act on stock's player; a hardware Play/Pause while the radio plays
   may start a track, which stops the radio.
-- No ICY stream titles.
+- Non-ICY metadata (e.g. chained Ogg Vorbis/Opus comments or HLS ID3 tags) is not read.
 - A local song's position is not kept after the radio started: stop ends the song.

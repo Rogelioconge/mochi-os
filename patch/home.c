@@ -407,6 +407,7 @@ int home_toggle(void) {
 
 void home_boot(void *win) {
     vupage_boot(); /* a VU Meter mark left by an earlier run (docs/modules/vu.md) */
+    rd_icy_boot(); /* a radio ICY metadata mark left by an earlier run (docs/modules/radio.md) */
     if (hs.state == H_NEW) hm_arm();
     if (hm_ready()) {
         hs.home = win;

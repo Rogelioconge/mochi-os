@@ -49,6 +49,8 @@ static struct {
     int nln, nw, h, fade_on;
     int stat_ln, stat_nw, stat_y; /* where the Status pair begins: the lines, the wide chars, the y */
     unsigned timer;
+    unsigned meta_serial;
+    int meta_on;
     char stat[200]; /* the Status text the lines show */
 } sinfo __attribute__((section(".scratch")));
 
@@ -116,12 +118,23 @@ static void sinfo_status(char *out, unsigned n) {
     }
 }
 
-/* The Status pair (always the last block) laid out again from where it begins. */
+/* The live tail block (Status, plus Title / Artist or Now Playing while live ICY metadata is available). */
 static void sinfo_stat_block(void) {
     int y;
+    const char *line = rd_meta_line(), *artist = rd_meta_artist(), *title = rd_meta_title();
     sinfo.nln = sinfo.stat_ln, sinfo.nw = sinfo.stat_nw;
     sinfo_status(sinfo.stat, sizeof sinfo.stat);
+    sinfo.meta_serial = rd_meta_serial();
+    sinfo.meta_on = line[0] != 0;
     y = sinfo_pair(TR("Status"), sinfo.stat, sinfo.stat_y);
+    if (line[0]) {
+        if (artist[0] && title[0]) {
+            y = sinfo_pair(TR("Title"), title, y);
+            y = sinfo_pair(TR("Artist"), artist, y);
+        } else {
+            y = sinfo_pair(TR("Now Playing"), line, y);
+        }
+    }
     sinfo.h = (y > sinfo.stat_y ? y - SINFO_PAIR_GAP : sinfo.stat_y) + SINFO_BOTTOM;
     if (sinfo.h < SINFO_VIEW_H) sinfo.h = SINFO_VIEW_H;
     widget_resize(sinfo.view, 320, sinfo.h);
@@ -207,7 +220,7 @@ static int sinfo_tick(const void *unused) {
     }
     if (!m1_screen_lit() || !m1_is_top(sinfo.win)) return RET_REPEAT;
     sinfo_status(now, sizeof now);
-    if (strcmp(now, sinfo.stat)) {
+    if (strcmp(now, sinfo.stat) || sinfo.meta_serial != rd_meta_serial() || sinfo.meta_on != (rd_meta_line()[0] != 0)) {
         sinfo_stat_block();
         widget_invalidate_force(sinfo.win, (void *)0);
     }

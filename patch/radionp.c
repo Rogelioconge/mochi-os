@@ -138,7 +138,8 @@ static void rn_button(void *btn, const char *normal, const char *pressed) {
     widget_set_prop_str(btn, "style:pressed:bg_image", pressed);
 }
 
-/* The station's line under its name: "Country · CODEC 128k" while it plays; the state's words replace it (no stream title yet: ICY metadata does not reach demo). */
+/* The line under the top line: live ICY metadata (the artist when split, the raw title under the station's name) while it plays, else
+ * "Country · CODEC 128k"; the state's words always take precedence. */
 static void rn_line(char *out, unsigned n, const rd_list_t *l, int at) {
     int st = rd_state();
     out[0] = 0;
@@ -150,6 +151,8 @@ static void rn_line(char *out, unsigned n, const rd_list_t *l, int at) {
         snprintf(out, n, "%s", TR("Paused"));
     else if (st != RD_PLAYING)
         snprintf(out, n, "%s", TR("Stopped"));
+    else if (rd_meta_sub()[0])
+        snprintf(out, n, "%s", rd_meta_sub());
     else if (l->n && at < l->n)
         rd_caption(rd_info(l, at), out, n);
 }
@@ -160,7 +163,7 @@ static void rn_refresh(void) {
     const char *station = l->n && at < l->n ? rd_name(l, at) : "";
     char line[200];
     rn_line(line, sizeof line, l, at);
-    rn_set(rn.title, rn.c_title, sizeof rn.c_title, station[0] ? station : TR("Radio"));
+    rn_set(rn.title, rn.c_title, sizeof rn.c_title, rd_meta_head(station[0] ? station : TR("Radio")));
     rn_set(rn.artist, rn.c_artist, sizeof rn.c_artist, line);
     if (!rn.init || running != rn.running) {
         rn.running = running;

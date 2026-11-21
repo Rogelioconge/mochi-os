@@ -28,6 +28,7 @@
 #include "pccover.h"
 #include "covercache.h"
 #include "radio.h"
+#include "icy.h"
 #include "fnv.h"
 
 #define RD_NAME_KEEP 120
@@ -741,6 +742,14 @@ static struct {
     int owns; /* after the error text: the tests poke the words before it by offset */
 } rd __attribute__((section(".scratch")));
 
+/* Live ICY stream metadata (docs/modules/radio.md): hciplayer's read-only tap writes ICY_FILE while marked wanted.
+ * Kept separate from rd so rd's layout stays unchanged. */
+static struct {
+    int gen, seq;
+    unsigned serial;
+    char line[200], artist[128], title[128];
+} rmeta __attribute__((section(".scratch")));
+
 int rd_state(void) { return rd.state; }
 int rd_running(void) { return rd.state == RD_CONNECTING || rd.state == RD_PLAYING || rd.state == RD_PAUSED; }
 int rd_at(void) { return rd.at; }
@@ -748,6 +757,265 @@ int rd_at(void) { return rd.at; }
 int rd_owns_bar(void) { return rd.owns; }
 const rd_list_t *rd_list(void) { return &rd.list; }
 const char *rd_error(void) { return rd.error; }
+const char *rd_meta_line(void) { return rd.state == RD_PLAYING ? rmeta.line : ""; }
+const char *rd_meta_artist(void) { return rd.state == RD_PLAYING ? rmeta.artist : ""; }
+const char *rd_meta_title(void) { return rd.state == RD_PLAYING ? rmeta.title : ""; }
+unsigned rd_meta_serial(void) { return rmeta.serial; }
+const char *rd_meta_head(const char *station) { return rd_meta_artist()[0] ? rd_meta_title() : station; }
+const char *rd_meta_sub(void) { return rd_meta_artist()[0] ? rd_meta_artist() : rd_meta_line(); }
+
+/* ---- ICY metadata parser (pure; tests call it) ---- */
+static unsigned char rd_ascii_low(unsigned char c) { return c >= 'A' && c <= 'Z' ? (unsigned char)(c + 32) : c; }
+
+static int rd_ci_eq_n(const char *a, unsigned alen, const char *b, unsigned blen) {
+    unsigned i;
+    if (alen != blen) return 0;
+    for (i = 0; i < alen; ++i)
+        if (rd_ascii_low((unsigned char)a[i]) != rd_ascii_low((unsigned char)b[i])) return 0;
+    return 1;
+}
+
+static int rd_utf8_valid(const unsigned char *s, unsigned n) {
+    unsigned i = 0;
+    while (i < n) {
+        unsigned char c = s[i];
+        if (c < 0x80) {
+            ++i;
+        } else if (c >= 0xc2 && c <= 0xdf) {
+            if (i + 1 >= n || (s[i + 1] & 0xc0) != 0x80) return 0;
+            i += 2;
+        } else if (c >= 0xe0 && c <= 0xef) {
+            if (i + 2 >= n || (s[i + 1] & 0xc0) != 0x80 || (s[i + 2] & 0xc0) != 0x80) return 0;
+            if ((c == 0xe0 && s[i + 1] < 0xa0) || (c == 0xed && s[i + 1] >= 0xa0)) return 0;
+            i += 3;
+        } else if (c >= 0xf0 && c <= 0xf4) {
+            if (i + 3 >= n || (s[i + 1] & 0xc0) != 0x80 || (s[i + 2] & 0xc0) != 0x80 || (s[i + 3] & 0xc0) != 0x80)
+                return 0;
+            if ((c == 0xf0 && s[i + 1] < 0x90) || (c == 0xf4 && s[i + 1] >= 0x90)) return 0;
+            i += 4;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Emit a Unicode code point as UTF-8 into dst (capacity cap), returning new length. */
+static unsigned rd_utf8_put(char *dst, unsigned len, unsigned cap, unsigned cp) {
+    if (cp < 0x80) {
+        if (len + 1 < cap) dst[len++] = (char)cp;
+    } else if (cp < 0x800) {
+        if (len + 2 < cap) dst[len++] = (char)(0xc0 | (cp >> 6)), dst[len++] = (char)(0x80 | (cp & 0x3f));
+    } else {
+        if (len + 3 < cap) {
+            dst[len++] = (char)(0xe0 | (cp >> 12));
+            dst[len++] = (char)(0x80 | ((cp >> 6) & 0x3f));
+            dst[len++] = (char)(0x80 | (cp & 0x3f));
+        }
+    }
+    return len;
+}
+
+/* CP1252 0x80..0x9f code points (0 for undefined slots). */
+static unsigned rd_cp1252(unsigned char c) {
+    static const unsigned short map[32] = {
+        0x20ac, 0,      0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160,
+        0x2039, 0x0152, 0,      0x017d, 0,      0,      0x2018, 0x2019, 0x201c, 0x201d, 0x2022,
+        0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0,      0x017e, 0x0178,
+    };
+    return c >= 0x80 && c <= 0x9f ? map[c - 0x80] : (unsigned)c;
+}
+
+/* n bytes of s into out, cut back to a UTF-8 character boundary when cap is short. */
+static void rd_copy_slice(char *out, unsigned cap, const char *s, unsigned n) {
+    if (!out || !cap) return;
+    if (n >= cap) {
+        n = cap - 1;
+        while (n && m1_utf8_cont(s, n)) --n;
+    }
+    if (n) memcpy(out, s, n);
+    out[n] = 0;
+}
+
+int rd_icy_parse(const char *raw, const char *station, char *line, unsigned line_n, char *artist, unsigned artist_n,
+                 char *title, unsigned title_n) {
+    const char *p = raw, *val = (const char *)0, *q;
+    unsigned vlen = 0, ulen = 0, i, st_s = 0, st_e = 0, slen;
+    char utf[ICY_RAW_MAX * 2];
+    int has_kv = 0, utf8_ok;
+    if (line && line_n) line[0] = 0;
+    if (artist && artist_n) artist[0] = 0;
+    if (title && title_n) title[0] = 0;
+    if (!raw || !raw[0]) return 0;
+    /* Find StreamTitle= (case-insensitive) at start or after ';'. */
+    while (*p) {
+        if (*p == '=' && p[1] == '\'') has_kv = 1;
+        if ((p == raw || p[-1] == ';' || p[-1] == ' ' || p[-1] == '\t') && !strncasecmp(p, "StreamTitle=", 12)) {
+            val = p + 12;
+            break;
+        }
+        ++p;
+    }
+    if (val) {
+        if (*val == '\'') {
+            ++val;
+            for (q = val; *q; ++q) {
+                if (*q == '\'' && (q[1] == ';' || !q[1])) break;
+            }
+            vlen = (unsigned)(q - val);
+        } else {
+            for (q = val; *q && *q != ';'; ++q) {
+            }
+            vlen = (unsigned)(q - val);
+        }
+    } else {
+        /* Scan the rest for key='val' pairs (e.g. StreamUrl='...' with no StreamTitle): do not show raw key/value. */
+        while (*p) {
+            if (*p == '=' && p[1] == '\'') has_kv = 1;
+            ++p;
+        }
+        if (has_kv) return -1;
+        val = raw;
+        vlen = (unsigned)strlen(raw);
+    }
+    if (!vlen) return 0;
+    if (vlen >= ICY_RAW_MAX) vlen = ICY_RAW_MAX - 1;
+    utf8_ok = rd_utf8_valid((const unsigned char *)val, vlen);
+    if (!utf8_ok) {
+        /* An upstream cut (stock HTTP keeps 256 bytes, our cap above) can end mid-character: drop that partial
+         * sequence when the prefix is valid UTF-8, instead of reading the whole title as CP1252. */
+        unsigned k = vlen, hi = 0;
+        while (k && vlen - k < 3 && m1_utf8_cont(val, k - 1)) --k;
+        /* A lone trailing lead byte after plain ASCII is more likely Latin-1 ("Caf\xe9") than a cut. */
+        for (i = 0; i + 1 < k && !hi; ++i) hi = (unsigned char)val[i] >= 0x80;
+        if (k > 1 && (unsigned char)val[k - 1] >= 0xc0 && (k < vlen || hi) &&
+            rd_utf8_valid((const unsigned char *)val, k - 1)) {
+            vlen = k - 1;
+            utf8_ok = 1;
+        }
+    }
+    if (utf8_ok) {
+        for (i = 0; i < vlen && ulen + 1 < sizeof utf; ++i) utf[ulen++] = (unsigned char)val[i] < 0x20 ? ' ' : val[i];
+    } else {
+        for (i = 0; i < vlen && ulen + 4 < sizeof utf; ++i) {
+            unsigned char c = (unsigned char)val[i];
+            if (c < 0x20)
+                utf[ulen++] = ' ';
+            else {
+                unsigned cp = rd_cp1252(c);
+                if (cp) ulen = rd_utf8_put(utf, ulen, sizeof utf, cp);
+            }
+        }
+    }
+    utf[ulen] = 0;
+    /* Trim ASCII whitespace. */
+    i = 0;
+    while (i < ulen && (utf[i] == ' ' || utf[i] == '\t')) ++i;
+    while (ulen > i && (utf[ulen - 1] == ' ' || utf[ulen - 1] == '\t')) --ulen;
+    if (i >= ulen) return 0;
+    p = utf + i;
+    ulen -= i;
+    /* Reject bare dash placeholders ("-", "–", "—"). */
+    if ((ulen == 1 && p[0] == '-') || (ulen == 3 && (unsigned char)p[0] == 0xe2 && (unsigned char)p[1] == 0x80 &&
+                                       ((unsigned char)p[2] == 0x93 || (unsigned char)p[2] == 0x94)))
+        return 0;
+    /* Reject metadata identical to the station name (trimmed, case-insensitive). */
+    if (station && station[0]) {
+        slen = (unsigned)strlen(station);
+        while (st_s < slen && (station[st_s] == ' ' || station[st_s] == '\t')) ++st_s;
+        st_e = slen;
+        while (st_e > st_s && (station[st_e - 1] == ' ' || station[st_e - 1] == '\t')) --st_e;
+        if (st_e > st_s && rd_ci_eq_n(p, ulen, station + st_s, st_e - st_s)) return 0;
+    }
+    /* Split "Artist - Title" or "Artist – Title" (spaces required around the dash). */
+    for (i = 1; i + 2 < ulen; ++i) {
+        unsigned sep = 0;
+        if (p[i] == ' ' && p[i + 1] == '-' && p[i + 2] == ' ')
+            sep = 3;
+        else if (i + 4 < ulen && p[i] == ' ' && (unsigned char)p[i + 1] == 0xe2 && (unsigned char)p[i + 2] == 0x80 &&
+                 (unsigned char)p[i + 3] == 0x93 && p[i + 4] == ' ')
+            sep = 5;
+        if (sep) {
+            unsigned al = i, ts = i + sep, tl = ulen - ts;
+            while (al > 0 && (p[al - 1] == ' ' || p[al - 1] == '\t')) --al;
+            while (tl > 0 && (p[ts] == ' ' || p[ts] == '\t')) ++ts, --tl;
+            if (al > 0 && tl > 0) {
+                char ab[128], tb[128];
+                rd_copy_slice(ab, sizeof ab, p, al);
+                rd_copy_slice(tb, sizeof tb, p + ts, tl);
+                rd_copy_slice(artist, artist_n, ab, (unsigned)strlen(ab));
+                rd_copy_slice(title, title_n, tb, (unsigned)strlen(tb));
+                if (line && line_n) {
+                    char lb[sizeof ab + sizeof tb + 5];
+                    int ln = snprintf(lb, sizeof lb, "%s \xe2\x80\x93 %s", ab, tb);
+                    rd_copy_slice(line, line_n, lb, (unsigned)ln);
+                }
+                return 1;
+            }
+        }
+    }
+    rd_copy_slice(title, title_n, p, ulen);
+    rd_copy_slice(line, line_n, p, ulen);
+    return 1;
+}
+
+void rd_icy_boot(void) { unlink(ICY_FILE); }
+
+static void rd_icy_reset_mem(void) {
+    if (rmeta.line[0] || rmeta.artist[0] || rmeta.title[0]) ++rmeta.serial;
+    rmeta.line[0] = rmeta.artist[0] = rmeta.title[0] = 0;
+    rmeta.seq = 0;
+}
+
+/* Fresh session mark for hciplayer's read-only tap: seq 0 and a new gen so stale packets never match. */
+static void rd_icy_mark(void) {
+    icy_record rec;
+    void *f;
+    rd_icy_reset_mem();
+    if (++rmeta.gen <= 0) rmeta.gen = 1;
+    memset(&rec, 0, sizeof rec);
+    memcpy(rec.magic, ICY_MAGIC, 8);
+    rec.gen = rmeta.gen;
+    f = fopen(ICY_FILE, "wb");
+    if (f) {
+        fwrite(&rec, 1, sizeof rec, f);
+        fclose(f);
+    }
+}
+
+static void rd_icy_clear(void) {
+    rd_icy_reset_mem();
+    unlink(ICY_FILE);
+}
+
+static void rd_icy_read(void) {
+    icy_record rec;
+    void *f;
+    int tries, ok = 0;
+    char nl[sizeof rmeta.line], na[sizeof rmeta.artist], nt[sizeof rmeta.title];
+    const char *station = rd.list.n && rd.at < rd.list.n ? rd_name(&rd.list, rd.at) : "";
+    for (tries = 0; tries < 3; ++tries) {
+        f = fopen(ICY_FILE, "rb");
+        if (!f) return;
+        ok = fread(&rec, 1, sizeof rec, f) == sizeof rec;
+        fclose(f);
+        if (!ok) return;
+        if (rec.seq == rec.seq_end) break;
+        ok = 0;
+    }
+    if (!ok || rec.magic[7] || strcmp(rec.magic, ICY_MAGIC) || rec.gen != rmeta.gen || rec.seq <= 0 ||
+        rec.seq == rmeta.seq)
+        return;
+    rmeta.seq = rec.seq;
+    rec.raw[ICY_RAW_MAX - 1] = 0;
+    if (rd_icy_parse(rec.raw, station, nl, sizeof nl, na, sizeof na, nt, sizeof nt) < 0) return;
+    if (strcmp(nl, rmeta.line) || strcmp(na, rmeta.artist) || strcmp(nt, rmeta.title)) {
+        rd_copy(rmeta.line, sizeof rmeta.line, nl);
+        rd_copy(rmeta.artist, sizeof rmeta.artist, na);
+        rd_copy(rmeta.title, sizeof rmeta.title, nt);
+        ++rmeta.serial;
+    }
+}
 
 static const char *const RD_WHY[] = {"",
                                      "Unsupported address",
@@ -833,8 +1101,10 @@ static void rd_apply(int ev) {
     rd.state = (int)(r & 255);
     if (rd.state == RD_ERROR) rd_copy(rd.error, sizeof rd.error, RD_WHY[why]);
     if (act & RD_A_STOP) mclStop(); /* synchronous; -1 at once when stock's running byte is 0, so it is idempotent */
-    if (rd_was_running(was) && !rd_running())
+    if (rd_was_running(was) && !rd_running()) {
+        rd_icy_clear();
         rd_speed_back(); /* the output goes back to local music at the user's speed */
+    }
     if (ev == RD_EV_PLAY) rd.tries = 0;
     if (rd.state == RD_CONNECTING && (ev == RD_EV_ENDED || ev == RD_EV_STALL)) ++rd.tries;
     if (rd.state == RD_PLAYING && was != RD_PLAYING) rd.last_hear = rd.playing_since = (unsigned)time_now_ms();
@@ -879,6 +1149,7 @@ static void rd_begin(void) {
     *(volatile int *)RESUME_POS = 0;
     if (*(volatile int *)PLAYSPEED_MODE != 0)
         mclSetPlaySpeed(0); /* the radio is live: 1x whatever Multiple Speed says */
+    rd_icy_mark();
     r = mcl_tidalStartPlayer(rd_url(&rd.list, rd.at));
     mclSetMute(0);
     rd.fd = *(volatile int *)HCI_SOCK_FD;
@@ -959,6 +1230,7 @@ void rd_poll(void) {
         if ((int)(now - rd.retry_at) >= 0) rd_begin();
         return;
     }
+    if (rd.state == RD_CONNECTING || rd.state == RD_PLAYING) rd_icy_read();
     if (now - rd.t_start < RD_GRACE_MS) return;
     ps = mclGetPlayStatus();
     hs = mclGetHciplayerStatus() != 0;

@@ -94,6 +94,7 @@ int vinyl_theme_set(int theme); /* choose it, saved atomically; the theme or -1 
 int vupage_open(void); /* the VU Meter page: 0 once it is up (or already open), -1 when it could not open */
 int vupage_open_idle(void); /* the same for Now Playing's idle timer (a tap on the page closes it) */
 void vupage_boot(void); /* demo starts: a level-tap mark left by an earlier run is removed */
+void rd_icy_boot(void); /* demo starts: a radio ICY metadata mark left by an earlier run is removed */
 
 /* patch/libload.c (docs/modules/libload.md) */
 int lib_deque_swap(void *a, void *b); /* two deques' contents exchanged in place; 0 when refused (nothing changed) */

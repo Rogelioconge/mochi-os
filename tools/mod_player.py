@@ -31,7 +31,7 @@ REL = 'usr/bin/hciplayer'
 PLAYER_SHA = 'a64503746862af3e69b57f2e06167351b30cda28479348a845be5172e083a8c6'
 PLAYER_GP = 0xb16750          # DT_PLTGOT + 0x7ff0
 PLAYER_BASE = 0xe10000        # stock's last LOAD ends at 0xe03b38
-SOURCES = ['peq.c', 'stereo.c', 'vu.c', 'peq_player.c']
+SOURCES = ['peq.c', 'stereo.c', 'vu.c', 'icy.c', 'peq_player.c']
 FLAGS = [*pod.FLAGS, '-mnan=2008', '-fno-math-errno', '-DPEQ_PLAYER']   # hciplayer: FP64, NaN2008 (its .MIPS.abiflags, e_flags 0x400)
 
 # The equalizer's af_info: info, name ("equalizer"), author, comment, flags, open.
@@ -43,6 +43,10 @@ RATE_GATES = ((0x42ce34, 0x10400098, 0),             # mcl-seteq: beqz $v0, 0x42
               (0x42fa78, 0x14400052, 0x10000052))    # the insert: bnez $v0, 0x42fbc4 -> b 0x42fbc4
 # The strtol call that parses mcl-seteq's flag (jal 0xadae10, the PLT stub of strtol): peq_seteq_flag takes it over.
 SETEQ_CALL, SETEQ_STOCK = 0x42cd1c, 0x0c2b6b84
+# Read-only ICY metadata tap (patch/icy.c, docs/modules/radio.md): MPlayer HTTP mp_msg (jal 0x445cec) and FFmpeg HTTPS av_opt_set (jal 0x6f86f0).
+ICY_MP_CALL, ICY_MP_STOCK = 0x4be4d0, 0x0c11173b
+ICY_FF_CALL, ICY_FF_STOCK = 0x5020cc, 0x0c1be1bc
+ICY_CALLS = ((ICY_MP_CALL, ICY_MP_STOCK, 'icy_mplayer_msg'), (ICY_FF_CALL, ICY_FF_STOCK, 'icy_av_opt_set'))
 # Checked, not written: (address, stock word, what it proves).
 PINS = (
     (0x42cd14, 0x2406000a, 'mcl-seteq flag: a2 = 10 (base)'),
@@ -118,9 +122,26 @@ PINS = (
     (0x43018c, 0x46010002, 'playing_audio_pts: mul.s $f0, $f0, $f1 (speed): the delay is a single float'),
     (0x44fddc, 0x3c024000, 'stock control: lui 0x4000'),
     (0x44fdec, 0x24431d00, 'stock control: AF_CONTROL_EQUALIZER_GAIN 0x40001d00'),
+    (0x4bdf70, 0x24427264, 'MPlayer ICY: addiu $v0, $v0, 0x7264 ("\\nICY Info: %s\\n" at 0x8a7264)'),
+    (0x4be4c0, 0x8fa6002c, 'MPlayer ICY: lw $a2, 0x2c($sp) (format string)'),
+    (0x4be4c4, 0x24050004, 'MPlayer ICY: a1 = MSGL_INFO (4)'),
+    (0x4be4c8, 0x24040005, 'MPlayer ICY: a0 = MSGT_NETWORK (5)'),
+    (0x4be4cc, 0x03c03825, 'MPlayer ICY: a3 = $fp (ICY info string)'),
+    (0x4be4d4, 0xa0400000, 'MPlayer ICY: delay slot sb $zero, ($v0) (NUL-terminates $fp)'),
+    (0x445cec, 0x27bdffd8, 'mp_msg prologue: addiu $sp, $sp, -0x28'),
+    (0x445cfc, 0xafa70034, 'mp_msg prologue: sw $a3, 0x34($sp)'),
+    (0x5020b4, 0x3c05008b, 'FFmpeg ICY: lui $a1, 0x8b'),
+    (0x5020bc, 0x00003825, 'FFmpeg ICY: a3 = 0 (flags)'),
+    (0x5020c0, 0x24a52b50, 'FFmpeg ICY: a1 = "icy_metadata_packet" (0x8b2b50)'),
+    (0x5020c4, 0x00403025, 'FFmpeg ICY: a2 = $v0 (packet buffer)'),
+    (0x5020c8, 0xa2800001, 'FFmpeg ICY: sb $zero, 1($s4) (NUL-terminates packet buffer)'),
+    (0x5020d0, 0x02602025, 'FFmpeg ICY: delay slot a0 = $s3 (HTTPContext)'),
+    (0x6f86f0, 0x27bdffb0, 'av_opt_set prologue: addiu $sp, $sp, -0x50'),
+    (0x6f870c, 0x00c09025, 'av_opt_set prologue: move $s2, $a2'),
 )
 NAME_AT, NAME = 0x885e2c, b'equalizer\0'
 DSD_DRV = (0x89b4f0, b'dsdiff\0')   # the vendor's DSD driver name, as the filter compares it
+ICY_STRS = ((0x8a7264, b'\nICY Info: %s\n\0'), (0x8b2b50, b'icy_metadata_packet\0'))
 # libc: name -> (C prototype, the PLT symbol hciplayer imports it as)
 LIBC = {
     'memset': ('void *', 'void *, int, unsigned', 'memset'), 'memcpy': ('void *', 'void *, const void *, unsigned', 'memcpy'),
@@ -154,11 +175,13 @@ def check_stock(raw):
     got = tuple(word(raw, EQ_INFO + 4 * i) for i in range(6))
     pod.check(got == EQ_INFO_WORDS, f'equalizer af_info at {EQ_INFO:#x}: {[hex(w) for w in got]}')
     pod.check(word(raw, SETEQ_CALL) == SETEQ_STOCK, f'{SETEQ_CALL:#x}: mcl-seteq strtol call {word(raw, SETEQ_CALL):#010x}')
+    for a, old, name in ICY_CALLS:
+        pod.check(word(raw, a) == old, f'{a:#x} ({name}): {word(raw, a):#010x} != {old:#010x}')
     for a, old, _ in RATE_GATES:
         pod.check(word(raw, a) == old, f'{a:#x}: rate gate {word(raw, a):#010x} != {old:#010x}')
     for a, old, what in PINS:
         pod.check(word(raw, a) == old, f'{a:#x} ({what}): {word(raw, a):#010x} != pinned {old:#010x}')
-    for a, s in ((NAME_AT, NAME), DSD_DRV):
+    for a, s in ((NAME_AT, NAME), DSD_DRV, *ICY_STRS):
         off = pod.fileoff(raw, a)
         pod.check(raw[off:off + len(s)] == s, f'{a:#x}: not {s!r}')
 
@@ -185,8 +208,8 @@ def compile_payload(build, slots):
     script.write_text(f'SECTIONS {{ . = {PLAYER_BASE:#x}; .text : {{ *(.text*) }} .rodata : {{ *(.rodata*) }} '
                       '.data : { *(.data*) *(.sdata*) } .bss : { *(.bss*) *(.sbss*) *(COMMON) } '
                       '/DISCARD/ : { *(.comment) *(.note*) *(.pdr) *(.mdebug*) *(.MIPS.abiflags) *(.reginfo) *(.gnu.attributes) } }\n')
-    pod.run(pod.LD, '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', '-u', 'peq_seteq_flag', *objs, build / 'player_asm.o',
-            '-o', build / 'player.elf')
+    pod.run(pod.LD, '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', '-u', 'peq_seteq_flag',
+            '-u', 'icy_mplayer_msg', '-u', 'icy_av_opt_set', *objs, build / 'player_asm.o', '-o', build / 'player.elf')
     pod.run(pod.OBJCOPY, '-O', 'binary', build / 'player.elf', build / 'player.bin')
     with open(build / 'player.elf', 'rb') as f:
         elf = ELFFile(f)
@@ -206,6 +229,10 @@ def patch(raw, payload, syms):
     flag = syms['peq_seteq_flag']
     pod.check(PLAYER_BASE <= flag < PLAYER_BASE + len(payload), 'peq_seteq_flag outside the payload')
     struct.pack_into('<I', image, pod.fileoff(image, SETEQ_CALL), 0x0c000000 | flag >> 2)
+    for a, _, name in ICY_CALLS:
+        target = syms[name]
+        pod.check(PLAYER_BASE <= target < PLAYER_BASE + len(payload), f'{name} outside the payload')
+        struct.pack_into('<I', image, pod.fileoff(image, a), 0x0c000000 | target >> 2)
     seg_off = pod.append_payload(image, payload, PLAYER_BASE)
     return bytes(image), seg_off
 
@@ -226,11 +253,13 @@ def apply(out):
                 'open_slot': {'addr': EQ_OPEN_SLOT, 'stock': STOCK_OPEN, 'target': syms['peq_open']},
                 'rate_gates': [[a, old, new] for a, old, new in RATE_GATES], 'libc_slots': slots,
                 'seteq_call': {'addr': SETEQ_CALL, 'stock': SETEQ_STOCK, 'target': syms['peq_seteq_flag']},
-                'symbols': {n: syms[n] for n in sorted(syms) if re.fullmatch(r'peq_\w+', n)}}
+                'icy_calls': [{'addr': a, 'stock': old, 'target': syms[name], 'name': name} for a, old, name in ICY_CALLS],
+                'symbols': {n: syms[n] for n in sorted(syms) if re.fullmatch(r'(?:peq|icy)_\w+', n)}}
     (build / 'manifest.json').write_text(json.dumps(manifest, indent=1) + '\n')
     print(f'player: payload {len(payload)} bytes @ {PLAYER_BASE:#x}, equalizer open {EQ_OPEN_SLOT:#x} -> '
           f'{syms["peq_open"]:#x}, rate gates {", ".join(hex(a) for a, _, _ in RATE_GATES)}, '
-          f'mcl-seteq flag {SETEQ_CALL:#x} -> {syms["peq_seteq_flag"]:#x}')
+          f'mcl-seteq flag {SETEQ_CALL:#x} -> {syms["peq_seteq_flag"]:#x}, '
+          f'icy {", ".join(f"{a:#x}->{syms[n]:#x}" for a, _, n in ICY_CALLS)}')
 
 
 if __name__ == '__main__':

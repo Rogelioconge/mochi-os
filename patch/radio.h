@@ -63,6 +63,12 @@ void rd_url_escape(const char *s, char *out, unsigned n);
 int rd_favicon(const char *info, char *out, unsigned n);
 /* "Germany · MP3 128k" from a station's info ("Germany\tMP3\t128"); "" when it has nothing. */
 void rd_caption(const char *info, char *out, unsigned n);
+/* Raw ICY metadata packet ("StreamTitle='Artist - Song';") -> display line ("Artist – Song"), artist and title.
+ * Validates UTF-8 (falling back to CP1252/Latin-1 -> UTF-8), ignores empty/placeholder strings and matches to station.
+ * Returns 1 when a usable title was extracted, 0 when empty/placeholder/station-name, -1 when packet has other ICY keys
+ * without StreamTitle (caller keeps current metadata). */
+int rd_icy_parse(const char *raw, const char *station, char *line, unsigned line_n, char *artist, unsigned artist_n,
+                 char *title, unsigned title_n);
 
 /* ---- lists ---- */
 void rd_list_free(rd_list_t *l);
@@ -140,6 +146,15 @@ int rd_owns_bar(
     void); /* the radio owns the Home mini bar: a station started this session and no local track has started since (it outlives Stop) */
 const rd_list_t *rd_list(void); /* the list the station plays from (prev / next step along it) */
 const char *rd_error(void);
+/* Live ICY stream metadata for the playing station ("" when not RD_PLAYING or none broadcast). */
+const char *rd_meta_line(void); /* "Artist – Title", or raw title when unsplit */
+const char *rd_meta_artist(void);
+const char *rd_meta_title(void);
+unsigned rd_meta_serial(void); /* bumped whenever metadata changes or clears */
+/* The pages' two lines, as a song shows them (Now Playing, Mini Bar, Lock Screen): split metadata puts the title on top
+ * and the artist under it; unsplit metadata keeps station on top and goes under it; "" under it when none. */
+const char *rd_meta_head(const char *station); /* the top line: the track title when split, else station */
+const char *rd_meta_sub(void); /* the line under it: the artist when split, else the raw title, else "" */
 void rd_poll(void); /* one poll (the engine's timer calls it; tests too) */
 
 /* ---- station logos (a worker of its own, one at a time, never beside the directory fetch) ---- */

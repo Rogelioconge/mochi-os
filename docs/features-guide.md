@@ -15,8 +15,10 @@ Open **Extras → Radio** to play internet stations over Wi-Fi. To put it on the
 
 1. Choose **My Stations**, **Recently Played** or **Radio Browser**. Radio Browser lets you browse
    top stations, countries and genres, or search radio-browser.info by name.
-2. Tap a station to play. Radio Now Playing shows the song and stream; previous/next moves along
-   the list. Starting local music stops the radio. Bluetooth audio is supported too.
+2. Tap a station to play. When the station sends the playing song as "Artist - Title", Radio Now
+   Playing, the mini player and the lock screen show it as a song: the title on top, the artist
+   under it. Otherwise they show the station's name over its text or stream. Previous/next moves
+   along the list. Starting local music stops the radio. Bluetooth audio is supported too.
 3. Use **…** on Radio Now Playing to add or remove the station from **My Stations**.
 
 To manage **My Stations**, use its **…** menu:

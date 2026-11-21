@@ -113,8 +113,8 @@ starts); Idle, and Stopped after a local track, use the local logic.
 
 | | Connecting | Playing | Paused | Error | Stopped |
 |---|---|---|---|---|---|
-| Title | station name ("Radio" without one) | same | same | same | same |
-| Second line | Connecting… | Live | Paused | Can't play: <error> | Stopped |
+| Title | station name ("Radio" without one) | track title when split ICY metadata, else station name | station name | same | same |
+| Second line | Connecting… | artist when split, else ICY text, else Live | Paused | Can't play: <error> | Stopped |
 | Glyph | stop | stop | play | play | play |
 | Button does | `rd_stop` | `rd_stop` | `rd_resume` | `rd_play` (retry) | `rd_play` |
 

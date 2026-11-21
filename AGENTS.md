@@ -73,8 +73,9 @@ Everything else is in the [documentation index](docs/README.md).
 - Feature branches leave `VERSION`, goldens and history unchanged; integration owns them.
 - No compatibility flags, and no code paths that exist only for old packages.
 - Bluetooth work only for approved features ([Bluetooth](docs/modules/bluetooth.md)).
-  `hciplayer` is patched only for PEQ, Mono / Crossfeed and the read-only VU tap
-  ([peq](docs/modules/peq.md), [stereo](docs/modules/stereo.md), [vu](docs/modules/vu.md)).
+  `hciplayer` is patched only for PEQ, Mono / Crossfeed, the read-only VU tap and the read-only
+  radio ICY metadata tap ([peq](docs/modules/peq.md), [stereo](docs/modules/stereo.md),
+  [vu](docs/modules/vu.md), [radio](docs/modules/radio.md)).
   Any other Bluetooth or `hciplayer` change needs a decision first.
 - Module docs describe the code as it is now: behaviour, interfaces, constraints and sources.
   Allowed on main: known limitations and gaps, and short "possible improvements".

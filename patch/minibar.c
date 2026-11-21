@@ -24,7 +24,8 @@
  *            session unless a local song is really playing or paused (mb_local_alive: status 3, or 2 with hciplayer playing), the bar
  *            shows the station and never the stale local queue's track (Stopped only while rd_owns_bar: a local track start clears it);
  *            in Idle and in Stopped after a local track the local logic above applies unchanged. "Stopped" line, play glyph, play = rd_play again.
- *            Title: the station's name ("Radio" without one). Second line, radio Now Playing's words: "Connecting…", "Live" (playing),
+ *            Title: the station's name ("Radio" without one), the track title while split ICY metadata plays (rd_meta_head). Second line,
+ *            radio Now Playing's words: "Connecting…", the artist or ICY text (rd_meta_sub) else "Live" (playing),
  *            "Paused", "Can't play: <error>". Cover: the station's cached logo (rd_logo_file as radionp.c; the logo worker is started when
  *            it is not cached and the cover redone when the file appears), else the radio glyph on Now Playing's card grey, else the
  *            stock disc. The look is unchanged; the next button stays, greyed (mb_next_off) and insensitive (a live station has none), white again when
@@ -437,7 +438,8 @@ static void mb_fav(const rd_list_t *l, int at, char *fav, unsigned n) {
     if (l->n && at < l->n) rd_favicon(rd_info(l, at), fav, n);
 }
 
-/* The line under the station's name, with radio Now Playing's words (radionp.c rn_line); a playing stream is "Live" (the bar is narrow: the codec caption is Now Playing's). */
+/* The line under the top line, with radio Now Playing's words (radionp.c rn_line); a playing stream shows live ICY
+ * metadata when broadcast (rd_meta_sub: the artist when split), else "Live" (the bar is narrow: the codec caption is Now Playing's). */
 void mb_radio_line(char *out, unsigned n) {
     int st = rd_state();
     if (st == RD_ERROR)
@@ -448,6 +450,8 @@ void mb_radio_line(char *out, unsigned n) {
         snprintf(out, n, "%s", TR("Paused"));
     else if (st == RD_STOPPED)
         snprintf(out, n, "%s", TR("Stopped"));
+    else if (rd_meta_sub()[0])
+        snprintf(out, n, "%s", rd_meta_sub());
     else
         snprintf(out, n, "%s", TR("Live"));
 }
@@ -479,7 +483,7 @@ static void mb_radio_labels(const rd_list_t *l, int at) {
     char line[200];
     const char *name = l->n && at < l->n ? rd_name(l, at) : "";
     mb_radio_line(line, sizeof line);
-    widget_set_text_utf8(mb.title, name[0] ? name : TR("Radio"));
+    widget_set_text_utf8(mb.title, rd_meta_head(name[0] ? name : TR("Radio")));
     widget_set_text_utf8(mb.artist, line);
     widget_invalidate_force(mb.card, (void *)0);
 }
@@ -549,7 +553,7 @@ static void mb_work_radio(void) {
     unsigned skey = l->n && at < l->n ? cc_fnv(FNV_SEED, rd_url(l, at)) : 0, key;
     char fav[RD_FAV_MAX + 1], path[48];
     skey |= !skey;
-    key = cc_fnv((skey ^ (unsigned)rd_state()) * MB_HASH_PRIME, rd_error());
+    key = cc_fnv(((skey ^ (unsigned)rd_state()) * MB_HASH_PRIME) ^ rd_meta_serial(), rd_error());
     key |= !key;
     if (!mb.radio) { /* from local to radio: nothing of the track stays */
         mb.radio = 1;

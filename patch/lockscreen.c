@@ -208,7 +208,7 @@ static void lk_radio_labels(int force) {
     const char *name = l->n && at < l->n ? rd_name(l, at) : "";
     char line[200];
     mb_radio_line(line, sizeof line);
-    dirty |= lk_set_label(lk.title, name[0] ? name : TR("Radio"), force);
+    dirty |= lk_set_label(lk.title, rd_meta_head(name[0] ? name : TR("Radio")), force);
     dirty |= lk_set_label(lk.artist, line, force);
     if (dirty) widget_invalidate_force(lk.card, (void *)0);
 }
@@ -275,7 +275,7 @@ static void lk_work_radio(void) {
     unsigned skey = l->n && at < l->n ? cc_fnv(FNV_SEED, rd_url(l, at)) : 0, key;
     char fav[RD_FAV_MAX + 1], path[48];
     skey |= !skey;
-    key = cc_fnv((skey ^ (unsigned)rd_state()) * FNV_PRIME, rd_error());
+    key = cc_fnv(((skey ^ (unsigned)rd_state()) * FNV_PRIME) ^ rd_meta_serial(), rd_error());
     key |= !key;
     if (!widget_get_visible(lk.card)) {
         widget_set_visible(lk.card, 1, 0);

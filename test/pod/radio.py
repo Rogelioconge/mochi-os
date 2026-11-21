@@ -85,6 +85,26 @@ class RM(PCN.NM):
             self.calls.append(('open', self.read_cstr(a0), a1)); ret = 0xffffffff
         elif name == 'mkdir' and self.read_cstr(a0).startswith(RADIO_DIR) and self.read_cstr(a0).rsplit('/', 1)[0] not in self.dirs:   # mkdir without its parent
             self.calls.append(('mkdir', self.read_cstr(a0))); ret = 0xffffffff
+        elif name == 'fopen' and self.read_cstr(a0) == '/tmp/m1plus-icy':
+            path, mode = '/tmp/m1plus-icy', self.read_cstr(a1); self.calls.append(('fopen', path, mode))
+            if 'w' in mode:
+                self.fs[path] = b''; ret = self.alloc(4); self.fp[ret] = [path, 0]
+            elif path in self.fs:
+                ret = self.alloc(4); self.fp[ret] = [path, 0]
+            else:
+                ret = 0
+        elif name == 'fwrite' and a3 in self.fp and self.fp[a3][0] == '/tmp/m1plus-icy':
+            path, pos = self.fp[a3]; data = bytearray(self.fs.get(path, b''))
+            chunk = bytes(u.mem_read(a0, a1 * a2))
+            data = data.ljust(pos, b'\0'); data[pos:pos + len(chunk)] = chunk
+            self.fs[path] = bytes(data); self.fp[a3][1] = pos + len(chunk); ret = len(chunk) // a1 if a1 else 0
+        elif name == 'fread' and a3 in self.fp and self.fp[a3][0] == '/tmp/m1plus-icy':
+            path, pos = self.fp[a3]; data = self.fs.get(path, b'')
+            chunk = data[pos:pos + a1 * a2]
+            if chunk: u.mem_write(a0, chunk)
+            self.fp[a3][1] = pos + len(chunk); ret = len(chunk) // a1 if a1 else 0
+        elif name == 'fclose' and a0 in self.fp and self.fp[a0][0] == '/tmp/m1plus-icy':
+            self.fp.pop(a0); ret = 0
         elif name == 'fopen' and 'w' in self.read_cstr(a1) and self.read_cstr(a0).startswith(RADIO_DIR):   # stdio write on the card dict (the logo's .tmp)
             path = self.read_cstr(a0); self.calls.append(('fopen', path, self.read_cstr(a1)))
             if ('fopen', path) in self.fail or path.rsplit('/', 1)[0] not in self.dirs: ret = 0
@@ -2713,4 +2733,246 @@ def retry_tests(ctx):
     expect(r == 1, 'a logo job starts beside a running download too')
 
 
-SECTIONS = [parsers_tests, table_tests, play_tests, poll_tests, stop_tests, reroute_tests, fetch_tests, card_tests, asset_tests, open_tests, levels_tests, directory_tests, search_tests, logo_tests, favs_tests, np_tests, info_tests, entry_tests, view_tests, nowifi_tests, retry_tests]
+def icy_tests(ctx):
+    """21. ICY stream metadata (patch/icy.c, patch/icy.h, patch/radio.c, radionp.c, radioinfo.c, minibar.c):
+    hciplayer's read-only tap (HTTP mp_msg + HTTPS av_opt_set), pins, parser edge cases, and end-to-end UI."""
+    expect = ctx.expect
+    import json, mod_player
+    PEQ = sibling('peq')
+    ICY_FILE, ICY_MAGIC, ICY_RAW = '/tmp/m1plus-icy', b'M1IC001\0', 512
+    REC_LEN = 16 + ICY_RAW + 8
+    MP_MSG, AV_OPT_SET = 0x445cec, 0x6f86f0
+
+    # ---- 1. hciplayer binary pins and patches
+    stock = open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', mod_player.REL), 'rb').read()
+    built = open(os.path.join(WORK, 'rootfs', mod_player.REL), 'rb').read()
+    w = mod_player.word
+    manifest = json.load(open(os.path.join(WORK, 'playerbuild', 'manifest.json')))
+    for addr, old, name in mod_player.ICY_CALLS:
+        fn = manifest['symbols'][name]
+        expect(w(stock, addr) == old and w(built, addr) == (0x0c000000 | fn >> 2),
+               f'{name} at {addr:#x}: stock {old:#010x} -> jal {fn:#x}')
+    pinned = {a for a, _, _ in mod_player.PINS}
+    expect({0x4bdf70, 0x4be4cc, 0x4be4d4, 0x445cec, 0x5020c0, 0x5020c8, 0x5020d0, 0x6f86f0} <= pinned,
+           'both ICY call sites, their delay slots and both stock prologues are pinned')
+    for at, what in ((mod_player.ICY_MP_CALL, 'MPlayer ICY call'), (mod_player.ICY_FF_CALL, 'FFmpeg ICY call'),
+                     (0x4be4d4, 'MPlayer delay slot'), (0x5020d0, 'FFmpeg delay slot'),
+                     (0x8a7264, 'ICY Info string'), (0x8b2b50, 'icy_metadata_packet string')):
+        bad = bytearray(stock); bad[pod.fileoff(bad, at)] ^= 1
+        keep = mod_player.PLAYER_SHA
+        mod_player.PLAYER_SHA = pod.sha(bytes(bad))
+        try:
+            mod_player.check_stock(bytes(bad)); refused = False
+        except ValueError: refused = True
+        finally: mod_player.PLAYER_SHA = keep
+        expect(refused, f'{what} ({at:#x}) changed: check_stock refuses it')
+
+    # ---- 2. hciplayer tap under Unicorn (both HTTP and HTTPS hooks)
+    class IcyPlayer(PEQ.Player):
+        def __init__(self, files=None):
+            super().__init__(files)
+            self.ih, self.stock_calls, self.av_ret = {}, [], 0
+            # trap stock mp_msg and av_opt_set so we verify forwarding and return value without running stock body
+            for addr, tag in ((MP_MSG, 'mp_msg'), (AV_OPT_SET, 'av_opt_set')):
+                self.traps[addr] = tag
+                self.u.hook_add(UC_HOOK_CODE, self._trap, begin=addr, end=addr)
+
+        def _trap(self, u, address, size, user):
+            name = self.traps[address]
+            a0, a1, a2, a3 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3))
+            ret = None
+            if name == 'mp_msg':
+                self.stock_calls.append(('mp_msg', a0, a1, self.read_cstr(a2), self.read_cstr(a3) if a3 else None))
+                ret = 0
+            elif name == 'av_opt_set':
+                self.stock_calls.append(('av_opt_set', a0, self.read_cstr(a1), self.read_cstr(a2) if a2 else None, a3))
+                ret = self.av_ret
+            elif name == 'fopen' and self.read_cstr(a0).decode() == ICY_FILE:
+                if ICY_FILE in self.files:
+                    ret = self.malloc(4); self.ih[ret] = 0
+                else: ret = 0
+            elif name in ('fread', 'fseek', 'fwrite', 'fclose') and (a3 if name in ('fread', 'fwrite') else a0) in self.ih:
+                h = a3 if name in ('fread', 'fwrite') else a0
+                data = self.files[ICY_FILE]
+                if name == 'fread':
+                    chunk = bytes(data[self.ih[h]:self.ih[h] + a1 * a2])
+                    if chunk: u.mem_write(a0, chunk)
+                    self.ih[h] += len(chunk); ret = len(chunk) // a1
+                elif name == 'fseek':
+                    assert a2 == 0; self.ih[h] = a1; ret = 0
+                elif name == 'fwrite':
+                    chunk = bytes(u.mem_read(a0, a1 * a2)); pos = self.ih[h]
+                    self.files[ICY_FILE] = data = bytearray(data).ljust(pos, b'\0'); data[pos:pos + len(chunk)] = chunk
+                    self.ih[h] = pos + len(chunk); ret = len(chunk) // a1
+                else:
+                    self.ih.pop(h); ret = 0
+            if ret is None: return super()._trap(u, address, size, user)
+            u.reg_write(UC_MIPS_REG_V0, ret & 0xffffffff)
+            u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+
+    def unpack_icy(raw):
+        assert len(raw) == REC_LEN, len(raw)
+        magic, seq, gen, body, seq_end, _ = struct.unpack(f'<8sii{ICY_RAW}sii', raw)
+        return magic, seq, gen, body.split(b'\0', 1)[0], seq_end
+
+    def mark_bytes(gen=7, seq=0, raw=b'', magic=ICY_MAGIC, seq_end=None):
+        se = seq if seq_end is None else seq_end
+        return struct.pack(f'<8sii{ICY_RAW}sii', magic, seq, gen, raw[:ICY_RAW - 1], se, 0)
+
+    mp_fn, ff_fn = manifest['symbols']['icy_mplayer_msg'], manifest['symbols']['icy_av_opt_set']
+    # no mark: nothing written, stock still runs and returns its value
+    p = IcyPlayer(); p.av_ret = -22
+    fmt, kname, pkt = p.cstr(b'\nICY Info: %s\n'), p.cstr(b'icy_metadata_packet'), p.cstr(b"StreamTitle='A - B';")
+    p.call(mp_fn, 5, 4, fmt, pkt)
+    r = p.call(ff_fn, 0x1234, kname, pkt, 0)
+    expect(ICY_FILE not in p.files and r == -22 and len(p.stock_calls) == 2
+           and p.stock_calls[0] == ('mp_msg', 5, 4, b'\nICY Info: %s\n', b"StreamTitle='A - B';")
+           and p.stock_calls[1] == ('av_opt_set', 0x1234, b'icy_metadata_packet', b"StreamTitle='A - B';", 0),
+           'no mark: nothing written, both hooks forward exact args and return value to stock')
+    # bad magic and kill switch: neither writes
+    p = IcyPlayer({ICY_FILE: bytearray(mark_bytes(magic=b'BADMAG0\0'))})
+    p.call(mp_fn, 5, 4, p.cstr(b'\nICY Info: %s\n'), p.cstr(b"StreamTitle='X - Y';"))
+    expect(unpack_icy(bytes(p.files[ICY_FILE]))[1] == 0, 'bad magic: nothing written')
+    p = IcyPlayer({ICY_FILE: bytearray(mark_bytes(gen=3)), KILL: b''})
+    p.call(ff_fn, 0x10, p.cstr(b'icy_metadata_packet'), p.cstr(b"StreamTitle='X - Y';"), 0)
+    expect(unpack_icy(bytes(p.files[ICY_FILE]))[1] == 0, 'kill switch: nothing written')
+    # valid mark: HTTP writes seq 1, HTTPS bumps seq 2 preserving gen; oversized packet truncates cleanly
+    p = IcyPlayer({ICY_FILE: bytearray(mark_bytes(gen=42))}); p.av_ret = 0
+    p.call(mp_fn, 5, 4, p.cstr(b'\nICY Info: %s\n'), p.cstr(b"StreamTitle='Daft Punk - Instant Crush';"))
+    expect(unpack_icy(bytes(p.files[ICY_FILE])) == (ICY_MAGIC, 1, 42, b"StreamTitle='Daft Punk - Instant Crush';", 1),
+           'MPlayer HTTP hook publishes seq 1 with demo gen and seq == seq_end')
+    p.call(ff_fn, 0x99, p.cstr(b'icy_metadata_packet'), p.cstr(b"StreamTitle='Air - La Femme d'Argent';"), 0)
+    expect(unpack_icy(bytes(p.files[ICY_FILE])) == (ICY_MAGIC, 2, 42, b"StreamTitle='Air - La Femme d'Argent';", 2),
+           'FFmpeg HTTPS hook bumps seq 2 and preserves gen')
+    huge = b"StreamTitle='" + b'A' * 700 + b"';"
+    p.call(ff_fn, 0x99, p.cstr(b'icy_metadata_packet'), p.cstr(huge), 0)
+    magic, seq, gen, body, seq_end = unpack_icy(bytes(p.files[ICY_FILE]))
+    expect(magic == ICY_MAGIC and seq == 3 and seq_end == 3 and gen == 42 and len(body) == ICY_RAW - 1,
+           f'oversized packet truncates safely to {ICY_RAW - 1} bytes without corrupting seq_end')
+    huge = b"StreamTitle='x" + '中'.encode() * 200 + b"';"
+    p.call(ff_fn, 0x99, p.cstr(b'icy_metadata_packet'), p.cstr(huge), 0)
+    body = unpack_icy(bytes(p.files[ICY_FILE]))[3]
+    expect(len(body) == 14 + 3 * 165 and body.decode('utf-8').endswith('中'),
+           f'oversized CJK packet truncates on a UTF-8 character boundary ({len(body)} bytes)')
+
+    # ---- 3. Pure ICY parser (rd_icy_parse)
+    m = machine()
+    def parse(raw, station='', line_n=200):
+        rb = m.buf(raw); sb = m.buf(station)
+        lb, ab, tb = m.malloc(200), m.malloc(128), m.malloc(128)
+        stack(m, ab, 128, tb, 128)
+        rc = struct.unpack('<i', struct.pack('<I', m.call(PSYMS['rd_icy_parse'], a0=rb, a1=sb, a2=lb, a3=line_n)))[0]
+        u8 = lambda a: m.read_cstr(a).encode('latin-1').decode('utf-8')
+        return rc, u8(lb), u8(ab), u8(tb)
+
+    expect(parse("StreamTitle='Daft Punk - Instant Crush';StreamUrl='http://x';") == (1, 'Daft Punk – Instant Crush', 'Daft Punk', 'Instant Crush'),
+           'standard Artist - Title parsed and formatted with en-dash')
+    expect(parse("StreamTitle='Queen - Don't Stop Me Now';StreamUrl='';") == (1, "Queen – Don't Stop Me Now", 'Queen', "Don't Stop Me Now"),
+           'unescaped apostrophe inside title preserved')
+    expect(parse("StreamTitle='Jean-Michel Jarre - Oxygène';") == (1, 'Jean-Michel Jarre – Oxygène', 'Jean-Michel Jarre', 'Oxygène'),
+           'hyphenated artist name and UTF-8 preserved')
+    expect(parse("StreamTitle='Radiohead – Paranoid Android';") == (1, 'Radiohead – Paranoid Android', 'Radiohead', 'Paranoid Android'),
+           'en-dash separator splits Artist and Title')
+    expect(parse("StreamTitle='Morning News Hour';") == (1, 'Morning News Hour', '', 'Morning News Hour'),
+           'unsplit single title: artist empty, line == title')
+    expect(parse("streamtitle='Björk - Joga';") == (1, 'Björk – Joga', 'Björk', 'Joga'),
+           'StreamTitle key matched case-insensitively')
+    expect(parse(b"StreamTitle='Caf\xe9 Del Mar - L\x92Amour';") == (1, 'Café Del Mar – L’Amour', 'Café Del Mar', 'L’Amour'),
+           'invalid UTF-8 falls back to CP1252/Latin-1 -> UTF-8')
+    zh = '中' * 42
+    expect(parse("StreamTitle='" + '中' * 43 + " - Song';") == (1, zh + ' – Song', zh, 'Song'),
+           'long CJK artist cut on a character boundary (artist and line stay valid UTF-8)')
+    expect(parse("StreamTitle='" + '中' * 43 + " - Song';", line_n=20) == (1, '中' * 6, zh, 'Song'),
+           'short line buffer cuts the joined line on a character boundary')
+    expect(parse("StreamTitle='" + '中' * 80 + "';", line_n=200)[1] == '中' * 66,
+           'unsplit long CJK title cut on a character boundary')
+    cut = ("StreamTitle='x" + '中' * 82).encode()[:256]
+    expect(parse(cut, line_n=200)[1] == 'x' + '中' * 66 and parse(cut)[3] == 'x' + '中' * 42,
+           'stock HTTP 256-byte cut mid-character drops the partial tail, no CP1252 fallback')
+    expect(parse(b"StreamTitle='Caf\xe9';") == (1, 'Café', '', 'Café'),
+           'a lone Latin-1 byte at the end still falls back to CP1252')
+    cut = ("StreamTitle='xy" + '中' * 80 + 'é').encode()[:256]
+    expect(parse(cut)[1] == 'xy' + '中' * 65,
+           'cut after the lead byte of a 2-byte character drops it when the prefix is UTF-8')
+    for blank in ("StreamTitle='';", "StreamTitle='   ';", "StreamTitle='-';", "StreamTitle=' – ';", "StreamTitle='logo fm';"):
+        expect(parse(blank, 'Logo FM') == (0, '', '', ''), f'blank/placeholder/station-name ({blank!r}) rejected -> 0')
+    expect(parse("StreamUrl='http://x.example/';") == (-1, '', '', ''),
+           'ICY packet without StreamTitle returns -1 so caller keeps current metadata')
+
+    # ---- 4. End-to-end: boot cleanup, play mark, poll read, Now Playing, Mini Bar, Station Info, handover
+    def rn_tick_on(m):
+        keep = m.top_main; m.top_main = NP_WIN
+        m.call(PSYMS['rn_tick'], a0=0, count=40000000)
+        m.top_main = keep
+
+    m = info_machine()
+    m.fs[ICY_FILE] = b'stale'
+    m.call(PSYMS['rd_icy_boot'])
+    expect(ICY_FILE not in m.fs, 'rd_icy_boot unlinks a stale ICY mark')
+    m = info_machine()   # starts playing Logo FM -> Connecting
+    expect(ICY_FILE in m.fs and unpack_icy(m.fs[ICY_FILE])[:2] == (ICY_MAGIC, 0), 'rd_play writes fresh ICY mark (seq 0)')
+    gen1 = unpack_icy(m.fs[ICY_FILE])[2]
+    expect(gen1 >= 1, f'gen starts positive ({gen1})')
+    # packet arrives while Connecting: read by poll, hidden until Playing
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=1, raw=b"StreamTitle='Daft Punk - Instant Crush';")
+    poll(m); rn_tick_on(m)
+    np2 = lambda: (text_of(m, 'rn_title'), text_of(m, 'rn_artist'))
+    expect(np2() == ('Logo FM', 'Connecting…'), f'while Connecting, the station name and Connecting… take precedence over ICY metadata ({np2()})')
+    # transition to Playing -> metadata appears immediately on Now Playing, Mini Bar line, and Station Info
+    m.clock += 2000; m.hs = 1; poll(m); rn_tick_on(m)
+    mb_buf = m.malloc(200); m.call(PSYMS['mb_radio_line'], a0=mb_buf, a1=200)
+    mb_u8 = lambda: m.read_cstr(mb_buf).encode('latin-1').decode('utf-8')
+    head = lambda: m.read_cstr(m.call(PSYMS['rd_meta_head'], a0=m.buf('Logo FM'))).encode('latin-1').decode('utf-8')
+    expect(np2() == ('Instant Crush', 'Daft Punk') and mb_u8() == 'Daft Punk' and head() == 'Instant Crush',
+           f'Playing, split: Now Playing and Mini Bar/Lock Screen show the title on top and the artist under it, as a song ({np2()}, {mb_u8()!r})')
+    info_go(m)
+    _, pairs = info_pairs(m)
+    expect(pairs.get('Status') == 'Playing' and pairs.get('Title') == 'Instant Crush' and pairs.get('Artist') == 'Daft Punk',
+           f'Station Info shows split Title and Artist pairs ({pairs})')
+    # torn read and wrong gen are ignored
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=2, seq_end=1, raw=b"StreamTitle='Torn - Read';")
+    poll(m); rn_tick_on(m)
+    expect(np2() == ('Instant Crush', 'Daft Punk'), 'torn read (seq != seq_end) ignored')
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1 + 9, seq=2, raw=b"StreamTitle='Wrong - Gen';")
+    poll(m); rn_tick_on(m)
+    expect(np2() == ('Instant Crush', 'Daft Punk'), 'stale/wrong gen ignored')
+    # StreamUrl-only packet keeps existing track
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=2, raw=b"StreamUrl='http://a.example/';")
+    poll(m); rn_tick_on(m)
+    expect(np2() == ('Instant Crush', 'Daft Punk'), 'StreamUrl-only packet keeps current track')
+    # unsplit single title updates Now Playing and Station Info ("Now Playing" pair)
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=3, raw=b"StreamTitle='Late Night Jazz';")
+    poll(m); m.call(PSYMS['sinfo_tick'], a0=0, count=40000000); rn_tick_on(m)
+    _, pairs = info_pairs(m)
+    expect(pairs.get('Now Playing') == 'Late Night Jazz' and 'Title' not in pairs and 'Artist' not in pairs,
+           f'unsplit metadata shows Now Playing pair in Station Info ({pairs})')
+    m.call(PSYMS['mb_radio_line'], a0=mb_buf, a1=200)
+    expect(np2() == ('Logo FM', 'Late Night Jazz') and mb_u8() == 'Late Night Jazz' and head() == 'Logo FM',
+           f'unsplit metadata keeps the station name on top with the text under it ({np2()})')
+    # empty StreamTitle clears back to station caption and "Live"
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=4, raw=b"StreamTitle='';")
+    poll(m); m.call(PSYMS['sinfo_tick'], a0=0, count=40000000); rn_tick_on(m)
+    m.call(PSYMS['mb_radio_line'], a0=mb_buf, a1=200)
+    _, pairs = info_pairs(m)
+    expect(np2() == ('Logo FM', 'Germany · MP3 128k') and mb_u8() == 'Live' and 'Now Playing' not in pairs,
+           'empty StreamTitle falls back to station caption, Live, and removes Station Info track pair')
+    # pause hides, resume restores; stop clears and unlinks ICY_FILE
+    m.fs[ICY_FILE] = mark_bytes(gen=gen1, seq=5, raw=b"StreamTitle='Boards of Canada - Roygbiv';")
+    poll(m); rn_tick_on(m)
+    expect(np2() == ('Roygbiv', 'Boards of Canada'), 'new track shown')
+    m.ps = 3; m.hs = 0; m.clock += 500; poll(m); rn_tick_on(m)
+    expect(np2() == ('Logo FM', 'Paused') and head() == 'Logo FM' and ICY_FILE in m.fs, 'Paused shows the station name and Paused, keeps ICY mark')
+    m.ps = 2; m.hs = 1; m.clock += 500; poll(m); rn_tick_on(m)
+    expect(np2() == ('Roygbiv', 'Boards of Canada'), 'Resume restores track metadata')
+    m.call(PSYMS['rd_stop'], count=40000000); rn_tick_on(m)
+    expect(ICY_FILE not in m.fs and np2() == ('Logo FM', 'Stopped'), 'Stop clears metadata and unlinks ICY mark')
+    # station switch bumps gen and ignores old gen; local handover clears and unlinks
+    l2 = new_list(m, INFO_CSV, 1); m.call(PSYMS['rd_play'], a0=l2, a1=0, count=40000000)
+    gen2 = unpack_icy(m.fs[ICY_FILE])[2]
+    expect(gen2 > gen1, f'new play bumps gen ({gen1} -> {gen2})')
+    m.clock += 2000; m.hs = 1; poll(m)
+    m.call(PSYMS['rd_start_player'], count=40000000)
+    expect(ICY_FILE not in m.fs, 'local playback handover unlinks ICY mark')
+
+
+SECTIONS = [parsers_tests, table_tests, play_tests, poll_tests, stop_tests, reroute_tests, fetch_tests, card_tests, asset_tests, open_tests, levels_tests, directory_tests, search_tests, logo_tests, favs_tests, np_tests, info_tests, entry_tests, view_tests, nowifi_tests, retry_tests, icy_tests]
