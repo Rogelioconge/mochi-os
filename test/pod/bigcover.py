@@ -796,4 +796,24 @@ def book_tests(ctx):
     expect(m.paint() == [] and m.all('cc_build_add_aspect') == [('cc_build_add_aspect', BK, TMP, 320, 2)], 'and the part\'s own embedded picture gets the job, the book\'s cover never back over it')
 
 
-SECTIONS = [hook_tests, job_tests, life_tests, idle_tests, idle_setting_tests, server_tests, book_tests]
+def asset_tests(ctx):
+    """ui/bigcover_page.bin: scrlabel_artist is secondary grey (#AAAAAA) in every state to match Now Playing, without changing its shared stock style."""
+    import awtk_style, awtk_ui, pod_roles
+    expect = ctx.expect
+    raw = os.path.join(WORK, 'rootfs', 'release', 'assets', 'default', 'raw')
+    root = awtk_ui.parse(open(os.path.join(raw, 'ui', 'bigcover_page.bin'), 'rb').read())
+    title, artist = root.find('scrlabel_title'), root.find('scrlabel_artist')
+    states = ('normal', 'disable', 'focused')
+    expect(title is not None and all(title.get(f'style:{st}:text_color') == pod_roles.INK_RGB for st in states),
+           'bigcover_page: scrlabel_title stays white (#FFFFFF) in every state')
+    expect(artist is not None and (artist.x, artist.y, artist.w, artist.h) == (0, 372, 320, 20)
+           and artist.get('style') == 'srlabel_msgwhite_style'
+           and all(artist.get(f'style:{st}:text_color') == pod_roles.SUB_RGB for st in states),
+           f'bigcover_page: scrlabel_artist keeps its geometry/style and takes {pod_roles.SUB_RGB} in every state')
+    th = awtk_style.parse(open(os.path.join(raw, 'styles', 'default.bin'), 'rb').read())
+    shared = th.find('hscroll_label', 'srlabel_msgwhite_style')
+    expect(len(shared) == 3 and all(awtk_style.color_to_str(s.get('text_color')) == '#FFFFFFFF' for s in shared),
+           'styles/default.bin: srlabel_msgwhite_style stays white for the stock dialogs that reference it')
+
+
+SECTIONS = [asset_tests, hook_tests, job_tests, life_tests, idle_tests, idle_setting_tests, server_tests, book_tests]

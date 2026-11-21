@@ -128,7 +128,7 @@ Yes/no questions use the stock confirm dialog: [overlays](overlays.md) "Confirm 
 Navbar title facts: [navbar](navbar.md). Consistency-audit decisions (do not re-litigate):
 
 - **Applied:** secondary text grey `#AAAAAA` everywhere (Home artist line, Now Playing times, artist
-  and album lines); `#8C8C8C` stays the muted partner grey. Pressed surfaces `#333333`.
+  and album lines, `bigcover_page` artist line); `#8C8C8C` stays the muted partner grey. Pressed surfaces `#333333`.
 - **Rejected:** lock screen's `#DDDDDD` artist line (sits on a wallpaper); queue's stock muted rows
   (derived from stock style).
 - **Rejected:** merging disc greys `#777777` / `#555555` / `#666666` / `#444444` (disc, pressed disc,

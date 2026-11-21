@@ -13,17 +13,23 @@ Navbar titles: the theme styles `navbar_label_white` and `navbar_centerlabel_whi
 `navbar_rightlabel_white` are already 20. Box, alignment (y 14, h 22, middle) and the Now Playing icon are
 untouched, so the smaller text stays vertically centred.
 
+Timed cover page (`bigcover_page.bin`): `scrlabel_artist` gets `#AAAAAA` (`pod_roles.SUB_RGB`) in all states
+to match Now Playing's artist line; its shared stock style `srlabel_msgwhite_style` stays white for dialogs.
+
 Usage: mod_polish.py SRC_WORKDIR OUT_WORKDIR     (OUT == SRC edits in place)
 """
 import os, stat, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import awtk_style
+import awtk_style, pod_roles
 from modlib import clone_workdir, edit_ui
 
 UI = 'rootfs/release/assets/default/raw/ui'
 PAGES = ('m1plus_menu', 'm1plus_shuffle', 'm1plus_settings', 'm1plus_extras', 'm1plus_artists', 'm1plus_cover', 'm1plus_cfset', 'm1plus_homeset', 'm1plus_extrascfg', 'm1plus_developer')
 TITLE_W = 200                     # the stock navbar title width
 IMG_MTIME = 1750924035            # as the other added ui files (mod_icons.py)
+BIGCOVER = 'bigcover_page.bin'
+BIGCOVER_STATES = ('normal', 'disable', 'focused')
+BIGCOVER_ARTIST_RGB = pod_roles.SUB_RGB
 
 
 def edit(root):
@@ -31,6 +37,14 @@ def edit(root):
     assert t is not None and (t.x, t.y, t.h) == (58, 14, 22), 'unexpected title geometry (tools/pod_ui.py NAV_TITLE_X: 8 px after the glass Back disc)'
     assert t.w <= 248, f'unexpected title width {t.w}'
     t.w = min(t.w, TITLE_W)   # a page with a navbar toggle (Cover Flow) already ends its title at the toggle's left edge
+
+
+def edit_bigcover(root):
+    a = root.find('scrlabel_artist')
+    assert a is not None and a.get('style') == 'srlabel_msgwhite_style', 'unexpected bigcover_page artist widget'
+    for st in BIGCOVER_STATES:
+        assert a.get(f'style:{st}:text_color') is None, f'bigcover_page artist already has {st} text_color'
+        a.set(f'style:{st}:text_color', BIGCOVER_ARTIST_RGB)
 
 
 STYLE_RAW = 'rootfs/release/assets/default/raw/styles/default.bin'
@@ -60,7 +74,8 @@ def apply(out):
         p = os.path.join(out, UI, k + '.bin')
         if os.path.exists(p):
             edit_ui(p, edit); os.utime(p, (IMG_MTIME, IMG_MTIME)); n += 1
-    print(f'polish: label_title {TITLE_W} px wide on {n} M1+ Music pages')
+    edit_ui(os.path.join(out, UI, BIGCOVER), edit_bigcover)
+    print(f'polish: label_title {TITLE_W} px wide on {n} M1+ Music pages; {BIGCOVER} artist -> {BIGCOVER_ARTIST_RGB}')
 
 
 if __name__ == '__main__':

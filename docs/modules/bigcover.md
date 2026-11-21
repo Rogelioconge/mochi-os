@@ -1,7 +1,7 @@
 # Timed cover page (bigcover_page)
 
 **Sources:** `patch/bigcover.c`, `patch/covercache.c` (`cc_fit`, `cc_decode_fit`, the worker),
-`tools/pod.py` `BIGCOVER_*`.
+`tools/pod.py` `BIGCOVER_*`, `tools/mod_polish.py` (`edit_bigcover`).
 
 Stock opens `bigcover_page` from Now Playing's 500 ms page timer after a counter runs out (20 ticks,
 about ten seconds, with Cover Mode on). The page's `img_playcover` is 320 x 320 but stock fills it
@@ -57,6 +57,9 @@ Stock's 264 px picture stays underneath.
   track change and the next tick.
 - **End:** `EVT_DESTROY` stops the job if held (no wait), removes the timer and files, destroys the
   bitmap and clears the state.
+- **Artist colour:** `tools/mod_polish.py` sets `scrlabel_artist`'s `text_color` in `ui/bigcover_page.bin`
+  to `#AAAAAA` (`pod_roles.SUB_RGB`) across `normal`, `disable` and `focused` to match Now Playing;
+  stock's shared `srlabel_msgwhite_style` stays white for dialogs.
 - **Kill switch / fallback:** `/mnt/mmc/m1plus-off` skips it at the hook, and every failure leaves
   stock's page as it is.
 
