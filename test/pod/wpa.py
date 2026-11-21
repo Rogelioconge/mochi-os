@@ -1,6 +1,6 @@
 """The newer Wi-Fi supplicant (tools/mod_wpa.py, docs/modules/wifi.md): the built hostap binary, its ELF facts against the stock
 supplicant and libraries, the untouched stock programs, and wifi_connect.sh's choice between ours and stock's."""
-import os, re, stat, subprocess, tempfile
+import os, re, stat, subprocess, tempfile, time
 from unittest import mock
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
 import mod_wpa as mw
@@ -101,7 +101,7 @@ def run(ctx):
 
     # run it under the host shell with stub programs and its fixed paths pointed into a scratch directory
     rec_conf = lambda p: open(p).read() if os.path.exists(p) else None
-    def script_run(new_ok=True, new_exists=True, kill=False, card=True, noconf=False, nets=None, start_rc=0, stale=False):
+    def script_run(new_ok=True, new_exists=True, kill=False, card=True, noconf=False, nets=None, start_rc=0, stale=False, log_out=None, wstate='connected', saved=True):
         with tempfile.TemporaryDirectory() as t:
             bindir, mmc, data_dir = (os.path.join(t, d) for d in ('bin', 'mmc', 'data'))
             for d in (bindir, mmc, data_dir): os.mkdir(d)
@@ -111,6 +111,18 @@ def run(ctx):
             def stub(path, body):
                 open(path, 'w').write('#!/bin/sh\n' + body); os.chmod(path, 0o755)
             for n in ('killall', 'udhcpc', 'ifconfig', 'sync'): stub(os.path.join(bindir, n), 'exit 0\n')
+            # the start log's and rescan's tools: wpa_cli's status per wstate (kick: idle until a scan is asked), the saved networks
+            calls = os.path.join(t, 'calls')
+            status = {'connected': 'echo wpa_state=COMPLETED', 'idle': 'echo wpa_state=DISCONNECTED', 'scanning': 'echo wpa_state=SCANNING',
+                      'kick': f'if [ -f {calls}.k ]; then echo wpa_state=COMPLETED; else echo wpa_state=DISCONNECTED; fi', 'gone': 'exit 1'}[wstate]
+            listing = '\\n0\\tHome\\tany\\t\\n' if saved else '\\n'
+            stub(os.path.join(bindir, 'wpa_cli'), f'echo "$3" >> {calls}\ncase "$3" in status) {status};; '
+                 f'list_networks) printf "network id / ssid / bssid / flags{listing}";; scan) touch {calls}.k; echo OK;; esac\n')
+            stub(os.path.join(bindir, 'sleep'), 'exit 0\n')
+            stub(os.path.join(bindir, 'pidof'), '[ "$1" = bluetoothd ] && echo 77 || exit 1\n')
+            netdir = os.path.join(t, 'net', 'wlan0'); os.makedirs(netdir); open(os.path.join(netdir, 'operstate'), 'w').write('up\n')
+            open(os.path.join(t, 'uptime'), 'w').write('4.56 1.00\n')
+            wlog, wpid = os.path.join(t, 'wifi.log'), os.path.join(t, 'wifi.pid')
             stub(os.path.join(bindir, 'wpa_supplicant'), f'[ "$1" = -v ] && {{ echo "wpa_supplicant v2.9"; exit 0; }}; echo "stock $@" >> {record}\n')
             newwpa = os.path.join(t, 'new')
             if new_exists:
@@ -122,12 +134,18 @@ def run(ctx):
             if stale: open(combined, 'w').write('a copy left by the last start\n')
             text = built.decode()
             for a, b in (('/usr/lib/m1plus/wpa_supplicant', newwpa), ('/mnt/mmc', mmc if card else os.path.join(t, 'nocard')),
-                         ('/mnt/data/wpa_supplicant.conf', conf), ('/mnt/data/m1plus/wifi-networks', netfile), ('/tmp/wpasupplicant_initsuccess', init), ('/tmp/m1plus-wpa.conf', combined)):
+                         ('/mnt/data/wpa_supplicant.conf', conf), ('/mnt/data/m1plus/wifi-networks', netfile), ('/tmp/wpasupplicant_initsuccess', init), ('/tmp/m1plus-wpa.conf', combined),
+                         ('/tmp/m1plus-wifi.log', wlog), ('/tmp/m1plus-wifi.pid', wpid), ('/proc/uptime', os.path.join(t, 'uptime')), ('/sys/class/net', os.path.join(t, 'net'))):
                 text = text.replace(a, b)
             script = os.path.join(t, 'wifi_connect.sh'); open(script, 'w').write(text)
             env = {'PATH': bindir + ':/usr/bin:/bin'}
             syntax = subprocess.run(['sh', '-n', script], capture_output=True)
             r = subprocess.run(['sh', script], env=env, capture_output=True, timeout=30)
+            for _ in range(100):     # the watcher runs in the background: wait until it removes its pid file
+                if not os.path.exists(wpid): break
+                time.sleep(0.05)
+            log = rec_conf(wlog) or ''
+            if log_out is not None: log_out.append((log, os.path.exists(wpid), rec_conf(calls) or ''))
             return (syntax.returncode, r.returncode, os.path.exists(init), open(record).read() if os.path.exists(record) else '', r.stdout, rec_conf(combined))
     arg = '-Dnl80211 -iwlan0 -c'
     sy, rc, init, rec, _, comb = script_run()
@@ -160,4 +178,27 @@ def run(ctx):
            f'ours failing to start hands over to stock on the real file: {rec!r}')
     sy, rc, init, rec, _, comb = script_run(nets=nets, start_rc=1, kill=True)
     expect(rec.splitlines() == [l for l in rec.splitlines() if l.startswith('stock ')] and len(rec.splitlines()) == 1, 'no second start when stock was the first')
+    def start_log(**kw):
+        logs = []
+        script_run(log_out=logs, **kw)
+        log, running, calls = logs[0]
+        return [l.split(' ', 1)[1] for l in log.splitlines()], running, calls.split().count('scan')
+    lines, running, scans = start_log()
+    expect(not running and scans == 0 and len(lines) == 3 and lines[0] == 'start: wlan0 up, rtk_hciattach -, bluetoothd 77'
+           and lines[1].endswith('combined.conf: exit 0') and '/new on ' in lines[1] and lines[2] == 'end: COMPLETED after 0 s',
+           f'connected at once: the start, the supplicant and its exit, the end state, no rescan: {lines!r}')
+    for wstate, body, n in (
+            ('idle', ['rescan at 15 s (DISCONNECTED): OK', 'rescan at 30 s (DISCONNECTED): OK', 'rescan at 60 s (DISCONNECTED): OK',
+                      'end: DISCONNECTED after 61 s'], 3),
+            ('kick', ['rescan at 15 s (DISCONNECTED): OK', 'end: COMPLETED after 16 s'], 1),
+            ('scanning', ['end: SCANNING after 61 s'], 0),
+            ('gone', ['end: no supplicant after 5 s'], 0)):
+        lines, running, scans = start_log(wstate=wstate)
+        expect(not running and lines[2:] == body and scans == n,
+               f'{wstate}: a scan asked only while idle at 15, 30 and 60 s, stopping once connected or the supplicant is gone: {lines!r}')
+    lines, running, scans = start_log(wstate='idle', saved=False)
+    expect(not running and lines[2:] == ['end: no saved networks'] and scans == 0, f'no saved networks: no rescan: {lines!r}')
+    logs = []
+    script_run(start_rc=1, log_out=logs)
+    expect('wpa_supplicant on ' in logs[0][0] and 'data/wpa_supplicant.conf: exit 0' in logs[0][0], f'the log names stock\'s supplicant after a hand-over: {logs[0][0]!r}')
     expect(b'm1plus-wpa-extra' not in built, 'the probe card file of extra networks is gone: the Wi-Fi page adds networks')

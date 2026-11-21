@@ -30,7 +30,7 @@ page ([payload](payload.md)).
 | File | Content |
 |---|---|
 | `/usr/lib/m1plus/wpa_supplicant` | hostap 2.12, stripped, mode 755 |
-| `/usr/bin/wifi_connect.sh` | stock script with the start lines replaced (pinned by SHA-256) |
+| `/usr/bin/wifi_connect.sh` | stock script with the start lines replaced (pinned by SHA-256), a rescan after start and a start log |
 | `ui/m1plus_wifi.bin`, `patch/wifictl.c`, `patch/wifipage.c` | the Wi-Fi page and sub-pages |
 | `/mnt/data/m1plus/wifi-networks` (run time) | saved networks a stock 2.9 supplicant cannot read |
 
@@ -61,6 +61,19 @@ built without it. The page asks the running supplicant `GET_CAPABILITY key_mgmt`
 networks, forget, disconnect and hidden WPA2 work (a WPA2/WPA3 network joins as WPA2); a WPA3-only or
 Enhanced Open network answers "This network isn't supported". `wifi-networks` stays on flash and its
 networks return when ours runs again.
+
+**Rescan after start.** A supplicant whose first scan joins nothing never scans again (seen on the device:
+the home network was in that scan's results, and it stayed `DISCONNECTED` until a scan was asked, then joined in
+4 s). So after the start, a background watcher polls `wpa_cli status` once a second and, while the state is
+`DISCONNECTED` or `INACTIVE`, asks one `scan` at 15, 30 and 60 s. It stops at `COMPLETED`, when the supplicant
+stops answering (after the first 5 s), or at 60 s, and does nothing with no saved networks. A new start stops the
+previous watcher (`/tmp/m1plus-wifi.pid`).
+
+**Start log.** Every run of the script appends to `/tmp/m1plus-wifi.log` (RAM, gone at power off; moved
+to `.log.1` past 64 KB). Each line starts with the uptime in seconds: `wlan0`'s operstate (or `missing`) and
+the `rtk_hciattach` / `bluetoothd` pids at the start, the supplicant chosen with its config and exit code, each
+rescan with the state and `wpa_cli`'s answer, and the end state. A Card Script reads it
+(`cp /tmp/m1plus-wifi.log* /mnt/mmc/`).
 
 **Configuration files.** Stock 2.9 rejects a whole config that holds `key_mgmt=SAE` / `WPA-EAP` / `OWE`
 (or `sae_password`, `ieee80211w`, `eap`...), so those networks never go into the real

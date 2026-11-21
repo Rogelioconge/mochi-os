@@ -66,6 +66,14 @@ SCRIPT_OLD = b"""\tifconfig $INTERFACE up
 \ttouch /tmp/wpasupplicant_initsuccess
 """
 SCRIPT_NEW = b"""\tifconfig $INTERFACE up
+\t# M1+ Music: a short log of each Wi-Fi start in RAM (lost at power off): the interface and Bluetooth at the start,
+\t# the supplicant chosen, each rescan and the end state. A new start stops the previous start's rescan watcher.
+\tWLOG=/tmp/m1plus-wifi.log
+\t[ ! -f /tmp/m1plus-wifi.pid ] || kill "$(cat /tmp/m1plus-wifi.pid)" 2> /dev/null
+\t[ "$(wc -c < $WLOG 2> /dev/null || echo 0)" -lt 65536 ] || mv -f $WLOG $WLOG.1
+\twlog() { echo "$(cut -d' ' -f1 /proc/uptime 2> /dev/null) $*" >> $WLOG; }
+\twlog "start: wlan0 $(cat /sys/class/net/$INTERFACE/operstate 2> /dev/null || echo missing)," \\
+\t\t"rtk_hciattach $(pidof rtk_hciattach || echo -), bluetoothd $(pidof bluetoothd || echo -)"
 \t# M1+ Music: the newer supplicant (WPA-Enterprise, WPA3, Enhanced Open) unless the kill switch exists or it cannot
 \t# run; otherwise stock's, exactly as before
 \tWPA=wpa_supplicant
@@ -91,6 +99,32 @@ SCRIPT_NEW = b"""\tifconfig $INTERFACE up
 \t\t"$WPA" -Dnl80211 -i$INTERFACE -c$CONF -B
 \t\tRC=$?
 \tfi
+\twlog "$WPA on $CONF: exit $RC"
+\t# a supplicant that finds no saved network in its first scan never scans again: until it is connected, ask one
+\t# scan at 15, 30 and 60 s while it is idle (not while scanning or joining); stop when connected, gone, or at 60 s
+\t(
+\t\tC="wpa_cli -i $INTERFACE"
+\t\tif [ -z "$($C list_networks 2> /dev/null | tail -n +2)" ]; then
+\t\t\twlog "end: no saved networks"
+\t\telse
+\t\t\tN=0
+\t\t\twhile [ $N -le 60 ]; do
+\t\t\t\tS=$($C status 2> /dev/null | grep '^wpa_state=' | cut -d= -f2)
+\t\t\t\tcase "$S" in
+\t\t\t\tCOMPLETED) break ;;
+\t\t\t\t"") [ $N -lt 5 ] || break ;;
+\t\t\t\tDISCONNECTED | INACTIVE)
+\t\t\t\t\tcase $N in 15 | 30 | 60) wlog "rescan at $N s ($S): $($C scan 2> /dev/null)" ;; esac
+\t\t\t\t\t;;
+\t\t\t\tesac
+\t\t\t\tN=$((N + 1))
+\t\t\t\tsleep 1
+\t\t\tdone
+\t\t\twlog "end: ${S:-no supplicant} after $N s"
+\t\tfi
+\t\trm -f /tmp/m1plus-wifi.pid
+\t) > /dev/null 2>&1 &
+\techo $! > /tmp/m1plus-wifi.pid
 \ttouch /tmp/wpasupplicant_initsuccess
 """
 
