@@ -204,6 +204,9 @@ ACT_BTCODECSET = 184  # picker row (the Audio Codec page of the Bluetooth page):
 ACT_LUNOW = 193       # action row (Settings > Library > Update Library): Update Now, stock's scan dialog with no context, a full scan (patch/libupdate.c lu_update_now)
 ACT_LUFOLDERS = 194   # link row (Update Library): Choose Folders: the card check, then our folder picker (patch/libupdate.c lu_folders, patch/lupick.c)
 ACT_SWAPKEYS = 196    # switch row (Buttons & Power): Swap Prev / Next, off by default; on swaps the physical previous and next buttons (patch/keyspower.c kp_swap_toggle and kp_key_map, /mnt/data/m1plus/buttons-swap)
+ACT_CRRUN = 210       # action row (Settings > Developer > Tools > Card Script): Run Now, starts /usr/bin/m1plus-run (patch/cardrun.c cardrun_run); reads Stop during a run and then SIGTERMs it (cardrun_stop); 211 is unused
+ACT_CRLOG = 212       # link row (Card Script): View Log, the log as a Release Notes page of our own (patch/relnotes.c cardlog_open)
+ACT_CRSRC = 214       # link row (Card Script): View Script, the card's m1plus-run.sh as a Release Notes page of our own (patch/relnotes.c cardsrc_open)
 ACT_LUAUTO = 195      # switch row (Update Library): Auto Update, stock's switch (the byte autoscan_flag saved as [SYSSET] AUTOSCAN; patch/libupdate.c lu_auto_toggle)
 ACT_PDLABELS = 209    # switch row (Settings > Appearance): Control Labels, on by default; off hides the Control Center tile captions (patch/pulldown.c pd_labels_toggle, /mnt/data/m1plus/pulldown-labels)
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
@@ -222,6 +225,7 @@ SWITCH_ACTIONS += (ACT_DTAUTO, ACT_DT24)   # Settings > General > Date & Time (p
 VALUE_ACTIONS += (ACT_DTZONE, ACT_DTDATE, ACT_DTTIME, ACT_DTFIELD)
 CHECK_ACTIONS += (ACT_DTZONESET, ACT_DTSET)
 ACTION_ACTIONS += (ACT_DTAPPLY,)
+ACTION_ACTIONS += (ACT_CRRUN,)
 VALUE_INIT.update({ACT_DTZONE: 'GMT+8 Shanghai', ACT_DTDATE: '', ACT_DTTIME: '', ACT_DTFIELD: '2026'})   # (the payload writes the date and the time)
 # The stock pages ACT_STOCK opens: (the name navigator_to takes = ui/<name>.bin, the value the row shows at the right: the payload reads the stock state, patch/m1plus.c VK_*, or None).
 # Each is a plain navigator_to(name) with no context in stock (docs/modules/settings.md "Stock pages"): the Settings list's rows, the Wi-Fi hub's two; Back returns to our page.
@@ -472,6 +476,9 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_libupdate',
     'm1plus_lupick',
     'm1plus_genresplit',
+    'm1plus_cardrun',
+    'm1plus_cardlog',
+    'm1plus_cardsrc',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -534,6 +541,7 @@ APPEARANCE_PAGE_INDEX = page_index('m1plus_appearance')
 GENERAL_PAGE_INDEX = page_index('m1plus_general')
 NETSERVICE_PAGE_INDEX = page_index('m1plus_netservice')
 LIBUPDATE_PAGE_INDEX = page_index('m1plus_libupdate')
+CARDRUN_PAGE_INDEX = page_index('m1plus_cardrun')
 WIFITRANSFER_PAGE_INDEX = page_index('m1plus_wifitransfer')
 PULLDOWN_PAGE_INDEX = page_index('m1plus_pulldown')
 REGION_PAGE_INDEX = page_index('m1plus_podcastregion')
@@ -762,6 +770,7 @@ INFO_DUR = INFO_CC_STATUS + 61  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asse
 INFO_APHOTOS, INFO_ANONE = INFO_DUR + 1, INFO_DUR + 2   # patch/m1plus.c: the Artist Photos card's counts (homecover_stat 7, 8)
 INFO_LBACCT = INFO_DUR + 3   # patch/m1plus.c: the ListenBrainz page's Account row (patch/scrobpage.c lb_account_text)
 INFO_LFACCT = INFO_DUR + 4   # ... and the Last.fm page's
+INFO_CRSTATUS = INFO_DUR + 7   # patch/m1plus.c: the Card Script page's Status row (patch/cardrun.c cardrun_status_text)
 INFO_LUSONGS, INFO_LUWHEN = INFO_DUR + 5, INFO_DUR + 6   # patch/m1plus.c: the Update Library page's Songs and Last Updated rows (patch/libupdate.c lu_songs_text, lu_when_text)
 CACHE_PAGE_INDEX = page_index('m1plus_cache')
 CACHE_PAGE = Page('m1plus_cache', 'm1plus_cache_page', 'Cache', layout=[
@@ -822,6 +831,7 @@ DEVELOPER_PAGE = Page('m1plus_developer', 'm1plus_developer_page', 'Developer', 
     Row('Screenshot', ACT_SHOT),
     Row('Cache', ACT_PAGE, CACHE_PAGE_INDEX),
     Row('Settings Files', ACT_PAGE, FILES_PAGE_INDEX),
+    Row('Card Script', ACT_PAGE, CARDRUN_PAGE_INDEX),
     Hdr('Reset'),
     Row('Reset All Settings', ACT_RESETALL),
 ])
@@ -1527,7 +1537,16 @@ LIBUPDATE_PAGE = Page('m1plus_libupdate', 'm1plus_libupdate_page', 'Update Libra
 ])
 # Update Library > Choose Folders (patch/lupick.c, docs/modules/libupdate.md "The folder picker"): our picker in place of stock's systemset/specfolder_page; no rows (the payload paints them)
 LUPICK_PAGE = Page('m1plus_lupick', 'm1plus_lupick_page', 'Choose Folders', kind='lupick')
-NOGLYPH_ACTIONS = (ACT_LUNOW, ACT_LUFOLDERS, ACT_LUAUTO)   # rows with no glyph: the Update Library page's (tools/pod_ui.py cards_row)
+# Settings > Developer > Tools > Card Script (patch/cardrun.c, docs/modules/cardrun.md "Developer page"): the card script runner by hand, and its log (a Release Notes page, patch/relnotes.c cardlog_open). The rows have no glyphs.
+CR_NOTE = "Put m1plus-run.sh in the card's root folder. It runs as root; View Log shows its output."
+CARDRUN_PAGE = Page('m1plus_cardrun', 'm1plus_cardrun_page', 'Card Script', layout=[
+    Row('Status', ACT_INFO, INFO_CRSTATUS), GAP,
+    Row('Run Now', ACT_CRRUN), GAP,
+    Row('View Script', ACT_CRSRC), Row('View Log', ACT_CRLOG), Note(CR_NOTE, lines=2),
+])
+CARDLOG_PAGE = Page('m1plus_cardlog', 'm1plus_cardlog_page', 'Card Script Log', kind='relnotes')
+CARDSRC_PAGE = Page('m1plus_cardsrc', 'm1plus_cardsrc_page', 'm1plus-run.sh', kind='relnotes')
+NOGLYPH_ACTIONS = (ACT_LUNOW, ACT_LUFOLDERS, ACT_LUAUTO, ACT_CRRUN, ACT_CRLOG, ACT_CRSRC)   # rows with no glyph: the Update Library page's (tools/pod_ui.py cards_row)
 
 # PAGES[0] is the entry page. The order is PAGE_ORDER's; a key with no page, or a page missing from PAGE_ORDER, stops the import.
 _missing = [k for k in PAGE_ORDER if k not in _REGISTRY]

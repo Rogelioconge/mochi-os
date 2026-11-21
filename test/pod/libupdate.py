@@ -239,7 +239,7 @@ def page_tests(ctx):
     """The page as cards, its texts, the row kinds; the asset."""
     expect, P = ctx.expect, pod_pages
     LP = P.LIBUPDATE_PAGE
-    expect((LP.key, LP.title, LP.kind) == ('m1plus_libupdate', 'Update Library', 'cards') and P.PAGE_ORDER[-3:-1] == ['m1plus_libupdate', 'm1plus_lupick'], 'the page, its title, then the picker after it in PAGE_ORDER')
+    expect((LP.key, LP.title, LP.kind) == ('m1plus_libupdate', 'Update Library', 'cards') and P.PAGE_ORDER[-6:-4] == ['m1plus_libupdate', 'm1plus_lupick'], 'the page, its title, then the picker after it in PAGE_ORDER')
     expect([(r.label, r.action) for r in LP.rows] == [('Songs', P.ACT_INFO), ('Last Updated', P.ACT_INFO), ('Update Now', P.ACT_LUNOW), ('Choose Folders', P.ACT_LUFOLDERS), ('Auto Update', P.ACT_LUAUTO)]
            and (P.ACT_LUNOW, P.ACT_LUFOLDERS, P.ACT_LUAUTO) == (193, 194, 195) and (LP.rows[0].arg, LP.rows[1].arg) == (P.INFO_LUSONGS, P.INFO_LUWHEN) and P.INFO_LUWHEN == P.INFO_LUSONGS + 1, 'the five rows and their actions')
     expect([P.row_kind(r) for r in LP.rows] == ['info', 'info', 'action', 'link', 'switch'], 'two info rows (no touch), the action row, the link and the switch')
@@ -251,7 +251,7 @@ def page_tests(ctx):
     expect((lib.label, lib.action, lib.arg) == ('Update Library', P.ACT_PAGE, P.LIBUPDATE_PAGE_INDEX) and P.row_kind(lib) == 'link' and P.SETTINGS_PAGE.rows and not any(r.action == P.ACT_HOME and r.arg == P.HOME_UPDATE for pg in P.PAGES if pg.kind == 'cards' for r in pg.rows),
            'Settings > Library: Update Library is a link to our page (a chevron); no settings page opens stock\'s')
     expect(P.ITEMS[P.ITEM_IDS.index('Update Library')].arg == P.HOME_UPDATE, 'the menu item keeps its frozen id (the payload redirects id 2)')
-    expect(P.NOGLYPH_ACTIONS == (P.ACT_LUNOW, P.ACT_LUFOLDERS, P.ACT_LUAUTO) and P.ACT_LUAUTO in P.SWITCH_ACTIONS and P.ACT_LUNOW in P.ACTION_ACTIONS, 'the rows have no glyph; the switch and the action row are in their kind lists')
+    expect(P.NOGLYPH_ACTIONS[:3] == (P.ACT_LUNOW, P.ACT_LUFOLDERS, P.ACT_LUAUTO) and P.ACT_LUAUTO in P.SWITCH_ACTIONS and P.ACT_LUNOW in P.ACTION_ACTIONS, 'the rows have no glyph; the switch and the action row are in their kind lists')
     import pod_i18n
     keys = ('Last Updated', 'Update Now', 'Choose Folders', 'Auto Update', P.LU_NOTE1, P.LU_NOTE2)
     expect(all(k in pod_i18n.TEXT and all(pod_i18n.TEXT[k][loc] for loc in pod_i18n.LOCALES) for k in keys), 'every text has a translation in all 13 languages')

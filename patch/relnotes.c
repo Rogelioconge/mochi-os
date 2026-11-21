@@ -24,12 +24,14 @@
 #define RN_HEAD_GAP 12
 #define RN_PITCH 24 /* a line of the notes (18 px) */
 #define RN_PITCH_LOCK 27 /* a line of the Custom Wallpaper instructions (20 px, the asset's label_line) */
+#define RN_PITCH_CARD 20 /* a line of the Card Script pages (15 px, no heading) */
 #define RN_GAP 12 /* an empty line of the notes */
 #define RN_BOTTOM 20
 #define RN_VIEW_H 400 /* the list under the navbar */
-#define RN_WIDE (UP_NOTES_MAX + 2048) /* wide chars kept: a char is at least one byte, a line adds its NUL */
+#define RN_WIDE (2 * UP_NOTES_MAX + 2048) /* wide chars kept: a char is at least one byte, a line adds its NUL */
 #define RN_LINES 700 /* wrapped lines kept */
 #define RN_SRC 600 /* wide chars of one line of the notes (a longer one ends there) */
+#define CR_LOG_MAX 16384 /* bytes of the card script's log shown */
 #define RN_WRAP 40 /* lines one line of the notes may take (600 chars of the widest glyph need about 40) */
 
 typedef struct {
@@ -41,7 +43,7 @@ static struct {
     void *win, *sv, *view, *st_head, *st_line;
     unsigned *lw; /* the notes, wide, one NUL after each source line */
     rn_ln_t *ln;
-    int nln, h, pitch; /* pitch: a line's height, RN_PITCH or RN_PITCH_LOCK */
+    int nln, h, pitch; /* pitch: a line's height, RN_PITCH, RN_PITCH_LOCK or RN_PITCH_CARD */
     unsigned head[40]; /* "Version 1.0.1", wide */
     int headn;
 } rn __attribute__((section(".scratch")));
@@ -57,7 +59,7 @@ static void rn_free(void) {
 /* The lines: each line of the notes wrapped to RN_W; an empty one is a gap. Cut where the tables are full. */
 static void rn_build(const char *text) {
     pd_t *d = calloc(1, sizeof *d);
-    int wn = 0, y = RN_TOP + RN_HEAD_H + RN_HEAD_GAP, gap = 1;
+    int wn = 0, y = RN_TOP + (rn.headn ? RN_HEAD_H + RN_HEAD_GAP : 0), gap = 1;
     rn.lw = calloc(RN_WIDE + 1, sizeof *rn.lw);
     rn.ln = calloc(RN_LINES, sizeof *rn.ln);
     rn.nln = 0;
@@ -115,8 +117,10 @@ static int rn_on_paint(void *ctx, void *e) {
     if (!canvas || !rn.win) return RET_OK;
     off = RN_I(rn.sv, SC_YOFF);
     RN_I(canvas, CANVAS_OY) += off;
-    widget_prepare_text_style(rn.st_head, canvas);
-    rn_text(canvas, rn.head, rn.headn, RN_TOP - off, RN_HEAD_H);
+    if (rn.headn) {
+        widget_prepare_text_style(rn.st_head, canvas);
+        rn_text(canvas, rn.head, rn.headn, RN_TOP - off, RN_HEAD_H);
+    }
     widget_prepare_text_style(rn.st_line, canvas);
     for (i = 0; rn.lw && rn.ln && i < rn.nln; ++i) {
         int y = rn.ln[i].y - off;
@@ -136,8 +140,8 @@ static int rn_on_destroy(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The page: window `name`, the heading and the text (both UTF-8) painted by the shared painter, a line of the text `pitch` px high. 0 once it is up (or a page of this file is already open); -1 when it could not open (nothing is left of it). */
-static int rn_open(const char *name, const char *head, const char *text, int pitch) {
+/* The page: window `name`, the heading (empty: none, the text starts at RN_TOP) and the text (both UTF-8) painted by the shared painter, a line of the text `pitch` px high. 0 once it is up (or a page of this file is already open); -1 when it could not open (nothing is left of it). */
+static int rn_open(const char *name, const char *head, const char *text, int pitch, int to_end) {
     unsigned o = 0;
     if (rn.win) return 0;
     memset(&rn, 0, sizeof rn);
@@ -165,6 +169,8 @@ static int rn_open(const char *name, const char *head, const char *text, int pit
     rn_build(text);
     widget_resize(rn.view, 320, rn.h);
     widget_set_prop_int(rn.sv, "virtual_h", rn.h);
+    if (to_end && rn.h > RN_VIEW_H)
+        widget_set_prop_int(rn.sv, "yoffset", rn.h - RN_VIEW_H); /* a log opens at its newest lines */
     widget_on(rn.view, EVT_AFTER_PAINT, rn_on_paint, (void *)0);
     widget_invalidate_force(rn.win, (void *)0);
     return 0;
@@ -185,7 +191,7 @@ int relnotes_open(void) {
             head[o++] = *tpl++;
     }
     head[o] = 0;
-    return rn_open("m1plus_relnotes", head, notes, RN_PITCH);
+    return rn_open("m1plus_relnotes", head, notes, RN_PITCH, 0);
 }
 
 /* Open: the Lock Screen's Custom Wallpaper row, the same page and painter, its text 20 px on a 27 px pitch (docs/modules/lockscreen.md "Custom Wallpaper"): the heading and three paragraphs, a blank line between them (the 12 px gap), in the
@@ -196,5 +202,37 @@ int lockinfo_open(void) {
              TR("Copy pictures to a folder named lockscreenimage at the top level of the card."),
              TR("JPG or PNG, exactly 320 x 480 pixels, under 1 MB each."),
              TR("Up to 5 pictures. Choose one in Wallpaper."));
-    return rn_open("m1plus_lockinfo", TR("Add Your Own Pictures"), text, RN_PITCH_LOCK);
+    return rn_open("m1plus_lockinfo", TR("Add Your Own Pictures"), text, RN_PITCH_LOCK, 0);
+}
+
+/* The log page's text, calloc'd (the caller frees it): the end of the log, or "No log yet". */
+static char *cardlog_text(void) {
+    char *text = calloc(CR_LOG_MAX + 1, 1);
+    if (!text) return (char *)0;
+    if (cardrun_log(text, CR_LOG_MAX + 1) <= 0) snprintf(text, CR_LOG_MAX + 1, "%s", TR("No log yet"));
+    return text;
+}
+
+/* Open: Developer > Tools > Card Script > View Log, the same page and painter: the card script's log as it is now (the last 16 KiB, ASCII, long lines wrapped, scrolled to the end), or "No log yet". 0 once it is up (or already open); -1 when it could not open. */
+int cardlog_open(void) {
+    char *text;
+    int r;
+    if (rn.win) return 0;
+    text = cardlog_text();
+    if (!text) return -1;
+    r = rn_open("m1plus_cardlog", "", text, RN_PITCH_CARD, 1);
+    free(text);
+    return r;
+}
+
+/* Open: Card Script > View Script, the same page and painter: the card's m1plus-run.sh as it is now (the first 16 KiB, ASCII, tabs as spaces), or "No m1plus-run.sh on the card". 0 once it is up (or already open); -1 when it could not open. */
+int cardsrc_open(void) {
+    char *text = calloc(CR_LOG_MAX + 1, 1);
+    int r;
+    if (!text) return -1;
+    if (cardrun_src(text, CR_LOG_MAX + 1) <= 0)
+        snprintf(text, CR_LOG_MAX + 1, "%s", TR("No m1plus-run.sh on the card"));
+    r = rn_open("m1plus_cardsrc", "", text, RN_PITCH_CARD, 0);
+    free(text);
+    return r;
 }

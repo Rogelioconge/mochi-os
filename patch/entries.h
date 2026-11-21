@@ -127,6 +127,24 @@ int lk_time_toggle(void); /* flip it as stock's switch does (byte, then [SYSSET]
 int lockinfo_open(
     void); /* the Lock Screen's Custom Wallpaper instructions, a Release Notes page; -1 when it did not open */
 int relnotes_open(void); /* the offered release's notes, a page of their own */
+int cardsrc_open(
+    void); /* Card Script > View Script: the first 16 KiB of the card's m1plus-run.sh, a Release Notes page; -1 when it did not open */
+int cardlog_open(
+    void); /* Developer > Tools > Card Script > View Log: the last 16 KiB of /tmp/m1plus-run.log, a Release Notes page; -1 when it did not open */
+
+/* patch/cardrun.c: Developer > Tools > Card Script (the runner /usr/bin/m1plus-run started and stopped by hand, its log) */
+int cardrun_pid(void); /* the live run's pid, 0 when none */
+void cardrun_status_text(char *buf, unsigned n); /* the Status row's value */
+void cardrun_run(
+    void); /* Run Now (a toast with no script); starts the 500 ms timer (page refresh, external audio hold) */
+void cardrun_stop(void); /* Stop */
+void cardrun_watch(void); /* the page shows: start the timer when a run is alive */
+void cardrun_refresh(void); /* patch/m1plus.c: the Card Script page, when open, reads its rows again */
+int cardrun_src(char *buf,
+                int n); /* the card script's start for the page: the same cleanup, from the first line, whole lines */
+int cardrun_log(
+    char *buf,
+    int n); /* the log's tail for the page: ASCII, from a line start, at most n - 1 bytes; its length, 0 when none */
 
 /* patch/update.c */
 int update_open(void); /* Software Update, our page; -1 when it did not open */

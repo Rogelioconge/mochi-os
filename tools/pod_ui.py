@@ -1866,13 +1866,15 @@ def build_update_page(page):
 # Release Notes (patch/relnotes.c, docs/modules/update.md "Release notes"): the stock navbar over a stock list (list_view > scroll_view + scroll bar) holding one content view the payload paints the heading and the wrapped
 # notes on, as the Find Cover & Lyrics lyrics detail does. Two hidden labels only carry the text styles (22 px white heading, 18 px light grey text). Neutral, no accent colour.
 RN_HEAD_PX, RN_LINE_PX, RN_LINE_RGB = 22, 18, '#E6E6E6'
+RN_CARD_LINE_PX = 15   # the Card Script pages' text (pod_pages.CARDLOG_PAGE / CARDSRC_PAGE, no painted heading); pitch 20 px (patch/relnotes.c RN_PITCH_CARD)
 RN_LOCK_LINE_PX = 20   # the Custom Wallpaper instructions' text (pod_pages.LOCKINFO_PAGE, same asset otherwise); the painter's pitch for it is 27 px (patch/relnotes.c RN_PITCH_LOCK)
 
 
 def build_relnotes_page(page):
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
     styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
-    root.children.append(navbar(page.title))
+    nb = navbar(page.title)
+    root.children.append(nb)
     lv = stock_list([], True)
     lv.set('name', 'rn_listview')
     sv = lv.children[0]
@@ -1882,7 +1884,7 @@ def build_relnotes_page(page):
     sv.children.append(view)
     root.children.append(lv)
     root.children.append(nav_fade())
-    root.children += style_labels((('label_head', RN_HEAD_PX, INK_RGB), ('label_line', RN_LOCK_LINE_PX if page.key == pod_pages.LOCKINFO_PAGE.key else RN_LINE_PX, RN_LINE_RGB)))
+    root.children += style_labels((('label_head', RN_HEAD_PX, INK_RGB), ('label_line', RN_LOCK_LINE_PX if page.key == pod_pages.LOCKINFO_PAGE.key else RN_CARD_LINE_PX if page.key in (pod_pages.CARDLOG_PAGE.key, pod_pages.CARDSRC_PAGE.key) else RN_LINE_PX, RN_LINE_RGB)))
     return root
 
 

@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# M1+ Music: run the card's m1plus-run.sh once (docs/modules/cardrun.md), started by Settings > Developer > Tools > Card Script
+# (patch/cardrun.c). Without that file nothing runs and nothing stays behind. The kill switch /mnt/mmc/m1plus-off is not read:
+# a probe has to run with the payload off too.
+#
+
+SRC=/mnt/mmc/m1plus-run.sh
+RUN=/tmp/m1plus-run.sh
+LOG=/tmp/m1plus-run.log
+PID=/tmp/m1plus-run.pid
+EXIT=/tmp/m1plus-run.exit
+
+[ -f $SRC ] || exit 0
+# one run at a time
+if [ -f $PID ] && kill -0 "$(cat $PID)" 2> /dev/null; then exit 0; fi
+# a copy runs, so no file on the card stays open (USB storage unmounts the card)
+cp $SRC $RUN || exit 0
+rm -f $EXIT
+# $$ is the pid the page stops (the runner is its own session leader, so also its group)
+echo $$ > $PID
+cd /
+# a handler, not an ignore: the script gets the default again, this shell outlives it and records the end
+trap : TERM
+/bin/sh $RUN > $LOG 2>&1 < /dev/null
+echo $? > $EXIT
+rm -f $PID

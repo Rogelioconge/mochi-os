@@ -317,11 +317,17 @@ class Machine:
         self.destroyed, self.loads = 0, []   # bitmaps destroyed / images loaded, over the machine's life
         self.locked, self.load_into = 0, []  # the bitmap last locked for writing / (url, that bitmap) per image load: which bitmap a decode was for
         self.tm_buf = 0                     # the struct tm localtime answers with (patch/dailymix.c)
+        self.mtimes = None          # path -> mtime seconds answered to statx (set by a test; None: statx is not answered here)
         self.sys = []               # syscalls the payload made itself (the cover worker's setpriority 4097, patch/covercache.c): (number, a0, a1, a2); answered 0
         self.u.hook_add(UC_HOOK_INTR, self._sys)
         if self.COUNT: self.count()
 
     def _sys(self, u, intno, _):
+        if u.reg_read(UC_MIPS_REG_V0) == 4366 and self.mtimes is not None:   # statx(AT_FDCWD, path, 0, STATX_MTIME, buf): the mtime of a path in self.mtimes (patch/cardrun.c)
+            path, buf = self.read_cstr(u.reg_read(UC_MIPS_REG_A1)), self.word(u.reg_read(UC_MIPS_REG_SP) + 16)
+            if path not in self.mtimes: u.reg_write(UC_MIPS_REG_A3, 1); u.reg_write(UC_MIPS_REG_V0, 2); return
+            u.mem_write(buf, bytes(256)); u.mem_write(buf, struct.pack('<I', 0x40)); u.mem_write(buf + 112, struct.pack('<Q', self.mtimes[path]))
+            u.reg_write(UC_MIPS_REG_A3, 0); u.reg_write(UC_MIPS_REG_V0, 0); return
         if u.reg_read(UC_MIPS_REG_V0) != 4097: return   # (only setpriority: a test with its own syscall, test/pod/filetime.py, answers the rest)
         self.sys.append((4097,) + tuple(u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2)))
         u.reg_write(UC_MIPS_REG_A3, 0); u.reg_write(UC_MIPS_REG_V0, 0)
@@ -1302,7 +1308,9 @@ class Machine:
             if getattr(self, 'on_fsync', None): self.on_fsync(p)   # a test's way to act while a file or a folder is being synced
             ret = -1 if ('fsync', p) in self.fail else 0
         elif name == 'close':
-            self.calls.append(('close', self.fds.pop(a0)[0]))
+            f = self.fds.pop(a0, None)
+            if f: self.calls.append(('close', f[0]))
+            else: self.blind_close = getattr(self, 'blind_close', []) + [a0]   # (a descriptor the payload never opened: the Card Script child closes every one up to 1023)
         elif name == 'window_manager':
             ret = self.wm
         elif name == 'window_manager_get_top_main_window':
@@ -1369,6 +1377,25 @@ class Machine:
             else: self.u.mem_write(a1, struct.pack('<ii', getattr(self, 'clock_ids', {}).get(a0, 0), 0))
         elif name == 'mclGetPlayStatus':   # the player's status word: 1 stopped, 2 playing, 3 paused (a test sets play_status)
             ret = getattr(self, 'play_status', 1)
+        # ---- Card Script (patch/cardrun.c): the runner is started detached and stopped with signals. fork returns the next of fork_seq (0 = the child; none left: a parent whose child is pid 4242);
+        # kill(pid, 0) answers from the set `alive`, a SIGTERM takes the pid (or the group's) out of it while kill_ends; usleep calls on_usleep(n) so that a test can write the runner's files meanwhile
+        elif name == 'fork':
+            seq = getattr(self, 'fork_seq', []); ret = seq.pop(0) if seq else 4242; self.calls.append(('fork',))
+        elif name == 'setsid':
+            self.calls.append(('setsid',)); ret = 4300
+        elif name == 'getpid':
+            ret = 4300
+        elif name == 'kill':
+            pid = a0 - (1 << 32) if a0 >> 31 else a0; alive = self.__dict__.setdefault('alive', set()); self.calls.append(('kill', pid, a1))
+            if a1 == 0: ret = 0 if pid in alive else -1
+            elif a1 == 15 and getattr(self, 'kill_ends', False): alive.discard(abs(pid))
+        elif name == 'waitpid':
+            self.calls.append(('waitpid', a0, a2))
+        elif name == 'execl':
+            args = [self.read_cstr(a0), self.read_cstr(a1)] + ([self.read_cstr(a2)] if a2 else []); self.calls.append(('execl', *args)); ret = -1
+        elif name == 'usleep':
+            self.calls.append(('usleep', a0))
+            if getattr(self, 'on_usleep', None): self.on_usleep(len([c for c in self.calls if c[0] == 'usleep']))
         elif name == 'sleep':
             self.calls.append(('sleep', a0)); self.wall += a0
             if getattr(self, 'on_sleep', None): self.on_sleep(len([c for c in self.calls if c[0] == 'sleep']))   # a test's way to act while the worker waits (the number of sleeps so far)

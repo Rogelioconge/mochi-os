@@ -128,6 +128,10 @@ int rd_play(
     const rd_list_t *l,
     int i); /* stops what plays, readies the DAC, starts station i of a copy of l in hciplayer; 1 started, 0 refused (rd_error says why) */
 void rd_resume(void); /* Paused: stock's resume, or Error "No Wi-Fi" without a connection */
+void rd_dac_take(
+    void); /* readies the output as stock's start_player does (the card script's external audio hold uses it too, patch/cardrun.c) */
+void cr_ext_yield(
+    void); /* patch/cardrun.c: a card script holds the DAC, ask it to let go and wait up to 2 s (any thread) */
 void rd_stop(void); /* the radio's own stop: mclStop, idempotent from any state */
 int rd_state(void);
 int rd_running(void); /* a station is connecting, playing or paused (the engine's timer lives) */

@@ -85,6 +85,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Playback settings](modules/playset.md) | Grouped Playback Settings page |
 | [Volume page](modules/volume.md) | Status bar tap's own Volume page |
 | [Scrobbling](modules/scrobble.md) | Card log, ListenBrainz and Last.fm upload |
+| [Card script runner](modules/cardrun.md) | Card script runner, Card Script page |
 | [Virtual iPod](modules/ipod.md) | Touch wheel, navigation, playback |
 | [iPod Cover Flow](modules/ipod-coverflow.md) | Embedded carousel |
 

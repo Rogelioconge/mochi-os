@@ -853,7 +853,7 @@ int rd_playable(const char *u) {
  * USB audio, 1 for Bluetooth, where it also switches the DAC off and hciplayer gets {mcl-setoutputway\1} and plays to bluealsa). For the built-in DAC, q2-pod's dac_take adds: its power
  * when only the idle timer cut it, PCM mode, unmuted (stop_player mutes), the volume. Without it hciplayer logs "Audio device got stuck!" and is silent. A USB DAC keeps its own power and
  * volume, and Bluetooth has no DAC to ready (the volume is the headset's). */
-static void rd_dac(void) {
+void rd_dac_take(void) {
     int out = *(int *)G_HEADSET_OUTPUT;
     set_outputchannel(out, 2, 0);
     if (mclGetOutputWay() != 0) return;
@@ -867,6 +867,7 @@ static void rd_dac(void) {
  * it sends the URL). */
 static void rd_begin(void) {
     int r;
+    cr_ext_yield(); /* a card script holding the DAC lets go before the station readies it */
     rd.retry_at = 0;
     rd.t_start = (unsigned)time_now_ms();
     if (*(volatile int *)HCI_SOCK_FD == -1) { /* hciplayer is not there: nothing would be sent */
@@ -874,7 +875,7 @@ static void rd_begin(void) {
         rd_copy(rd.error, sizeof rd.error, RD_WHY[8]);
         return;
     }
-    rd_dac();
+    rd_dac_take();
     *(volatile int *)RESUME_POS = 0;
     if (*(volatile int *)PLAYSPEED_MODE != 0)
         mclSetPlaySpeed(0); /* the radio is live: 1x whatever Multiple Speed says */
@@ -896,6 +897,7 @@ void rd_stop(void) {
 /* mclStartPlayer's hook: local music takes the output. Stock sends set-nexturl while its running byte is 1 and hciplayer does not leave a stream for it, so the stream is stopped first
  * (mclStop waits for hciplayer's exit). No widget, no timer call here (it may run off the UI thread): the engine's timer sees the state and ends itself. */
 int rd_start_player(void) {
+    cr_ext_yield(); /* a card script holding the DAC lets go first (patch/cardrun.c) */
     peqout_sync(0); /* the track starts on whatever output is plugged in now: its EQ (patch/peqout.c) */
     if (rd_running()) rd_apply(RD_EV_LOCAL);
     if (rd.owns &&

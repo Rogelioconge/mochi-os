@@ -203,6 +203,7 @@ The estimates use the gauge's whole percentages. The card and charts appear once
   measured track durations. Clear Track Durations removes stored measurements. Clear Cover Cache
   asks first and Home regenerates covers; artist photos stay.
 - **Tools → Settings Files**: tap a file to delete it. Unsupported Files removes leftovers of older builds.
+- **Tools → Card Script**: runs `m1plus-run.sh` from the card root by hand (nothing runs at boot). Status reads No Script, Ready, Running with the elapsed time, Done, Stopped or Failed with the exit status, and follows a run while the page is open. One row starts it (Run Now, with a toast when the card has no script) and reads Stop while it runs, to end it. View Script shows the card's script, View Log its output.
 - **Reset → Reset All Settings** asks for confirmation and deletes the settings files. Restart the
   player to apply the reset.
 

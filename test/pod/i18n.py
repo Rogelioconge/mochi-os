@@ -8,6 +8,7 @@ from awtk_text import Ttf, StbText
 RAW = os.path.join('rootfs', 'release', 'assets', 'default', 'raw')
 SAME_AS_ENGLISH = {'Cover Flow', 'Playlists', 'Playlist', 'Genres', 'Gain', 'Extras', 'Albums', 'Artists', 'Local', 'Name', '%s, %s', 'Band %d', 'Cassette', 'Vinyl'}   # translations that are the English word by design
 SAME_AS_ENGLISH |= {'USB DAC', 'Max'}    # the Volume page's grey line: the product term USB DAC in every table, Max in French, German and Italian
+SAME_AS_ENGLISH |= {'m1plus-run.sh'}    # the file name, the View Script page's title
 SAME_AS_ENGLISH |= {'Crossfeed'}    # the audio term, written the same in the Latin-script languages (the playset docs list it)
 SAME_AS_ENGLISH |= {'Standby'}    # German and Italian write Standby as English does (the Battery History page's Since Last Charge card)
 SAME_AS_ENGLISH |= {'AutoEq'}    # the brand name (the Presets page's section header)

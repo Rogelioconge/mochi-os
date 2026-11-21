@@ -46,7 +46,7 @@ LD = os.path.join(LLD, 'ld.lld')
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'artsplit.c', 'genresplit.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'pins.c', 'recent.c','dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
            'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'selmode.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'vupage.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'power.c', 'charging.c', 'batthist.c', 'bhpage.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c', 'ndfolders.c',
-           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'libupdate.c', 'lupick.c', 'btset.c', 'btpage.c', 'volume.c']
+           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'libupdate.c', 'lupick.c', 'btset.c', 'btpage.c', 'volume.c', 'cardrun.c']
 
 # LibriVox (patch/bknet.c, patch/bkdl.c): kept by the linker until the Audiobooks pages that call them exist; the Book level's download row (phase 3b) takes the rest; test/pod/bkdl.py calls these
 BN_KEEP = ['bd_fat', 'bd_present']
@@ -712,6 +712,8 @@ LIBC = {
     # The Wi-Fi page (patch/wifictl.c): the control socket, as stock's wpa_ctrl client makes it (AF_UNIX datagram, bind to a private path, connect to the interface's socket, send, select, recv; demo imports all of them)
     'socket': ('int', 'int, int, int'), 'bind': ('int', 'int, const void *, unsigned'), 'connect': ('int', 'int, const void *, unsigned'), 'send': ('int', 'int, const void *, unsigned, int'),
     'recv': ('int', 'int, void *, unsigned, int'), 'select': ('int', 'int, void *, void *, void *, void *'), 'getpid': ('int', 'void'), 'usleep': ('int', 'unsigned'),
+    # Card Script (patch/cardrun.c): the runner is started detached (fork twice, setsid, execl) and stopped with kill; demo imports all of them
+    'fork': ('int', 'void'), 'setsid': ('int', 'void'), 'kill': ('int', 'int, int'), 'waitpid': ('int', 'int, int *, int'), 'execl': ('int', 'const char *, const char *, ...'),
     'rmdir': ('int', 'const char *'),   # Podcasts unsubscribe (patch/podcasts.c): the show folder left empty
     # Internet Radio (patch/radio.c, docs/modules/radio.md): the parsers' string calls; demo imports all of them
     'strlen': ('unsigned', 'const char *'), 'strstr': ('char *', 'const char *, const char *'), 'strchr': ('char *', 'const char *, int'), 'strrchr': ('char *', 'const char *, int'),
@@ -1193,7 +1195,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define POD_ENTRY_ID {pod_pages.HOME_ENTRY}')
     h.append('#define POD_ENTRY_PAGE 0')
     h.append('#define POD_MENU_PAGE 0')
-    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'GSPLIT', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'VOLUME', 'PSVOLUME', 'PSGAIN', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'BATTERY', 'BATTHIST', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER', 'LIBUPDATE', 'BTCODEC'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
+    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'GSPLIT', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'VOLUME', 'PSVOLUME', 'PSGAIN', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'BATTERY', 'BATTHIST', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER', 'LIBUPDATE', 'BTCODEC', 'CARDRUN'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
         h.append(f'#define POD_{macro}_PAGE {getattr(pod_pages, macro + "_PAGE_INDEX")}')
     (out / 'pages.h').write_text('\n'.join(h) + '\n')
     return slots

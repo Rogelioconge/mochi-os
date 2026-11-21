@@ -60,6 +60,7 @@ STATE = {
                                 'pod_value5': '192.168.1.42', 'pod_value6': '119.25 GB', 'pod_value7': '87.41 GB'}},
     'm1plus_keyboards': {'switches': {'pod_switch0': True, 'pod_switch1': False}},
     'm1plus_libupdate': {'values': {'pod_value0': '4,812', 'pod_value1': 'Today 09:41'}, 'switches': {'pod_switch4': True}},   # Update Library: the songs, the last scan, Auto Update on
+    'm1plus_cardrun': {'values': {'pod_value0': 'Ready'}},   # Card Script: a script, no run (no row is dimmed)
     'm1plus_cache': {'values': {'pod_value0': '840', 'pod_value1': '812', 'pod_value2': '9', 'pod_value3': '19', 'pod_value4': '3', 'pod_value5': '14.2 MB', 'pod_value6': 'Idle'}},
 }
 
@@ -354,6 +355,36 @@ def draw_lockinfo(s):
     return im
 
 
+CARDSRC_SAMPLE = ['#!/bin/sh', 'LOG=/mnt/mmc/m1plus-battery.csv', 'while true; do', '  cat /sys/class/power_supply/battery/capacity >> $LOG', '  sleep 60', 'done']
+CARDLOG_SAMPLE = ['[probe] battery 87% 4012 mV discharging', 'wlan0 up, backlight 120, PCM idle', 'row 41 written to /mnt/mmc/m1plus-battery.csv'] * 6 + ['done']
+
+
+def draw_cardlog(s, lines, page='m1plus_cardlog'):
+    """Settings > Developer > Tools > Card Script > View Log (ui/m1plus_cardlog.bin, painter patch/relnotes.c): no heading, the text 15 px #E6E6E6 on a 20 px pitch in x 16, width 288 (wrapped by
+    words), the end of the log at the bottom of the view, the stock navbar."""
+    root = awtk_ui.parse(open(os.path.join(s.tree, RAW, 'ui', page + '.bin'), 'rb').read())
+    by = {w.name: w for w in root.walk() if w.name}
+    im = Image.new('RGBA', (W, SCREEN), (0, 0, 0, 255)); d = ImageDraw.Draw(im)
+    px, pitch = int(style(by['label_line'], 'font_size')), 20
+    rows = []
+    for para in lines:
+        line = ''
+        for word in para.split():
+            if line and s.font.width(line + ' ' + word, px) > 288: rows.append(line); line = word
+            else: line = (line + ' ' + word).strip()
+        rows.append(line)
+    y = NAV + 12 - max(0, NAV + 12 + len(rows) * pitch + 20 - SCREEN)   # scrolled to the end when it is longer than the view
+    for r in rows:
+        if y >= NAV: s.text(im, 16, y + pitch / 2, r, px, (230, 230, 230))
+        y += pitch
+    d.rectangle((0, 0, W - 1, NAV - 1), fill=(0, 0, 0))
+    lt = by['label_title']; tpx = PI.title_px(s.tree)
+    s.text(im, lt.x, NAV / 2, s.shown(lt), tpx)
+    for name, bx, bw in (('ah_nav_back', 7, 44), ('ah_nav_np', 260, 60)):
+        g = s.img(name); im.alpha_composite(g, (bx + (bw - g.width) // 2, (NAV - g.height) // 2))
+    return im
+
+
 def draw_wifi(s, on=True, nets=(), scanning=True, joining=False, scroll=0):
     """Settings > Wi-Fi (patch/wifipage.c, docs/modules/wifi.md): the widgets of ui/m1plus_wifi.bin as the payload lays them out. nets: (name, level 0..4, secured, saved, connected) in the page's order (the
     connected one first). The first group is the switch row (and the connected network under it), My Networks the saved ones, Networks the others and Other...; a row's picture piece, hairline and glyphs are
@@ -519,6 +550,8 @@ def main():
            ('Settings > Lock Screen > Player Style', draw_page(s, 'm1plus_lockstyle')),
            ('Settings > Lock Screen > Wallpaper', draw_lockwall(s)),
            ('Settings > Lock Screen > Custom Wallpaper', draw_lockinfo(s)),
+           ('Card Script > View Log', draw_cardlog(s, CARDLOG_SAMPLE)),
+           ('Card Script > View Script', draw_cardlog(s, CARDSRC_SAMPLE, 'm1plus_cardsrc')),
            ('Wallpaper, Default only (empty folder)', draw_lockwall(s, entries=1, chosen=0)),
            ('Settings > Battery', draw_page(s, 'm1plus_battery')),
            ('Settings > Battery > Charge Limit', draw_page(s, 'm1plus_chargelimit')),
@@ -575,7 +608,7 @@ def main():
                      ('datetime-manual', draw_page(s, 'm1plus_datetime')), ('datetime-auto', draw_page(s, 'm1plus_datetime', state=on)), ('timezone', draw_page(s, 'm1plus_timezone', state={'shown': {'pod_check0'}})),
                      ('dtdate', draw_page(s, 'm1plus_dtdate', state={'values': {'pod_value0': '2026', 'pod_value1': '11', 'pod_value2': '15'}})),
                      ('dttime', draw_page(s, 'm1plus_dttime', state={'values': {'pod_value0': '14', 'pod_value1': '05'}})), ('dtyear', draw_page(s, 'm1plus_dtyear', state={'shown': {'pod_check4'}})),
-                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('psvolume', draw_page(s, 'm1plus_psvolume', full=True)), ('psoutput', draw_page(s, 'm1plus_psoutput', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('libupdate', draw_page(s, 'm1plus_libupdate', full=True)), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
+                     ('playset', draw_page(s, 'm1plus_playset', full=True)), ('psvolume', draw_page(s, 'm1plus_psvolume', full=True)), ('psoutput', draw_page(s, 'm1plus_psoutput', full=True)), ('library', draw_page(s, 'm1plus_library', full=True)), ('libupdate', draw_page(s, 'm1plus_libupdate', full=True)), ('cardrun', draw_page(s, 'm1plus_cardrun', full=True)), ('cardrun-running', draw_page(s, 'm1plus_cardrun', full=True, state={'values': {'pod_value0': 'Running 0:12', 'pod_label1.text': 'Stop'}})), ('cardlog', draw_cardlog(s, CARDLOG_SAMPLE)), ('cardsrc', draw_cardlog(s, CARDSRC_SAMPLE, 'm1plus_cardsrc')), ('netservice', draw_page(s, 'm1plus_netservice', full=True, state={'switches': {'pod_switch0': True}})), ('wifitransfer', draw_page(s, 'm1plus_wifitransfer', full=True, state=WT_STATE))):
         os.makedirs(s2, exist_ok=True); im.save(os.path.join(s2, name + '.png')); print('wrote', os.path.join(s2, name + '.png'))
     for loc, tag in (('ge_DE', 'de'), ('ru_RU', 'ru'), ('zh_CN', 'zh'), ('th_TH', 'th'), ('fr_FR', 'fr')):   # the Wi-Fi Transfer page in the long languages (out/preview/stock2/wifitransfer-<tag>.png)
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None

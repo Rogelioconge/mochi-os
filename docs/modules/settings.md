@@ -33,7 +33,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | About | our page | [About](#about) |
 | (last card) | All System Settings | stock's list (its Theme row is removed), the fallback to every stock page, incl. Firmware Update, Regulatory, Format Storage and Reset | [theme](theme.md) |
 | **Developer** | Startup | Boot to M1+ Music, Open Shanling Home | [home guard](home-guard.md) |
-| | Tools | Screenshot, Cache, Settings Files | [screenshot](screenshot.md), [Cache](#cache), [Settings Files](#settings-files) |
+| | Tools | Screenshot, Cache, Settings Files, Card Script | [screenshot](screenshot.md), [Cache](#cache), [Settings Files](#settings-files), [Card Script](cardrun.md#developer-page) |
 | | Reset | Reset All Settings | [Reset All Settings](#reset-all-settings) |
 
 ## Cards

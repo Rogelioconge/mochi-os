@@ -1321,8 +1321,8 @@ def reset_tests(ctx):
     DEV = P.DEVELOPER_PAGE
     labels = [r.label for r in DEV.rows]
     i = labels.index('Settings Files')
-    expect(labels[i + 1:] == ['Reset All Settings'] and DEV.rows[i + 1].action == P.ACT_RESETALL == 54 and P.ACT_SFDELALL == 53,
-           'Developer > Reset holds Reset All Settings alone, after Settings Files (action 54, the earlier ids unchanged)')
+    expect(labels[i + 1:] == ['Card Script', 'Reset All Settings'] and DEV.rows[i + 2].action == P.ACT_RESETALL == 54 and P.ACT_SFDELALL == 53,
+           'Developer > Reset holds Reset All Settings alone, after Settings Files and Card Script (action 54, the earlier ids unchanged)')
     D, S, MMC = '/mnt/data/', '/mnt/data/m1plus/', '/mnt/mmc/.m1plus/durations'
     CONFIRM = 'Reset all settings to their defaults?'
     GUARDS = [D + 'm1plus-start', D + 'm1plus-run', D + 'm1plus-bad', D + 'm1plus-off']

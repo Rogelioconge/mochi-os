@@ -207,7 +207,10 @@ enum {
     ACT_GSSEP7 = 206,
     ACT_GSSEP8 = 207,
     ACT_GSSEP9 = 208,
-    ACT_PDLABELS = 209 /* Settings > Appearance: Control Labels, a switch (patch/pulldown.c) */
+    ACT_PDLABELS = 209, /* Settings > Appearance: Control Labels, a switch (patch/pulldown.c) */
+    ACT_CRRUN = 210, /* Settings > Developer > Tools > Card Script: Run Now (patch/cardrun.c) */
+    ACT_CRLOG = 212, /* ... View Log: the log page (patch/relnotes.c cardlog_open) */
+    ACT_CRSRC = 214 /* ... View Script: the card's script as a page (patch/relnotes.c cardsrc_open) */
 };
 
 struct pod_row {
@@ -252,7 +255,8 @@ enum {
     INFO_LBACCT = INFO_DUR + 3, /* the ListenBrainz page's Account row: lb_account_text (patch/scrobpage.c) */
     INFO_LFACCT = INFO_DUR + 4, /* the Last.fm page's: lf_account_text */
     INFO_LUSONGS = INFO_DUR + 5, /* the Update Library page's Songs and Last Updated rows (patch/libupdate.c) */
-    INFO_LUWHEN = INFO_DUR + 6
+    INFO_LUWHEN = INFO_DUR + 6,
+    INFO_CRSTATUS = INFO_DUR + 7 /* the Card Script page's Status row (patch/cardrun.c cardrun_status_text) */
 };
 
 enum {
@@ -623,7 +627,17 @@ static int on_row(void *ctx, void *e) {
     else if (row->action == ACT_NETTRANS) {
         /* Wi-Fi Transfer: one window with the Control Center tile; the page starts the server (patch/netservice.c) */
         if (ns_transfer_ok()) pd_open_page("m1plus_wifitransfer_page", pod_open_wifitransfer, 0);
-    } else if (row->action == ACT_LUNOW)
+    } else if (row->action == ACT_CRRUN) {
+        if (cardrun_pid())
+            cardrun_stop(); /* patch/cardrun.c: the same row stops a run in progress */
+        else
+            cardrun_run();
+        pod_page_refresh(POD_CARDRUN_PAGE);
+    } else if (row->action == ACT_CRSRC)
+        cardsrc_open(); /* patch/relnotes.c: the script, a Release Notes page */
+    else if (row->action == ACT_CRLOG)
+        cardlog_open(); /* patch/relnotes.c: the log, a Release Notes page (nothing when it will not open) */
+    else if (row->action == ACT_LUNOW)
         lu_update_now(); /* patch/libupdate.c: stock's scan dialog, a full scan */
     else if (row->action == ACT_LUFOLDERS)
         lu_folders(); /* patch/libupdate.c: stock's folder page, until the folder picker */
@@ -1060,7 +1074,9 @@ static void info_text(void *label, int kind) {
         widget_set_text_utf8(label, buf);
         return;
     }
-    if (kind == INFO_LUSONGS)
+    if (kind == INFO_CRSTATUS)
+        cardrun_status_text(buf, sizeof buf);
+    else if (kind == INFO_LUSONGS)
         lu_songs_text(buf, sizeof buf);
     else if (kind == INFO_LUWHEN)
         lu_when_text(buf, sizeof buf);
@@ -1134,6 +1150,7 @@ static void page_refresh(void *win, const struct pod_page *page) {
     if (page == &POD_PAGES[POD_RGB_THEME_PAGE]) rgb_note(win);
     if (page == &POD_PAGES[POD_BATTHIST_PAGE])
         bhpage_show(win); /* Battery History's charts: shown while the switch is on */
+    if (page == &POD_PAGES[POD_CARDRUN_PAGE]) cardrun_watch(); /* the status and rows follow a run in progress */
     if (page == &POD_PAGES[POD_SCROBBLING_PAGE]) lb_note(win); /* the note under Upload Scrobbles: the last upload */
     if (page == &POD_PAGES[POD_PSMAXVOL_PAGE])
         ps_vol_refresh(win, PS_VOL_MAX); /* stock's refresh: the label and the slider from the word */
@@ -1152,6 +1169,13 @@ static void page_refresh(void *win, const struct pod_page *page) {
             void *item = widget_lookup(win, row->name, 1);
             int on = as_setting();
             if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);
+        }
+        if (row->action == ACT_CRRUN) { /* Card Script: one row, Run Now or Stop while a run is alive */
+            char name[24];
+            void *lab;
+            snprintf(name, sizeof name, "pod_label%d", i);
+            lab = widget_lookup(win, name, 1);
+            if (lab) widget_set_text_utf8(lab, cardrun_pid() ? TR("Stop") : TR("Run Now"));
         }
         if (row->action >= ACT_GSSEP0 && row->action <= ACT_GSSEP9) { /* Split Genres: the same */
             void *item = widget_lookup(win, row->name, 1);
@@ -1244,6 +1268,8 @@ static void page_refresh(void *win, const struct pod_page *page) {
 void pod_page_refresh(int index) {
     if (index >= 0 && index < POD_PAGE_COUNT && pod_fg[index]) page_refresh(pod_fg[index], &POD_PAGES[index]);
 }
+
+void cardrun_refresh(void) { pod_page_refresh(POD_CARDRUN_PAGE); }
 
 /* The Scrobbling page and the two account pages read the accounts' rows again (patch/scrobpage.c: the file changed, or a check ended). */
 void pod_lb_refresh(void) {
