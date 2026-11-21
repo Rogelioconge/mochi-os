@@ -1,5 +1,5 @@
 """Battery Percentage (patch/battery.c, docs/modules/battery.md "The percentage"): the one hook at show_sysbar_face's call of get_battery_capacity (0x5450f8), run against the
-mocked stock function; the Settings switch; the hidden label in the status bar and both pull-down bars and the layout it makes."""
+mocked stock function; the Settings switch; the hidden number labels and their backdrops (status bar, pull-down, lock screen) inside the battery body."""
 import os, struct
 import paths
 from harness import *   # noqa: F401,F403  (test/patch.py initialises the harness before loading a module)
@@ -8,6 +8,7 @@ import cdefs
 DEFS = cdefs.defines(os.path.join(ROOT, 'patch', 'battery.h'), strings=True)
 FILE, GAUGE, KILL = DEFS['BP_FILE'], DEFS['BP_GAUGE'], '/mnt/mmc/m1plus-off'
 LABEL, LABEL_DD, LABEL_LK = DEFS['BP_LABEL'], DEFS['BP_LABEL_DD'], DEFS['BP_LABEL_LK']
+BG, BG_DD, BG_LK = DEFS['BP_BG'], DEFS['BP_BG_DD'], DEFS['BP_BG_LK']
 STOCK_CAP = 40
 
 
@@ -15,16 +16,15 @@ class BM(Machine):
     COUNT = True   # the instruction count (icount) the cost tests read
 
 
-def machine(setting=b'1\n', gauge=b'87\n', labels=True, cap=STOCK_CAP, w=32):
-    """A machine with the status bar's label and the pull-down's twin (width w at +8, a parent at +0x44), the setting file, the gauge file and stock's capacity."""
+def machine(setting=b'1\n', gauge=b'87\n', labels=True, cap=STOCK_CAP):
+    """A machine with the status bar's label and the pull-down's twin and their backdrops, the setting file, the gauge file and stock's capacity."""
     m = BM()
     m.mem_geometry = True
     m.stock_cap = cap
     if setting is not None: m.fs[FILE] = setting
     if gauge is not None: m.fs[GAUGE] = gauge
     if labels:
-        for name in (LABEL, LABEL_DD):
-            h = m.widget(name); m.setword(h + DEFS['BP_W_W'], w); m.setword(h + DEFS['BP_W_H'], 30); m.setword(h + DEFS['BP_W_PARENT'], 0x31000000)
+        for name in (LABEL, BG, LABEL_DD, BG_DD): m.widget(name)
     for k in ('POWER_EXT', 'POWER_USBSTATE', 'POWER_FLAG', 'USBDAC_CHARGEFLAG'): m.setword(pod.DATA[k][0], 0)   # on battery (the demo's data starts with its own values)
     bar = m.alloc(0x80); m.setword(pod.DATA['SYSTEM_BAR'][0], bar)
     return m
@@ -43,6 +43,11 @@ def texts(m): return [(c[1], c[2]) for c in m.calls if c[0] == 'widget_set_text_
 def vis_calls(m): return [(c[1], c[2]) for c in m.calls if c[0] == 'widget_set_visible']
 
 
+def pair_vis(m, *names):
+    """The widget_set_visible calls in the order bp_label makes them: for each name its backdrop, then its label, all with `v`."""
+    return [(m.widgets[n], v) for n, v in names]
+
+
 def run(ctx):
     expect = ctx.expect
     stock_demo = stock_demo_bytes()
@@ -59,8 +64,8 @@ def run(ctx):
     expect(w(built, 0x5450fc) == 0 and w(built, 0x5450f0) == 0x8fbc0010 and w(built, 0x545104) == 0x8fbc0010, 'the delay slot is still a nop and $gp is still reloaded from the stack after the call')
     expect(MANIFEST['hook_battery'] == {'addr': site, 'target': PSYMS['bp_capacity']}, 'the manifest records the hook')
     expect(pod.DATA['POWER_CAPACITY'][0] == 0xa059ec and pod.FUNCTIONS['get_battery_capacity'][2] == 0x4e6dd8, 'power_capacity and get_battery_capacity are the pinned addresses')
-    expect(DEFS['BP_W_W'] == 8 and DEFS['BP_W_H'] == 0xc and DEFS['BP_W_PARENT'] == 0x44 and DEFS['BP_FILE'] == '/mnt/data/m1plus/battery-percentage'
-           and DEFS['BP_GAUGE'] == '/sys/class/power_supply/battery/capacity', 'the widget_t offsets and the two files')
+    expect(DEFS['BP_FILE'] == '/mnt/data/m1plus/battery-percentage' and DEFS['BP_GAUGE'] == '/sys/class/power_supply/battery/capacity'
+           and (BG, BG_DD, BG_LK) == ('pod_pct_bg', 'pod_pct_bg_dd', 'pod_pct_bg_lk'), 'the two files and the backdrops\' names')
 
     # 2. Off (the default): stock's value, no label touched, no gauge read.
     for setting in (None, b'0\n', b'x', b''):
@@ -72,31 +77,17 @@ def run(ctx):
     m = machine(setting=None); tick(m); m.calls = []; tick(m)
     expect(m.names() == ['get_battery_capacity', 'access'] and m.icount < 400, f'off, steady state: stock\'s function and the kill switch test only ({m.names()}, {m.icount} instructions)')
 
-    # 3. On with a valid gauge: the real percentage, in power_capacity and the return value; the label shows "N%".
+    # 3. On with a valid gauge: the real percentage, in power_capacity and the return value; the label shows the bare number "N" over its shown backdrop.
     for text, pct in ((b'87\n', 87), (b'87', 87), (b'5\n', 5), (b'6\n', 6), (b'10\n', 10), (b'99\n', 99), (b'100\n', 100), (b'007\n', 7)):
         m = machine(gauge=text)
         v = tick(m)
-        want = f'{pct}%'
+        want = f'{pct}'
         stored = 0 if pct <= DEFS['BP_LOW'] else pct   # on battery, at most BP_LOW: 0, stock's red bar_lowpower
-        expect(v == stored and power(m) == stored and [t for _, t in texts(m)] == [want, want] and all(a for _, a in vis_calls(m)) and len(vis_calls(m)) == 2,
-               f'on, gauge {text!r}: {stored} returned and stored, "{want}" shown in the bar\'s label and the pull-down\'s ({texts(m)})')
+        expect(v == stored and power(m) == stored and [t for _, t in texts(m)] == [want, want] and vis_calls(m) == pair_vis(m, (BG, 1), (LABEL, 1), (BG_DD, 1), (LABEL_DD, 1)),
+               f'on, gauge {text!r}: {stored} returned and stored, "{want}" (no % sign) shown with its backdrop in the bar\'s label and the pull-down\'s ({texts(m)})')
     m = machine(gauge=b'87\n'); tick(m)
     expect(('open', GAUGE, 0) in m.calls and ('access', KILL) in m.calls and m.calls.index(('access', KILL)) > m.calls.index(('get_battery_capacity',)),
            'stock\'s function runs first, then the kill switch is tested, then the gauge read')
-    # the label fits its text: the widths the build measured, the group asked to lay out again when the width changed
-    import pod_ui
-    w2, w3, w4 = pod_ui.pct_widths(os.path.join(WORK, 'rootfs', pod_ui.PCT_FONT))
-    built = cdefs.defines(os.path.join(BUILD, 'stock.h'), ['BP_W2', 'BP_W3', 'BP_W4'])   # written by the build (pod.py)
-    expect([built['BP_W2'], built['BP_W3'], built['BP_W4']] == [w2, w3, w4], f'the payload\'s widths are the build\'s measure ({w2}, {w3}, {w4})')
-    for text, want in ((b'5\n', w2), (b'87\n', w3), (b'100\n', w4)):
-        m = machine(gauge=text, w=0)
-        tick(m)
-        lab = m.widgets[LABEL]
-        rs = [c for c in m.calls if c[0] == 'widget_resize' and c[1] == lab]
-        expect(rs == [('widget_resize', lab, want, 30)] and ('widget_set_need_relayout_children', 0x31000000) in m.calls and m.word(lab + 8) == want,
-               f'gauge {text!r}: the label is resized to {want} px (its height kept) and its parent relaid out')
-        m.calls = []; tick(m)
-        expect(not any(c[0] in ('widget_resize', 'widget_set_need_relayout_children') for c in m.calls), 'an unchanged width asks for no resize and no layout')
     # charging: stock's animation (a +10 counter in power_capacity) is replaced by the gauge's value on every tick, the picture logic is not touched
     m = machine(gauge=b'63\n', cap=70); tick(m)
     expect(power(m) == 63, 'charging (stock leaves its animation value): the real percentage is stored')
@@ -125,7 +116,7 @@ def run(ctx):
         if charging: m.setword(ext, 1)
         v = tick(m)
         if shown:
-            expect(v == 0 and power(m) == 0 and [t for _, t in texts(m)] == ['0%', '0%'], f'gauge 0, voltage {volt!r}: 0 stored, "0%" shown ({texts(m)})')
+            expect(v == 0 and power(m) == 0 and [t for _, t in texts(m)] == ['0', '0'], f'gauge 0, voltage {volt!r}: 0 stored, "0" shown ({texts(m)})')
         else:
             expect(v == cap and power(m) == cap and texts(m) == [], f'gauge 0, voltage {volt!r}, charging {charging}, stock {cap}: stock\'s value, no label ({texts(m)})')
     m = machine(gauge=b'87\n'); m.fs[VOLT] = b'3400000\n'; tick(m)
@@ -139,24 +130,24 @@ def run(ctx):
     m = machine(gauge=b'87\n'); tick(m)
     m.fs[GAUGE] = b'garbage'; m.calls = []
     v = tick(m)
-    expect(v == STOCK_CAP and power(m) == STOCK_CAP and sorted(vis_calls(m)) == sorted([(m.widgets[LABEL], 0), (m.widgets[LABEL_DD], 0)])
-           and sorted((c[1], c[2]) for c in m.calls if c[0] == 'widget_set_sensitive') == sorted([(m.widgets[LABEL], 0), (m.widgets[LABEL_DD], 0)]),
-           'the gauge goes bad after a good reading: stock\'s value again and both labels hidden (visible and sensitive off)')
+    expect(v == STOCK_CAP and power(m) == STOCK_CAP and vis_calls(m) == pair_vis(m, (BG, 0), (LABEL, 0), (BG_DD, 0), (LABEL_DD, 0))
+           and not any(c[0] in ('widget_set_sensitive', 'widget_resize') for c in m.calls),
+           'the gauge goes bad after a good reading: stock\'s value again, both labels and their backdrops hidden')
     m.calls = []; tick(m)
     expect(not any(c[0] == 'widget_lookup' for c in m.calls), 'and once hidden nothing is looked up again')
     # kill switch
     m = machine(gauge=b'87\n'); tick(m)
     m.present.add(KILL); m.calls = []
     v = tick(m)
-    expect(v == STOCK_CAP and power(m) == STOCK_CAP and len(vis_calls(m)) == 2 and not any(a for _, a in vis_calls(m)) and ('open', GAUGE, 0) not in m.calls,
-           '/mnt/mmc/m1plus-off: stock\'s value, the labels hidden, the gauge not read')
+    expect(v == STOCK_CAP and power(m) == STOCK_CAP and len(vis_calls(m)) == 4 and not any(a for _, a in vis_calls(m)) and ('open', GAUGE, 0) not in m.calls,
+           '/mnt/mmc/m1plus-off: stock\'s value, the labels and backdrops hidden, the gauge not read')
     m = machine(gauge=b'87\n'); m.present.add(KILL)
     expect(tick(m) == STOCK_CAP and vis_calls(m) == [] and ('open', FILE, 0) not in m.calls, 'the kill switch from the start: stock, nothing touched, the setting not even read')
     # no label widgets (an asset from another build): the value is still the real one, nothing else happens
     m = machine(gauge=b'87\n', labels=False)
     expect(tick(m) == 87 and power(m) == 87 and texts(m) == [], 'no label in the window tree: the percentage still fills the battery, nothing is shown')
     m = machine(gauge=b'87\n'); m.setword(pod.DATA['SYSTEM_BAR'][0], 0)
-    expect(tick(m) == 87 and [t for _, t in texts(m)] == ['87%'], 'no status bar window: the pull-down\'s label is still set')
+    expect(tick(m) == 87 and [t for _, t in texts(m)] == ['87'], 'no status bar window: the pull-down\'s label is still set')
     # the setting is cached: a file edited behind the payload's back is read after a restart, a switch tap applies at once
     m = machine(setting=b'1\n', gauge=b'87\n'); tick(m)
     m.fs[FILE] = b'0\n'; m.calls = []
@@ -166,19 +157,19 @@ def run(ctx):
     keep = m   # section 5 goes on with the machine above
 
     def lock_machine(**kw):
-        m = machine(**kw); h = m.widget(LABEL_LK); m.setword(h + DEFS['BP_W_W'], 32); m.setword(h + DEFS['BP_W_H'], 16); m.setword(h + DEFS['BP_W_PARENT'], 0x32000000)
+        m = machine(**kw); h = m.widget(LABEL_LK); m.widget(BG_LK)
         return m, h
     for text in (b'5\n', b'87\n', b'100\n'):
         m, lk = lock_machine(gauge=text); tick(m)
-        expect((lk, text.decode().strip() + '%') in texts(m) and (lk, 1) in vis_calls(m) and not any(c[0] == 'widget_resize' and c[1] == lk for c in m.calls)
-               and ('widget_set_need_relayout_children', 0x32000000) not in m.calls and m.word(lk + 8) == 32,
-               f'gauge {text!r}: the tick shows the number in the lock screen\'s label too, its box untouched')
+        expect((lk, text.decode().strip()) in texts(m) and (lk, 1) in vis_calls(m) and (m.widgets[BG_LK], 1) in vis_calls(m)
+               and not any(c[0] in ('widget_resize', 'widget_set_need_relayout_children') for c in m.calls),
+               f'gauge {text!r}: the tick shows the bare number and the backdrop in the lock screen\'s label too, no resize or relayout')
     m, lk = lock_machine(gauge=b'87\n'); tick(m)
     m.fs[GAUGE] = b'garbage'; m.calls = []; tick(m)
-    expect((lk, 0) in vis_calls(m) and ('widget_set_sensitive', lk, 0) in [c[:3] for c in m.calls], 'the gauge goes bad: the lock screen\'s label is hidden with the others')
+    expect((lk, 0) in vis_calls(m) and (m.widgets[BG_LK], 0) in vis_calls(m), 'the gauge goes bad: the lock screen\'s label and backdrop are hidden with the others')
     win = 0x33000000
     m, lk = lock_machine(gauge=b'42\n'); m.call(PSYMS['bp_lock'], a0=win, count=200000)
-    expect(texts(m) == [(lk, '42%')] and vis_calls(m) == [(lk, 1)] and ('widget_lookup', LABEL_LK) in m.calls and not any(c[0] == 'widget_resize' for c in m.calls)
+    expect(texts(m) == [(lk, '42')] and vis_calls(m) == [(m.widgets[BG_LK], 1), (lk, 1)] and ('widget_lookup', LABEL_LK) in m.calls and not any(c[0] == 'widget_resize' for c in m.calls)
            and power(m) != 42, 'bp_lock (the lock screen\'s init): the gauge\'s number in the page\'s label at once; power_capacity is the tick\'s business')
     m.fs[GAUGE] = b'garbage'; m.calls = []; tick(m)
     expect((lk, 0) in vis_calls(m), 'a label bp_lock showed is hidden by the next tick when the gauge is bad')
@@ -197,10 +188,10 @@ def run(ctx):
     m = machine(setting=None, gauge=b'87\n')
     expect(m.call(PSYMS['battpct_toggle'], count=4000000) == 1 and m.fs[FILE] == b'1\n' and FILE + '.tmp' not in m.fs and ('rename', FILE + '.tmp', FILE) in m.calls and ('fsync', '/mnt/data/m1plus') in m.calls,
            'the first toggle writes "1" atomically (a temp file, fsync, rename) and turns it on')
-    expect(tick(m) == 87 and [t for _, t in texts(m)] == ['87%', '87%'], 'the next tick shows the percentage at once (the cache follows the switch)')
+    expect(tick(m) == 87 and [t for _, t in texts(m)] == ['87', '87'], 'the next tick shows the percentage at once (the cache follows the switch)')
     expect(m.call(PSYMS['battpct_toggle'], count=4000000) == 0 and m.fs[FILE] == b'0\n', 'and off again')
     m.calls = []
-    expect(tick(m) == STOCK_CAP and len(vis_calls(m)) == 2 and not any(a for _, a in vis_calls(m)), 'the next tick is stock\'s again and hides the labels')
+    expect(tick(m) == STOCK_CAP and len(vis_calls(m)) == 4 and not any(a for _, a in vis_calls(m)), 'the next tick is stock\'s again and hides the labels and backdrops')
     m = machine(setting=b'1\n', gauge=b'87\n'); m.fail.add(('write', FILE + '.tmp'))
     expect(m.call(PSYMS['battpct_toggle'], count=4000000) == 0xffffffff and m.fs[FILE] == b'1\n' and FILE + '.tmp' not in m.fs and tick(m) == 87,
            'a failed save: -1, the file and the behaviour are unchanged')
@@ -243,26 +234,37 @@ def run(ctx):
     for loc in pod_i18n.LOCALES:
         expect(all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in ('Battery Percentage', 'The exact charge beside the battery icon')), f'the row and note have a text in {loc}')
 
-    # 7. The assets: the hidden label in the system bar and in the pull-down
-    import awtk_ui, statusbar
+    # 7. The assets: the hidden number and its backdrops inside the battery of the system bar and the pull-down
+    import awtk_ui, statusbar, battery_art
     from awtk_text import Ttf, StbText
-    font = Ttf(os.path.join(WORK, 'rootfs', pod_ui.PCT_FONT))
+    font = Ttf(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/fonts/default.ttf'))
     stock_bar = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
     bar = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
-    bars = [('system_bar', bar, LABEL)]
+    bars = [('system_bar', bar, '')]
     dd = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/dialog/dropdown_dialog.bin'), 'rb').read())
-    bars.append(('pull-down', dd.find('view_sysbar'), LABEL_DD))
-    for what, root, name in bars:
-        group, lab = root.find('view_bar_right'), root.find(name)
-        kids = [c.name for c in group.children]
-        expect(lab is not None and lab.type == 'label' and lab.get('visible') == 'false' and lab.get('sensitive') == 'false' and group.children.index(lab) == (len(kids) - (2 if kids[-1] == 'pod_shot' else 1))
-               and [k for k in kids[:5] if k not in ('pod_sync', 'pod_sleep')] == ['img_btclass', 'img_synclink', 'img_wifi'] and kids[1:3] == ['pod_sync', 'pod_sleep'] and sum(c.name == name for c in root.walk()) == 1,
-               f'{what}: {name} is one hidden, insensitive label in the right group, after the stock icons and before the camera ({kids})')
-        sty = {st: (lab.get(f'style:{st}:text_color'), lab.get(f'style:{st}:font_size'), lab.get(f'style:{st}:text_align_h'), lab.get(f'style:{st}:text_align_v')) for st in statusbar.STATES}
-        expect(all(v == ('#FFFFFF', str(statusbar.PCT_PX), 'right', 'middle') for v in sty.values()) and lab.w == w3 and lab.h == 0, f'{what}: white {statusbar.PCT_PX} px text, right-aligned, vertically centred, {w3} px wide in every state')
-    expect({n.name for n in stock_bar.walk()} == {n.name for n in bar.walk()} - {LABEL, 'pod_shot', 'pod_lo', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed (the label and the camera are the only additions)')
-    expect(font.width('100%', statusbar.PCT_PX) > 0 and w4 == StbText(font, statusbar.PCT_PX).layout('100%')[1] and w2 < w3 < w4, 'the widths are StbText\'s measure of "100%" and the shorter forms')
-    # layout: the group is right-aligned from its right edge (4 px before the outline); with the label the icons move left by its width + 4. Every icon's ink must stay clear of the clock.
+    bars.append(('pull-down', dd.find('view_sysbar'), '_dd'))
+    body = battery_art.STATUS.body
+    for what, root, sfx in bars:
+        group, img, pg = root.find('view_bar_right'), root.find('img_battery'), root.find('pgbar_battery')
+        owner = next(w for w in root.walk() if pg in w.children)
+        names = [c.name for c in owner.children if c in owner.children]
+        order = [c.name for c in owner.children if c.name in ('pod_bat_bg' + sfx, 'pod_pct_bg' + sfx, 'pgbar_battery', 'img_battery', 'pod_pct' + sfx)]
+        bg, bgp, lab = root.find('pod_bat_bg' + sfx), root.find('pod_pct_bg' + sfx), root.find('pod_pct' + sfx)
+        expect(order == ['pod_bat_bg' + sfx, 'pod_pct_bg' + sfx, 'pgbar_battery', 'img_battery', 'pod_pct' + sfx] and lab not in group.children and root.find(LABEL + sfx) is lab
+               and all(sum(c.name == n + sfx for c in root.walk()) == 1 for n in ('pod_bat_bg', 'pod_pct_bg', 'pod_pct')),
+               f'{what}: the battery\'s parent paints pod_bat_bg, pod_pct_bg, the level, the picture, then the number, once each, none in the right group ({names})')
+        expect(all((w.x, w.y, w.w, w.h) == (pg.x, pg.y, pg.w, pg.h) for w in (bg, bgp)) and bg.type == bgp.type == 'view'
+               and bg.get('style:normal:bg_color') == battery_art.EMPTY and bgp.get('style:normal:bg_color') == battery_art.EMPTY_PCT
+               and bg.get('visible') is None and bgp.get('visible') == 'false' and bg.get('sensitive') == bgp.get('sensitive') == 'false'
+               and all(pg.get(f'style:{st}:bg_color') == '#00000000' for st in statusbar.STATES),
+               f'{what}: the backdrops sit on the level\'s box, the empty grey shown and the lighter grey hidden, both insensitive, and the level itself is transparent')
+        sty = {st: (lab.get(f'style:{st}:text_color'), lab.get(f'style:{st}:font_size'), lab.get(f'style:{st}:font_name'), lab.get(f'style:{st}:text_align_h'), lab.get(f'style:{st}:text_align_v')) for st in statusbar.STATES}
+        expect(lab.type == 'label' and lab.get('visible') == 'false' and lab.get('sensitive') == 'false' and (lab.x, lab.y, lab.w, lab.h) == (img.x + body[0], img.y + body[1] + statusbar.PCT_DY, body[2], statusbar.PCT_PX)
+               and all(v == (statusbar.PCT_RGB, str(statusbar.PCT_PX), statusbar.PCT_FACE, 'center', 'middle') for v in sty.values()) and statusbar.PCT_RGB == '#000000' and statusbar.PCT_FACE == 'lyrics',
+               f'{what}: pod_pct{sfx} is a hidden, insensitive label over the battery body ({body[2]} px wide, PCT_PX high, PCT_DY below its top), black {statusbar.PCT_PX} px {statusbar.PCT_FACE} text, centred in every state')
+    expect({n.name for n in stock_bar.walk()} == {n.name for n in bar.walk()} - {'pod_bat_bg', 'pod_pct_bg', 'pod_pct', 'pod_shot', 'pod_lo', 'pod_sync', 'pod_sleep', 'pod_eq'},
+           'no stock widget is renamed or removed (the battery\'s three widgets and the other marks are the only additions)')
+    # layout: the group is right-aligned from its right edge (4 px before the outline); the number is inside the battery, so it takes no room in the group. Every icon's ink must stay clear of the clock.
     from PIL import Image
     group, clock = bar.find('view_bar_right'), bar.find('bar_dclock')
     clock_px = int(clock.get('style:normal:font_size'))
@@ -271,26 +273,33 @@ def run(ctx):
     ink_left = {n: Image.open(os.path.join(WORK, 'rootfs/release/assets/default/raw/images/xx', f'{f}.png')).convert('RGBA').getchannel('A').getbbox()[0] for n, f in imgs.items()}
     sizes = {c.name: c.w for c in group.children}
     edge = group.x + group.w
-    expect(edge + 4 == bar.find('img_battery').x, 'the group ends 4 px before the battery outline')
+    expect(edge + statusbar.BAT_GAP == bar.find('img_battery').x, 'the group ends BAT_GAP px before the battery outline')
+    # spacing by shape: every mark's ink ends at its box's right edge; Wi-Fi and the camera start at the left edge (RGAP from the mark before), the sync arrows 1 px and the moon 3 px in
+    for n, f, pad in (('pod_sync', 'pod_bar_sync', 1), ('pod_sleep', 'pod_bar_sleep', 3), ('img_wifi', 'bar_wifi0', 0), ('img_wifi', 'bar_wifi4', 0), ('pod_shot', 'pod_bar_shot', 0)):
+        im_ = Image.open(os.path.join(WORK, 'rootfs/release/assets/default/raw/images/xx', f'{f}.png')).convert('RGBA'); bb_ = im_.getchannel('A').getbbox()
+        expect(im_.width == sizes[n] and (bb_[0], bb_[2]) == (pad, im_.width), f'{f} is as wide as {n}, its ink from {pad} px to the right edge ({im_.size}, {bb_}, box {sizes[n]})')
+    # the number's ink: AWTK puts the baseline int(ascender * scale) below the line's top; the digits' ink is centred in the body within half a pixel
+    bold = Ttf(os.path.join(WORK, 'rootfs/release/assets/default/raw/fonts', statusbar.PCT_FACE + '.ttf')); lab_ = bar.find('pod_pct'); img_ = bar.find('img_battery')
+    base_ = lab_.y + (lab_.h - statusbar.PCT_PX) // 2 + int(bold.asc * statusbar.PCT_PX / bold.units); top_ = base_ - max(bold.ink(c)[1] for c in '0123456789') * statusbar.PCT_PX / bold.units
+    mid_ = img_.y + battery_art.STATUS.body[1] + battery_art.STATUS.body[3] / 2
+    expect(abs((top_ + base_) / 2 - mid_) <= 0.5 and StbText(bold, statusbar.PCT_PX).layout('100')[1] <= battery_art.STATUS.fill[2],
+           f'the digits\' ink ({top_:.2f} .. {base_}) is centred on the body ({mid_}) within half a pixel, and "100" fits inside the rim')
 
     def spans(visible):
         out, e = {}, edge
         for n in reversed([c.name for c in group.children]):
-            if n in visible: out[n] = (e - sizes[n], e); e -= sizes[n] + 4
+            if n in visible: out[n] = (e - sizes[n], e); e -= sizes[n] + statusbar.RGAP
         return out
 
-    for label_w in (w2, w3, w4):
-        sizes[LABEL] = label_w
-        s = spans(['img_btclass', 'img_synclink', 'img_wifi', LABEL])
-        expect(s[LABEL] == (edge - label_w, edge), f'the {label_w} px label sits against the right end of the group, 4 px before the outline')
-        gaps = {n: s[n][0] + ink_left[n] for n in s if n != LABEL}
-        expect(all(g >= clock_end + 3 for g in gaps.values()), f'{label_w} px label, Bluetooth, SyncLink and Wi-Fi all lit: every icon\'s ink starts at least 3 px clear of the 12 h and 24 h clock ({gaps}, clock ends {clock_end})')
-    sizes[LABEL] = w4
-    s = spans(['img_btclass', 'img_wifi', LABEL, 'pod_shot'])
-    expect(s['pod_shot'] == (edge - 16, edge) and all(s[n][0] + ink_left[n] >= clock_end + 3 for n in ('img_btclass', 'img_wifi')),
+    expect('pod_pct' not in sizes, 'the number takes no part in the group\'s layout')
+    s_ = spans(['img_btclass', 'img_synclink', 'img_wifi'])
+    gaps = {n: s_[n][0] + ink_left[n] for n in s_}
+    expect(all(g >= clock_end + 3 for g in gaps.values()), f'Bluetooth, SyncLink and Wi-Fi all lit: every icon\'s ink starts at least 3 px clear of the 12 h and 24 h clock ({gaps}, clock ends {clock_end})')
+    s_ = spans(['img_btclass', 'img_wifi', 'pod_shot'])
+    expect(s_['pod_shot'] == (edge - 16, edge) and all(s_[n][0] + ink_left[n] >= clock_end + 3 for n in ('img_btclass', 'img_wifi')),
            'with the Screenshot camera too (against the outline), Bluetooth and Wi-Fi lit, the ink is still at least 3 px clear of the clock')
 
-    # 8. The lock screen: the status bar's gauge (pictures, size, fill, right edge, the fill under the picture) and the hidden label left of it, clear of the date
+    # 8. The lock screen: the status bar's gauge (pictures, size, fill, right edge, the fill under the picture) with the hidden number in it, clear of the date
     from awtk_text import awtk_width, worst_case_text
     lock = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/screensaver_page.bin'), 'rb').read())
     view, limg, lpg, lab, date = (lock.find(n) for n in ('view_timeinfo', 'img_battery', 'pgbar_battery', LABEL_LK, 'dclock_date'))
@@ -298,18 +307,21 @@ def run(ctx):
     xx = os.path.join(WORK, 'rootfs/release/assets/default/raw/images/xx')
     same = all(open(os.path.join(xx, a + '.png'), 'rb').read() == open(os.path.join(xx, b + '.png'), 'rb').read()
                for a, b in (('screens_battery', 'bar_power'), ('screens_charge', 'bar_charge'), ('screens_lowbattery', 'bar_lowpower')))
-    expect(same and (limg.w, limg.h, lpg.w, lpg.h) == (simg.w, simg.h, spg.w, spg.h) and (lpg.x - limg.x, lpg.y - limg.y) == (spg.x - simg.x, spg.y - simg.y)
-           and limg.x + limg.w == simg.x + simg.w, 'the lock screen\'s gauge is the status bar\'s: the same three pictures, size, fill box and right edge')
+    expect(same and (limg.w, limg.h, lpg.w, lpg.h) == (simg.w, simg.h, spg.w, spg.h) and (lpg.x - limg.x, lpg.y - limg.y) == (spg.x - simg.x, spg.y - simg.y),
+           'the lock screen\'s gauge is the status bar\'s: the same three pictures, size and fill box')
     kids = [c.name for c in view.children]
-    expect(kids.index('pgbar_battery') < kids.index('img_battery') and [c.name for c in bar.walk() if c.name in ('pgbar_battery', 'img_battery')] == ['pgbar_battery', 'img_battery'],
-           'the fill is drawn under the picture on both (the charging bolt stays whole)')
-    sty = {st: (lab.get(f'style:{st}:text_color'), lab.get(f'style:{st}:font_size'), lab.get(f'style:{st}:text_align_h'), lab.get(f'style:{st}:text_align_v')) for st in statusbar.STATES}
+    order = [n for n in kids if n in ('pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', 'img_battery', LABEL_LK)]
+    expect(order == ['pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', 'img_battery', LABEL_LK] and [c.name for c in bar.walk() if c.name in ('pgbar_battery', 'img_battery')] == ['pgbar_battery', 'img_battery'],
+           'the backdrops and the fill are drawn under the picture on both (the charging bolt stays whole), the number over it')
+    sty = {st: (lab.get(f'style:{st}:text_color'), lab.get(f'style:{st}:font_size'), lab.get(f'style:{st}:font_name'), lab.get(f'style:{st}:text_align_h'), lab.get(f'style:{st}:text_align_v')) for st in statusbar.STATES}
     expect(lab is not None and lab.type == 'label' and lab in view.children and lab.get('visible') == 'false' and lab.get('sensitive') == 'false' and sum(c.name == LABEL_LK for c in lock.walk()) == 1
-           and all(v == ('#FFFFFF', str(statusbar.PCT_PX), 'right', 'middle') for v in sty.values()), f'{LABEL_LK} is one hidden, insensitive label of the time block, the status bar label\'s text style')
-    expect(lab.w == w4 and lab.x + lab.w + 4 == limg.x and 2 * lab.y + lab.h == 2 * limg.y + limg.h, f'its {w4} px box (the widest text, so the payload never resizes it) ends 4 px before the outline and is centred on it')
+           and all(v == (statusbar.PCT_RGB, str(statusbar.PCT_PX), statusbar.PCT_FACE, 'center', 'middle') for v in sty.values()), f'{LABEL_LK} is one hidden, insensitive label of the time block, the status bar label\'s text style')
+    lbg = lock.find('pod_pct_bg_lk')
+    expect((lab.x, lab.y, lab.w, lab.h) == (limg.x + body[0], limg.y + body[1] + statusbar.PCT_DY, body[2], statusbar.PCT_PX) and (lbg.x, lbg.y, lbg.w, lbg.h) == (lpg.x, lpg.y, lpg.w, lpg.h) and lbg.get('visible') == 'false',
+           f'its box is over the gauge\'s body ({body[2]} px wide, PCT_PX high, PCT_DY below its top), its backdrop the fill box, hidden with it')
     date_px = int(date.get('style:normal:font_size'))
     date_w = awtk_width(font, worst_case_text(date.get('format'), font), date_px)
-    expect(date.x + (date.w + date_w) // 2 + 4 <= lab.x, f'the widest date ({date_w} px, centred) ends at least 4 px before the label ({lab.x})')
+    expect(date.x + (date.w + date_w) // 2 + 4 <= limg.x, f'the widest date ({date_w} px, centred) ends at least 4 px before the gauge ({limg.x})')
 
     # 9. The backlight hooks: screen_action's two `jalr toolSetBackLight` (0x4e71cc on, 0x4e71fc off) become `jal bp_light_on` / `jal bp_light_off`
     stock_demo, built = stock_demo_bytes(), built_demo_bytes()

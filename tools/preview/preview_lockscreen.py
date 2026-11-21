@@ -161,7 +161,7 @@ class Painter:
         layer = Image.new('RGBA', (W, H)); ImageDraw.Draw(layer).text((x, top + f.getmetrics()[0]), s, font=f, fill=rgb or (255, 255, 255), anchor='ls')
         im.alpha_composite(layer)
     def walk(self, im, wd, ox, oy, clip, pct, charging, idle):
-        if wd.get('visible') == 'false' and not (self.number and wd.name == mod_lockscreen.PCT_WIDGET) or (idle or self.mini) and wd.name == 'view_bottomview': return
+        if wd.get('visible') == 'false' and not (self.number and wd.name in (mod_lockscreen.PCT_WIDGET, 'pod_pct_bg' + mod_lockscreen.PCT_SUFFIX)) or (idle or self.mini) and wd.name == 'view_bottomview': return
         r = (ox + wd.x, oy + wd.y, wd.w or W, wd.h or H)
         c = (max(clip[0], r[0]), max(clip[1], r[1]), min(clip[2], r[0] + r[2]), min(clip[3], r[1] + r[3]))
         if c[0] >= c[2] or c[1] >= c[3]: return
@@ -187,7 +187,7 @@ class Painter:
         elif t == 'digit_clock':
             self.text(im, c, r, fmt_time(self.date[0] if wd.get('format') == pod_i18n.LOCK_DATE_KEY else wd.get('format', 'hh:mm:ss'), NOW, *self.date[1:]), wd)   # the payload translates our asset's format (lk_date); any other tree's format (a stock "before" panel) is drawn as it is
         elif t == 'label' and name == mod_lockscreen.PCT_WIDGET:
-            self.text(im, c, r, f'{pct}%', wd)
+            import preview_theme; preview_theme.face_text(im, self.raw, wd, str(pct), r[0] - wd.x, r[1] - wd.y)
         elif t == 'hscroll_label':
             if self.radio:
                 txt = {'view_scrlabel_title': RADIO_TITLE, 'view_scrlabel_artist': RADIO_LIVE if self.playing else RADIO_STOPPED}.get(name, wd.get('text', ''))

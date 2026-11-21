@@ -11,14 +11,15 @@ file mode):
   pull-down tiles      56x56 (stock 50), one flat disc style for every tile (docs/modules/pulldown.md): #2C2C2E disc + white glyph = off,
                        white disc + dark glyph = on, #1E1E1E disc + #555555 glyph = disabled; Lucide glyphs (26 px), custom gain bars,
                        "PO"/"LO" in Inter (20 px); backlight sun icons 20x20
-  status bar           play/pause (filled), volume 0-4, Wi-Fi 0-4 (unlit arcs #666666), Bluetooth,
-                       digital out; stroke 1.5 px at 14-16 px, 2 px at 20 px
+  status bar           play/pause, volume 0-4, Wi-Fi 0-4 (unlit bands grey), Bluetooth, digital out, the codec
+                       tags (SBC, AAC, aptX, aptX HD, LDAC as bold text) and our camera, sync, moon and LO pill:
+                       one 12 px filled set drawn by tools/status_art.py, each at its stock canvas size
   list placeholders    6 folder/playlist/artist/genre/composer/album discs, albumcover s/m/info tiles
   round 2 (docs/modules/icons.md "Audit"): navbar actions, chevrons, selection marks, dialog actions as plain white
                        glyphs at the stock size (pressed #777777); Folders file/SD/USB rows, Playlists page
                        and CD-ripper discs; equaliser preset art recoloured white; speed badges, the Play all
                        pill, secured Wi-Fi rows; the Now Playing np_* glyphs (mod_nowplaying.py copies them)
-Stays stock: brand art and text badges (codec badges, SyncLink, A-B), theme1
+Stays stock: brand art and text badges (SyncLink, A-B), theme1
 (its own image files), the battery (tools/battery_art.py draws it for mod_battery/mod_lockscreen).
 
 Build time only copies the committed PNGs (assets/icons/png/); builds stay deterministic and
@@ -37,7 +38,7 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths
 from modlib import clone_workdir, edit_ui, write_keep_mode, sha256, load_pins as _load_pins, stock_img_dir, write_pins
-import pod_i18n
+import pod_i18n, status_art
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSET = os.path.join(ROOT, 'assets', 'icons', 'tabler')
@@ -92,9 +93,6 @@ PULLDOWN = {  # glyph per tile
     'drop_playset': 'sliders-horizontal', 'drop_sysset': 'settings',
     'drop_lighticon0': 'sun-dim', 'drop_lighticon1': 'sun',
 }
-STATUS = {'bar_play': 'play', 'bar_pause': 'pause', 'bar_vol0': 'volume', 'bar_vol1': 'volume-1',
-          'bar_vol2': 'volume-2', 'bar_vol3': '+volume-3waves', 'bar_vol4': 'volume-x', 'bar_wifi': 'wifi',
-          'bar_bt': 'bluetooth', 'bar_digital': 'plug'}
 WIFI_LEVELS = [None, 'wifi-zero', 'wifi-low', 'wifi-high', 'wifi']     # index = bar_wifi0..4
 LISTS = [('icon_folder', 'folder', 'folder'), ('icon_playlist', 'playlist', 'list-music'),
          ('icon_artist', 'artist', 'mic-vocal'), ('icon_genre', 'genre', 'guitar'),
@@ -319,22 +317,13 @@ POD_TEXT_X = 56
 HAIR_X, HAIR_COLOUR = POD_TEXT_X, '#222222'
 ROW_STATES = ('normal', 'over', 'pressed', 'focused', 'disable')
 CHEVRON, CHEVRON_DOWN = (0x8A,) * 3, (0x6E,) * 3     # every list chevron (stock right_arrow, the Main Menu's arrows): grey, darker pressed
-# The status bar's Screenshot camera (patch/shot.c shows it while the 5 s countdown runs; tools/pod_ui.py adds the hidden widget): 16 px, white
-SHOT_BAR = ('pod_bar_shot', 'camera')
-SHOT_BAR_PX = 16
-# The status bar's sync icon (patch/lineout.c shows it on every page while a cover or duration build runs; tools/statusbar.py adds the hidden widget pod_sync to both bar copies): Lucide refresh-cw, white, 18 x 18, 1.5 px stroke, static
-SYNC_BAR = ('pod_bar_sync', 'refresh-cw')
-SYNC_BAR_PX = 18
-# The status bar's sleep timer icon (patch/lineout.c shows it on every page while a Sleep Timer is running; tools/statusbar.py adds the hidden widget pod_sleep to both bar copies): our solid crescent (assets/icons/custom/crescent.svg; the outline moon read small beside Bluetooth and Wi-Fi), white, 16 x 16 with no pad (the ink fills the box, so the bar keeps its clock clearance), static
-SLEEP_BAR = ('pod_bar_sleep', '+crescent:filled')
-SLEEP_BAR_PX = 16
-# The Home Made for You header's busy mark (patch/dailymix.c shows pod_dm_busy while a Daily Mix job runs): the same glyph in the secondary grey #AAAAAA, static, 16 px (about 14 px of ink, near the list chevron's 16 px height)
-SYNC_DM = 'dm_sync'
-SYNC_DM_PX = 16
-# The status bar's Line Out pill (patch/lineout.c swaps it for stock's white "LO" text while Line Out is on): an amber #FFD60A (not the Accent Orange #FF9F0A) pill, fully rounded
-# ends, black "LO" in Inter. A saturated image: Light Mode's flip (chroma over LIGHT_CHROMA) and the accent tints (named lists) leave it as drawn.
-LO_BAR = 'pod_bar_lo'
-LO_BAR_W, LO_BAR_H, LO_BAR_PX, LO_BAR_RGB = 26, 16, 12, (0xFF, 0xD6, 0x0A)
+# The status bar's own marks, drawn with the stock bar glyphs by tools/status_art.py: the Screenshot camera (patch/shot.c, while the 5 s countdown runs),
+# the sync icon (patch/lineout.c, while a cover or duration build runs), the Sleep Timer moon (patch/lineout.c) and the Line Out pill (patch/lineout.c,
+# for stock's white "LO" text; amber, so Light Mode's flip and the accent tints leave it as drawn). tools/statusbar.py and tools/pod_ui.py add the hidden widgets.
+SHOT_BAR, SYNC_BAR, SLEEP_BAR, LO_BAR = 'pod_bar_shot', 'pod_bar_sync', 'pod_bar_sleep', 'pod_bar_lo'
+NARROWED = {f'bar_wifi{i}' for i in range(5)}   # stock images whose canvas is not stock's size: the Wi-Fi glyph is 16 x 16 (stock 24 x 16) and tools/statusbar.py narrows img_wifi, its only widget, to match (WIFI_W)
+# The Home Made for You header's busy mark (patch/dailymix.c shows pod_dm_busy while a Daily Mix job runs): Lucide refresh-cw in the secondary grey #AAAAAA, static, 16 px (about 14 px of ink, near the list chevron's 16 px height)
+SYNC_DM, SYNC_DM_GLYPH, SYNC_DM_PX = 'dm_sync', 'refresh-cw', 16
 
 # ---- round 2 (docs/modules/icons.md "Audit"): the stock images the pages and dialogs still showed.
 # Plain glyph images at the stock size: white (pressed `_down`: #777777), no disc. 'name:filled' = the shapes filled
@@ -434,8 +423,8 @@ def is_badge(g): return g.startswith('badge:')
 
 def used_glyphs():
     """(Lucide names, Tabler names) of every glyph the tables use; custom ones excluded."""
-    gl = [e[2] for e in HOME + SETTINGS + LISTS] + list(PULLDOWN.values()) + list(STATUS.values()) + \
-        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1], SLEEP_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [g for _, g in RM_PIN_ICONS] + [RM_DOTS[1]] + list(ES_ICONS.values()) + list(HERO_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
+    gl = [e[2] for e in HOME + SETTINGS + LISTS] + list(PULLDOWN.values()) + \
+        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SYNC_DM_GLYPH] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [g for _, g in RM_PIN_ICONS] + [RM_DOTS[1]] + list(ES_ICONS.values()) + list(HERO_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
         [g for _, g, _ in GLYPHS] + [v[0] for v in SONGS_IMAGES.values()] + [v[0] for v in KEYBOARD_IMAGES.values()] + [KB_CLEAR[1], DP_ADD_GLYPH] + list(PC_GLYPHS) + [g for _, g in DISCS] + [v[0] for v in NP.values() if not v[0].startswith('pil:')] + ['lock:filled'] + R3_GLYPHS
     names = {gname(g) for g in gl if g and not is_custom(g) and not is_badge(g)}
     return sorted(n for n in names if not n.startswith('T:')), sorted(n[2:] for n in names if n.startswith('T:'))
@@ -604,18 +593,6 @@ def badge(text, ss=8, size=(BADGE_W, BADGE_H), font_px=14, stroke=BADGE_SW, radi
         px -= 1
     d.text(((w * ss - (bb[2] - bb[0])) // 2 - bb[0], (h * ss - (bb[3] - bb[1])) // 2 - bb[1]), text, font=f, fill=255, stroke_width=ss // 8)
     im = Image.new('RGBA', (w, h), WHITE + (0,)); im.putalpha(big.resize((w, h), Image.BOX)); return im
-
-def lo_pill(ss=8):
-    from PIL import Image, ImageDraw, ImageFont
-    w, h = LO_BAR_W, LO_BAR_H
-    mask = Image.new('L', (w * ss, h * ss), 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, w * ss - 1, h * ss - 1), radius=h * ss / 2, fill=255)
-    txt = Image.new('L', (w * ss, h * ss), 0); f = ImageFont.truetype(TILE_FONT, LO_BAR_PX * ss); sw = ss // 3
-    bb = f.getbbox('LO', stroke_width=sw)
-    ImageDraw.Draw(txt).text(((w * ss - (bb[2] - bb[0])) // 2 - bb[0], (h * ss - (bb[3] - bb[1])) // 2 - bb[1]), 'LO', font=f, fill=255, stroke_width=sw)
-    amber = Image.new('RGBA', (w * ss, h * ss), LO_BAR_RGB + (255,))
-    black = Image.new('RGBA', (w * ss, h * ss), (0, 0, 0, 255)); amber.paste(black, (0, 0), txt)
-    amber.putalpha(mask)
-    return amber.resize((w, h), Image.BOX)
 
 def bare_icon(g, canvas):
     """The bare glyph g (a Lucide / Tabler name, '+custom', 'badge:TEXT' or the Shanling mark) centred in a canvas x canvas
@@ -819,19 +796,8 @@ def generate_all(sizes):
     for n, g in PD_OWN_ON.items(): f[n] = disc_tile(g, 'on')
     for n in ('drop_lighticon0', 'drop_lighticon1'):
         f[n] = fit(lambda p, g=PULLDOWN[n]: glyph(g, p, 'small'), 20, 20, 20)
-    # status bar
-    f['bar_play'] = fit(lambda p: glyph(STATUS['bar_play'], p, 'solid'), 14, 18, 16)
-    f['bar_pause'] = fit(lambda p: glyph(STATUS['bar_pause'], p, 'solid'), 14, 18, 16)
-    for i in range(5):
-        f[f'bar_vol{i}'] = fit(lambda p, i=i: glyph(STATUS[f'bar_vol{i}'], p, 'small'), 24, 18, 22, 'l')
-    def wifi(level, p):
-        full = glyph(STATUS['bar_wifi'], p, 'small', OFF).copy()
-        if level: full.alpha_composite(glyph(WIFI_LEVELS[level], p, 'small'))
-        return full
-    for i in range(5): f[f'bar_wifi{i}'] = fit(lambda p, i=i: wifi(i, p), 24, 16, 22)
-    f['bar_bt'] = fit(lambda p: glyph(STATUS['bar_bt'], p, 'small', OFF), 47, 20, 22, 'r')
-    f['bar_btcon'] = fit(lambda p: glyph(STATUS['bar_bt'], p, 'small'), 47, 20, 22, 'r')
-    f['bar_digital'] = fit(lambda p: glyph(STATUS['bar_digital'], p, 'small'), 18, 18, 20)
+    # status bar (stock and ours: one 12 px filled set, tools/status_art.py)
+    f.update(status_art.images())
     # "no cover" tiles: the stock tile colour, a muted glyph at COVER_FRAC of the tile
     for n in COVERS:
         w = sizes[n][0]; bg = sizes[n + ':bg']
@@ -876,11 +842,7 @@ def generate_all(sizes):
         pos = NAV_VIEW_POS[n]
         f[n] = capsule_piece(pos, g, False)
         f[n + '_down'] = capsule_piece(pos, g, True)
-    f[SHOT_BAR[0]] = fit(lambda p: glyph(SHOT_BAR[1], p, 'small'), SHOT_BAR_PX, SHOT_BAR_PX, SHOT_BAR_PX)
-    f[LO_BAR] = lo_pill()
-    f[SYNC_BAR[0]] = glyph_fit(SYNC_BAR[1], SYNC_BAR_PX, SYNC_BAR_PX, WHITE, 1, 1.5)
-    f[SLEEP_BAR[0]] = glyph_fit(SLEEP_BAR[1], SLEEP_BAR_PX, SLEEP_BAR_PX, WHITE, 0)
-    f[SYNC_DM] = glyph_fit(SYNC_BAR[1], SYNC_DM_PX, SYNC_DM_PX, (0xAA,) * 3, 1, 1.5)
+    f[SYNC_DM] = glyph_fit(SYNC_DM_GLYPH, SYNC_DM_PX, SYNC_DM_PX, (0xAA,) * 3, 1, 1.5)
     # round 2: glyph images at the stock size, discs, recoloured line art, badges, pills
     for n, g, down in GLYPHS:
         grey = (GREY_GLYPHS[n],) * 3 if n in GREY_GLYPHS else WHITE
@@ -1804,14 +1766,14 @@ def replaced_names():
         ['drop_wifi', 'drop_wifiopen', 'drop_bt', 'drop_btopen', 'drop_keylock', 'drop_keylockopen', 'drop_eq',
          'drop_eqopen', 'drop_usbaudio', 'drop_usbdac', 'drop_usbstorage', 'drop_playset', 'drop_sysset',
          'drop_playsetdown', 'drop_syssetdown', 'drop_lighticon0', 'drop_lighticon1',
-         'bar_play', 'bar_pause', 'bar_bt', 'bar_btcon', 'bar_digital'] + [f'bar_vol{i}' for i in range(5)] +
+         'bar_play', 'bar_pause', 'bar_bt', 'bar_btcon', 'bar_digital', 'bar_synclink', 'bar_synclinkcon'] + list(status_art.CODECS) + [f'bar_vol{i}' for i in range(5)] +
         [f'bar_wifi{i}' for i in range(5)] + COVERS +
         [n for n, _, _ in GLYPHS] + [d for _, _, d in GLYPHS if d] + [n for n, _ in DISCS] + RECOLOUR +
         list(SPEEDS) + list(PLAYALL) + list(WIFI_LOCK) + R3_NAMES))
 
 def pod_row_names(): return sorted({n for n, _ in POD_ROWS.values()})
 def nav_names(): return sorted(set(NAV_VIEW) | {n + '_down' for n in NAV_VIEW})
-def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SLEEP_BAR[0], SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
+def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
 def np_names(): return sorted(set(NP) | {v[4] for v in NP.values() if v[4]})
 
 def added_rels(stock_rootfs=None, *args):
@@ -1845,7 +1807,7 @@ def cmd_generate():
     shutil.rmtree(PNG, ignore_errors=True); os.makedirs(PNG)
     for n, im in sorted(files.items()):
         want = sizes.get(n)
-        assert n in pod_names() + np_names() or im.size == ((TILE_N, TILE_N) if n in TILES else want), (n, im.size, want)
+        assert n in pod_names() + np_names() or n in NARROWED or im.size == ((TILE_N, TILE_N) if n in TILES else want), (n, im.size, want)
         if n in VINYL or n in VU: open(os.path.join(PNG, n + '.png'), 'wb').write(png_pack.pack(im))   # (the Vinyl and VU pictures only: smallest lossless, tools/png_pack.py)
         else: im.save(os.path.join(PNG, n + '.png'), optimize=True)
     print(f'{len(files)} PNGs, {sum(os.path.getsize(os.path.join(PNG, f)) for f in os.listdir(PNG))} bytes -> {PNG}')
@@ -1881,7 +1843,7 @@ def check_assets(stock_dir, work_dir=None):
         sp = os.path.join(stock_dir, n + '.png')
         assert sha256(open(sp, 'rb').read()) == pins[n], f'{n}.png: stock file does not match the pin'
         s, a = read_png(sp), read_png(os.path.join(PNG, n + '.png'))
-        size = (TILE_N, TILE_N) if n in TILES else s.size   # (the pull-down tiles are TILE_N px, the stock 50: the widgets grow in tools/mod_pulldown.py)
+        size = (TILE_N, TILE_N) if n in TILES else a.size if n in NARROWED else s.size   # (the pull-down tiles are TILE_N px, the stock 50: the widgets grow in tools/mod_pulldown.py; NARROWED: the widget is resized to the new canvas)
         assert (a.size, a.mode, a.format) == (size, s.mode, 'PNG') and s.format == 'PNG', f'{n}.png: {a.size} {a.mode} vs {size} {s.mode}'
         if work_dir:
             w = read_png(os.path.join(work_dir, n + '.png'))
@@ -1975,7 +1937,7 @@ def add_nav_icons(out):
     the status bar's Screenshot camera (the hidden pod_shot image tools/pod_ui.py adds to ui/system_bar.bin) and the Playlists
     page's menu glyphs (ui/m1plus_playlists.bin)."""
     d = os.path.join(out, IMG)
-    for n in nav_names() + [SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SLEEP_BAR[0], SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
+    for n in nav_names() + [SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
         q = os.path.join(d, n + '.png'); assert not os.path.exists(q), f'{n}.png already in the tree'
         shutil.copyfile(os.path.join(PNG, n + '.png'), q); os.chmod(q, IMG_MODE); os.utime(q, (IMG_MTIME, IMG_MTIME))
 

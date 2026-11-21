@@ -34,7 +34,7 @@ Usage: mod_theme.py SRC_WORKDIR OUT_WORKDIR       (OUT == SRC edits in place)
 """
 import argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import awtk_style, awtk_ui, statusbar
+import awtk_style, awtk_ui, battery_art, statusbar
 from awtk_style import T_INT32, T_UINT32
 from modlib import clone_workdir, edit_ui, sha256, write_keep_mode, png_bytes
 
@@ -286,6 +286,10 @@ def _style_color(w, th, state, key):
 PRESSABLE = ('button', 'list_item')
 TEXT_TYPES = ('label', 'hscroll_label', 'digit_clock', 'rich_text', 'text_selector', 'edit', 'mledit')
 
+# text drawn over an earlier sibling, not over an ancestor: the Battery Percentage's digits over the battery's body (tools/statusbar.py battery_parts); the darker
+# of the two colours behind them (the white level is the other)
+DRAWN_OVER = {'pod_pct' + s: battery_art.EMPTY_PCT + 'FF' for s in ('', '_dd', '_lk')}
+
 def _ui_contrasts(root, th):
     """{(path, type, name, state): contrast or None} for every text-drawing widget of one ui tree."""
     out = {}
@@ -302,6 +306,7 @@ def _ui_contrasts(root, th):
             for a in chain:          # nearest opaque ancestor wins (bottom-up)
                 c = _style_color(a, th, st(a), 'bg_color')
                 if c and int(c[-2:], 16) >= 0x80: bg = over(c)
+            if w.name in DRAWN_OVER: bg = over(DRAWN_OVER[w.name])
             out[(path, w.type, w.name, state)] = contrast(bg, over(col, bg))
         for i, c in enumerate(w.children): visit(c, chain, f'{path}[{i}]')
     visit(root, [], '')
@@ -506,9 +511,9 @@ def apply_bar(root):
     left, right, clock = root.find('view_bar_left'), root.find('view_bar_right'), root.find('bar_dclock')
     vol, pg, img = root.find('label_volume'), root.find('pgbar_battery'), root.find('img_battery')
     assert all(w is not None for w in (left, right, clock, vol, pg, img)), 'unexpected system_bar layout'
-    # stacks on mod_battery.py (the 22x12 outline over a horizontal fill, no number)
+    # stacks on mod_battery.py (the rim over a horizontal fill)
     assert (pg.get('show_text') == 'false' and pg.get('vertical') == 'false' and img.get('visible') != 'false'
-            and (img.w, img.h) == (22, 12) and pg.x == img.x + 2), 'system_bar.bin is not the mod_battery.py layout (run it first)'
+            and (img.w, img.h) == battery_art.STATUS.canvas and pg.x == img.x + battery_art.STATUS.fill[0]), 'system_bar.bin is not the mod_battery.py layout (run it first)'
     assert left.get('children_layout') == 'default(r=1,c=0,x=14,s=4)'
     assert right.get('children_layout') == 'default(r=1,c=0,a=right,s=5)'
     assert clock.get('self_layout') == 'default(x=108,y=0,w=90,h=100%)'

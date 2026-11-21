@@ -31,10 +31,10 @@ Layout, top to bottom (window y):
   white) and artist (16 px `#DDDDDD`) at 12,282 / 12,306, and play and next at 180,278 / 228,278
   (48x56, off-white `np_*` glyphs via the page theme's `btn_imgplay1/pause1_style`).
 - The swipe hint `img_slide` at 144,452.
-- The battery gauge on the date line at 288,12 (the status bar's 22x12 pictures; the fill
-  `pgbar_battery` is drawn under the picture as in the bar) and, hidden, the Battery Percentage label
-  `pod_pct_lk` at 252,10 ([battery](battery.md)). The widest date of every language stays 4 px clear
-  of it.
+- The battery gauge on the date line at 282,11 (the status bar's 36x14 pictures; the fill
+  `pgbar_battery` is drawn under the picture as in the bar) with, hidden, the Battery Percentage's
+  number `pod_pct_lk` in its body ([battery](battery.md)). The widest date of every language stays
+  4 px clear of it.
 
 With nothing queued the card is hidden and the page is date, clock and gauge on the wallpaper, and
 the whole screen swipes.

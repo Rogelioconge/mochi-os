@@ -170,7 +170,7 @@ def hook_tests(ctx):
     def bar_machine(pct=b'87\n', eq=1, digital=0, kill=False):
         m = PD(); m.fs[bp['BP_FILE']] = b'1\n'; m.fs[bp['BP_GAUGE']] = pct
         m.lbl = m.widget(bp['BP_LABEL_DD']); m.props[(m.lbl, 'visible')] = 0
-        for k, v in ((bp['BP_W_W'], 32), (bp['BP_W_H'], 30), (bp['BP_W_PARENT'], 0x31000000)): m.setword(m.lbl + k, v)
+        m.bg = m.widget(bp['BP_BG_DD']); m.props[(m.bg, 'visible')] = 0
         m.left = m.widget(lo['LO_GROUP']); m.eq = m.widget(lo['EQ_IND']); m.props[(m.eq, 'visible')] = 0
         m.dig = m.widget(lo['EQ_DIGITAL']); m.props[(m.dig, 'visible')] = digital   # what stock's face call left of the glyph
         m.u.mem_write(pod.DATA['EQ_FLAG'][0], bytes([eq]))
@@ -180,16 +180,16 @@ def hook_tests(ctx):
 
     shown = lambda m, h: [c[2] for c in m.calls if c[0] == 'widget_set_visible' and c[1] == h]
     m = bar_machine()
-    expect([c[2] for c in m.calls if c[0] == 'widget_set_text_utf8' and c[1] == m.lbl] == ['87%'] and shown(m, m.lbl) == [1] and shown(m, m.eq) == [1],
-           'the init shows the Battery Percentage and the EQ mark at once (Equalizer on, the digital-out glyph hidden by stock\'s face)')
+    expect([c[2] for c in m.calls if c[0] == 'widget_set_text_utf8' and c[1] == m.lbl] == ['87'] and shown(m, m.lbl) == [1] and shown(m, m.bg) == [1] and shown(m, m.eq) == [1],
+           'the init shows the Battery Percentage (the bare number and its backdrop) and the EQ mark at once (Equalizer on, the digital-out glyph hidden by stock\'s face)')
     m = bar_machine(digital=1)
     expect(shown(m, m.eq) == [] and shown(m, m.lbl) == [1], 'the digital-out glyph still shows: the mark stays hidden, the percentage is there')
     m = bar_machine(eq=0)
     expect(shown(m, m.eq) == [] and shown(m, m.lbl) == [1], 'Equalizer off: no mark')
     m = bar_machine(pct=b'x')
-    expect(shown(m, m.lbl) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'], 'a bad gauge: the label stays hidden')
+    expect(shown(m, m.lbl) == [] and shown(m, m.bg) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'], 'a bad gauge: the label and its backdrop stay hidden')
     m = bar_machine(kill=True)
-    expect(shown(m, m.lbl) == [] and shown(m, m.eq) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'] and 'view_bar_left' not in {c[1] for c in m.calls if c[0] == 'widget_lookup'},
+    expect(shown(m, m.lbl) == [] and shown(m, m.bg) == [] and shown(m, m.eq) == [] and not [c for c in m.calls if c[0] == 'widget_set_text_utf8'] and 'view_bar_left' not in {c[1] for c in m.calls if c[0] == 'widget_lookup'},
            'kill switch: nothing of this happens')
 
     # -- 4. the parser: the payload against the Python model on random files --------------------------------------------

@@ -12,34 +12,38 @@ own, which covers the screen off and stock's standby.
 
 The app swaps `img_battery`'s image between `bar_power`, `bar_charge` (charging) and `bar_lowpower`
 (capacity 0 only) and feeds `pgbar_battery` the capacity (100 when charge is done), in the status
-bar and in the pull-down's own bar. The fill is drawn under the image, so the image is the outline
-and the fill lands inside.
+bar and in the pull-down's own bar. The fill is drawn under the image, so the image is only the
+body's rim and nub, and the fill (white level on the body's grey) lands inside.
 
 Stock has no real number: `get_battery_capacity` buckets the battery voltage into 0/20/40/60/80/100
 (another table while charging). The optional exact percentage below reads the gauge instead.
 
-One drawing, two sizes: 1.5 px outline (the status-icon stroke), rounded body corners, a 2 px
-rounded nub, 8x supersampled, written as a plain zlib PNG (bytes independent of Pillow).
+The look is iOS's solid battery: one grey body with the level in white, 14 px tall like the other
+status glyphs ([icons](icons.md)). Under `pgbar_battery` the view `pod_bat_bg` fills the body's
+interior (inset 1 px) with `EMPTY` `#5A5A5A`; the bar draws the level in white over it (its own
+background is transparent); the image is the 1 px rim (its inner corners rounded too, covering the
+fill's square corners) that rounds the body's corners, the nub, and while charging a bolt right of
+the nub (the body's middle belongs to the number). The picture has no pixel outside these, so it
+sits on any background (the lock screen's wallpaper). 8x supersampled, written as a plain zlib PNG (bytes independent of Pillow).
 
-| Look | Outline | Fill |
+| Look | Rim and nub | Inside |
 |---|---|---|
-| Normal | white | white level |
-| Charging | green `#34C759`, bolt with a 0.5 px black keyline | level |
-| Low | red `#FF1448` | level |
+| Normal | grey `#5A5A5A` | white level |
+| Charging | green `#34C759`, a green 6x10 bolt right of the nub | white level |
+| Low | red `#FF3B30`, a 3 px red sliver at the level's left end | grey (the level is 0) |
 
 | Place | Image | Fill | Right edge |
 |---|---|---|---|
-| Status bar and pull-down (`STATUS`) | 22x12 at (288, 9): body 20x12, nub 2x6, corner radius 3 | 16x8 at (290, 11) | x 310 as stock |
-| Lock screen (`screens_battery/charge/lowbattery`) | same size, at (288, 12) on the date line | same, under the picture | same |
+| Status bar and pull-down (`STATUS`) | 36x14 at (282, 8): body 26x14, nub 1.6x5, corner radius 4, then the bolt's 8 px (`tail`) | 24x12 at (283, 9) | the nub at x 310 as stock, the bolt in the bar's margin |
+| Lock screen (`screens_battery/charge/lowbattery`) | same size, at (282, 11) on the date line | same, under the picture | same |
 
-The right icon group ends 4 px before the image (its box is x 183..284). `fill_gap` asserts the
-fill stays inside the outline.
+The right icon group ends 5 px before the image (its box ends at x 277).
 
 ## The percentage
 
 **Setting:** Settings > Battery > **Battery Percentage**, a switch, **off by default**,
 `/mnt/data/m1plus/battery-percentage` (`1` on; missing or anything else off; [settings](settings.md)).
-On, the status bar shows the AXP2101 fuel gauge's charge as a number just left of the outline, and
+On, the status bar shows the AXP2101 fuel gauge's charge as a number in the battery, and
 the fill, the charging picture's fill and the pull-down's fill use the same value.
 
 **Hook.** Stock's `show_sysbar_face` (the status bar's 1 s timer) calls `get_battery_capacity`,
@@ -49,13 +53,13 @@ function runs first**, so its side effects (USB and charge state, power-option t
 untouched. Then, if the setting is on, `/mnt/mmc/m1plus-off` is absent and
 `/sys/class/power_supply/battery/capacity` is a plain integer 0..100 (one to three digits and at
 most one newline), the percentage is written to `power_capacity` and the label `pod_pct` shows
-`N%`. Otherwise stock's value stays and the label is hidden. The platform_init and power-off calls
+the number. Otherwise stock's value stays and the label is hidden. The platform_init and power-off calls
 stay stock.
 
 - **Charging:** stock adds 10 to `power_capacity` per call as a fill animation; with the setting on
   the real percentage replaces it every tick. The bolt picture stays stock's logic.
 - **Cost:** setting off, one `access` and a cached flag (read once from the 1-byte file; a hand edit
-  applies after a restart). On: one open/read/close of the gauge and three lookups per second. No
+  applies after a restart). On: one open/read/close of the gauge and a few lookups per second. No
   allocation, timer or thread. The hook first runs when the UI starts, not at boot.
 - **Accuracy** is the AXP2101's own estimate.
 
@@ -102,25 +106,26 @@ charging battery's voltage is above the empty level, so a real 0 while charging 
 
 ## The label
 
-`pod_pct` is a hidden, insensitive `label` appended to the right icon group `view_bar_right` of
-`ui/system_bar.bin`, before the Screenshot camera `pod_shot`. `pod_pct_dd` is the same in
+`pod_pct` is a hidden, insensitive `label` over the battery's body in `ui/system_bar.bin`, drawn
+after `img_battery` (`battery_parts` in `tools/statusbar.py`). `pod_pct_dd` is the same in
 `dropdown_dialog.bin` (the pull-down covers the real bar; it can show the number up to a second
-after it opens). White, 13 px, right-aligned and vertically centred, its right edge 4 px before the
-outline (x 284).
+after it opens). The number has no `%`: black, 15 px in the bold face (`lyrics`), centred in the
+26x14 body, so `100` fits and nothing in the bar moves when it shows. The label's box is 15 px high
+and 1 px below the body's top (`PCT_DY`): AWTK centres the whole line, and the digits have no
+descender, so this centres their ink.
 
-- The group's layouter skips an invisible child, so the label **makes room**: icons to its left
-  move left by its width + 4.
-- Width follows the text: `BP_W2` 18, `BP_W3` 25, `BP_W4` 32 px for `5%`, `87%`, `100%`
-  (`pct_widths` in `tools/pod_ui.py`, written into `stock.h`). When it changes, the hook resizes the
-  label and asks the group to lay out again.
-- With Bluetooth, SyncLink, Wi-Fi and `100%` the ink starts at x 189, 3 px clear of the 12 h clock's
-  end (186); the tests require at least 3 px, also with the Screenshot camera.
+- **No inversion.** The digits are black over the white level and over the rest of the body alike.
+  For that the rest must be light: the hidden view `pod_pct_bg` (`EMPTY_PCT` `#8E8E93`, drawn
+  between `pod_bat_bg` and the level) is shown together with the label. With the setting off the
+  body keeps the darker `EMPTY`, which sets the level off better when there is no number.
+- **Charging** keeps the number: the bolt is right of the nub, not in the body.
+- The contrast scan (`tools/mod_theme.py` `DRAWN_OVER`) rates the digits against `EMPTY_PCT`.
 
 ## The lock screen
 
 Stock's lock page draws its gauge from the same `power_capacity`, so its fill and picture already
-follow the percentage. Its label `pod_pct_lk` (`tools/mod_lockscreen.py`: a child of `view_timeinfo`,
-so Show Time off hides it with the gauge; a fixed 32 px box, right-aligned) is set by the same tick
+follow the percentage. Its label `pod_pct_lk` and grey `pod_pct_bg_lk` (`tools/mod_lockscreen.py`:
+the same `battery_parts`, children of `view_timeinfo`, so Show Time off hides them with the gauge) are set by the same tick
 and by `bp_lock` at the page's init (`patch/lockscreen.c`, not with the kill switch), so the number
 is there in the first frame. The pull-down's `pod_pct_dd` is set the same way by `bp_pulldown` at the
 dialog's init (`patch/pulldown.c`, not with the kill switch). With the setting off or a bad gauge the

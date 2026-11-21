@@ -14,18 +14,15 @@
     "/sys/class/power_supply/battery/voltage_now" /* microvolts and a newline: read only when the gauge says 0 */
 #define BP_EMPTY_UV \
     3535001 /* below this, stock's get_battery_capacity buckets the battery as 0 (0x35f099 at 0x4e6ec4): a gauge 0 is believed */
-#define BP_LABEL "pod_pct" /* the hidden label tools/pod_ui.py adds to the system bar's right group */
-#define BP_LABEL_DD "pod_pct_dd" /* its twin in the pull-down's own bar (view_sysbar of dropdown_dialog.bin) */
-#define BP_LABEL_LK \
-    "pod_pct_lk" /* the lock screen's (tools/mod_lockscreen.py PCT_WIDGET): a fixed box left of the page's gauge */
+#define BP_LABEL "pod_pct" /* the hidden number in the status bar's battery (tools/statusbar.py battery_parts) */
+#define BP_LABEL_DD "pod_pct_dd" /* its twin in the pull-down's own bar (dropdown_dialog.bin) */
+#define BP_LABEL_LK "pod_pct_lk" /* the lock screen's (tools/mod_lockscreen.py) */
+#define BP_BG "pod_pct_bg" /* the lighter grey under the level, shown with the number so that its black digits read */
+#define BP_BG_DD "pod_pct_bg_dd"
+#define BP_BG_LK "pod_pct_bg_lk"
 
 #define BP_LOW \
     5 /* a gauge reading of at most this, on battery, is stored as 0: stock's red bar_lowpower (and its other low-battery readers) */
-
-/* widget_t fields the label's fit reads and writes (pinned by BATTERY_PINS in tools/pod.py against widget_resize and widget_set_visible) */
-#define BP_W_W 8 /* widget->w */
-#define BP_W_H 0xc /* widget->h */
-#define BP_W_PARENT 0x44 /* widget->parent */
 
 void bp_lock(
     void *win); /* the lock screen's init: show the percentage in its label at once (setting on, gauge readable) */

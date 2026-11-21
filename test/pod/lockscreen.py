@@ -156,7 +156,7 @@ def hook_tests(ctx):
     BP = cdefs.defines(os.path.join(ROOT, 'patch', 'battery.h'), strings=True)
     for setting in (b'0', b'1'):
         m = LK(setting=setting); lab = m.widget(BP['BP_LABEL_LK']); m.fs[BP['BP_FILE']] = b'1\n'; m.fs[BP['BP_GAUGE']] = b'64\n'; m.open()
-        expect(('widget_set_text_utf8', lab, '64%') in [c[:3] for c in m.calls] and ('widget_set_visible', lab, 1) in [c[:3] for c in m.calls], f'layout {setting!r}, Battery Percentage on: the init shows 64% beside the gauge')
+        expect(('widget_set_text_utf8', lab, '64') in [c[:3] for c in m.calls] and ('widget_set_visible', lab, 1) in [c[:3] for c in m.calls], f'layout {setting!r}, Battery Percentage on: the init shows 64 (no % sign) inside the gauge')
     m = LK(); lab = m.widget(BP['BP_LABEL_LK']); m.fs[BP['BP_GAUGE']] = b'64\n'; m.open()
     expect(not any(c[0] == 'widget_set_text_utf8' and c[1] == lab for c in m.calls), 'Battery Percentage off: the label is left hidden')
     m = LK(); lab = m.widget(BP['BP_LABEL_LK']); m.fs[BP['BP_FILE']] = b'1\n'; m.fs[BP['BP_GAUGE']] = b'64\n'; m.present.add(KILL); m.open()
@@ -1036,14 +1036,14 @@ def date_tests(ctx):
     m = FM(); ws, dt = m.alloc(16), m.alloc(64); m.u.mem_write(ws, bytes(16)); m.u.mem_write(dt, struct.pack('<7i', 0, 41, 9, 11, 7, 11, 2026))
     expect(m.call(0x64e7b0, a0=ws, a1=m.cstr('W'), a2=dt, count=400000) == 0 and not [c for c in m.calls if c[0] == 'locale_info_tr'], 'a weekday out of range is not looked up (stock\'s bound, kept)')
 
-    # -- 4. the widest date of every language (the built font) stays clear of the Battery Percentage label
+    # -- 4. the widest date of every language (the built font) stays clear of the gauge (the Battery Percentage label is inside it)
     from awtk_text import Ttf, awtk_width
     font = Ttf(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/fonts/default.ttf'))
-    page = awtk_ui.parse(open(UI, 'rb').read()); date, lab = page.find(ML.DATE_WIDGET), page.find(ML.PCT_WIDGET)
+    page = awtk_ui.parse(open(UI, 'rb').read()); date, gauge, lab = page.find(ML.DATE_WIDGET), page.find('img_battery'), page.find(ML.PCT_WIDGET)
     px = int(date.get('style:normal:font_size'))
     wide = {loc: awtk_width(font, s, px) for loc, s in ML.date_samples(font).items()}
-    expect(all(date.x + (date.w + w) // 2 + 4 <= lab.x for w in wide.values()) and all(font.glyph(c) for s in ML.date_samples(font).values() for c in s),
-           f'every language\'s widest date, centred, ends at least 4 px before the label at {lab.x}, and the font has every character ({wide})')
+    expect(all(date.x + (date.w + w) // 2 + 4 <= gauge.x for w in wide.values()) and gauge.x <= lab.x and lab.x + lab.w <= gauge.x + gauge.w and all(font.glyph(c) for s in ML.date_samples(font).values() for c in s),
+           f'every language\'s widest date, centred, ends at least 4 px before the gauge at {gauge.x}, the label lies inside it ({lab.x} .. {lab.x + lab.w} of {gauge.x} .. {gauge.x + gauge.w}), and the font has every character ({wide})')
 
 
 def radio_tests(ctx):

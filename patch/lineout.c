@@ -49,14 +49,13 @@ static int lo_bt_ink(void *bt) {
 static int lo_sleep_fits(void *bar, void *ind) {
     void *bt = widget_lookup(bar, SLEEP_BT, 1);
     int used = ((int *)ind)[W_W / 4];
-    used += lo_peer(bar, SYNC_IND) + lo_peer(bar, SLEEP_SYNCLINK) + lo_peer(bar, SLEEP_WIFI) + lo_peer(bar, SLEEP_PCT) +
-            lo_peer(bar, SLEEP_PCT_DD) + lo_peer(bar, SLEEP_SHOT);
+    used += lo_peer(bar, SYNC_IND) + lo_peer(bar, SLEEP_SYNCLINK) + lo_peer(bar, SLEEP_WIFI) + lo_peer(bar, SLEEP_SHOT);
     if (bt && widget_get_visible(bt)) used += SLEEP_GAP + lo_bt_ink(bt);
     return used <= SLEEP_ROOM;
 }
 
 /* The sleep timer icon (docs/modules/lineout.md "Sleep Timer icon"): pod_sleep in the bar's right group, shown while stock's sleep timer is running (sleepflag != 0 and sleep_time > 0, the same test
- * patch/sleeptimer.c uses), the kill switch is absent and the row has room for it (lo_sleep_fits). Stock sets the Bluetooth image and patch/battery.c the percentage on the same tick, possibly after this
+ * patch/sleeptimer.c uses), the kill switch is absent and the row has room for it (lo_sleep_fits). Stock sets the Bluetooth image on the same tick, possibly after this
  * call, so a change there reaches the moon one tick late. Set only when it changes, so a steady state costs no relayout. A bar without the widget is left alone. */
 static void lo_sleep(void *bar, int kill) {
     void *ind;

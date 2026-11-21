@@ -21,7 +21,7 @@ accent and background mapping is in [accent](accent.md).
 | secondary text | `#AAAAAA` | same |
 | settings icon | bare white glyph (no disc; the Home grid keeps its `#777777` discs) | coloured discs |
 | list chevron | `#8A8A8A` (pressed `#6E6E6E`) | white |
-| status glyph on / off | `#FFFFFF` / `#666666` | white / grey |
+| status glyph on / off | `#FFFFFF` / `#5A5A5A` | white / grey |
 | slider fill / track / thumb disc | `#EEEEEC` / `#333333` / `#777777` | orange / `#333333` / orange disc |
 | toggle on / off | light track, dark knob / dark grey track, grey knob | orange track / grey track |
 | Home page dots | `#EEEEEE` / `#555555` | `#FFFFFF` / `#666666` |
@@ -37,8 +37,7 @@ them.
   AWTK light default style (`window`, `dialog`, `list_view`, `label`, `button`). Stock pages set
   their dark colours inline, and a global change of those defaults is how white-on-white happens.
 - **Images:** the 46 settings icons (40 x 40) get the `#777777` disc with the glyph kept
-  (q2-pod's `ringnav_image_add` rule); status icons are redrawn at 4x (one weight, round caps,
-  concentric Wi-Fi arcs, unlit `#666666`).
+  (q2-pod's `ringnav_image_add` rule); the status bar's glyphs are one filled 14 px set ([icons](icons.md)).
 - **Contrast gates, every build:** `audit()` checks every state of the row styles against every
   label style a row can hold (no light row surface; worst text at least 4.5:1 at rest and pressed).
   `page_audit()` checks every text widget of every `ui/*.bin` against its nearest opaque ancestor,
@@ -71,7 +70,7 @@ the pull-down's own copy of the bar (`view_sysbar`): same widgets, positions, im
 colours, at y 0 of the dialog on the real bar's black. `test/pod/assets.py` compares the two files.
 
 - `view_bar_left` x 10; `label_volume` 16 px; `bar_dclock` 104,0, 90 px wide, 18 px (a 12 h
-  `12:59 PM` is 66-72 px, clear of the Bluetooth rune); `view_bar_right` ends 4 px before the
+  `12:59 PM` is 66-72 px, clear of the Bluetooth rune); `view_bar_right` (3 px spacing) ends 5 px before the
   battery outline.
 - **Home** (`home_page.bin`): the strip is black with a 1 px `#222222` top border, the artist line
   `#AAAAAA`, dots `#EEEEEE` / `#555555`. The icon grid is built in code.

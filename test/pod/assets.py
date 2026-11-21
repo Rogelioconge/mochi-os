@@ -297,17 +297,18 @@ def run(ctx):
     # 52. The pull-down's status bar is the real one (tools/statusbar.py lays both out): the same widgets, in the same order, at
     #     the same positions and sizes, with the same images, fonts, colours, alignment and spacing; the
     #     bar sits at y 0 of the dialog (open at y 0 of the screen) on the real bar's black, so nothing jumps when it opens.
-    import statusbar
+    import statusbar, battery_art
     from awtk_text import Ttf, StbText
     real = awtk_ui.parse(open(os.path.join(ui_dir, 'system_bar.bin'), 'rb').read())
     skip = {'value'}                                   # the battery fill's level is set at run time
     def sig(w, clock_h=True):
-        props = tuple(sorted((k, v) for k, v in w.props if k not in skip and not (w.type == 'view' and k.startswith('style:') and 'bg_color' in k)))
-        return (w.type, w.name, w.x, w.y, w.w, w.h if (clock_h or w.name != 'bar_dclock') else None, props)
+        props = tuple(sorted((k, v if k != 'name' else unsfx(w)) for k, v in w.props if k not in skip and not (w.type == 'view' and k.startswith('style:') and 'bg_color' in k)))
+        return (w.type, unsfx(w), w.x, w.y, w.w, w.h if (clock_h or w.name != 'bar_dclock') else None, props)
     # the one difference by design: the Screenshot countdown's camera (pod_shot, hidden, patch/shot.h) is in the real bar only; the pull-down covers
     # the bar while it is open, and the payload looks the camera up in the window manager's tree (the real bar), so the pull-down gets no copy
-    # and the Battery Percentage label (pod_pct in the real bar, pod_pct_dd in the pull-down's: hidden, test/pod/battery.py checks both)
-    def own(bar): return [w for w in bar.walk() if w is not bar and w.name not in ('pod_shot', 'pod_pct', 'pod_pct_dd')]
+    # (the battery's three widgets, pod_bat_bg / pod_pct_bg / pod_pct, carry the _dd suffix in the pull-down's bar, so they are compared with the suffix removed; test/pod/battery.py checks both)
+    def own(bar): return [w for w in bar.walk() if w is not bar and w.name != 'pod_shot']
+    def unsfx(w): return (w.name[:-3] if w.name.endswith('_dd') else w.name)
     ref = [sig(w) for w in own(real)]
     font = Ttf(os.path.join(WORK, 'rootfs/release/assets/default/raw/fonts/default.ttf'))
     dd = awtk_ui.parse(open(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/dialog/dropdown_dialog.bin'), 'rb').read())
@@ -315,7 +316,7 @@ def run(ctx):
     # the pull-down's own view_sysbar and the system_bar window: the clock's h differs in the file only (h=100% resolves to 30 under its self_layout)
     got = [sig(w, False) for w in own(pb)]
     want = [sig(w, False) for w in own(real)]
-    expect(got == want and [w.name for w in own(pb)] == [w.name for w in own(real)] and not any(w.name == 'pod_shot' for w in pb.walk()),
+    expect(got == want and [unsfx(w) for w in own(pb)] == [w.name for w in own(real)] and not any(w.name == 'pod_shot' for w in pb.walk()),
            f'the pull-down\'s bar has the real bar\'s {len(want)} widgets in order, with the same geometry, images, fonts, colours, alignment and layouts'
            + ('' if got == want else f' (differs: {[(a[1], a[2:]) for a, b in zip(got, want) if a != b][:3]})'))
     expect((pb.x, pb.y, pb.w, pb.h) == (0, 0, 320, 30) and real.h == 30 and (dd.x, dd.y) == (0, -340)
@@ -324,8 +325,8 @@ def run(ctx):
     vol, clk, lv, rv = (pb.find(n) for n in ('label_volume', 'bar_dclock', 'view_bar_left', 'view_bar_right'))
     expect(all(vol.get(f'style:{st}:font_size') == '16' and vol.get(f'style:{st}:text_align_v') == 'middle' for st in ('normal', 'disable', 'focused'))
            and clk.get('style:normal:font_size') == '18' and (clk.x, clk.w) == (104, 90) and lv.get('children_layout') == 'default(r=1,c=0,x=10,s=4)'
-           and rv.get('children_layout') == 'default(r=1,c=0,a=right,s=4)' and pb.find('img_battery').x + 22 == 310,
-           'volume 16 px middle, clock 18 px at x 104 (90 wide), left group from x 10, right group 4 px apart, battery outline ends 10 px from the edge')
+           and rv.get('children_layout') == 'default(r=1,c=0,a=right,s=3)' and pb.find('img_battery').x + pb.find('img_battery').w - battery_art.STATUS.tail == 310,
+           'volume 16 px middle, clock 18 px at x 104 (90 wide), left group from x 10, right group 3 px apart, battery outline ends 10 px from the edge')
     expect(StbText(font, 16).layout('100')[1] <= vol.w and StbText(font, 18).layout('12:59 PM')[1] <= clk.w,
            '"100" fits the volume label and "12:59 PM" (12 h mode) the clock box in the shipped font')
     expect(ref and all(real.find(n) is not None for n in statusbar.NAMES), 'the real bar still has every widget the stock code looks up')

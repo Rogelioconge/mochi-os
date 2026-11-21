@@ -175,7 +175,7 @@ automatic power options and ignores USB connections.
 
 ### Battery
 
-**Battery Percentage** shows the exact charge in the status bar and on the lock screen; it is off
+**Battery Percentage** shows the exact charge inside the battery icon, in the status bar and on the lock screen; it is off
 by default. **Charge Limit** stops charging at 80, 85, 90 or 95% while the player is on and resumes
 about 5% lower, also with the screen off (after a pause, charging resumes once the screen is next
 on). At 100% there is no limit; a switched-off player charges fully.

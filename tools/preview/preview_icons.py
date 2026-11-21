@@ -58,8 +58,9 @@ def kinds():
         if g is None: k[n] = 'K'
         elif M.is_custom(g): k[n] = 'C'; k[n + '_down'] = 'C'
     k['m1plus'] = 'C'
-    for n, g in list(M.PULLDOWN.items()) + list(M.STATUS.items()):
+    for n, g in M.PULLDOWN.items():
         if M.is_custom(g): k[n] = 'C'
+    for n in M.status_art.images(): k[n] = 'C'      # the status bar: all drawn by tools/status_art.py
     return k
 KIND = kinds()
 

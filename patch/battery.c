@@ -1,4 +1,4 @@
-/* M1+ Music Battery Percentage: the fuel gauge's exact charge, as a number beside the battery outline (docs/modules/battery.md "The percentage").
+/* M1+ Music Battery Percentage: the fuel gauge's exact charge, as a number in the battery (docs/modules/battery.md "The percentage").
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
@@ -7,7 +7,7 @@
  * for the fill; the return value is dropped there. The one hook is the call-site word `jalr get_battery_capacity` at 0x5450f8 in show_sysbar_face, now `jal bp_capacity`.
  * bp_capacity runs stock's function first, and then, only while Settings > Battery > Battery Percentage is on and the kill switch /mnt/mmc/m1plus-off is absent and
  * /sys/class/power_supply/battery/capacity reads a plain integer 0..100, stores that percentage in power_capacity (so the fill, the charging picture's fill and the
- * pull-down's bar use the real level, charging included) and shows "N%" in the label pod_pct that sits left of the outline (its twin pod_pct_dd in the pull-down's bar).
+ * pull-down's bar use the real level, charging included) and shows the number in the label pod_pct in the battery's body (its twin pod_pct_dd in the pull-down's bar), over the lighter grey pod_pct_bg.
  * At BP_LOW (5) percent or less on battery (and when stock's own bucket is 0) the stored value is 0, which is how stock's own test shows the red bar_lowpower (battery.md "BP_LOW").
  * The lock screen (screensaver_page) draws its gauge from the same power_capacity; its label pod_pct_lk is set by the same tick and, at once, by bp_lock at the page's init. The pull-down's label pod_pct_dd is set at once the same way, by bp_pulldown at its init.
  * In every other case the stock value stays and the labels are hidden (visible and sensitive off). The icon pictures stay stock's (charging, low).
@@ -15,10 +15,7 @@
  * Two more hooks, the call-site words `jalr toolSetBackLight` at 0x4e71cc (on) and 0x4e71fc (off) in screen_action (0x4e71a4), now `jal bp_light_on` / `jal bp_light_off`, repaint the
  * status bar when the screen wakes (battery.md "The wake repaint"): cost on a wake only (one access, ~34 ms), none while the screen stays lit.
  *
- * The right icon group lays its visible children out right-aligned, so the label (the group's last child but the Screenshot camera, hidden in the asset) makes the icons
- * to its left move aside by its width; the width follows the text (BP_W2 .. BP_W4, measured at build time), and a change of it asks the group to lay out again.
- *
- * Cost: one access (the kill switch), and, with the setting on, one open / read / close of a 4 byte file and a lookup in the small status bar tree per second; the setting
+ * Cost: one access (the kill switch), and, with the setting on, one open / read / close of a 4 byte file and a few lookups in the small status bar tree per second; the setting
  * is cached (read at the first tick, kept by the Settings switch). Not on the boot path (tools/reach.py), but the first call comes with the status bar window at UI start, so with the setting off (the default) it adds only stock's own call, the access and the cached flag.
  */
 #include "offsets.inc"
@@ -76,14 +73,15 @@ int battery_gauge(void) {
     return v;
 }
 
-/* Show the percentage in the label w (the number as its text, its width fitted), or hide it for pct < 0. */
-static void bp_label(void *w, int pct, int fit) {
-    char t[5];
+/* Show the percentage in the label `name` of root (the number as its text) and the lighter grey `bg` under the level, or hide both for pct < 0. Both stay insensitive. */
+static void bp_label(void *root, const char *name, const char *bg, int pct) {
+    char t[4];
     int n = 0;
+    void *w = root ? widget_lookup(root, name, 1) : (void *)0, *b;
     if (!w) return;
+    if ((b = widget_lookup(root, bg, 1))) widget_set_visible(b, pct >= 0, 0);
     if (pct < 0) {
         widget_set_visible(w, 0, 0);
-        widget_set_sensitive(w, 0);
         return;
     }
     if (pct >= 100)
@@ -92,35 +90,26 @@ static void bp_label(void *w, int pct, int fit) {
         if (pct >= 10) t[n++] = (char)('0' + pct / 10);
         t[n++] = (char)('0' + pct % 10);
     }
-    t[n++] = '%';
     t[n] = 0;
-    if (fit) {
-        int want = n == 4 ? BP_W4 : n == 3 ? BP_W3 : BP_W2;
-        int *geo = (int *)w;
-        if (geo[BP_W_W / 4] != want) {
-            widget_resize(w, want, geo[BP_W_H / 4]);
-            if (geo[BP_W_PARENT / 4]) widget_set_need_relayout_children((void *)geo[BP_W_PARENT / 4]);
-        }
-    }
     widget_set_text_utf8(w, t);
     widget_set_visible(w, 1, 0);
 }
 
 /* A page's label at its init (after stock's init and only without the kill switch): the percentage at once, where the status bar's tick would show it up to a second later. The label is hidden in
  * the asset, so with the setting off or an unreadable gauge nothing is touched. */
-static void bp_init_label(void *win, const char *name, int fit) {
+static void bp_init_label(void *win, const char *name, const char *bg) {
     int pct;
     if (bp.state == 0) bp.state = bp_read_setting() ? 2 : 1;
     if (bp.state != 2 || (pct = battery_gauge()) < 0) return;
-    bp_label(widget_lookup(win, name, 1), pct, fit);
+    bp_label(win, name, bg, pct);
     bp.shown = 1;
 }
 
-/* The lock screen's label (patch/lockscreen.c). Its box is fixed (the widest text, right-aligned). */
-void bp_lock(void *win) { bp_init_label(win, BP_LABEL_LK, 0); }
+/* The lock screen's label (patch/lockscreen.c). */
+void bp_lock(void *win) { bp_init_label(win, BP_LABEL_LK, BP_BG_LK); }
 
-/* The pull-down's label (patch/pulldown.c m1plus_pulldown_init): fitted like the status bar's. */
-void bp_pulldown(void *dlg) { bp_init_label(dlg, BP_LABEL_DD, 1); }
+/* The pull-down's label (patch/pulldown.c m1plus_pulldown_init). */
+void bp_pulldown(void *dlg) { bp_init_label(dlg, BP_LABEL_DD, BP_BG_DD); }
 
 /* The hook (tools/pod.py BATTERY_SITE): stock's get_battery_capacity, then the real percentage when asked for. Returns what stock's function returned, or the percentage. */
 int bp_capacity(void) {
@@ -142,10 +131,10 @@ int bp_capacity(void) {
         *(int *)POWER_CAPACITY = cap = low_test && (pct <= BP_LOW || cap <= 0) ? 0 : pct;
     }
     bar = *(void **)SYSTEM_BAR;
-    bp_label(bar ? widget_lookup(bar, BP_LABEL, 1) : (void *)0, pct, 1);
+    bp_label(bar, BP_LABEL, BP_BG, pct);
     wm = window_manager();
-    bp_label(wm ? widget_lookup(wm, BP_LABEL_DD, 1) : (void *)0, pct, 1);
-    bp_label(wm ? widget_lookup(wm, BP_LABEL_LK, 1) : (void *)0, pct, 0);
+    bp_label(wm, BP_LABEL_DD, BP_BG_DD, pct);
+    bp_label(wm, BP_LABEL_LK, BP_BG_LK, pct);
     bp.shown = pct >= 0;
     return cap;
 }

@@ -47,10 +47,24 @@ def text(dr, t, xy, s, px, col, anchor='lm'):
 def paste(im, ic, x, y):
     if ic: im.alpha_composite(ic, (int(x), int(y)))
 
-def status_bar(im, t, pct=86, shot=False, clock='12:59 PM', label=None, state='bar_power', synclink=False):
+def face_text(im, raw, lab, s, ox=0, oy=0):
+    """The text s in the label widget lab (centred both ways, its style's face, size and colour), glyph by glyph at the pens AWTK uses (awtk_text.StbText)."""
+    from awtk_text import Ttf, StbText
+    path = os.path.join(raw, 'fonts', (lab.get('style:normal:font_name') or 'default') + '.ttf'); px = int(lab.get('style:normal:font_size'))
+    d = open(path, 'rb').read(); n = struct.unpack_from('>H', d, 4)[0]
+    t = {d[12 + 16 * i:16 + 16 * i]: struct.unpack_from('>I', d, 20 + 16 * i)[0] for i in range(n)}
+    em = struct.unpack_from('>H', d, t[b'head'] + 18)[0]; asc, desc = struct.unpack_from('>hh', d, t[b'hhea'] + 4)
+    f = ImageFont.truetype(path, round(px * em / (asc - desc)))
+    pens, width = StbText(Ttf(path), px).layout(s)
+    x0 = ox + lab.x + (lab.w - width) // 2; base = oy + lab.y + (lab.h - px) // 2 + int(asc * px / (asc - desc))   # AWTK's baseline: int(ascender * scale) below the line's top
+    layer = Image.new('RGBA', im.size); dr = ImageDraw.Draw(layer)
+    for ch, pen in pens: dr.text((x0 + pen, base), ch, font=f, fill=rgba(lab.get('style:normal:text_color')), anchor='ls')
+    im.alpha_composite(layer)
+
+def status_bar(im, t, pct=86, shot=False, clock='12:59 PM', label=None, state='bar_power', synclink=False, sleep=False):
     """shot: the Screenshot countdown's camera shown (pod_shot, the last child of the right-aligned group, so the rightmost).
-    label: the Battery Percentage shown (pod_pct, the child before the camera): the gauge's percentage as its text, the label as wide as the text
-    (patch/battery.c), white and right-aligned; the icons to its left move aside, as the group's layouter does."""
+    sleep: the Sleep Timer's moon shown (pod_sleep, between Bluetooth and Wi-Fi).
+    label: the Battery Percentage shown (pod_pct: the number in the battery's body, over the lighter grey pod_pct_bg; patch/battery.c)."""
     dr = ImageDraw.Draw(im); b = t.bar
     dr.rectangle((0, 0, W - 1, BAR - 1), fill=rgba(b.get('style:normal:bg_color', '#000000')))
     left = b.find('view_bar_left'); lay = left.get('children_layout')
@@ -62,17 +76,11 @@ def status_bar(im, t, pct=86, shot=False, clock='12:59 PM', label=None, state='b
     c = b.find('bar_dclock'); text(dr, t, (c.x + c.w / 2, BAR / 2), clock, int(c.get('style:normal:font_size')), (255, 255, 255, 255), 'mm')
     right = b.find('view_bar_right'); s = int(right.get('children_layout').split('s=')[1].rstrip(')'))
     x = right.x + right.w
-    for name, img in ((('pod_shot', 'pod_bar_shot'),) if shot else ()) + ((('pod_pct', None),) if label is not None else ()) + (('img_wifi', 'bar_wifi3'),) + ((('img_synclink', 'bar_synclinkcon'),) if synclink else ()) + (('img_btclass', 'bar_btcon'),):
-        if img is None:   # the percentage: the text's own width, right-aligned in the box
-            from awtk_text import Ttf, StbText
-            lab = right.find(name); px = int(lab.get('style:normal:font_size'))
-            w = StbText(Ttf(t.ttf), px).layout(label)[1]
-            x -= w; text(dr, t, (x + w, BAR / 2), label, px, (255, 255, 255, 255), 'rm'); x -= s
-            continue
+    for name, img in ((('pod_shot', 'pod_bar_shot'),) if shot else ()) + (('img_wifi', 'bar_wifi3'),) + ((('img_synclink', 'bar_synclinkcon'),) if synclink else ()) + ((('pod_sleep', 'pod_bar_sleep'),) if sleep else ()) + (('img_btclass', 'bar_btcon'),):
         ic = t.img(img); w = right.find(name).w; x -= w; paste(im, ic, x + w - ic.width, (BAR - ic.height) // 2); x -= s
-    battery(im, t, b, pct, state)
+    battery(im, t, b, pct, state, label)
 
-def battery(im, t, b, pct=86, state='bar_power'):
+def battery(im, t, b, pct=86, state='bar_power', label=None):
     """img_battery and pgbar_battery of a status bar (system_bar or the pull-down's): the number
     (show_text) or the gauge: the fill under the state image (stock: bottom-up
     in 14x17; mod_battery: left to right in the 12x7 interior)."""
@@ -82,7 +90,10 @@ def battery(im, t, b, pct=86, state='bar_power'):
         paste(im, t.img(state), bat.x, bat.y)
         text(dr, t, (pg.x + pg.w, pg.y + pg.h / 2), f'{pct}%', int(pg.get('style:normal:font_size')), (255, 255, 255, 255), 'rm')
         return
-    fg = rgba(pg.get('style:normal:fg_color', '#FFFFFF'))
+    fg, bg = rgba(pg.get('style:normal:fg_color', '#FFFFFF')), rgba(pg.get('style:normal:bg_color', '#00000000'))
+    if bg[3]: dr.rectangle((pg.x, pg.y, pg.x + pg.w - 1, pg.y + pg.h - 1), fill=bg)
+    for v in (b.find('pod_bat_bg'), b.find('pod_pct_bg') if label is not None else None):   # the body's grey; the lighter one under the number
+        if v is not None: dr.rectangle((v.x, v.y, v.x + v.w - 1, v.y + v.h - 1), fill=rgba(v.get('style:normal:bg_color')))
     if pg.get('vertical') == 'true':
         fh = pg.h * pct // 100
         if fh: dr.rectangle((pg.x, pg.y + pg.h - fh, pg.x + pg.w - 1, pg.y + pg.h - 1), fill=fg)
@@ -90,6 +101,7 @@ def battery(im, t, b, pct=86, state='bar_power'):
         fw = pg.w * pct // 100
         if fw: dr.rectangle((pg.x, pg.y, pg.x + fw - 1, pg.y + pg.h - 1), fill=fg)
     paste(im, t.img(state), bat.x, bat.y)
+    if label is not None and b.find('pod_pct') is not None: face_text(im, t.raw, b.find('pod_pct'), label.rstrip('%'))
 
 def navbar(im, t, title):
     dr = ImageDraw.Draw(im)

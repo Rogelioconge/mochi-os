@@ -169,7 +169,7 @@ SKIPPED = (
     ('mod_icons', 'DM_PLAY_GLYPH = 22', 'no C define (tools/pod_dailymix.py has the same value; Python to Python)'),
     ('mod_icons', 'GLASS_H = 42, GLASS_GLYPH = 20', 'no C define; NAV_H (50) is the bar, not the glass'),
     ('mod_icons', 'MB_PLAY_INK, MB_PAUSE_H, MB_SKIP_H, MB_SKIP_W', 'no C define (the bar glyph shapes are the Python model\'s)'),
-    ('mod_icons', 'NAV_PX = 24, SHOT_BAR_PX, SYNC_BAR_PX, SYNC_DM_PX, PL_MENU_PX, SWATCH_PX', 'no C define'),
+    ('mod_icons', 'NAV_PX = 24, SYNC_DM_PX, PL_MENU_PX, SWATCH_PX', 'no C define'),
     ('mod_icons', 'AH_TINT[0], AH_TINT[1], AH_TINT[3]', 'alpha rows and window height: no C define'),
     ('mod_icons', 'PA_TRACK_A, PA_TILE_R, PA_TILE_GLYPH, PA_DL_TRACK, PA_DL_STROKE, PA_DL_STOP_PX', 'no C define (the stop square\'s size is in the atlas cell)'),
     ('mod_icons', 'CARD_PIECE (ROW_W, ROW_H, CARD_X, CARD_W, CARD_R)', 'no C define (tools/pod_settings.py geometry)'),

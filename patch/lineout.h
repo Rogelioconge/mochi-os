@@ -20,22 +20,20 @@
 /* The moon's room test (patch/lineout.c lo_sleep_fits): it shows only if the right group's visible ink, the moon included, spans at most SLEEP_ROOM px, so it never pushes the Bluetooth box into the clock.
  * The group lays out right-aligned with SLEEP_GAP spacing; each visible peer counts its box, the Bluetooth box only its ink (the glyph or codec badge at the box's right edge; an image not listed counts the whole box). */
 #define SLEEP_ROOM \
-    95 /* the group's right end (x 284) less the 12 h clock's widest ink end (x 186, "10:59 AM") and 3 px clearance */
-#define SLEEP_GAP 4 /* tools/statusbar.py GAP */
+    88 /* the group's right end (x 277) less the 12 h clock's widest ink end (x 186, "10:59 AM") and 3 px clearance */
+#define SLEEP_GAP 3 /* tools/statusbar.py RGAP */
 #define SLEEP_BT "img_btclass" /* stock's Bluetooth box, the group's first child */
 #define SLEEP_SYNCLINK "img_synclink" /* stock's SyncLink glyph */
 #define SLEEP_WIFI "img_wifi" /* stock's Wi-Fi glyph */
 #define SLEEP_SHOT "pod_shot" /* the screenshot mark (system bar only) */
-#define SLEEP_PCT "pod_pct" /* the battery percentage (patch/battery.h BP_LABEL) */
-#define SLEEP_PCT_DD "pod_pct_dd" /* its twin in the pull-down's bar (BP_LABEL_DD) */
-#define SLEEP_BT_GLYPH "bar_bt" /* Bluetooth on: ink 11 px */
-#define SLEEP_BT_CON "bar_btcon" /* connected: ink 11 px */
-#define SLEEP_INK_GLYPH 11
-#define SLEEP_BT_AAC "bar_aac" /* the AAC badge: ink 16 px */
-#define SLEEP_INK_AAC 16
-#define SLEEP_BT_SBC "bar_sbc" /* the SBC badge: ink 28 px */
+#define SLEEP_BT_GLYPH "bar_bt" /* Bluetooth on: ink 10 px (tools/status_art.py) */
+#define SLEEP_BT_CON "bar_btcon" /* connected: ink 10 px */
+#define SLEEP_INK_GLYPH 10
+#define SLEEP_BT_AAC "bar_aac" /* the AAC tag: ink 31 px */
+#define SLEEP_INK_AAC 31
+#define SLEEP_BT_SBC "bar_sbc" /* the SBC tag: ink 28 px */
 #define SLEEP_INK_SBC 28
-#define SLEEP_BT_LDAC "bar_ldac" /* the LDAC badge: ink 38 px */
+#define SLEEP_BT_LDAC "bar_ldac" /* the LDAC tag: ink 38 px */
 #define SLEEP_INK_LDAC 38
 
 void lo_bar_refresh(

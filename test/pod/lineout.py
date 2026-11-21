@@ -95,15 +95,19 @@ def run(ctx):
                and kids.index(PILL) == kids.index('label_volume') + 1 and sum(c.name == PILL for c in bar.walk()) == 1 and statusbar.LO_WIDGET == PILL,
                f'{what}: {PILL} is one hidden, insensitive image right after label_volume ({kids})')
     stock_bar = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
-    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_pct', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed')
+    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_bat_bg', 'pod_pct_bg', 'pod_pct', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed')
 
     # 7. The image: amber, not the Accent Orange, a full pill, and no tint or flip touches it.
     png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.LO_IMAGE + '.png')
     expect(open(png, 'rb').read() == open(os.path.join(mod_icons.PNG, statusbar.LO_IMAGE + '.png'), 'rb').read() and statusbar.LO_IMAGE in mod_icons.pod_names(), 'the image is added from the committed PNG')
     im = Image.open(png).convert('RGBA')
-    expect(im.size == (statusbar.LO_W, 16) and (mod_icons.LO_BAR_W, mod_icons.LO_BAR_H) == im.size and mod_icons.LO_BAR_RGB == (0xFF, 0xD6, 0x0A) and mod_icons.LO_BAR_RGB != (0xFF, 0x9F, 0x0A), 'a 26 x 16 pill, amber #FFD60A (not Accent Orange #FF9F0A)')
-    px = im.load(); h = im.height
-    expect(px[0, 0][3] == 0 and px[im.width - 1, h - 1][3] == 0 and px[im.width // 2, 0][3] == 255 and px[im.width // 2, h - 1][3] == 255 and px[2, h // 2][3] > 0, 'rounded ends: the corners are transparent, the middle of the top and bottom edge opaque')
+    import status_art
+    expect(im.size == (statusbar.LO_W, 16) and status_art.AMBER[:3] == (0xFF, 0xD6, 0x0A) != (0xFF, 0x9F, 0x0A), 'a 26 x 16 canvas, amber #FFD60A (not Accent Orange #FF9F0A)')
+    px = im.load(); x0, y0, x1, y1 = im.getchannel('A').getbbox(); mx = (x0 + x1) // 2
+    expect(y1 - y0 == status_art.GLYPH_H and y0 == (im.height - status_art.GLYPH_H) // 2 and abs(x0 + x1 - im.width) <= 1,
+           f'a {status_art.GLYPH_H} px pill (the other status marks\' height), centred in the canvas')
+    expect(px[x0, y0][3] == 0 and px[x1 - 1, y1 - 1][3] == 0 and px[mx, y0][3] == 255 and px[mx, y1 - 1][3] == 255, 'rounded ends: the corners are transparent, the middle of the top and bottom edge opaque')
+    h = im.height
     solid = [px[x, y] for x in range(im.width) for y in range(h) if px[x, y][3] == 255]
     expect(set(c[:3] for c in solid) >= {(0xFF, 0xD6, 0x0A), (0, 0, 0)} and sum(c[:3] == (0, 0, 0) for c in solid) > 15, 'amber with black "LO" text')
     import palette
@@ -157,18 +161,20 @@ def run(ctx):
     m.call(PSYMS['lo_set_text'], a0=lab, a1=m.cstr('50'), count=20000)
     expect(log(m, 'widget_set_text_utf8') == [(lab, '50')], 'no bar above the group: stock\'s text only')
 
-    # the assets: one hidden, insensitive 18 px image in view_bar_right right after the Bluetooth box, both bars identical (test/pod/assets.py compares them whole)
+    # the assets: one hidden, insensitive image as wide as its glyph's canvas in view_bar_right right after the Bluetooth box, both bars identical (test/pod/assets.py compares them whole)
     for what, bar in bars:
         right = bar.find('view_bar_right'); kids = [c.name for c in right.children]; s = bar.find(SYNC)
-        expect(s is not None and s.type == 'image' and s.get('visible') == 'false' and s.get('sensitive') == 'false' and s.get('image') == statusbar.SYNC_IMAGE == 'pod_bar_sync' and s.w == 18
+        expect(s is not None and s.type == 'image' and s.get('visible') == 'false' and s.get('sensitive') == 'false' and s.get('image') == statusbar.SYNC_IMAGE == 'pod_bar_sync' and s.w == statusbar.SYNC_W == 16
                and kids.index(SYNC) == kids.index('img_btclass') + 1 and sum(c.name == SYNC for c in bar.walk()) == 1 and statusbar.SYNC_WIDGET == SYNC,
-               f'{what}: {SYNC} is one hidden, insensitive 18 px image after img_btclass in view_bar_right ({kids})')
+               f'{what}: {SYNC} is one hidden, insensitive 16 px image after img_btclass in view_bar_right ({kids})')
     png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.SYNC_IMAGE + '.png')
     expect(open(png, 'rb').read() == open(os.path.join(mod_icons.PNG, statusbar.SYNC_IMAGE + '.png'), 'rb').read() and statusbar.SYNC_IMAGE in mod_icons.pod_names(), 'the image is added from the committed PNG')
     im = Image.open(png).convert('RGBA'); px = im.load()
     ink = [px[x, y] for x in range(im.width) for y in range(im.height) if px[x, y][3] > 0]
-    expect(im.size == (18, 18) and ink and all(c[:3] == (255, 255, 255) for c in ink) and im.getchannel('A').getbbox()[2] - im.getchannel('A').getbbox()[0] >= 14,
-           'an 18 x 18 white glyph (Lucide refresh-cw, 1.5 px stroke) filling the canvas')
+    import status_art
+    bb = im.getchannel('A').getbbox()
+    expect(im.size == (statusbar.SYNC_W, 18) and (bb[0], bb[2]) == (1, im.width) and ink and all(c[:3] == (255, 255, 255) for c in ink) and bb[3] - bb[1] == status_art.GLYPH_H,
+           f'a white glyph {status_art.GLYPH_H} px tall (tools/status_art.py, the other status marks\' height) at the right of a 16 x 18 canvas, 1 px empty on the left')
     expect(statusbar.SYNC_IMAGE not in palette.ACCENT_ALL and not statusbar.SYNC_IMAGE.startswith(palette.ACCENT_GLYPH) and not statusbar.SYNC_IMAGE.startswith(palette.WHOLE),
            'the accent lists name no pod_bar_sync: neutral white like the other status glyphs (Light Mode flips it with them)')
     # layout: shown with Bluetooth and Wi-Fi (and the volume pill), its ink and Bluetooth's stay clear of the clock
@@ -179,7 +185,7 @@ def run(ctx):
     ink_left = {n: Image.open(os.path.join(rootfs, 'release/assets/default/raw/images/xx', f'{f}.png')).convert('RGBA').getchannel('A').getbbox()[0] for n, f in {'img_btclass': 'bar_bt', 'pod_sync': 'pod_bar_sync', 'img_wifi': 'bar_wifi0'}.items()}
     sizes = {c.name: c.w for c in group.children}; e, spans = group.x + group.w, {}
     for n in reversed([c.name for c in group.children]):
-        if n in ('img_btclass', 'pod_sync', 'img_wifi'): spans[n] = (e - sizes[n], e); e -= sizes[n] + 4
+        if n in ('img_btclass', 'pod_sync', 'img_wifi'): spans[n] = (e - sizes[n], e); e -= sizes[n] + statusbar.RGAP
     gaps = {n: spans[n][0] + ink_left[n] for n in spans}
     expect(all(g >= clock_end + 3 for g in gaps.values()), f'sync icon, Bluetooth and Wi-Fi lit: every ink starts 3 px clear of the clock ({gaps}, clock ends {clock_end})')
 
@@ -254,60 +260,60 @@ def run(ctx):
     # pull-down init refresh: lo_bar_refresh shows pod_sleep on the first frame
     m = sleep_machine(1, 900); m.call(PSYMS['lo_bar_refresh'], a0=m.alloc(0x80), count=20000)
     expect(sleep_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)], 'lo_bar_refresh sets pod_sleep on the pull-down\'s first frame')
-    # the assets: one hidden, insensitive 16 px image in view_bar_right right after pod_sync, in both bar copies
+    # the assets: one hidden, insensitive image as wide as its glyph's canvas in view_bar_right right after pod_sync, in both bar copies
     for what, bar in bars:
         right = bar.find('view_bar_right'); kids = [c.name for c in right.children]; sl = bar.find(SLEEP)
-        expect(sl is not None and sl.type == 'image' and sl.get('visible') == 'false' and sl.get('sensitive') == 'false' and sl.get('image') == statusbar.SLEEP_IMAGE == 'pod_bar_sleep' and sl.w == 16
+        expect(sl is not None and sl.type == 'image' and sl.get('visible') == 'false' and sl.get('sensitive') == 'false' and sl.get('image') == statusbar.SLEEP_IMAGE == 'pod_bar_sleep' and sl.w == statusbar.SLEEP_W == 17
                and kids.index(SLEEP) == kids.index(SYNC) + 1 and sum(c.name == SLEEP for c in bar.walk()) == 1 and statusbar.SLEEP_WIDGET == SLEEP,
-               f'{what}: {SLEEP} is one hidden, insensitive 16 px image right after {SYNC} in view_bar_right ({kids})')
+               f'{what}: {SLEEP} is one hidden, insensitive 17 px image right after {SYNC} in view_bar_right ({kids})')
     png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.SLEEP_IMAGE + '.png')
     expect(open(png, 'rb').read() == open(os.path.join(mod_icons.PNG, statusbar.SLEEP_IMAGE + '.png'), 'rb').read() and statusbar.SLEEP_IMAGE in mod_icons.pod_names(), 'pod_bar_sleep is added from the committed PNG')
     im = Image.open(png).convert('RGBA'); px = im.load()
     ink = [px[x, y] for x in range(im.width) for y in range(im.height) if px[x, y][3] > 0]
-    expect(im.size == (16, 16) and ink and all(c[:3] == (255, 255, 255) for c in ink) and im.getchannel('A').getbbox()[2] - im.getchannel('A').getbbox()[0] >= 15,
-           'a 16 x 16 white solid crescent (assets/icons/custom/crescent.svg) filling the canvas')
+    import status_art
+    bb = im.getchannel('A').getbbox()
+    expect(im.size == (statusbar.SLEEP_W, 16) and (bb[0], bb[2]) == (3, im.width) and ink and all(c[:3] == (255, 255, 255) for c in ink) and bb[3] - bb[1] == status_art.GLYPH_H,
+           f'a white solid crescent {status_art.GLYPH_H} px tall (tools/status_art.py, the other status marks\' height) at the right of a 17 x 16 canvas, 3 px empty on the left')
     expect(statusbar.SLEEP_IMAGE not in palette.ACCENT_ALL and not statusbar.SLEEP_IMAGE.startswith(palette.ACCENT_GLYPH) and not statusbar.SLEEP_IMAGE.startswith(palette.WHOLE),
            'the accent lists name no pod_bar_sleep: neutral white like the other status glyphs (Light Mode flips it with them)')
-    # room: the moon shows only if the right group's visible ink, the moon included, stays 3 px clear of the 12 h clock; it yields to every other mark (the review case: the AAC badge, Wi-Fi and "100%")
+    # room: the moon shows only if the right group's visible ink, the moon included, stays 3 px clear of the 12 h clock; it yields to every other mark (the review case: the AAC badge, Wi-Fi and the screenshot camera)
     xx = os.path.join(rootfs, 'release/assets/default/raw/images/xx')
     bbox = lambda f: Image.open(os.path.join(xx, f + '.png')).convert('RGBA').getchannel('A').getbbox()
     bt_ink = {DEFS[f'SLEEP_BT_{k}']: DEFS[f'SLEEP_INK_{v}'] for k, v in (('GLYPH', 'GLYPH'), ('CON', 'GLYPH'), ('AAC', 'AAC'), ('SBC', 'SBC'), ('LDAC', 'LDAC'))}
     expect(all(47 - bbox(f)[0] == ink and bbox(f)[2] == 47 for f, ink in bt_ink.items()), f'the Bluetooth ink widths match the images, each ending at the 47 px box\'s right edge ({bt_ink})')
-    peers = {DEFS[k] for k in ('SYNC_IND', 'SLEEP_SYNCLINK', 'SLEEP_WIFI', 'SLEEP_SHOT', 'SLEEP_PCT', 'SLEEP_PCT_DD')}
+    peers = {DEFS[k] for k in ('SYNC_IND', 'SLEEP_SYNCLINK', 'SLEEP_WIFI', 'SLEEP_SHOT')}
     for what, bar in bars:
         g, c = bar.find('view_bar_right'), bar.find('bar_dclock')
         c_end = max(c.x + (c.w + StbText(font, int(c.get('style:normal:font_size'))).layout(t)[1]) // 2 for t in ('12:59', '12:59 PM', '10:59 AM', '12:59 AM'))
         kids = [k.name for k in g.children]
-        expect(g.x + g.w - c_end - 3 == DEFS['SLEEP_ROOM'] and DEFS['SLEEP_GAP'] == statusbar.GAP and f's={statusbar.GAP}' in g.get('children_layout') and kids[0] == DEFS['SLEEP_BT']
+        expect(g.x + g.w - c_end - 3 == DEFS['SLEEP_ROOM'] and DEFS['SLEEP_GAP'] == statusbar.RGAP and f's={statusbar.RGAP}' in g.get('children_layout') and kids[0] == DEFS['SLEEP_BT']
                and set(kids) - {DEFS['SLEEP_BT'], SLEEP} <= peers, f'{what}: SLEEP_ROOM is the group\'s end less the clock\'s ink end and 3 px, and every other child of the group is a counted peer ({kids})')
-    expect(DEFS['SLEEP_PCT'] == 'pod_pct' and DEFS['SLEEP_PCT_DD'] == 'pod_pct_dd' and DEFS['SLEEP_SHOT'] == 'pod_shot', 'the peer names are the battery percentage, its pull-down twin and the screenshot mark')
+    expect('SLEEP_PCT' not in DEFS and 'SLEEP_PCT_DD' not in DEFS and DEFS['SLEEP_SHOT'] == 'pod_shot', 'the battery percentage is no peer (it sits inside the battery); the screenshot mark is')
     w_box = {k.name: k.w for k in group.children}
     import itertools
-    pct_w = {'99%': StbText(font, statusbar.PCT_PX).layout('99%')[1], '100%': StbText(font, statusbar.PCT_PX).layout('100%')[1]}
     wrong, shown_cases = [], 0
-    for bt, sync, wifi, pct, shot in itertools.product((None, 'bar_bt', 'bar_aac', 'bar_sbc', 'bar_ldac'), (0, 1), (0, 1), (None, '99%', '100%'), (0, 1)):
+    for bt, sync, wifi, shot in itertools.product((None, 'bar_bt', 'bar_aac', 'bar_sbc', 'bar_ldac'), (0, 1), (0, 1), (0, 1)):
         m = sleep_machine(1, 900)
         m.setword(m.sleep + 8, statusbar.SLEEP_W)
-        for name, on, width in ((DEFS['SLEEP_BT'], bt is not None, 47), (SYNC, sync, 18), (DEFS['SLEEP_WIFI'], wifi, 24), (DEFS['SLEEP_PCT'], pct is not None, pct_w.get(pct, 0)), (DEFS['SLEEP_SHOT'], shot, 16)):
+        for name, on, width in ((DEFS['SLEEP_BT'], bt is not None, 47), (SYNC, sync, statusbar.SYNC_W), (DEFS['SLEEP_WIFI'], wifi, statusbar.WIFI_W), (DEFS['SLEEP_SHOT'], shot, 16)):
             wd = m.widget(name); m.setword(wd + 8, width); m.props[(wd, 'visible')] = int(bool(on))
         if bt: m.props[(m.widget(DEFS['SLEEP_BT']), 'image')] = m.cstr(bt)
         if sync: build(m)
         tick(m, '50'); shown = sleep_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)]
-        # the geometry: right-aligned from the group's end, 4 px apart, in the group's order; the leftmost box's ink (Bluetooth: its image's) must start 3 px clear of the clock
-        order = [n for n in [c.name for c in group.children] if n == SLEEP or (n == DEFS['SLEEP_BT'] and bt) or (n == SYNC and sync) or (n == DEFS['SLEEP_WIFI'] and wifi) or (n == DEFS['SLEEP_PCT'] and pct) or (n == DEFS['SLEEP_SHOT'] and shot)]
-        widths = {**w_box, DEFS['SLEEP_PCT']: pct_w.get(pct, 0)}
-        start = group.x + group.w - sum(widths[n] for n in order) - 4 * (len(order) - 1)
+        # the geometry: right-aligned from the group's end, RGAP px apart, in the group's order; the leftmost box's ink (Bluetooth: its image's) must start 3 px clear of the clock
+        order = [n for n in [c.name for c in group.children] if n == SLEEP or (n == DEFS['SLEEP_BT'] and bt) or (n == SYNC and sync) or (n == DEFS['SLEEP_WIFI'] and wifi) or (n == DEFS['SLEEP_SHOT'] and shot)]
+        start = group.x + group.w - sum(w_box[n] for n in order) - statusbar.RGAP * (len(order) - 1)
         ink = start + (47 - bt_ink[bt] if order[0] == DEFS['SLEEP_BT'] else 0)
-        if shown != (ink >= clock_end + 3): wrong.append((bt, sync, wifi, pct, shot, shown, ink))
+        if shown != (ink >= clock_end + 3): wrong.append((bt, sync, wifi, shot, shown, ink))
         shown_cases += shown
-    expect(not wrong, f'every combination of Bluetooth image, sync, Wi-Fi, battery percentage and screenshot mark: the moon shows exactly when the row\'s ink stays 3 px clear of the clock (wrong: {wrong[:4]})')
-    expect(0 < shown_cases < 120, f'the moon shows in some combinations and yields in others ({shown_cases} of 120 shown)')
-    # yielding: a percentage appearing beside AAC and Wi-Fi hides the moon on the next tick; its going away brings it back
+    expect(not wrong, f'every combination of Bluetooth image, sync, Wi-Fi and screenshot mark: the moon shows exactly when the row\'s ink stays 3 px clear of the clock (wrong: {wrong[:4]})')
+    expect(0 < shown_cases < 40, f'the moon shows in some combinations and yields in others ({shown_cases} of 40 shown)')
+    # yielding: the screenshot mark appearing beside AAC and Wi-Fi (31 + 3 + 16 + 3 + 17 = 70 with the moon fits 88; the camera too is 89) hides the moon on the next tick; its going away brings it back
     m = sleep_machine(1, 900); m.setword(m.sleep + 8, statusbar.SLEEP_W)
-    for name, width in ((DEFS['SLEEP_BT'], 47), (DEFS['SLEEP_WIFI'], 24)): m.setword(m.widget(name) + 8, width)
-    m.props[(m.widget(DEFS['SLEEP_BT']), 'image')] = m.cstr('bar_aac'); pw = m.widget(DEFS['SLEEP_PCT']); m.setword(pw + 8, pct_w['100%']); m.props[(pw, 'visible')] = 0
+    for name, width in ((DEFS['SLEEP_BT'], 47), (DEFS['SLEEP_WIFI'], statusbar.WIFI_W)): m.setword(m.widget(name) + 8, width)
+    m.props[(m.widget(DEFS['SLEEP_BT']), 'image')] = m.cstr('bar_aac'); pw = m.widget(DEFS['SLEEP_SHOT']); m.setword(pw + 8, 16); m.props[(pw, 'visible')] = 0
     tick(m, '50'); first = sleep_log(m); m.props[(pw, 'visible')] = 1; m.calls = []; tick(m, '50'); second = sleep_log(m); m.props[(pw, 'visible')] = 0; m.calls = []; tick(m, '50')
     expect(first == [('widget_set_visible', 1), ('widget_set_sensitive', 1)] and second == [('widget_set_visible', 0), ('widget_set_sensitive', 0)] and sleep_log(m) == first,
-           'AAC + Wi-Fi: the moon shows; "100%" appears: it hides; the percentage goes: it shows again')
+           'AAC + Wi-Fi: the moon shows; the screenshot camera appears: it hides; the camera goes: it shows again')
     m = sleep_machine(1, 900); m.setword(m.sleep + 8, statusbar.SLEEP_W); m.calls = []; tick(m, '50')
     expect(m.icount < 3000, f'cost with the timer running: {m.icount} instructions')

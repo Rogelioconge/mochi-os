@@ -245,19 +245,20 @@ def pulldown_page(s, data):
 
 def shot_bars(work):
     """The status bar while a Screenshot is pending (the camera shown, Wi-Fi and a connected Bluetooth lit), with the 12 h and the 24 h
-    clock, then the same bar as it is for the capture (the camera hidden), then with Battery Percentage on (100%, 87%, 5%, and 87% with the
-    camera too), drawn from the tree's own system_bar.bin; 3x."""
+    clock, then the same bar as it is for the capture (the camera hidden), then with Battery Percentage on (100%, 87%, 5%, 87% with the
+    camera too, and 87% with the Sleep Timer's moon), drawn from the tree's own system_bar.bin; 3x."""
     import preview_theme as PT
     t = PT.Tree(work)
     rows = []
     P, C, L = 'bar_power', 'bar_charge', 'bar_lowpower'
-    # (clock, camera, percentage text (None: the setting off), fill level, battery picture, SyncLink lit)
-    for clock, shot, pct, fill, state, sync in (('12:59 PM', True, None, 86, P, False), ('12:59', True, None, 86, P, False), ('12:59 PM', False, None, 86, P, False),
+    # (clock, camera, percentage text (None: the setting off), fill level, battery picture, SyncLink lit); the last row also shows the Sleep Timer's moon
+    cases = (('12:59 PM', True, None, 86, P, False), ('12:59', True, None, 86, P, False), ('12:59 PM', False, None, 86, P, False),
                                                 ('12:59 PM', False, 100, 100, P, False), ('12:59', False, 87, 87, P, False), ('12:59 PM', False, 5, 5, P, False),
                                                 ('12:59 PM', False, 63, 63, C, False), ('12:59 PM', False, 0, 0, L, False), ('12:59 PM', False, 100, 100, P, True),
-                                                ('12:59 PM', True, 87, 87, P, True)):
+                                                ('12:59 PM', True, 87, 87, P, True), ('12:59 PM', False, 87, 87, P, False))
+    for i, (clock, shot, pct, fill, state, sync) in enumerate(cases):
         im = Image.new('RGBA', (320, PT.BAR), (0, 0, 0, 255))
-        PT.status_bar(im, t, pct=fill, shot=shot, clock=clock, label=None if pct is None else f'{pct}%', state=state, synclink=sync); rows.append(im)
+        PT.status_bar(im, t, pct=fill, shot=shot, clock=clock, label=None if pct is None else f'{pct}%', state=state, synclink=sync, sleep=i == len(cases) - 1); rows.append(im)
     sheet = Image.new('RGB', (320, len(rows) * PT.BAR + 6 * (len(rows) - 1)), (0x2A, 0x2A, 0x2A))
     for i, im in enumerate(rows): sheet.paste(im.convert('RGB'), (0, i * (PT.BAR + 6)))
     return sheet.resize((sheet.width * 3, sheet.height * 3), Image.NEAREST)

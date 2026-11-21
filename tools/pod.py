@@ -1160,7 +1160,6 @@ def gen_stock_h(out, demo_path):
     # the Songs rail's alignment, from the tree's own font (tools/pod_ui.py rail_metrics): twice the cap ink's centre within an item, and each letter's rect shift
     font_path = os.path.join(os.path.dirname(os.path.dirname(demo_path)), 'assets/default/raw/fonts/default.ttf')
     ink2, dx = pod_ui.rail_metrics(font_path)
-    for n, w in zip((2, 3, 4), pod_ui.pct_widths(font_path)): h.append(f'#define BP_W{n} {w}')   # the status bar percentage label's width for a text of n characters ("5%", "87%", "100%"; patch/battery.c)
     h.append(f'#define SG_RAIL_INK2 {ink2}')
     h.append('#define SG_RAIL_DX {' + ', '.join(str(d) for d in dx) + '}   /* "#", A..Z */')
     h.append('extern int shuffle_play(int);')

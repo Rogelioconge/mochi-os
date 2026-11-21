@@ -95,12 +95,12 @@ MINI_TITLE_PX, MINI_ARTIST_PX, MINI_ARTIST_RGB = _C['LK_TITLE_PX'], _C['LK_ARTIS
 # three images are the status bar's own (tools/battery_art.py STATUS: the same outline, size and fill as the
 # Home page's bar) with the fill box inside the outline, the image's right edge where the bar's is (x 310).
 # pgbar_battery is moved before img_battery, so the fill is drawn under the image as in the status bar (the
-# charging bolt stays whole). pod_pct_lk is the Battery Percentage's label (patch/battery.c bp_lock): hidden,
-# the status bar label's size and colour, its text's right edge 4 px before the outline.
+# rim is whole). The Battery Percentage's number pod_pct_lk (patch/battery.c bp_lock) is in the body, as in the
+# status bar (tools/statusbar.py battery_parts).
 GAUGE_W, GAUGE_H = battery_art.STATUS.canvas
 GAUGE_FILL = battery_art.STATUS.fill         # pgbar_battery inside the image: x, y, w, h
-GAUGE_RIGHT = 310                            # the status bar outline's right edge
-PCT_WIDGET, PCT_GAP, PCT_H = 'pod_pct_lk', 4, 16   # patch/battery.h BP_LABEL_LK
+GAUGE_RIGHT = 310 + battery_art.STATUS.tail  # the image's right edge: the nub ends at 310 as in the status bar, the bolt's room after it
+PCT_SUFFIX = '_lk'; PCT_WIDGET = 'pod_pct' + PCT_SUFFIX   # pod_pct_lk and pod_pct_bg_lk (patch/battery.h BP_LABEL_LK, BP_BG_LK)
 GAUGE_STATE = {'screens_battery': 'normal', 'screens_charge': 'charge', 'screens_lowbattery': 'low'}
 SLIDE_IMAGE = 'screens_rightslide'           # only this page uses it
 STOCK_IMAGE_SHA = {
@@ -349,8 +349,7 @@ def apply(root, ttf):
     date.set('format', DATE_FORMAT)
     dsample = max(date_samples(ttf).values(), key=lambda s: awtk_width(ttf, s, DATE_SIZE))      # the widest date of the 13 languages
     dw = awtk_width(ttf, dsample, DATE_SIZE)
-    pct_w = awtk_width(ttf, '100%', statusbar.PCT_PX)
-    side = SCREEN_W - (GAUGE_RIGHT - GAUGE_W - PCT_GAP - pct_w) + 4    # keep clear of the gauge and its percentage in the top right corner
+    side = SCREEN_W - (GAUGE_RIGHT - GAUGE_W) + 4    # keep clear of the gauge in the top right corner
     if dw > SCREEN_W - 2 * side: raise SystemExit(f'date size {DATE_SIZE}: "{dsample}" is {dw} px, more than {SCREEN_W - 2 * side}')
     d_top, d_bot = ttf.digit_ink(DATE_SIZE)
     date.y, date.h = text_box(ttf, DATE_SIZE, TOP)
@@ -373,16 +372,14 @@ def apply(root, ttf):
     for st in STATES:
         clock.set(f'style:{st}:font_size', str(size)); clock.set(f'style:{st}:text_align_h', 'center')
 
-    # --- battery: the status bar's gauge, right on the date line, and the hidden percentage label left of it.
+    # --- battery: the status bar's gauge, right on the date line, with the hidden percentage in it.
     pg.props = list(STOCK_PGBAR)
     fx, fy, fw, fh = GAUGE_FILL
     img.w, img.h = GAUGE_W, GAUGE_H
     img.x, img.y = GAUGE_RIGHT - GAUGE_W, round(TOP + (d_bot - d_top) / 2 - GAUGE_H / 2)
     pg.x, pg.y, pg.w, pg.h = img.x + fx, img.y + fy, fw, fh
     view.children.remove(pg); view.children.insert(view.children.index(img), pg)
-    pct = awtk_ui.Widget('label', img.x - PCT_GAP - pct_w, img.y + GAUGE_H // 2 - PCT_H // 2, pct_w, PCT_H, [('name', PCT_WIDGET), ('text', '87%'), ('visible', 'false'), ('sensitive', 'false')])
-    text_style(pct, statusbar.PCT_PX, '#FFFFFF', 'right')
-    view.children.append(pct)
+    statusbar.battery_parts(view, PCT_SUFFIX)
     view.x, view.y, view.w = 0, 0, SCREEN_W
     view.h = max(clock.y + clock.h, date.y + date.h, img.y + img.h)
     assert view.h <= card_y, f'time block (0..{view.h}) runs into the card at {card_y}'
