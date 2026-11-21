@@ -173,8 +173,10 @@ int upnext_add(void *rows, int after);   /* rows: a deque_t of stSongInfo, copie
 | `UPNEXT_DLNA` | -8 | DLNA renderer service runs | "Not available while DLNA is on" |
 
 Refusals change nothing; check the answer, not the queue. Rows are any `stSongInfo` the library
-lists; an album or artist is a deque of its tracks. Call from the UI thread. Continue with
-Next Album also uses `upnext_add(rows, 1)` ([nextalbum](nextalbum.md)); only `UPNEXT_ADDED` counts.
+lists; an album or artist is a deque of its tracks. Call from the UI thread. The album long-press
+sheet (Albums, Home pins, Recently Played; `pins_queue_album`, [pins](pins.md)) passes every track
+of the album in order to `upnext_add`. Continue with Next Album also uses `upnext_add(rows, 1)`
+([nextalbum](nextalbum.md)); only `UPNEXT_ADDED` counts.
 
 ### Edit engine: move / remove
 

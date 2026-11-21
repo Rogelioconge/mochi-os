@@ -420,7 +420,7 @@ def build_grid_page(page, toggle='list', coverflow=True, names=('albums_listview
         root.children.extend(azlist_rail())
     if albums:
         root.children.extend(view_sort_card())   # above the list, the rail and the navbar
-        root.children.extend(row_menu(pins=True))   # last: the long press sheet of an album (Play, Shuffle, Pin Album / Unpin Album; patch/albums.c, docs/modules/pins.md)
+        root.children.extend(row_menu(album=True))   # last: the long press sheet of an album (Play, Shuffle, Play Next, Play After, Pin Album / Unpin Album; patch/albums.c, docs/modules/pins.md)
     return root
 
 
@@ -907,22 +907,32 @@ def build_playlists_page(page):
 RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS)
 RM_QUEUE_KEYS = ('Play Next', 'Play After', 'Remove from Queue')   # the Queue page's sheet: three rows (the same code path, patch/rowmenu.c rowmenu_bind_queue), the glass of three rows
 RM_QUEUE_GLASS = 'pc_sheet3'
-PIN_KEYS = ('Play', 'Shuffle', 'Unpin Album')   # the Home pins' long press sheet (patch/pins.c): three rows on the same sheet, the glyphs of tools/mod_icons.py RM_PIN_ICONS
+PIN_KEYS = ('Play', 'Shuffle', 'Unpin Album')   # the Artists page's long press sheet (patch/artists.c): three rows on the same sheet, the glyphs of tools/mod_icons.py RM_PIN_ICONS
+ALBUM_SHEET_KEYS = ('Play', 'Shuffle', 'Play Next', 'Play After', 'Unpin Album')   # the album long press sheet (Albums, Home pins, Recently Played; patch/albums.c, patch/pins.c): five rows on pc_sheet5
+ALBUM_SHEET_GLASS = 'pc_sheet5'
 RM_GLASS = 'pc_sheet6'                                       # the sheet's glass: Now Playing's More sheet's pane, six rows high (a row without Pin Song makes it five: patch/rowmenu.c rowmenu_set_rows), top corners only
 RM_ICON_X, RM_TEXT_X, RM_TEXT_R = 14, 48, 22                  # Now Playing's More sheet's rows (pod_tape: the 24 px glyph at x 14, the label from x 48, ending at 298)
 RM_LABEL_PX = 18
 
 
-def row_menu(queue=False, pins=False):
+def row_menu(queue=False, pins=False, album=False):
     """(scrim, card): the track rows' "..." menu, shared by the album page and the Songs page (patch/rowmenu.c, docs/modules/rowmenu.md): a bottom sheet as Now Playing's More sheet
     (tools/mod_lists.py edit_playmore): the window's dim scrim, a full-width card at the window's foot in that sheet's glass, five PM_ROW_H rows filling it, each a transparent button
     (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info, Pin Song (the payload swaps its label and glyph to Unpin Song, and hides it, with the glass five rows high, for a row that is not a song of the card).
     Hidden AND insensitive until the payload shows them; nothing is placed or sized at open. Put it last in the window, above the list, the bars and the navbar.
     queue: the Queue page's sheet, three rows (Play Next, Play After, Remove from Queue) on the three-row glass.
-    pins: the Home pins' sheet (the menu's Home instance) and the Albums page's long press, the same three rows: Play, Shuffle, Unpin Album (the payload sets Unpin Playlist on a playlist's tile, Pin Album / Unpin Album on the Albums page, Unpin Song in the second row of a song's two-row sheet)."""
+    pins: the Artists page's long press sheet, three rows: Play, Shuffle, Unpin Album (the payload sets Pin Artist / Unpin Artist).
+    album: the album long press sheet (Home pins, Recently Played, Albums page), five rows: Play, Shuffle, Play Next, Play After, Unpin Album on pc_sheet5 (Home shrinks it to three rows for a pinned playlist or artist, and two for a pinned song)."""
     from mod_icons import RM_MENU_ICONS, RM_REMOVE, RM_PIN_ICONS, BARE_PX
-    keys, icons, glass = (PIN_KEYS, RM_PIN_ICONS, RM_QUEUE_GLASS) if pins else (RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS) if queue else (RM_KEYS, RM_MENU_ICONS, RM_GLASS)
-    rows, rh = OFFSETS['RM_QUEUE_ROWS' if queue or pins else 'RM_ROWS'], OFFSETS['PM_ROW_H']
+    if album:
+        keys, icons, glass, rows = ALBUM_SHEET_KEYS, RM_PIN_ICONS[:2] + RM_MENU_ICONS[:2] + (RM_PIN_ICONS[2],), ALBUM_SHEET_GLASS, OFFSETS['RM_ALBUM_ROWS']
+    elif pins:
+        keys, icons, glass, rows = PIN_KEYS, RM_PIN_ICONS, RM_QUEUE_GLASS, OFFSETS['RM_QUEUE_ROWS']
+    elif queue:
+        keys, icons, glass, rows = RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS, OFFSETS['RM_QUEUE_ROWS']
+    else:
+        keys, icons, glass, rows = RM_KEYS, RM_MENU_ICONS, RM_GLASS, OFFSETS['RM_ROWS']
+    rh = OFFSETS['PM_ROW_H']
     assert len(keys) == rows == len(icons)
     scrim = modal_scrim('rm_scrim')
     card = hidden(Widget('view', 0, CLIENT_H - rows * rh, SCREEN_W, rows * rh, [('name', 'rm_card')]))
@@ -3552,7 +3562,7 @@ def build_page(page):
         sv.children.append(hidden(Widget('view', 0, len(page.rows) * ROW_H, sv.w, MB_PAD, [('name', 'pod_pad')])))   # last child; the payload shows it with the bar
         root.children.append(cache_pill())   # (hidden; the bar stays the last child: it paints over everything)
         root.children.append(minibar())
-        root.children.extend(row_menu(pins=True))   # the pins' long press sheet: the window's last two children, above the bar
+        root.children.extend(row_menu(album=True))   # the pins' / Recently Played long press sheet: five rows for an album (shrunk to three for playlist/artist, two for song), above the bar
     return root
 
 

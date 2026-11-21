@@ -23,7 +23,13 @@ typedef void (*rowmenu_queue_fn)(int row, int act);
 /* The Home pins' sheet (patch/pins.c, tools/pod_ui.py row_menu(pins=True)) is the same three-row sheet with other words and glyphs; its rows call back with these. */
 #define RMP_PLAY RMQ_NEXT /* Play */
 #define RMP_SHUFFLE RMQ_AFTER /* Shuffle */
-#define RMP_UNPIN RMQ_REMOVE /* Unpin Album / Unpin Playlist */
+#define RMP_UNPIN RMQ_REMOVE /* Unpin Playlist / Unpin Artist / Pin Artist (three-row sheet) */
+/* The five-row album long-press sheet (Albums page, Home album pins, Recently Played; tools/pod_ui.py row_menu(album=True)): Play, Shuffle, Play Next, Play After, Pin / Unpin Album. */
+#define RMA_PLAY 0
+#define RMA_SHUFFLE 1
+#define RMA_NEXT 2
+#define RMA_AFTER 3
+#define RMA_PIN 4
 
 struct rowmenu_slot {
     rowmenu_t *rm;
@@ -46,7 +52,7 @@ struct rowmenu {
     rowmenu_add_fn add;
     rowmenu_queue_fn queue; /* the Queue page's sheet is open (three rows: RMQ_*), this is what its rows call */
     int alt; /* the six-row menu is showing the pins' three-row sheet (rowmenu_open_pins): its words are put back at the next rowmenu_open_src */
-    int queued; /* bound by rowmenu_bind_queue: three rows (rm_item0..2), the Queue page's */
+    int queued; /* bound by rowmenu_bind_queue (three rows, the Queue page's) or rowmenu_bind_album (five rows) */
     struct rowmenu_slot slot[RM_ROWS];
     /* A source's row (rowmenu_open_src): the third row is Download / Cancel Download / Remove Download in place of Add to Playlist, Favorite and its toast go through the source. */
     const lib_src_t *src; /* NULL: the stock library */
@@ -64,8 +70,14 @@ int rowmenu_bind(rowmenu_t *rm, void *win);
 /* The Queue page's menu: the same widgets and the same sheet with three rows only (Play Next, Play After, Remove from Queue; the page's asset, tools/pod_ui.py row_menu(queue=True)). */
 int rowmenu_bind_queue(rowmenu_t *rm, void *win);
 
-/* Opens the Queue page's sheet for its row `row`; `fn(row, act)` runs after the sheet has closed, when a row of it is tapped. 1 when open. */
+/* The album long-press sheet: the same widgets and callback shape with RM_ALBUM_ROWS (5) rows (Play, Shuffle, Play Next, Play After, Pin / Unpin Album; tools/pod_ui.py row_menu(album=True)). */
+int rowmenu_bind_album(rowmenu_t *rm, void *win);
+
+/* Opens the Queue or pins/album sheet for its row `row`; `fn(row, act)` runs after the sheet has closed, when a row of it is tapped. 1 when open. */
 int rowmenu_open_queue(rowmenu_t *rm, int row, rowmenu_queue_fn fn);
+
+/* The toast of upnext_add's return status (`r`, with `after` 0 Play Next / 1 Play After): UPNEXT_ADDED -> "Playing Next" / "Added to Queue", refusal -> translated reason, UPNEXT_STARTED -> none. */
+void rowmenu_upnext_toast(int r, int after);
 
 /* The three-row pins sheet (Play, Shuffle, Pin Album / Unpin Album: `pinned` picks the last) on a menu bound by rowmenu_bind (the album page's: its track sheet's rows are reworded and the rows past the third hidden;
  * rowmenu_open_src puts them back). `fn(row, act)` with act RMP_PLAY / RMP_SHUFFLE / RMP_UNPIN runs after the sheet has closed. 1 when open. */

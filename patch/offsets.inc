@@ -903,6 +903,7 @@
  * Now Playing's More sheet's glass (pc_sheet5, 320 x 250, top corners only), laid out by the asset (the payload only shows and hides it). */
 #define RM_ROWS 6 /* the asset's rows: the five above and Pin Song / Unpin Song (a song of the card only: rowmenu_open_src hides it and makes the glass five rows high for any other row) */
 #define RM_QUEUE_ROWS 3 /* the Queue page's sheet: Play Next, Play After, Remove from Queue (docs/modules/queue.md) */
+#define RM_ALBUM_ROWS 5 /* the album long-press sheet (Albums, Home pins, Recently Played): Play, Shuffle, Play Next, Play After, Pin / Unpin Album */
 #define RM_MORE_W 44
 #define RM_MORE_RIGHT 310
 #define RM_MORE_RIGHT_RAIL 284

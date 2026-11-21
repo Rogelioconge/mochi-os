@@ -36,6 +36,7 @@
 #include "grid.h"
 #include "fnv.h"
 #include "i18n.h"
+#include "upnext.h"
 #include "rowmenu.h"
 #include "songops.h"
 #include "entries.h"
@@ -68,8 +69,9 @@ static struct {
     unsigned n; /* pins held, in the user's order */
     int good; /* the last pn_load read the file (or found none): pn_save writes nothing else, so an unreadable file is never overwritten */
     void *win, *sec, *sv, *st_title, /* sv: the list's scroll_view (its yslidable is off while a tile is lifted) */
-        *lab_unpin; /* lab_unpin: the sheet's third row's label (Unpin Album / Unpin Playlist) */
-    void *ic_unpin; /* ... and its glyph (rm_ic_unpin; rm_ic_pin on the Recently Played sheet's Pin Album) */
+        *lab_row2,
+        *ic_row2, /* the sheet's third row (Play Next on an album; Unpin Playlist / Unpin Artist on a three-row sheet) */
+        *lab_pin, *ic_pin; /* the sheet's fifth row (Pin Album / Unpin Album on an album) */
     char xname[PIN_STR],
         xpath
             [PIN_PATH]; /* the album the open sheet is for when it came from Recently Played (pins_album_sheet): its title and a track path; xckey its cover key */
@@ -973,26 +975,37 @@ static void pn_play_artist(const pin_t *e, int how) {
     if (r < 0) pod_toast(TR("Can't play"));
 }
 
+/* Loads the album's tracks into *PDEQ_SHOWLIST in album order (disc, then track): the stock album list, loadAlbumdetailList on the matched row, loadLocalClassList on the class it leaves.
+ * NULL when the album is not in the library or has no tracks. */
+static void *pn_album_tracks(const pin_t *e, const char *rtitle, int untagged, int *cls_out) {
+    void *list;
+    int at, cls;
+    loadAlbumList(CLASS_ALBUMS, (void *)0);
+    list = *(void **)PDEQ_SHOWLIST;
+    at = list ? pn_find(list, e, rtitle, untagged) : -1;
+    if (at < 0) return (void *)0;
+    loadAlbumdetailList(CLASS_ALBUMS, deque_at(list, (unsigned)at));
+    cls = *(int *)CLASSINFO;
+    if (loadLocalClassList(cls) <= 0) return (void *)0;
+    list = *(void **)PDEQ_SHOWLIST;
+    if (!list || !deque_size(list)) return (void *)0;
+    if (cls_out) *cls_out = cls;
+    return list;
+}
+
 /* The whole album as the queue, from the first song (SO_IN_ORDER) or a random one in the stock Shuffle mode (SO_SHUFFLE), then Now Playing: the album page's Play pill and
  * Shuffle disc (patch/albumpage.c ab_play_at) without the page: the stock album list, loadAlbumdetailList on the row, loadLocalClassList on the class it leaves, so_play. */
 static int pn_play_album(const pin_t *e, int how) {
     void *list;
-    int at, cls, from = how == SO_SHUFFLE ? -1 : 0;
+    int cls = 0, from = how == SO_SHUFFLE ? -1 : 0;
     unsigned i, n;
     char rtitle[PN_TAG];
     int untagged = 0;
     rtitle[0] = 0;
     if (e->kind == 's') /* (before the album list: the query leaves *pdeq_showlist alone either way) */
         untagged = pn_song_album(e, rtitle) && !*rtitle;
-    loadAlbumList(CLASS_ALBUMS, (void *)0);
-    list = *(void **)PDEQ_SHOWLIST;
-    at = list ? pn_find(list, e, rtitle, untagged) : -1;
-    if (at < 0) return -1;
-    loadAlbumdetailList(CLASS_ALBUMS, deque_at(list, (unsigned)at));
-    cls = *(int *)CLASSINFO;
-    if (loadLocalClassList(cls) <= 0) return -1;
-    list = *(void **)PDEQ_SHOWLIST;
-    if (!list || !deque_size(list)) return -1;
+    list = pn_album_tracks(e, rtitle, untagged, &cls);
+    if (!list) return -1;
     if (e->kind == 's') { /* a song: the album from that track on, as a tap on the track of the album page */
         n = deque_size(list);
         for (i = 0; i < n && (strcmp(cc_str(deque_at(list, i), REC_PATH), e->path) ||
@@ -1016,6 +1029,31 @@ int pins_play_album(const char *album, unsigned ckey, const char *path, int shuf
     pn_copy(e.name, sizeof e.name, album);
     pn_copy(e.path, sizeof e.path, path ? path : "");
     return pn_play_album(&e, shuffle ? SO_SHUFFLE : SO_IN_ORDER);
+}
+
+/* Adds every track of the album in order to the playing queue (Play Next: after == 0; Play After: after != 0) via upnext_add and toasts the outcome.
+ * When the library has no such album (or no tracks), toasts "Not found" and returns 0. */
+static int pn_queue_album(const pin_t *e, int after) {
+    void *list = pn_album_tracks(e, "", 0, (int *)0);
+    int r;
+    if (!list) {
+        pod_toast(TR("Not found"));
+        return 0;
+    }
+    r = upnext_add(list, after);
+    rowmenu_upnext_toast(r, after);
+    return r;
+}
+
+int pins_queue_album(const char *album, unsigned ckey, const char *path, int after) {
+    pin_t e;
+    if (!album || !*album) return 0;
+    memset(&e, 0, sizeof e);
+    e.kind = 'a';
+    e.ck[0] = ckey;
+    pn_copy(e.name, sizeof e.name, album);
+    pn_copy(e.path, sizeof e.path, path ? path : "");
+    return pn_queue_album(&e, after);
 }
 
 /* 1 when the card is in and the file is positively not there (ENOENT, ENOTDIR); 0 when it opens, or when it fails for another reason (EIO, a card that is busy: the file may well be there). */
@@ -1154,7 +1192,7 @@ static void pn_open(int i) {
         pn_open_playlist(&e);
 }
 
-/* A row of the long press sheet (the sheet has closed): Play, Shuffle, Unpin for the tile it was opened on. */
+/* A row of the long press sheet (the sheet has closed): Play, Shuffle, (Play Next, Play After for an album), Unpin for the tile it was opened on. */
 static void pn_sheet(int tile, int act) {
     pin_t e;
     int r = 0;
@@ -1166,6 +1204,15 @@ static void pn_sheet(int tile, int act) {
             pn_remove(e.kind, e.key);
         return;
     }
+    if (e.kind == 'a') { /* an album's sheet has five rows: Play, Shuffle, Play Next, Play After, Unpin Album */
+        if (act == RMA_PIN)
+            pn_remove(e.kind, e.key);
+        else if (act == RMA_NEXT || act == RMA_AFTER)
+            pn_queue_album(&e, act == RMA_AFTER);
+        else if (pn_play_album(&e, act == RMA_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER) < 0)
+            pod_toast(TR("Can't play")); /* not in the library now (or it could not be read): the pin stays */
+        return;
+    }
     if (act == RMP_UNPIN) {
         pn_remove(e.kind, e.key);
         return;
@@ -1174,25 +1221,38 @@ static void pn_sheet(int tile, int act) {
         pn_play_artist(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
         return;
     }
-    if (e.kind == 'a')
-        r = pn_play_album(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
-    else
-        r = pn_play_playlist(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
+    r = pn_play_playlist(&e, act == RMP_SHUFFLE ? SO_SHUFFLE : SO_IN_ORDER);
     if (r < 0) pod_toast(TR("Can't play")); /* not in the library now (or it could not be read): the pin stays */
 }
 
-/* A row of the sheet opened for a Recently Played tile (the sheet has closed): Play, Shuffle, Pin Album / Unpin Album. Home stays in front, so no to-foreground redoes the section: the pin
+/* A row of the sheet opened for a Recently Played tile (the sheet has closed): Play, Shuffle, Play Next, Play After, Pin Album / Unpin Album. Home stays in front, so no to-foreground redoes the section: the pin
  * and the unpin redo it here. */
 static void pn_xsheet(int row, int act) {
     (void)row;
-    if (act == RMP_UNPIN) {
+    if (act == RMA_PIN) {
         if (pins_has_album(pn.xname))
             pins_unpin_album(pn.xname);
         else
             pins_pin_album(pn.xname, pn.xckey, pn.xpath);
         if (pn.win && pn.fg) pn_apply();
-    } else if (pins_play_album(pn.xname, pn.xckey, pn.xpath, act == RMP_SHUFFLE) < 0)
+    } else if (act == RMA_NEXT || act == RMA_AFTER)
+        pins_queue_album(pn.xname, pn.xckey, pn.xpath, act == RMA_AFTER);
+    else if (pins_play_album(pn.xname, pn.xckey, pn.xpath, act == RMA_SHUFFLE) < 0)
         pod_toast(TR("Can't play"));
+}
+
+/* Sets the album sheet's five rows (Play, Shuffle, Play Next, Play After, Pin / Unpin Album) and opens it. */
+static void pn_album_rows(int pinned) {
+    if (pn.lab_shuf) widget_set_tr_text(pn.lab_shuf, "Shuffle");
+    if (pn.ic_shuf) widget_set_prop_str(pn.ic_shuf, "image", "rm_ic_pshuffle");
+    if (pn.lab_row2) widget_set_tr_text(pn.lab_row2, "Play Next");
+    if (pn.ic_row2) widget_set_prop_str(pn.ic_row2, "image", "rm_ic_next");
+    if (pn.lab_pin) widget_set_tr_text(pn.lab_pin, pinned ? "Unpin Album" : "Pin Album");
+    if (pn.ic_pin) widget_set_prop_str(pn.ic_pin, "image", pinned ? "rm_ic_unpin" : "rm_ic_pin");
+    m1_show(pn.rm.item[2], 1);
+    m1_show(pn.rm.item[3], 1);
+    m1_show(pn.rm.item[4], 1);
+    rowmenu_set_rows(&pn.rm, RM_ALBUM_ROWS);
 }
 
 int pins_album_sheet(const char *album, unsigned ckey, const char *path) {
@@ -1200,33 +1260,35 @@ int pins_album_sheet(const char *album, unsigned ckey, const char *path) {
         strlen(path) >= PIN_PATH)
         return 0;
     memcpy(pn.xname, album, strlen(album) + 1), memcpy(pn.xpath, path, strlen(path) + 1), pn.xckey = ckey;
-    if (pn.lab_shuf) widget_set_tr_text(pn.lab_shuf, "Shuffle");
-    if (pn.ic_shuf) widget_set_prop_str(pn.ic_shuf, "image", "rm_ic_pshuffle");
-    if (pn.lab_unpin) widget_set_tr_text(pn.lab_unpin, pins_has_album(album) ? "Unpin Album" : "Pin Album");
-    if (pn.ic_unpin) widget_set_prop_str(pn.ic_unpin, "image", pins_has_album(album) ? "rm_ic_unpin" : "rm_ic_pin");
-    m1_show(pn.rm.item[2], 1);
-    rowmenu_set_rows(&pn.rm, RM_QUEUE_ROWS);
+    pn_album_rows(pins_has_album(album));
     return rowmenu_open_queue(&pn.rm, 0, pn_xsheet);
 }
 
 /* The sheet for tile `row`: a press held and released where it was. */
 static void pn_open_sheet(int row) {
+    int k;
     if (!pn.win || !pn.shown || !pn.fg || row < 0 || row >= PIN_MAX) return;
-    /* the sheet follows the tile's type: an album or a playlist has Play, Shuffle and its Unpin row; a song Play and Unpin Song (the second row, the third hidden, the glass two rows high) */
-    if (pn.tkind[row] == 's') {
+    k = pn.tkind[row];
+    /* the sheet follows the tile's type: an album has five rows (Play, Shuffle, Play Next, Play After, Unpin Album), a playlist or artist three (Play, Shuffle, Unpin), a song two (Play, Unpin Song) */
+    if (k == 's') {
         if (pn.lab_shuf) widget_set_tr_text(pn.lab_shuf, "Unpin Song");
         if (pn.ic_shuf) widget_set_prop_str(pn.ic_shuf, "image", "rm_ic_unpin");
+        m1_show(pn.rm.item[2], 0);
+        m1_show(pn.rm.item[3], 0);
+        m1_show(pn.rm.item[4], 0);
+        rowmenu_set_rows(&pn.rm, 2);
+    } else if (k == 'a') {
+        pn_album_rows(1);
     } else {
         if (pn.lab_shuf) widget_set_tr_text(pn.lab_shuf, "Shuffle");
         if (pn.ic_shuf) widget_set_prop_str(pn.ic_shuf, "image", "rm_ic_pshuffle");
-        if (pn.lab_unpin)
-            widget_set_tr_text(pn.lab_unpin, pn.tkind[row] == 'p'   ? "Unpin Playlist"
-                                             : pn.tkind[row] == 'r' ? "Unpin Artist"
-                                                                    : "Unpin Album");
+        if (pn.lab_row2) widget_set_tr_text(pn.lab_row2, k == 'p' ? "Unpin Playlist" : "Unpin Artist");
+        if (pn.ic_row2) widget_set_prop_str(pn.ic_row2, "image", "rm_ic_unpin");
+        m1_show(pn.rm.item[2], 1);
+        m1_show(pn.rm.item[3], 0);
+        m1_show(pn.rm.item[4], 0);
+        rowmenu_set_rows(&pn.rm, RM_QUEUE_ROWS);
     }
-    if (pn.ic_unpin) widget_set_prop_str(pn.ic_unpin, "image", "rm_ic_unpin");
-    m1_show(pn.rm.item[2], pn.tkind[row] != 's');
-    rowmenu_set_rows(&pn.rm, pn.tkind[row] == 's' ? 2 : RM_QUEUE_ROWS);
     rowmenu_open_queue(&pn.rm, row, pn_sheet);
 }
 
@@ -1422,11 +1484,13 @@ void pins_start(void *win) {
     pn.g.st_title = pn.st_title, pn.g.st_sub = pn.st_title;
     pn.tmp = (unsigned *)calloc((PIN_COVER / 2) * (PIN_COVER / 2),
                                 sizeof(unsigned)); /* (none: a mosaic is its first cover alone) */
-    pn.lab_unpin = widget_lookup(win, "rm_label2", 1);
-    pn.ic_unpin = widget_lookup(win, "rm_icon2", 1);
+    pn.lab_row2 = widget_lookup(win, "rm_label2", 1);
+    pn.ic_row2 = widget_lookup(win, "rm_icon2", 1);
+    pn.lab_pin = widget_lookup(win, "rm_label4", 1);
+    pn.ic_pin = widget_lookup(win, "rm_icon4", 1);
     pn.lab_shuf = widget_lookup(win, "rm_label1", 1);
     pn.ic_shuf = widget_lookup(win, "rm_icon1", 1);
-    rowmenu_bind_queue(&pn.rm, win); /* the long press sheet (an asset without it: no long press, a tap still opens) */
+    rowmenu_bind_album(&pn.rm, win); /* the long press sheet (an asset without it: no long press, a tap still opens) */
     pn_load();
     pn_apply(); /* the section is up (with its names) from the first paint; the covers come with the ticks */
 }

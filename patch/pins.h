@@ -28,6 +28,9 @@ int pins_unpin_playlist(int id, const char *name);
 /* Plays the album as the Albums long press sheet's Play (shuffle 0: in order from the first) or Shuffle (1): the album page's Play pill and Shuffle disc without the page, Now Playing opens. The album is found by
  * `ckey` (cc_album_key of its row), else by title, else by a track `path` (NULL: none). 0 when it was started or could not be told, -1 when the library has no such album (nothing happens). */
 int pins_play_album(const char *album, unsigned ckey, const char *path, int shuffle);
+/* Adds every track of the album in order to the playing queue (after 0: Play Next; after != 0: Play After) via upnext_add and toasts the outcome. When the library has no such album (or no tracks), toasts
+ * "Not found" and returns 0. Otherwise returns upnext_add's status (UPNEXT_*). */
+int pins_queue_album(const char *album, unsigned ckey, const char *path, int after);
 
 /* A song (the track row sheet's Pin Song): the stock record of a local file, identified by its path. `rec` is an stSongInfo: its REC_PATH (a file of the card, under PIN_PATH bytes), REC_TITLE (else the file name)
  * and REC_ALBUM (its cover is the album's: cc_album_rep_key, else the record's own key). Pinning a pinned song changes nothing and answers PINS_OK; a seventh pin shows the toast and answers PINS_FULL. */
@@ -45,7 +48,7 @@ int pins_has_artist(const char *name);
 int pins_unpin_artist(const char *name);
 const char *pins_label_artist(const char *name); /* "Unpin Artist" / "Pin Artist" */
 
-/* The Home menu's long press sheet (Play, Shuffle, Pin Album / Unpin Album) for an album that is not a pin: the Recently Played shelf's tile (patch/recent.c). `ckey` is its cover key, `path` a track of it (""
+/* The Home menu's long press sheet (Play, Shuffle, Play Next, Play After, Pin Album / Unpin Album) for an album that is not a pin: the Recently Played shelf's tile (patch/recent.c). `ckey` is its cover key, `path` a track of it (""
  * for none). 1 when the sheet opened; 0 when there is none (the pins are not up on the window, the menu is not in front, a sheet is open or the strings do not fit the file). */
 int pins_album_sheet(const char *album, unsigned ckey, const char *path);
 

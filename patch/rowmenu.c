@@ -103,6 +103,13 @@ static const char *rm_refusal(int r) {
                                     : "msg_addfailed"); /* UPNEXT_EMPTY: nothing to add (the stock "Adding Failed") */
 }
 
+void rowmenu_upnext_toast(int r, int after) {
+    if (r == UPNEXT_ADDED)
+        pod_toast(TR(after ? "Added to Queue" : "Playing Next"));
+    else if (r < 0)
+        pod_toast(rm_refusal(r)); /* (UPNEXT_STARTED: playback started, nothing to say and nothing to open) */
+}
+
 static int rm_on_scrim(void *ctx, void *e) {
     (void)e;
     rowmenu_close((rowmenu_t *)ctx);
@@ -174,10 +181,7 @@ static void rm_queue_src(rowmenu_t *rm, int after) {
     if (!q) return;
     r = upnext_add(q, after);
     deque_destroy(q);
-    if (r == UPNEXT_ADDED)
-        pod_toast(TR(after ? "Added to Queue" : "Playing Next"));
-    else if (r < 0)
-        pod_toast(rm_refusal(r));
+    rowmenu_upnext_toast(r, after);
 }
 
 /* Pin Song / Unpin Song on the row's copy. The pins' own toast says when six are pinned already. */
@@ -235,10 +239,7 @@ static int rm_on_item(void *ctx, void *e) {
         r = rows ? upnext_add(rows, s->k) : UPNEXT_EMPTY;
         if (rows) deque_destroy(rows);
         rowmenu_close(rm);
-        if (r == UPNEXT_ADDED)
-            pod_toast(TR(s->k ? "Added to Queue" : "Playing Next"));
-        else if (r < 0)
-            pod_toast(rm_refusal(r)); /* (UPNEXT_STARTED: playback started, nothing to say and nothing to open) */
+        rowmenu_upnext_toast(r, s->k);
     }
     return RET_OK;
 }
@@ -309,6 +310,12 @@ int rowmenu_bind(rowmenu_t *rm, void *win) { return rm_bind(rm, win, RM_ROWS); }
 
 int rowmenu_bind_queue(rowmenu_t *rm, void *win) {
     int on = rm_bind(rm, win, RM_QUEUE_ROWS);
+    rm->queued = 1;
+    return on;
+}
+
+int rowmenu_bind_album(rowmenu_t *rm, void *win) {
+    int on = rm_bind(rm, win, RM_ALBUM_ROWS);
     rm->queued = 1;
     return on;
 }

@@ -768,19 +768,21 @@ static void *al_pin_rec(int a, unsigned *ckey) {
 
 static int al_pinnable(int a) { return al_pin_rec(a, (unsigned *)0) != (void *)0; }
 
-/* A row of the sheet (it has closed): Play, Shuffle, Pin Album / Unpin Album for the album it was opened on. */
+/* A row of the sheet (it has closed): Play, Shuffle, Play Next, Play After, Pin Album / Unpin Album for the album it was opened on. */
 static void al_sheet(int a, int act) {
     unsigned ckey = 0;
     void *rec = al_pin_rec(a, &ckey);
     const char *name, *path;
     if (!rec) return;
     name = cc_str(rec, REC_ALBUM), path = cc_str(rec, REC_PATH);
-    if (act == RMP_UNPIN) {
+    if (act == RMA_PIN) {
         if (pins_has_album(name))
             pins_unpin_album(name);
         else
             pins_pin_album(name, ckey, path);
-    } else if (pins_play_album(name, ckey, path, act == RMP_SHUFFLE) < 0)
+    } else if (act == RMA_NEXT || act == RMA_AFTER)
+        pins_queue_album(name, ckey, path, act == RMA_AFTER);
+    else if (pins_play_album(name, ckey, path, act == RMA_SHUFFLE) < 0)
         pod_toast(TR("Can't play"));
 }
 
@@ -1440,9 +1442,9 @@ static int al_open(int list, void *artist_row, unsigned scope, const lib_src_t *
     al.rev = cc_sort_rev();
     vs_view(&al.vs, list);
     if (!al.src) { /* the long press sheet of the library's page (an asset without it: no long press) */
-        rowmenu_bind_queue(&al.rm, al.win);
-        al.rm_label = widget_lookup(al.win, "rm_label2", 1);
-        al.rm_icon = widget_lookup(al.win, "rm_icon2", 1);
+        rowmenu_bind_album(&al.rm, al.win);
+        al.rm_label = widget_lookup(al.win, "rm_label4", 1);
+        al.rm_icon = widget_lookup(al.win, "rm_icon4", 1);
     }
     al.az.win = al.win, al.az.sv = al.sv, al.az.top = al_top(), al.az.row = LIST_ROW_H;
     az_prefs(&al.az);
