@@ -29,9 +29,11 @@ GO_ALBUM, GO_ARTIST, ADD, MORE, BACK, SPEED, AB, DELETE, SEARCH, TAPE, VINYL, GO
 ROWS = STOCK_NAMES + ['pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', 'pod_vu']
 PAGE1, PAGE2 = [GO_ALBUM, GO_ARTIST, ADD, MODE, MORE], [BACK, SPEED, SLEEP, AB, ART, DELETE]
 PAGE_MODE = [BACK, TAPE, VINYL, VU, LYR]   # the Display Mode page (a tap on page 1's Display Mode row)
-PAGE_EP = [GOEP, MORE]   # page 1 of a podcast episode
-PAGE_BOOK = [MODE, MORE]   # page 1 of an audiobook part
-HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE, HIDDEN_BOOK = (sorted(set(range(17)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE, PAGE_BOOK))
+PAGE_EP = [GOEP, SPEED, SLEEP, MORE]   # page 1 of a podcast episode
+PAGE_BOOK = [MODE, SPEED, SLEEP, MORE]   # page 1 of an audiobook part
+PAGE2_EP = [BACK, AB, DELETE]   # the More page of an episode or part: no Speed or Sleep Timer (on page 1), no Find Cover & Lyrics
+HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE, HIDDEN_BOOK, HIDDEN2_EP = (sorted(set(range(17)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE, PAGE_BOOK, PAGE2_EP))
+EP_H, EP2_H = O['PM_PAGE_EP_N'] * ROW_H, O['PM_PAGE2_EP_N'] * ROW_H   # 200 px and 150 px
 N1, NM = len(PAGE1), len(PAGE_MODE)
 YS1 = [i * ROW_H for i in range(N1)]             # page 1's rows: 0, 50, 100, 150, 200
 VT = {'dialog': LI_VT, 'list_view': LV_VT, 'scroll_view': SV_VT, 'list_item': LI_VT, 'image': IMG_VT}
@@ -876,31 +878,34 @@ def run(ctx):
     stale = m.alloc(0x80); m.call(PSYMS['pm_on_sleep'], a0=stale, a1=0, count=100000)
     expect('window_open' not in [c[0] for c in m.calls], 'a Sleep Timer click handler left behind for another dialog does nothing')
 
-    # -- 7c. an episode is playing: page 1 is Go to Podcasts and More (patch/playmore.c pm_set, pm_on_goep) ------------------------------
+    # -- 7c. an episode is playing: page 1 is Go to Podcasts, Speed, Sleep Timer and More (patch/playmore.c pm_set, pm_on_goep) ------------------------------
     EP = '/mnt/mmc/Podcasts/Show One/ep1.mp3'
     def ep_sheet(path=EP):
         m = PM(); m.play([m.record(path=path)], 0); m.open()
         return m
     m = ep_sheet(); img = [c for c in m.calls if c[0] == 'image_base_set_image']
     expect(m.shown() == PAGE_EP and all(m.live(i) for i in PAGE_EP) and all(m.dead(i) for i in HIDDEN_EP),
-           f'episode: page 1 shows Go to Podcasts and More; Look up album, Look up artist, Add to playlist and Display Mode (and the rows of its page) are hidden and insensitive ({m.shown()})')
-    expect(m.ys() == [0, 50] and set(m.hs()) == {ROW_H} and m.stacked()[:2] == PAGE_EP and sorted(m.stacked()[2:]) == HIDDEN_EP,
-           f'episode: the rows close up at 0 and 50, the usual row pitch, the hidden ones stacked last ({m.ys()}, {m.stacked()})')
-    expect(m.size(m.dialog) == (320, 100) and m.size(m.lv) == (320, 100) and m.size(m.sv) == (310, 100) and m.size(m.bar) == (10, 100) and m.vh() == 100 and m.size(m.glass) == (320, 100)
-           and m.top() == SCREEN_H - 100 and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet2'),
-           f'episode: the sheet is two rows, 100 px, on the bottom of the screen, with the Podcasts page\'s 100 px glass ({m.size(m.dialog)}, y {m.top()})')
+           f'episode: page 1 shows Go to Podcasts, Speed, Sleep Timer and More; Look up album, Look up artist, Add to playlist and Display Mode (and the rows of its page) are hidden and insensitive ({m.shown()})')
+    expect(m.ys() == [0, 50, 100, 150] and set(m.hs()) == {ROW_H} and m.stacked()[:4] == PAGE_EP and sorted(m.stacked()[4:]) == HIDDEN_EP,
+           f'episode: the rows close up at 0, 50, 100 and 150, the usual row pitch, the hidden ones stacked last ({m.ys()}, {m.stacked()})')
+    expect(m.size(m.dialog) == (320, EP_H) and m.size(m.lv) == (320, EP_H) and m.size(m.sv) == (310, EP_H) and m.size(m.bar) == (10, EP_H) and m.vh() == EP_H and m.size(m.glass) == (320, EP_H)
+           and m.top() == SCREEN_H - EP_H and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet4'),
+           f'episode: the sheet is four rows, 200 px, on the bottom of the screen, with the 200 px glass ({m.size(m.dialog)}, y {m.top()})')
     m.relayout_all()
     for pos, i in enumerate(PAGE_EP):
         path = m.tap_row(i)
         expect(path[:3] == ['playmore_dialog', 'playmore_listview', 'playmore_scrollview'] and path[3] == ROWS[i], f'episode: a tap on row {pos} lands on {ROWS[i]} ({path})')
-    expect(m.hit(160, SCREEN_H - 100 - 25) == ['playmore_dialog'] or 'pod_tape' not in m.hit(160, SCREEN_H - 125), 'episode: above the sheet is no row')
+    expect(m.hit(160, SCREEN_H - EP_H - 25) == ['playmore_dialog'] or 'pod_tape' not in m.hit(160, SCREEN_H - EP_H - 25), 'episode: above the sheet is no row')
     m.window_event(O['EVT_WINDOW_TO_BG'])
-    expect(m.top() == SCREEN_H - 100, f'episode: another dialog over the sheet leaves it on the bottom ({m.top()})')
+    expect(m.top() == SCREEN_H - EP_H, f'episode: another dialog over the sheet leaves it on the bottom ({m.top()})')
     m.click_more()
-    expect(m.shown() == PAGE2 and m.size(m.dialog) == (320, SHEET2_H) and m.top() == SHEET2_Y and [c for c in m.calls if c[0] == 'image_base_set_image'][-1] == ('image_base_set_image', m.glass, 'pc_sheet6'),
-           'episode: More opens the same second page as for a song (300 px, the same glass)')
+    expect(m.shown() == PAGE2_EP and all(m.live(i) for i in PAGE2_EP) and all(m.dead(i) for i in HIDDEN2_EP) and m.size(m.dialog) == (320, EP2_H) and m.top() == SCREEN_H - EP2_H
+           and [c for c in m.calls if c[0] == 'image_base_set_image'][-1] == ('image_base_set_image', m.glass, 'pc_sheet3'),
+           f'episode: More opens the short second page: the back header, A-B repeat and Delete, 150 px; Find Cover & Lyrics hidden and insensitive ({m.shown()})')
+    m.calls = []; m.call(PSYMS['pm_on_art'], a0=m.dialog, a1=0, count=100000)
+    expect('onlineart_open' not in [c[0] for c in m.calls], 'episode: a Find Cover & Lyrics click that reaches the handler opens nothing')
     m.click_back()
-    expect(m.shown() == PAGE_EP and m.size(m.dialog) == (320, 100) and m.size(m.glass) == (320, 100) and all(m.dead(i) for i in HIDDEN_EP), 'episode: the back header returns to the episode\'s page 1')
+    expect(m.shown() == PAGE_EP and m.size(m.dialog) == (320, EP_H) and m.size(m.glass) == (320, EP_H) and all(m.dead(i) for i in HIDDEN_EP), 'episode: the back header returns to the episode\'s page 1')
     m = ep_sheet()
     expect(m.handlers_of(m.rows[GOEP], O['EVT_CLICK']) == [(PSYMS['pm_on_goep'], m.dialog)] and ('widget_set_tr_text', m.nodes['pod_goep_label'], 'Go to Podcasts') in m.calls,
            'Go to Podcasts has our click handler alone and its translated text')
@@ -909,7 +914,7 @@ def run(ctx):
     expect([c[0] for c in calls] == ['podcasts_go', 'window_close'] and ('window_close', m.dialog) in calls,
            f'a tap on Go to Podcasts opens the Podcasts page, then closes the sheet ({m.calls})')
     m = ep_sheet(); m.ep_ret = -1; m.calls = []; m.click_row(GOEP)
-    expect([c[0] for c in m.calls if c[0] != 'mclGetPlayPos'] == ['podcasts_go'] and m.shown() == PAGE_EP and m.size(m.dialog) == (320, 100), 'Go to Podcasts: a page that will not open leaves the sheet as it was')
+    expect([c[0] for c in m.calls if c[0] != 'mclGetPlayPos'] == ['podcasts_go'] and m.shown() == PAGE_EP and m.size(m.dialog) == (320, EP_H), 'Go to Podcasts: a page that will not open leaves the sheet as it was')
     m = ep_sheet(); m.calls = []
     stale = m.alloc(0x80); m.call(PSYMS['pm_on_goep'], a0=stale, a1=0, count=100000)
     expect('podcasts_go' not in [c[0] for c in m.calls], 'a Go to Podcasts handler left behind for another dialog does nothing')
@@ -921,20 +926,20 @@ def run(ctx):
     m = PM(); m.open()
     expect(m.shown() == PAGE1 and m.dead(GOEP), 'nothing playing: the music sheet')
 
-    # -- 7d. an audiobook part is playing: page 1 is Display Mode and More (patch/playmore.c pm_set) ------------------------------------
+    # -- 7d. an audiobook part is playing: page 1 is Display Mode, Speed, Sleep Timer and More (patch/playmore.c pm_set) ------------------------------------
     m = ep_sheet('/mnt/mmc/Audiobooks/Book One/01.mp3'); img = [c for c in m.calls if c[0] == 'image_base_set_image']
     expect(m.shown() == PAGE_BOOK and all(m.live(i) for i in PAGE_BOOK) and all(m.dead(i) for i in HIDDEN_BOOK),
-           f'audiobook part: page 1 shows Display Mode and More; Look up album, Look up artist and Add to playlist are hidden and insensitive ({m.shown()})')
-    expect(m.ys() == [0, 50] and m.size(m.dialog) == (320, 100) and m.size(m.glass) == (320, 100) and m.top() == SCREEN_H - 100 and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet2'),
-           f'audiobook part: the sheet is two rows, 100 px, on the bottom of the screen, with the 100 px glass ({m.size(m.dialog)}, y {m.top()})')
+           f'audiobook part: page 1 shows Display Mode, Speed, Sleep Timer and More; Look up album, Look up artist and Add to playlist are hidden and insensitive ({m.shown()})')
+    expect(m.ys() == [0, 50, 100, 150] and m.size(m.dialog) == (320, EP_H) and m.size(m.glass) == (320, EP_H) and m.top() == SCREEN_H - EP_H and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet4'),
+           f'audiobook part: the sheet is four rows, 200 px, on the bottom of the screen, with the 200 px glass ({m.size(m.dialog)}, y {m.top()})')
     m.click_more()
-    expect(m.shown() == PAGE2 and m.size(m.dialog) == (320, SHEET2_H), 'audiobook part: More opens the same second page as for a song')
+    expect(m.shown() == PAGE2_EP and all(m.dead(i) for i in HIDDEN2_EP) and m.size(m.dialog) == (320, EP2_H), 'audiobook part: More opens the short second page (back header, A-B repeat, Delete)')
     m.click_back()
-    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, 100) and all(m.dead(i) for i in HIDDEN_BOOK), 'audiobook part: the back header returns to the part\'s page 1')
+    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, EP_H) and all(m.dead(i) for i in HIDDEN_BOOK), 'audiobook part: the back header returns to the part\'s page 1')
     m.click_row(MODE)
     expect(m.shown() == PAGE_MODE, f'audiobook part: Display Mode opens the Display Mode page ({m.shown()})')
     m.click_back()
-    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, 100), 'audiobook part: its back header returns to the part\'s page 1')
+    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, EP_H), 'audiobook part: its back header returns to the part\'s page 1')
     m = ep_sheet('/mnt/mmc/audiobooks/Book One/01.mp3')
     expect(m.shown() == PAGE_BOOK, 'audiobook part: the Audiobooks folder is matched without case')
     for what, path in (('the Audiobooks folder itself', '/mnt/mmc/Audiobooks/'), ('another folder named Audiobooks', '/mnt/mmc/Music/Audiobooks/Book/01.mp3')):

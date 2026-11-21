@@ -6,12 +6,13 @@
  * The sheet is as high as its page's rows (page 1: PM_PAGE_N = 5 x 50 = 250 px, page 2: PM_PAGE2_N = 6 x 50 = 300 px, the Display Mode page: PM_PAGE_MODE_N = 5 x 50 = 250 px) and sits on the bottom of the screen; the page
  * above it is dimmed by the asset's own dialog highlight (highlight="default(alpha=..)", the AWTK dialog highlighter the window
  * manager sets up when the dialog opens). The glass is the dialog's first child, an insensitive image (pod_glass) that gets the page's own picture and height
- * (pc_sheet5, pc_sheet6, pc_sheet2): never a crop of a taller one. Page 1 (when it opens): Look up album (listitem4), Look up artist (5), Add to playlist
+ * (pc_sheet3 to pc_sheet6): never a crop of a taller one. Page 1 (when it opens): Look up album (listitem4), Look up artist (5), Add to playlist
  * (2), Display Mode (pod_mode: a chevron at its right) and "More" (pod_more, a row the asset adds, hidden until now; a chevron
  * at its right). A tap on Display Mode switches to the Display Mode page: the header row "< Display Mode" (pod_back; a tap returns to page 1), Cassette Mode (pod_tape: it opens the landscape cassette page, patch/tape.c), Vinyl Mode
  * (pod_vinyl: the turntable page, patch/vinyl.c), VU Meter Mode (pod_vu: the needle meters, patch/vupage.c) and Lyrics Mode (pod_lyr: the full-screen lyrics page, patch/idlelyrics.c; dimmed for a track without lyrics).
  * A tap on More switches to page 2: the same header row reading "< More" (a tap returns to page 1), Playback speed (1), Sleep Timer (pod_sleep: a link to the stock Power page), A-B repeat (0), Find Cover & Lyrics (pod_art) and
- * Delete (6, its label red in the asset). Online search (3) is never shown. A switch only hides one row set and shows the other and sets the sheet to the page's height;
+ * Delete (6, its label red in the asset). For a podcast episode or an audiobook part, Speed and Sleep Timer move to page 1 and page 2 is the
+ * back header, A-B repeat and Delete (no Find Cover & Lyrics). Online search (3) is never shown. A switch only hides one row set and shows the other and sets the sheet to the page's height;
  * there is no slide. A tap above the sheet closes it: that is the stock handler's (pointer y < dialog y), which works unchanged with the new y.
  *
  * One hook, dialog_playmore_dialog_init (0x479cc4): run when the dialog is built (a tap on Now Playing's More button, never
@@ -55,7 +56,7 @@
 #define PM_VINYL 10
 #define PM_GOEP 11 /* Go to Podcasts: page 1 of a podcast episode */
 #define PM_ART 12
-#define PM_SLEEP 13 /* Sleep Timer: a link to the stock Power page, page 2 */
+#define PM_SLEEP 13 /* Sleep Timer: our Sleep Timer page, page 2 (an episode's or part's page 1) */
 #define PM_MODE 14 /* Display Mode: opens the Display Mode page, page 1 */
 #define PM_LYR 15 /* Lyrics Mode: the full-screen lyrics page, the Display Mode page */
 #define PM_VU 16 /* VU Meter Mode: the VU Meter page, the Display Mode page (between Vinyl Mode and Lyrics Mode) */
@@ -70,21 +71,24 @@
 #define PM_ALBUMS_WINDOW "m1plus_albums_page" /* our Albums page's window (tools/pod_pages.py ALBUMS) */
 
 /* what each page shows, top to bottom, as indices into pm.row[]; the sheet is as high as its page's rows (PM_PAGE_N, PM_PAGE2_N) */
-static const unsigned char pm_page[5][PM_PAGE_MAX] = {
+static const unsigned char pm_page[6][PM_PAGE_MAX] = {
     {4, 5, 2, PM_MODE, PM_MORE}, /* Look up album, Look up artist, Add to playlist, Display Mode, More */
     {PM_BACK, 1, PM_SLEEP, 0, PM_ART,
      6}, /* the back header, Playback speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete */
-    {PM_GOEP,
-     PM_MORE}, /* page 1 of a podcast episode: Go to Podcasts, More (the rows that mean nothing for an episode are hidden) */
+    {PM_GOEP, 1, PM_SLEEP,
+     PM_MORE}, /* page 1 of a podcast episode: Go to Podcasts, Playback speed, Sleep Timer, More (the rows that mean nothing for an episode are hidden) */
     {PM_BACK, PM_TAPE, PM_VINYL, PM_VU,
      PM_LYR}, /* the Display Mode page: the back header, Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode */
-    {PM_MODE,
-     PM_MORE}, /* page 1 of an audiobook part: Display Mode, More (a part has no album or artist to look up, nor a playlist to join) */
+    {PM_MODE, 1, PM_SLEEP,
+     PM_MORE}, /* page 1 of an audiobook part: Display Mode, Playback speed, Sleep Timer, More (a part has no album or artist to look up, nor a playlist to join) */
+    {PM_BACK, 0,
+     6}, /* the More page of an episode or part: the back header, A-B repeat, Delete (Speed and Sleep Timer are on its page 1; no Find Cover & Lyrics: no album or song to look up) */
 };
-static const unsigned char pm_rows[5] = {PM_PAGE_N, PM_PAGE2_N, PM_PAGE_EP_N, PM_PAGE_MODE_N, PM_PAGE_BOOK_N};
-static const char *const pm_glass[5] = {
-    "pc_sheet5", "pc_sheet6", "pc_sheet2", "pc_sheet5",
-    "pc_sheet2"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
+static const unsigned char pm_rows[6] = {PM_PAGE_N,      PM_PAGE2_N,     PM_PAGE_EP_N,
+                                         PM_PAGE_MODE_N, PM_PAGE_BOOK_N, PM_PAGE2_EP_N};
+static const char *const pm_glass[6] = {
+    "pc_sheet5", "pc_sheet6", "pc_sheet4", "pc_sheet5",
+    "pc_sheet4", "pc_sheet3"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
 
 static struct {
     void *dlg, *lv, *sv, *bar,
@@ -98,8 +102,12 @@ static struct {
 } pm __attribute__((section(".scratch")));
 
 /* The row set shown: 0 the first page, 1 the More page, 2 the first page of an episode, 3 the Display Mode page, 4 the first page
- * of an audiobook part. */
-static int pm_set(void) { return pm.page == 2 ? 3 : pm.page ? 1 : pm.ep ? 2 : pm.book ? 4 : 0; }
+ * of an audiobook part, 5 the More page of an episode or part. */
+static int pm_set(void) {
+    if (pm.page == 2) return 3;
+    if (pm.page) return pm.ep || pm.book ? 5 : 1;
+    return pm.ep ? 2 : pm.book ? 4 : 0;
+}
 
 /* The rows as pm.page says: the shown ones at y = position x PM_ROW_H, the others hidden and parked under the sheet; the
  * children stacked in that order; the sheet PM_PAGE_N rows high on the bottom of the screen. */
@@ -130,7 +138,7 @@ static void pm_arrange(void) {
         m1_show(pm.row[i], 0);
     }
     for (i = 0; i < n; i++) widget_restack(pm.row[pm_page[set][i]], k++);
-    if (pm.page ==
+    if (set ==
         1) { /* Find Cover & Lyrics needs the Wi-Fi: looked at each time page 2 shows (stock's get_wifisignal, as the Podcasts guard) */
         int online = get_wifisignal() > 0 && !pm.srv;
         widget_set_opacity(pm.row[PM_ART], online ? 255 : PM_ART_DIM);
@@ -157,9 +165,7 @@ static void pm_arrange(void) {
     }
     for (i = 0; i < PM_ROWS; i++)
         if (!used[i]) widget_restack(pm.row[i], k++);
-    widget_resize(
-        pm.glass, PM_DIALOG_W,
-        h); /* the glass of the page's own height: pc_sheet6 (pages 1 and 2, 300 px) or pc_sheet2 (an episode's page 1), never a crop */
+    widget_resize(pm.glass, PM_DIALOG_W, h); /* the glass of the page's own height: pm_glass[set], never a crop */
     image_base_set_image(pm.glass, pm_glass[set]);
     widget_resize(pm.dlg, PM_DIALOG_W, h);
     widget_move(pm.dlg, 0, PM_SCREEN_H - h);
@@ -250,16 +256,16 @@ static int pm_on_goep(void *ctx, void *e) {
 }
 
 /* Find Cover & Lyrics (the row is pod_art, page 2): our page (patch/onlineart.c) over Now Playing, opened the same way: the page first, the sheet closed once it is up. Not with the Wi-Fi off (the row is dimmed
- * and insensitive then; this is the second look). */
+ * and insensitive then; this is the second look), nor for an episode or audiobook part (the row is not shown). */
 
 static int pm_on_art(void *ctx, void *e) {
     (void)e;
-    if (!pm.dlg || ctx != pm.dlg || get_wifisignal() <= 0 || pm.srv) return RET_OK;
+    if (!pm.dlg || ctx != pm.dlg || get_wifisignal() <= 0 || pm.srv || pm.ep || pm.book) return RET_OK;
     if (onlineart_open() == 0) window_close(ctx);
     return RET_OK;
 }
 
-/* Sleep Timer (the row is pod_sleep, page 2): our Sleep Timer page (m1plus_sleeptimer, patch/sleeptimer.c) over Now Playing. A page of ours keeps one window: an opened one in the stack is brought to the front (m1_restack_window; stock's
+/* Sleep Timer (the row is pod_sleep, page 2; page 1 for an episode or part): our Sleep Timer page (m1plus_sleeptimer, patch/sleeptimer.c) over Now Playing. A page of ours keeps one window: an opened one in the stack is brought to the front (m1_restack_window; stock's
  * restack delivers EVT_WINDOW_TO_FG, which refreshes our page's checks), else it is opened afresh. The page FIRST, the sheet closed once it is up (a window below the top one); a page that cannot open leaves the sheet.
  * Its top-right Now Playing button restacks the player over it, which a later tap here reuses; a plain Back closes it and returns to Now Playing. */
 static int pm_on_sleep(void *ctx, void *e) {

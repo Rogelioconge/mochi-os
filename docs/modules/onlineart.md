@@ -18,7 +18,8 @@ the Podcasts worker's libcurl client ([network](network.md)).
   **Cover & Lyrics**. With Wi-Fi off (checked each time page 2 shows) it is dimmed and
   insensitive. For a server track ([subsonic](subsonic.md)) it is always dimmed:
   `onlineart_open` refuses it (`oa_track`), as there is no local album key to write a cover
-  under and no file beside which `.lrc` and `folder.jpg` go.
+  under and no file beside which `.lrc` and `folder.jpg` go. A podcast episode or audiobook part
+  has no such row: its More page leaves it out.
 - **The page** has the Search page's frame: chip row **Covers** / **Lyrics** (opens on Covers),
   a state line, and a scrolling list. Both lookups start when the page opens; each tab keeps its
   scroll position. The lookup runs once, on open. Back (or Now Playing) cancels what is running;

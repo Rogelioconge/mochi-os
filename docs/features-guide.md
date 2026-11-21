@@ -138,7 +138,7 @@ status bar.
 ### Cover and lyrics lookup
 
 **Cover & Lyrics** (Now Playing → … → More → Cover & Lyrics, needs Wi-Fi) looks up the playing
-album's covers (iTunes, then Deezer) and its lyrics (LRCLIB). Tap a cover to use it for the album
+album's covers (iTunes, then Deezer) and its lyrics (LRCLIB). It is not offered for podcast episodes or audiobooks. Tap a cover to use it for the album
 everywhere; Save Lyrics writes `<song>.lrc` next to the song (Replace Lyrics when one is there).
 The playing song shows saved lyrics at once.
 
@@ -189,7 +189,8 @@ Use a show's **…** menu to change its list:
 | Episode Order | Switch between **Newest First** (default) and **Oldest First**, for both the list and playback queue. Oldest First suits a series. |
 | Filter | Cycle through **All**, **Unplayed** (including partially played episodes) and **Downloaded**. |
 
-Use an episode's **…** menu to mark it played or unplayed.
+Use an episode's **…** menu to mark it played or unplayed. While an episode plays, Now Playing's **…**
+offers Go to Podcasts, Playback Speed, Sleep Timer and More.
 
 Selection, Mark All as Played, deletion and the queue after the episode you start apply to the
 visible rows. If a filter leaves no results, use **…** to switch back. An episode marked played
@@ -270,7 +271,7 @@ Split such books into parts or chapters first.
   in the part you were listening to; tapping a part plays from it to the end of the book.
 - **… → Playback Speed** cycles through 1x, 1.25x, 1.5x and 2x. The playing part shows a wave icon.
 - While a part plays, Now Playing hides the play mode button; the book plays its parts in order.
-  Its **…** offers Display Mode and More.
+  Its **…** offers Display Mode, Playback Speed, Sleep Timer and More.
 
 ### Find and download LibriVox books
 

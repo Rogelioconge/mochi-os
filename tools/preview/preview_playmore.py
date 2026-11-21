@@ -20,11 +20,14 @@ ROW_H, SCREEN_H, SHEET_W, SV_W = 50, 480, 320, 310
 PAGE1 = ['listitem4', 'listitem5', 'listitem2', 'pod_mode', 'pod_more']   # Look up album, Look up artist, Add to playlist, Display Mode, More
 PAGE_MODE = ['pod_back', 'pod_tape', 'pod_vinyl', 'pod_vu', 'pod_lyr']               # the Display Mode page: the back header (reading "Display Mode"), Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode
 PAGE2 = ['pod_back', 'listitem1', 'pod_sleep', 'listitem0', 'pod_art', 'listitem6']   # the back header, Playback speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete
+PAGE_EP = ['pod_goep', 'listitem1', 'pod_sleep', 'pod_more']   # page 1 of a podcast episode: Go to Podcasts, Playback speed, Sleep Timer, More
+PAGE_BOOK = ['pod_mode', 'listitem1', 'pod_sleep', 'pod_more']   # page 1 of an audiobook part: Display Mode, Playback speed, Sleep Timer, More
+PAGE2_EP = ['pod_back', 'listitem0', 'listitem6']   # the More page of an episode or part: the back header, A-B repeat, Delete
 ART_DIM = 100                                                                     # the Find Cover & Lyrics row's opacity (of 255) with the Wi-Fi off, and the Lyrics Mode row's for a track without lyrics (patch/playmore.c PM_ART_DIM)
 DIM_ALPHA = 130                                                                   # the asset's highlight="default(alpha=130)"
 KEYS = {'scrlabel0': 'player_abrepeat', 'scrlabel1': 'Speed', 'scrlabel2': 'batch_addplaylist', 'scrlabel3': 'player_onlinesearch',
         'scrlabel4': 'player_albuminfo', 'scrlabel5': 'player_songerinfo', 'scrlabel6': 'player_delete', 'label1_msg': 'Files below 48 kHz only',
-        'pod_more_label': 'More', 'pod_back_label': 'More', 'pod_tape_label': 'Cassette Mode', 'pod_vinyl_label': 'Vinyl Mode', 'pod_vu_label': 'VU Meter Mode', 'pod_art_label': 'Cover & Lyrics', 'pod_sleep_label': 'powerm_sleep', 'pod_mode_label': 'Display Mode', 'pod_lyr_label': 'Lyrics Mode'}
+        'pod_more_label': 'More', 'pod_back_label': 'More', 'pod_tape_label': 'Cassette Mode', 'pod_vinyl_label': 'Vinyl Mode', 'pod_vu_label': 'VU Meter Mode', 'pod_art_label': 'Cover & Lyrics', 'pod_sleep_label': 'powerm_sleep', 'pod_mode_label': 'Display Mode', 'pod_lyr_label': 'Lyrics Mode', 'pod_goep_label': 'Go to Podcasts'}
 SPEED_SEL = {'img_1x': 'p_1_sel'}                                                  # 1.0X is the selected speed in the mock-up
 
 
@@ -38,7 +41,7 @@ def sheet(p, im, tree, order, pressed=None, offline=False):
     transparent over it (the painter draws no row fill), the hairlines and the pressed band (`pressed`: a row name) as the rows' inline styles."""
     h = len(order) * ROW_H; sy = SCREEN_H - h
     im.alpha_composite(Image.new('RGBA', (SHEET_W, SCREEN_H), (0, 0, 0, DIM_ALPHA)), (0, 0))
-    glass = p.image(f'pc_sheet{len(order)}'); assert glass and glass.size == (SHEET_W, h), 'the page\'s own glass picture (pod_glass: pc_sheet5, pc_sheet6 or pc_sheet2 by the page\'s rows), not a crop'
+    glass = p.image(f'pc_sheet{len(order)}'); assert glass and glass.size == (SHEET_W, h), 'the page\'s own glass picture (pod_glass: pc_sheet3 to pc_sheet6 by the page\'s rows), not a crop'
     im.alpha_composite(glass, (0, sy))
     hair = tint(tree.find('listitem1').get('style:normal:border_color'))
     for pos, name in enumerate(order):
@@ -49,7 +52,7 @@ def sheet(p, im, tree, order, pressed=None, offline=False):
                 if c.name.startswith('img_'):
                     c.y, c.h = 8, 20
                     if c.name in SPEED_SEL: c.set('image', SPEED_SEL[c.name])
-        if name in ('pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', 'pod_vu'):
+        if name in ('pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', 'pod_vu'):
             row.remove('visible'); row.remove('sensitive')       # the asset starts it hidden; the payload shows it
         if name == pressed:
             im.alpha_composite(Image.new('RGBA', (SV_W, ROW_H), tint(tree.find(name).get('style:pressed:bg_color'))), (0, sy + pos * ROW_H))
@@ -81,7 +84,8 @@ def main():
     a = ap.parse_args()
     shots = [('page 1 (when it opens)', panel(a.work, a.lang, PAGE1)), ('Display Mode tapped', panel(a.work, a.lang, PAGE_MODE)),
              ('Display Mode, no lyrics (row dimmed)', panel(a.work, a.lang, PAGE_MODE, None, True)), ('page 2 (More tapped)', panel(a.work, a.lang, PAGE2)),
-             ('page 2, Wi-Fi off (row dimmed)', panel(a.work, a.lang, PAGE2, None, True)), ('page 2, Delete pressed', panel(a.work, a.lang, PAGE2, 'listitem6'))]
+             ('page 2, Wi-Fi off (row dimmed)', panel(a.work, a.lang, PAGE2, None, True)), ('page 2, Delete pressed', panel(a.work, a.lang, PAGE2, 'listitem6')),
+             ('episode page 1', panel(a.work, a.lang, PAGE_EP)), ('audiobook page 1', panel(a.work, a.lang, PAGE_BOOK)), ('episode / book page 2', panel(a.work, a.lang, PAGE2_EP))]
     pad, top = 10, 18
     out = Image.new('RGB', (len(shots) * (NP.W + pad) + pad, NP.BAR + NP.H + top + 18), (40, 40, 40)); d = ImageDraw.Draw(out)
     for i, (label, im) in enumerate(shots):

@@ -19,9 +19,10 @@ there is no slide.
 | Page | Rows | Height / glass |
 |---|---|---|
 | 1 (opens here) | Look up album, Look up artist, Add to playlist, **Display Mode** (chevron), **More** (chevron) | 250 px, `pc_sheet5` |
-| 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, More | 100 px, `pc_sheet2` |
-| 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, More | 100 px, `pc_sheet2` |
+| 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, Playback speed, **Sleep Timer**, More | 200 px, `pc_sheet4` |
+| 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, Playback speed, **Sleep Timer**, More | 200 px, `pc_sheet4` |
 | 2 (More; its back header returns to the page it came from) | back header **< More**, Playback speed, **Sleep Timer**, A-B repeat, **Cover & Lyrics**, Delete song (red `#FF6B6B`) | 300 px, `pc_sheet6` |
+| 2 of an episode or part | back header **< More**, A-B repeat, Delete song | 150 px, `pc_sheet3` |
 | Display Mode | back header **< Display Mode**, **Cassette Mode**, **Vinyl Mode**, **VU Meter Mode**, **Lyrics Mode** | 250 px, `pc_sheet5` |
 
 Online search is never shown. Hidden rows are `visible=false` and `sensitive=false`.
@@ -63,10 +64,11 @@ Online search is never shown. Hidden rows are `visible=false` and `sensitive=fal
 - **Sleep Timer** opens our page ([sleeptimer](sleeptimer.md)) first. Label is the stock key
   `powerm_sleep`, so it follows Language. A window of ours is restacked with `m1_restack_window`
   rather than opened twice, so the Sleep Timer / Now Playing button cycle keeps one window; Back
-  returns to Now Playing. The row shows with or without Wi-Fi and on an episode's page 2.
+  returns to Now Playing. The row shows with or without Wi-Fi; for an episode or part it is on page 1.
 - **Cover & Lyrics** (`pod_art`) opens [onlineart](onlineart.md) first, then closes the sheet. It
   needs Wi-Fi (`get_wifisignal() > 0`, looked at each time page 2 shows and at the tap); without it
-  the row is dimmed and insensitive. It is off for Subsonic tracks (`pm.srv`).
+  the row is dimmed and insensitive. It is off for Subsonic tracks (`pm.srv`), and not shown for an
+  episode or audiobook part (no album or song to look up; `pm_on_art` refuses them too).
 - **Playback speed** row: the label reads **Speed** (box 96 px) and the four badges move right
   (36 px each, 40 px apart); the note reads **Files below 48 kHz only** in a 262 px box. Both fit
   in all 13 languages (`tools/pod_i18n.py`). The row's glyph is the Lucide `gauge`.
