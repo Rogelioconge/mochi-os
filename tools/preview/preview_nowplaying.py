@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Approximate PIL mock-up of the Now Playing page (ui/playing_page.bin + its page theme); not pixel-exact AWTK.
 
-  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing] ...
+  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing][,paused|,art=PX] ...
 
 RAW_DIR is a tree's rootfs/release/assets/default/raw. Each panel draws a 30 px status bar and the 450 px
 window under it. Styles resolve as on the device: inline style:<state>:<prop>, then the window theme
@@ -11,7 +11,7 @@ hscroll_label text from margin_left 2 and clipped to its margins); the glyphs th
 values (title, times, cover...) are sample data. The cover is a synthetic gradient, or cover=FILE (drawn at the
 widget's size, and its box average gives the window colour through mod_nowplaying.tone, as patch/nowplaying.c
 does); tint=RRGGBB is a cover's average colour given directly. page=N shows slide page N (0 cover, 1 lyrics,
-2 info; scroll=PX shows the info page's content scrolled by that many px, full draws the whole content as a taller panel). The remaining time label is shown in place of the total, as with the hook running.
+2 info; paused draws the cover and its shadow at the paused size, art=PX at any side of the spring; scroll=PX shows the info page's content scrolled by that many px, full draws the whole content as a taller panel). The remaining time label is shown in place of the total, as with the hook running.
 """
 import argparse, os, sys
 from PIL import Image, ImageDraw, ImageFont
@@ -77,6 +77,7 @@ class Painter:
     info = INFO['cd']    # the information page's sample track
     scroll, full = 0, False   # the info page's content offset; the whole content (a taller image)
     playing = False      # the play button shows the pause glyph (the app swaps btn_imgplay_style / btn_imgpause_style)
+    art = MN.ART         # the cover's side: ART_SMALL while paused (patch/nowplaying.c np_art_place), art=PX any frame of the spring
     def image(self, name):
         if not name: return None
         if self.playing: name = {'np_play': 'np_pause', 'np_play_down': 'np_pause_down'}.get(name, name)
@@ -132,14 +133,15 @@ class Painter:
         return im
     def corners(self, layer, r):
         """patch/nowplaying.c np_on_art_paint: the four corners in the colour the window has there (tone under the gradient)."""
-        rgb = self.tint or tuple(int(BG[k:k + 2], 16) for k in (1, 3, 5)); cov = corner_alpha()
+        R = min(ART_R, (ART_R * r[2] + MN.ART // 2) // MN.ART)   # the radius scales with the cover, never more than ART_R
+        rgb = self.tint or tuple(int(BG[k:k + 2], 16) for k in (1, 3, 5)); cov = corner_alpha(R)
         if self.tint is None and self.cover_img: rgb = tone(*self.cover_img.convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0)))
         px = layer.load()
         for k in range(4):
-            for y in range(ART_R):
+            for y in range(R):
                 ly = r[3] - 1 - y if k & 2 else y; keep = 255 - tint_alpha(r[1] + ly)
-                for x in range(ART_R):
-                    a = cov[y * ART_R + x]
+                for x in range(R):
+                    a = cov[y * R + x]
                     if not a: continue
                     X, Y = r[0] + (r[2] - 1 - x if k & 1 else x), r[1] + ly
                     base = px[X, Y]
@@ -216,6 +218,9 @@ class Painter:
         sl = wd.get('self_layout', '')
         if 'w=100%' in sl: w = None
         if w is None or (wd.type == 'view' and (w, h) == (100, 100)): w, h = clip[2] - clip[0], clip[3] - clip[1]
+        if wd.name in ('img_playcover', 'img_np_shadow') and self.art != MN.ART:   # the paused cover and its shadow, scaled about the full cover's centre
+            pad = MN.SHADOW_PAD * self.art // MN.ART if wd.name == 'img_np_shadow' else 0
+            x = y = MN.ART_X + (MN.ART - self.art) // 2 - pad; w = h = self.art + 2 * pad
         r = (ox + x, oy + y, w, h)
         if wd.type == 'gesture' or wd.type == 'window': r = (0, 0, W, H)
         c = (max(clip[0], r[0]), max(clip[1], r[1]), min(clip[2], r[0] + r[2]), min(clip[3], r[1] + r[3]))
@@ -224,7 +229,9 @@ class Painter:
         if t == 'image':
             img = self.cover(r[2], r[3]) if name == 'img_playcover' else self.image(wd.get('image'))
             if img:
-                if wd.get('draw_type') == 'scale_auto' or name == 'img_playcover': img = img.resize((r[2], r[3]))
+                if wd.get('draw_type') in ('scale_auto', 'scale') or name == 'img_playcover': img = img.resize((r[2], r[3]))
+                if name == 'img_np_shadow' and MN.shadow_opacity(self.art) < 255:   # the payload's widget opacity (np_art_place)
+                    img = img.copy(); img.putalpha(img.getchannel('A').point(lambda a: a * MN.shadow_opacity(self.art) // 255))
                 layer.alpha_composite(img, (r[0] + (r[2] - img.width) // 2, r[1] + (r[3] - img.height) // 2)) if img.size != (r[2], r[3]) else layer.alpha_composite(img, r[:2])
             if name == 'img_playcover': self.corners(layer, r)
         elif t == 'button':
@@ -266,6 +273,8 @@ def main():
         for o in opts:
             if o.startswith('cover='): p.cover_img = Image.open(o[6:])
             if o == 'playing': p.playing = True
+            if o == 'paused': p.art = MN.ART_SMALL
+            if o.startswith('art='): p.art = int(o[4:])
             if o.startswith('info='): p.info = INFO[o[5:]]
             if o.startswith('scroll='): p.scroll = int(o[7:])
             if o == 'full': p.full = True

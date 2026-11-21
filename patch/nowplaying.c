@@ -131,6 +131,13 @@ static struct {
     int sbwait; /* ticks the playing server track has had no cover file while sbmp (the previous track's) is kept on show */
     int pfrec; /* the REC_ID of the queue record whose cover was last asked for ahead */
     unsigned once; /* the one-shot np_art_once timer, 0 none */
+    void *shadow; /* img_np_shadow (the asset's), scaled with the cover; 0 if the page lacks it */
+    int asz, afrom,
+        ato; /* the cover's side now (0: the asset's NP_ART), where its spring started, where it goes (0: no target yet) */
+    unsigned at0, anim; /* the spring's start (time_now_ms), its frame timer (0 none) */
+    int cr; /* the corner radius np.corner holds (0: NP_ART_R) */
+    unsigned pchk; /* the play button's status check timer (0 none) */
+    int pst, pleft; /* the status when the button was tapped, checks left */
 } np __attribute__((section(".scratch")));
 
 /* A dark, a little desaturated tone of the cover's average colour (r, g, b bytes), as a color_t word
@@ -159,13 +166,133 @@ __attribute__((noinline)) void np_format_remaining(char *out, unsigned size, int
 /* The coverage of the area outside a quarter circle of radius NP_ART_R in the corner square of NP_ART_R pixels
  * (the circle's centre at the square's inner corner), 0..255: each pixel is sampled 8 x 8 times. The same numbers
  * as the PNG mask of the earlier builds (test/pod/nowplaying.py). */
-__attribute__((noinline)) void np_corner_init(void) { m1_corner_fill(np.corner, NP_ART_R); }
+__attribute__((noinline)) void np_corner_init(void) {
+    m1_corner_fill(np.corner, NP_ART_R);
+    np.cr = NP_ART_R;
+}
+
+/* The pause spring: 1024 x g(t) every 10 ms, g = e^(-zeta wn t) (cos wd t + zeta / sqrt(1 - zeta^2) sin wd t), wd = wn sqrt(1 - zeta^2); critically damped (g = (1 + wn t) e^(-wn t))
+ * for the shrink, zeta 1, wn 16 /s; zeta 0.75, wn 13 /s for the grow (-0.028 at 370 ms: a subtle bounce, 2 px). test/pod/nowplaying.py computes the same numbers. */
+static const short np_shrink_tab[NP_SHRINK_MS / 10 + 1] = {
+    1024, 1012, 982, 938, 886, 828, 768, 708, 649, 592, 538, 486, 438, 394, 353, 316, 282, 251, 223, 198, 175,
+    155,  137,  121, 107, 94,  82,  72,  64,  56,  49,  43,  37,  33,  29,  25,  22,  19,  17,  14,  13};
+static const short np_grow_tab[NP_GROW_MS / 10 + 1] = {
+    1024, 1016, 994, 960, 918, 869, 815, 759, 701, 642, 584, 527, 472, 420, 371, 324, 281, 241, 205, 172, 142, 115,
+    91,   70,   52,  36,  22,  11,  1,   -7,  -13, -18, -22, -25, -27, -28, -29, -29, -29, -28, -27, -25, -24, -22,
+    -21,  -19,  -17, -16, -14, -13, -11, -10, -9,  -7,  -6,  -5,  -4,  -4,  -3,  -2,  -2,  -1,  -1,  0,   0};
+
+/* The cover's side `el` ms into a spring from `from` to `to` px: the grow table when it gets bigger, else the shrink one; linear between entries, `to` from the table's end on. */
+__attribute__((noinline)) int np_art_size(int from, int to, int el) {
+    const short *tab = to > from ? np_grow_tab : np_shrink_tab;
+    int ms = to > from ? NP_GROW_MS : NP_SHRINK_MS, idx, g;
+    if (el <= 0) return from;
+    if (el >= ms) return to;
+    idx = el / 10;
+    g = tab[idx] + (tab[idx + 1] - tab[idx]) * (el % 10) / 10;
+    return to + (from - to) * g / 1024;
+}
+
+/* The cover (and its shadow, scaled alike) at a side of s px, centred where the full cover is; the corner table follows the radius (NP_ART_R at the full size, scaled, never more). The old and the new
+ * rectangle of the bigger widget are invalidated. */
+static void np_art_place(int s) {
+    void *big = np.shadow ? np.shadow : np.art;
+    int in = (NP_ART - s) / 2, x = NP_ART_X + in, y = NP_ART_Y + in, pad = NP_SHADOW_PAD * s / NP_ART,
+        r = (NP_ART_R * s + NP_ART / 2) / NP_ART;
+    if (r > NP_ART_R) r = NP_ART_R;
+    if (r != np.cr) {
+        m1_corner_fill(np.corner, (unsigned)r);
+        np.cr = r;
+    }
+    widget_invalidate_force(big, (void *)0);
+    widget_move(np.art, x, y);
+    widget_resize(np.art, s, s);
+    if (np.shadow) { /* lighter as the cover shrinks: NP_SHADOW_DIM at the paused size, full from NP_ART on */
+        int k = s < NP_ART_SMALL ? 0 : s > NP_ART ? NP_ART - NP_ART_SMALL : s - NP_ART_SMALL;
+        widget_set_opacity(np.shadow, NP_SHADOW_DIM + (255 - NP_SHADOW_DIM) * k / (NP_ART - NP_ART_SMALL));
+        widget_move(np.shadow, x - pad, y - pad);
+        widget_resize(np.shadow, s + 2 * pad, s + 2 * pad);
+    }
+    widget_invalidate_force(big, (void *)0);
+    np.asz = s;
+}
+
+static int np_art_live(void);
+
+/* A frame of the spring: the side for the time it has run, until it has landed. The artwork no longer seen (screen off, another page, the lyrics or info page): it lands at once. */
+static int np_art_frame(const void *timer) {
+    int el, s;
+    (void)timer;
+    if (!np.win || !np.anim) return RET_OK;
+    if (!np_art_live()) {
+        np.anim = 0; /* RET_OK ends this timer */
+        if (np.asz != np.ato) np_art_place(np.ato);
+        return RET_OK;
+    }
+    el = (int)(time_now_ms() - np.at0);
+    s = np_art_size(np.afrom, np.ato, el);
+    if (s != np.asz) np_art_place(s);
+    if (el < (np.ato > np.afrom ? NP_GROW_MS : NP_SHRINK_MS)) return RET_REPEAT;
+    np.anim = 0;
+    return RET_OK;
+}
+
+/* The art page is what the page shows, lit and in front: only then does the cover move, else it is put at its size. */
+static int np_art_live(void) {
+    return np.fg && m1_screen_lit() && (!np.sv || widget_get_prop_int(np.sv, "value", NP_ART_PAGE) == NP_ART_PAGE);
+}
+
+/* The cover's size follows the player: small while paused, full otherwise. A new target springs from the size the cover has (a change mid-spring turns it round), or is set at once when
+ * `animate` is 0 or no frame timer is had. */
+static void np_art_sync(int animate) {
+    int want;
+    if (!np.art) return;
+    want = mclGetPlayStatus() == NP_PAUSED ? NP_ART_SMALL : NP_ART;
+    if (want == np.ato) {
+        if (!animate && np.anim) { /* the spring is no longer seen: it lands now */
+            m1_timer_stop(&np.anim);
+            if (np.asz != want) np_art_place(want);
+        }
+        return;
+    }
+    np.ato = want;
+    if (animate && !np.anim) {
+        np.anim = timer_add(np_art_frame, (void *)0, NP_FRAME_MS);
+    } else if (!animate)
+        m1_timer_stop(&np.anim);
+    if (!np.anim) {
+        if (want != np.asz) np_art_place(want);
+        return;
+    }
+    np.afrom = np.asz ? np.asz : NP_ART;
+    np.at0 = time_now_ms();
+}
+
+/* After a tap on the play button: stock's handler (it runs after ours) changes the status a moment later; the cover follows as soon as it has. */
+static int np_play_check(const void *timer) {
+    (void)timer;
+    if (!np.win || !np.pchk) return RET_OK;
+    if (mclGetPlayStatus() == np.pst && --np.pleft > 0) return RET_REPEAT;
+    np.pchk = 0;
+    np_art_sync(np_art_live());
+    return RET_OK;
+}
+
+static int np_on_play(void *ctx, void *e) {
+    (void)ctx;
+    (void)e;
+    if (!np.win || !np.art) return RET_OK;
+    np.pst = mclGetPlayStatus();
+    np.pleft = NP_PLAY_CHECKS;
+    if (!np.pchk) np.pchk = timer_add(np_play_check, (void *)0, NP_PLAY_MS);
+    return RET_OK;
+}
 
 static int np_art_once(const void *timer);
 
-/* The cover widget's EVT_AFTER_PAINT: the four corners, in widget coordinates (the stock paint only translates). */
+/* The cover widget's EVT_AFTER_PAINT: the four corners, in widget coordinates (the stock paint only translates), for the side the cover has now. */
 static int np_on_art_paint(void *ctx, void *e) {
     void *canvas = e ? *(void **)((char *)e + EVENT_PAINT_CANVAS) : (void *)0;
+    int s = np.asz ? np.asz : NP_ART;
     (void)ctx;
     if (!canvas || !np.win) return RET_OK;
     if (np.art) { /* a server track's cover (stock draws nothing for a stream; its placeholder must not show between two tracks): sbmp stays up while a server track is playing, until
@@ -173,12 +300,13 @@ static int np_on_art_paint(void *ctx, void *e) {
         void *t = cc_playing();
         int rec = t ? *(int *)((char *)t + REC_ID) : 0;
         if (rec <= -2 || np.sbbook) { /* (or a book part's cover: np_server_art drops it with the tick) */
-            int r[4] = {0, 0, NP_ART, NP_ART};
-            if (np.sbshow && np.sbmp) canvas_draw_image(canvas, np.sbmp, r, r);
+            int r[4] = {0, 0, NP_ART, NP_ART}, d[4] = {0, 0, s, s};
+            if (np.sbshow && np.sbmp) canvas_draw_image(canvas, np.sbmp, r, d);
             if (rec != np.sbseen && !np.once) np.once = timer_add(np_art_once, (void *)0, NP_ONCE_MS);
         }
     }
-    m1_corners(canvas, np.corner, NP_ART_R, NP_ART, np.color, NP_ART_Y, NP_ALPHA_TOP, NP_ALPHA_BOTTOM, NP_WIN_H);
+    m1_corners(canvas, np.corner, np.cr ? (unsigned)np.cr : NP_ART_R, (unsigned)s, np.color,
+               NP_ART_Y + (NP_ART - s) / 2, NP_ALPHA_TOP, NP_ALPHA_BOTTOM, NP_WIN_H);
     return RET_OK;
 }
 
@@ -1124,6 +1252,8 @@ static void np_mode_sync(void) {
 static void np_work(void) {
     recent_note(cc_playing()); /* No stock list query: the page underneath owns pdeq_showlist;
                                * the menu's foreground handler resolves the cover key. */
+    np_art_sync(
+        np_art_live()); /* a pause seen with the screen dark or another page in front: the cover is just small */
     if (!m1_screen_lit()) return;
     np_server_art();
     np_cover();
@@ -1153,6 +1283,8 @@ static void np_stop(void) {
     np_bar_black();
     ly_stop();
     m1_timer_stop(&np.timer);
+    m1_timer_stop(&np.anim);
+    m1_timer_stop(&np.pchk);
     if (np.sbmp) bitmap_destroy(np.sbmp);
     mb_art_free(&np.ia);
     memset(&np, 0, sizeof np);
@@ -1226,10 +1358,15 @@ static void np_start(void *win) {
     art = widget_lookup(win, "img_playcover", 1);
     if (art) {
         np.art = art;
+        np.asz = NP_ART;
+        np.shadow = widget_lookup(win, "img_np_shadow", 1);
         np_corner_init();
         widget_on(art, EVT_AFTER_PAINT, np_on_art_paint, (void *)0);
+        m1_bind(win, "btn_play", np_on_play, (void *)0); /* before stock's handler: np_play_check sees its change */
     }
     m1_bind(win, "btn_queue", np_on_queue, (void *)0);
+    np.sv = widget_lookup(win, "slide_view",
+                          1); /* its page: the cover springs only while the art page shows; the info page's reset */
     ly_start(win);
     if (np.irow && np.ihead) { /* the content's touch and fades */
         void *sc = np.iw[NI_SCROLL];
@@ -1242,13 +1379,13 @@ static void np_start(void *win) {
     if (np.ihead) {
         mb_art_size(&np.ia, NPI_ART, NPI_ART_R);
         widget_on(np.iw[NI_ART], EVT_AFTER_PAINT, np_on_info_art, (void *)0);
-        np.sv = widget_lookup(win, "slide_view", 1);
         if (np.sv) widget_on(np.sv, EVT_VALUE_CHANGED, np_on_page, np.sv);
         if (np.info[1]) { /* label_album: the header shows the record's album */
             widget_set_visible(np.info[1], 0, 0);
             widget_set_sensitive(np.info[1], 0);
         }
     }
+    np_art_sync(0); /* opened while paused: the cover starts small */
     np.fg = 1;
     np.barok = widget_on(win, EVT_WINDOW_TO_BG, np_on_background, win) &&
                widget_on(win, EVT_WINDOW_TO_FG, np_on_foreground, win);

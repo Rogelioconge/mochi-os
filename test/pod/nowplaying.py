@@ -45,6 +45,7 @@ class NowMachine(Machine):
         self.info = None          # mclGetInfo's record: dict(rate, bits, fmt) (the info page's badge: patch/tape.c tape_badge); None: the player has no stream
         self.handlers[pod.FUNCTIONS['mclGetInfo'][2]] = 'mclGetInfo'
         self.px = {}              # label handle -> its font size (widget_measure_text)
+        self.status = 0           # mclGetPlayStatus
 
     def with_bar(self, top=WIN):
         """The window manager with a navbar and a status bar among its children; `top` is its top normal window."""
@@ -112,8 +113,8 @@ class NowMachine(Machine):
         elif name == 'ls_favorite':   # (src, rec, was): the star toggled on the server, 0 done
             rid = self.word(a1 + O['REC_ID']); rid = rid - (1 << 32) if rid >= 1 << 31 else rid
             self.calls.append(('ls_favorite', a0 == PSYMS['lib_nd'], rid, a2)); self.sbfav[rid] = 0 if self.sbfav.get(rid) else 1; ret = 0
-        elif name == 'mclGetPlayStatus':   # the player is stopped: the episode timer (pc_note) saves nothing
-            ret = 0
+        elif name == 'mclGetPlayStatus':   # 0 by default (the episode timer, pc_note, saves nothing); a test sets status (3 paused: the cover shrinks)
+            ret = self.status
         elif name == 'value_set_uint32':
             self.setword(a0, 7); self.setword(a0 + 8, a1); ret = a0
         elif name == 'get_playtimeandlength':
@@ -1084,6 +1085,132 @@ def run(ctx):
     # the colour the corners use is the one the style call set
     expect(m.styles[-1][2] & 0xffffff == color, 'the corners use the colour of the last style call')
 
+    # ------------------------------------------------------------------ paused, the cover shrinks (a spring) and springs back on play
+    import math
+    def spring(ms, z, w):   # 1024 x the spring's remaining fraction every 10 ms (patch/nowplaying.c np_shrink_tab, np_grow_tab)
+        def g(t):
+            if z >= 1: return (1 + w * t) * math.exp(-w * t)
+            wd = w * math.sqrt(1 - z * z); return math.exp(-z * w * t) * (math.cos(wd * t) + z / math.sqrt(1 - z * z) * math.sin(wd * t))
+        return [round(1024 * g(k / 100)) for k in range(ms // 10 + 1)]
+    SHRINK, GROW = spring(O['NP_SHRINK_MS'], 1.0, 16), spring(O['NP_GROW_MS'], 0.75, 13)
+    def size_model(a, b, el):
+        tab, ms = (GROW, O['NP_GROW_MS']) if b > a else (SHRINK, O['NP_SHRINK_MS'])
+        if el <= 0: return a
+        if el >= ms: return b
+        i = el // 10; g = tab[i] + int((tab[i + 1] - tab[i]) * (el % 10) / 10)
+        return b + int((a - b) * g / 1024)
+    A, S_ = O['NP_ART'], O['NP_ART_SMALL']
+    expect((O['NP_ART_X'], O['NP_SHADOW_PAD']) == (mn.ART_X, mn.SHADOW_PAD) and S_ == mn.ART_SMALL == 194 and abs(S_ / A - 0.73) < 0.01, 'the paused cover is 194 px (0.73, Apple Music\'s ratio), the art and shadow constants are the asset\'s')
+    sm = NowMachine()
+    csz = lambda a, b, el: struct.unpack('<i', struct.pack('<I', sm.call(PSYMS['np_art_size'], a0=a, a1=b, a2=el & 0xffffffff, count=20000)))[0]
+    pts = [(A, S_, t) for t in range(-10, 420, 7)] + [(S_, A, t) for t in range(-10, 660, 7)] + [(230, A, 55), (240, S_, 133), (A, S_, 400), (S_, A, 640)]
+    got = [csz(*p) for p in pts]
+    expect(got == [size_model(*p) for p in pts], f'np_art_size equals the model (spring tables from the formula, linear between entries) ({[(p, g, size_model(*p)) for p, g in zip(pts, got) if g != size_model(*p)][:3]})')
+    down, up = [csz(A, S_, t) for t in range(0, 401, 5)], [csz(S_, A, t) for t in range(0, 641, 5)]
+    expect(all(x >= y for x, y in zip(down, down[1:])) and min(down) == S_ and down[-1] == S_, 'the shrink is critically damped: it never goes under 194 px and lands there')
+    expect(A + 1 <= max(up) <= A + 2 and up[-1] == A, f'the grow bounces subtly: 1 or 2 px past 264 ({max(up)}), then lands there')
+
+    def paused_page(status=3, lit=True):
+        m = NowMachine(); m.page(); m.widget('img_np_shadow'); m.widget('btn_play'); m.src(0); m.status = status; m.screen(lit); m.init()
+        return m
+    def geo(m, n): w = m.widgets[n]; return tuple(m.props.get((w, k)) for k in ('x', 'y', 'w', 'h'))
+    pad = mn.SHADOW_PAD * S_ // A; small = mn.ART_X + (A - S_) // 2
+    m = paused_page()
+    expect(geo(m, 'img_playcover') == (small, small, S_, S_) and geo(m, 'img_np_shadow') == (small - pad, small - pad, S_ + 2 * pad, S_ + 2 * pad),
+           f'opened while paused: the cover and its shadow start small, centred where the full cover is ({geo(m, "img_playcover")}, {geo(m, "img_np_shadow")})')
+    expect(m.timers == [(PSYMS['np_tick'], O['NP_TICK_MS'])], 'and without a spring (no frame timer)')
+    op = [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.widgets['img_np_shadow']]
+    expect(op[-1:] == [O['NP_SHADOW_DIM']] and O['NP_SHADOW_DIM'] < 100, f'and the shadow is much lighter ({op})')
+    m = paused_page(status=2)
+    expect(not any(c[0] in ('widget_move', 'widget_resize') and c[1] in (m.widgets['img_playcover'], m.widgets['img_np_shadow']) for c in m.calls), 'opened while playing: the asset\'s cover is left as it is')
+    clicks = [c for c in m.calls if c[0] == 'widget_on' and c[1] == m.widgets['btn_play'] and c[2] == O['EVT_CLICK']]
+    expect(len(clicks) == 1 and clicks[0][3] == PSYMS['np_on_play'], 'the play button gets one click handler (the status check)')
+
+    # a pause seen by the tick, page lit and in front: a spring of frames (time-based), landing on 212 px
+    m.clock = 1000; m.status = 3; m.calls = []; m.tick()
+    expect(('timer_add', PSYMS['np_art_frame'], O['NP_FRAME_MS']) in m.calls, 'a pause starts the spring\'s 16 ms frame timer')
+    seen = []
+    for t in (16, 48, 100, 200, 300, 399, 400):
+        m.clock = 1000 + t; r = m.call(PSYMS['np_art_frame'], count=400000); seen.append((t, geo(m, 'img_playcover')[2], r))
+    expect([s for _, s, _ in seen] == [size_model(A, S_, t) for t, _, _ in seen] and [r for *_, r in seen] == [O['RET_REPEAT']] * 6 + [0],
+           f'each frame sizes the cover by the time run, and the spring ends on its last ({seen})')
+    expect(geo(m, 'img_playcover') == (small, small, S_, S_), 'it lands centred, 212 px')
+    m.calls = []; r = m.call(PSYMS['np_art_frame'], count=100000)
+    expect(r == 0 and not any(c[0] == 'widget_resize' for c in m.calls), 'a late frame after the landing does nothing')
+
+    # play mid-shrink: the spring turns round from where the cover is, bounces past 264 and lands there
+    m = paused_page(status=2); m.clock = 5000; m.status = 3; m.tick()
+    m.clock = 5150; m.call(PSYMS['np_art_frame'], count=400000); mid = geo(m, 'img_playcover')[2]
+    m.status = 2; m.calls = []; m.tick()
+    expect(not any(c[0] == 'timer_add' and c[1] == PSYMS['np_art_frame'] for c in m.calls), 'a turn mid-spring keeps the running frame timer')
+    sizes = []
+    for t in range(16, 641, 16):
+        m.clock = 5150 + t; m.call(PSYMS['np_art_frame'], count=400000); sizes.append(geo(m, 'img_playcover')[2])
+    m.clock = 5150 + 640; m.call(PSYMS['np_art_frame'], count=400000)
+    expect(S_ < mid < A and sizes[0] == size_model(mid, A, 16) and max(sizes) > A and geo(m, 'img_playcover') == (mn.ART_X, mn.ART_Y, A, A)
+           and m.props.get((m.widgets['img_np_shadow'], 'opacity')) == 255,
+           f'from {mid} px it grows past 264 ({max(sizes)}) and lands on the asset\'s rectangle')
+
+    # not seen (screen dark, another page in front, the lyrics or info page shown): the cover is just put at its size
+    m = paused_page(status=2); m.screen(False); m.status = 3; m.calls = []; m.tick()
+    expect(not any(c[0] == 'timer_add' for c in m.calls) and geo(m, 'img_playcover')[2] == S_, 'a pause with the screen dark: small at once, no spring')
+    m = paused_page(status=2); sv = m.widget('slide_view'); m.props[(sv, 'value')] = 1
+    m.init(); m.status = 3; m.calls = []; m.tick()
+    expect(not any(c[0] == 'timer_add' for c in m.calls) and geo(m, 'img_playcover')[2] == S_, 'a pause while the lyrics page shows: small at once, no spring')
+    m = paused_page(status=2); m.timer_fail = True; m.status = 3; m.tick()
+    expect(geo(m, 'img_playcover')[2] == S_, 'no frame timer: the cover is put small at once')
+
+    # a spring that stops being seen mid-flight lands at once: the next frame (screen off, lyrics page, page in the background) or the tick (screen off)
+    def mid_spring():
+        m = paused_page(status=2); sv = m.widget('slide_view'); m.init(); m.clock = 7000; m.status = 3; m.tick()
+        m.clock = 7100; m.call(PSYMS['np_art_frame'], count=400000)
+        return m, sv
+    for how in ('screen', 'lyrics', 'background'):
+        m, sv = mid_spring(); before = geo(m, 'img_playcover')[2]
+        if how == 'screen': m.screen(False)
+        elif how == 'lyrics': m.props[(sv, 'value')] = 1
+        else: m.fire(O['EVT_WINDOW_TO_BG'])
+        m.clock = 7150; r = m.call(PSYMS['np_art_frame'], count=400000)
+        m.clock = 7200; m.calls = []; r2 = m.call(PSYMS['np_art_frame'], count=100000)
+        expect(S_ < before < A and r == 0 and geo(m, 'img_playcover') == (small, small, S_, S_) and r2 == 0 and not m.calls,
+               f'{how} mid-spring: the next frame lands it small and ends the timer, later frames do nothing ({before})')
+    m, sv = mid_spring(); m.screen(False); m.calls = []; m.tick()
+    expect(('timer_remove', 0x777) in m.calls and geo(m, 'img_playcover')[2] == S_, 'the tick with the screen off removes the frame timer and lands the cover')
+    expect([mn.shadow_opacity(s) for s in (S_ - 5, S_, 229, A, A + 2)] == [O['NP_SHADOW_DIM']] * 2 + [O['NP_SHADOW_DIM'] + (255 - O['NP_SHADOW_DIM']) * 35 // 70, 255, 255]
+           and mn.SHADOW_DIM == O['NP_SHADOW_DIM'], 'the shadow opacity model (preview) is the payload\'s formula and constant')
+
+    # the play button: stock's handler runs after ours, so the status is watched every 50 ms (at most 10 times) and the cover follows its change
+    m = paused_page(status=2); m.clock = 9000; m.calls = []
+    m.call(PSYMS['np_on_play'], a0=0, a1=0, count=100000)
+    expect(('timer_add', PSYMS['np_play_check'], O['NP_PLAY_MS']) in m.calls, 'a tap starts the 50 ms status check')
+    r1 = m.call(PSYMS['np_play_check'], count=100000)
+    m.status = 3; m.calls = []; r2 = m.call(PSYMS['np_play_check'], count=400000)
+    expect(r1 == O['RET_REPEAT'] and r2 == 0 and ('timer_add', PSYMS['np_art_frame'], O['NP_FRAME_MS']) in m.calls, 'unchanged it checks again; paused, the spring starts and the check ends')
+    m = paused_page(status=2); m.call(PSYMS['np_on_play'], a0=0, a1=0, count=100000)
+    rs = [m.call(PSYMS['np_play_check'], count=100000) for _ in range(O['NP_PLAY_CHECKS'])]
+    expect(rs == [O['RET_REPEAT']] * (O['NP_PLAY_CHECKS'] - 1) + [0] and geo(m, 'img_playcover')[2] is None, 'no change in ten checks: it stops, the cover stays (the tick watches on)')
+
+    # the corners of the small cover: radius 10 (12 scaled), the window's colour under the gradient at the small cover's rows
+    m = paused_page(); ev = m.alloc(0x40); m.u.mem_write(ev, bytes(0x40)); m.setword(ev + O['EVENT_PAINT_CANVAS'], 0x7000a000)
+    m.fills = []; m.call(PSYMS['np_on_art_paint'], a0=0, a1=ev, count=2000000)
+    R = (mn.ART_R * S_ + A // 2) // A; cv = mn.corner_alpha(R); t = mn.NP_NEUTRAL; want = {}
+    for k in range(4):
+        for y in range(R):
+            ly = S_ - 1 - y if k & 2 else y
+            keep = 255 - mn.tint_alpha(small + ly)
+            shade = (t[0] * keep // 255) | (t[1] * keep // 255) << 8 | (t[2] * keep // 255) << 16
+            for x in range(R):
+                if cv[y * R + x]: want[(S_ - 1 - x if k & 1 else x, ly)] = shade | cv[y * R + x] << 24
+    got = {(f[1], f[2]): f[0] for f in m.fills if (f[3], f[4]) == (1, 1)}
+    expect(R == 9 and got == want and len(m.fills) == len(want), f'the small cover\'s corners: radius {R}, at its own edges and rows ({len(m.fills)} pixels)')
+
+    # the page goes mid-spring: both timers go with it
+    m = paused_page(status=2); m.status = 3; m.tick(); m.call(PSYMS['np_on_play'], a0=0, a1=0, count=100000); m.calls = []
+    m.call(PSYMS['np_on_destroy'], a0=WIN, a1=0)
+    expect(sum(c[0] == 'timer_remove' for c in m.calls) == 3, 'destroy removes the page timer, the frame timer and the status check')
+    m.calls = []; r = m.call(PSYMS['np_art_frame'], count=100000); r2 = m.call(PSYMS['np_play_check'], count=100000)
+    expect(r == 0 and r2 == 0 and not m.calls, 'a late frame or check after the page is gone does nothing')
+
     # ---- the info page's edge fades: 16 rows at the top (content scrolled) and the bottom (more under the view), painted in the window's tone under the scrim and the gradient, alpha ramping to the edge
     def fades(m):
         e = m.alloc(0x40); m.u.mem_write(e, bytes(0x40)); m.setword(e + O['EVENT_PAINT_CANVAS'], 0x7000a000)
@@ -1201,7 +1328,8 @@ def run(ctx):
     sh = f('img_np_shadow'); page1 = f('view')
     kids = [c.name for c in page1.children]
     expect(sh in page1.children and kids.index('img_np_shadow') == kids.index('img_playcover') + 1 and kids.index('img_np_shadow') < kids.index('scrlabel_title')
-           and sh.get('sensitive') == 'false' and sh.get('image') == 'np_shadow', f'the shadow follows the cover on page 1 (slides with it), before the title, insensitive ({kids})')
+           and sh.get('sensitive') == 'false' and sh.get('image') == 'np_shadow' and sh.get('draw_type') == 'scale',
+           f'the shadow follows the cover on page 1 (slides with it), before the title, insensitive, drawn scaled to its box (it shrinks with the paused cover) ({kids})')
     expect((sh.x, sh.y, sh.w, sh.h) == (mn.ART_X - mn.SHADOW_PAD, mn.ART_Y - mn.SHADOW_PAD, mn.SHADOW_SIZE, mn.SHADOW_SIZE) and sh.x >= 0 and sh.x + sh.w <= 320
            and sh.y >= 0 and sh.y + sh.h <= mn.SLIDE_H, f'the shadow image lies inside the 320 x {mn.SLIDE_H} page ({(sh.x, sh.y, sh.w, sh.h)}): nothing clipped at the edges')
     # images

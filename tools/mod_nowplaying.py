@@ -197,6 +197,14 @@ def loc_wrap(s, room, measure):
 M = 28                           # side margin: the cover, the text column and the bar share it
 ART, ART_R = 264, 12             # cover = what demo writes (mod_lockscreen.COVER_SIZE, 1:1), corner radius
 ART_X, ART_Y = M, 28
+ART_SMALL = 194                  # paused: the payload springs the cover (and its shadow) to this side, centred (patch/nowplaying.c np_art_place)
+SHADOW_DIM = 64                  # the shadow's opacity at ART_SMALL; full (255) from ART on, linear between
+
+
+def shadow_opacity(side):
+    """patch/nowplaying.c np_art_place: img_np_shadow's opacity for a cover of `side` px."""
+    k = min(max(side - ART_SMALL, 0), ART - ART_SMALL)
+    return SHADOW_DIM + (255 - SHADOW_DIM) * k // (ART - ART_SMALL)
 # The soft shadow under the cover (np_shadow.png, an asset-only image, insensitive, a child of page 1 so it slides with the art): the
 # art's rectangle shifted down SHADOW_DY, blurred by a Gaussian of SHADOW_SIGMA px, black, SHADOW_ALPHA (55 %) under the art, which makes the visible maximum (just under the bottom edge) 38 %, laid over the cover
 # with a hole of the art's rounded rectangle (so the payload's corner fills are shadowed too). SHADOW_PAD px on every side hold the
@@ -262,12 +270,13 @@ def tone(r, g, b):
     vt = NP_V_MIN + v * (NP_V_MAX - NP_V_MIN) // 255
     return tuple(vt - vt * NP_SAT_NUM * (v - c) // (NP_SAT_DEN * v) for c in (r, g, b))
 
-def corner_alpha():
-    """patch/nowplaying.c np_corner_init: the top left corner of the art, ART_R x ART_R pixels, the coverage (0..255) of
-    the area outside a quarter circle of radius ART_R centred on the square's inner corner, 8 x 8 samples a pixel."""
-    c, out = 16 * ART_R, []
-    for y in range(ART_R):
-        for x in range(ART_R):
+def corner_alpha(r=ART_R):
+    """patch/nowplaying.c np_corner_init: the top left corner of the art, r x r pixels (ART_R; less while the paused cover is
+    smaller), the coverage (0..255) of the area outside a quarter circle of radius r centred on the square's inner corner,
+    8 x 8 samples a pixel."""
+    c, out = 16 * r, []
+    for y in range(r):
+        for x in range(r):
             n = sum((2 * (x * 8 + i) + 1 - c) ** 2 + (2 * (y * 8 + j) + 1 - c) ** 2 > c * c for i in range(8) for j in range(8))
             out.append((n * 255 + 32) // 64)
     return out
@@ -468,9 +477,10 @@ def apply_ui(root):
     move(title, M, TITLE_Y, TEXT_W, TITLE_H); text_style(title, TITLE_PX, TITLE_RGB, 'left')
     move(artist, M, ARTIST_Y, TEXT_W, ARTIST_H); text_style(artist, META_PX, GREY, 'left')
     page1.children += [title, artist]
-    # the cover's shadow: right over the cover (its hole is the art), under the title and artist; a child of page 1, so it slides away with the art
+    # the cover's shadow: right over the cover (its hole is the art), under the title and artist; a child of page 1, so it slides away with the art.
+    # Drawn scaled to its box (1:1 here): the payload shrinks it with the cover while paused (patch/nowplaying.c np_art_place)
     shadow = awtk_ui.Widget('image', ART_X - SHADOW_PAD, ART_Y - SHADOW_PAD, SHADOW_SIZE, SHADOW_SIZE, [('name', 'img_np_shadow'), ('image', 'np_shadow'),
-                            ('draw_type', 'default'), ('clickable', 'false'), ('sensitive', 'false')])
+                            ('draw_type', 'scale'), ('clickable', 'false'), ('sensitive', 'false')])
     assert cover in page1.children, 'the cover is not on page 1'
     page1.children.insert(page1.children.index(cover) + 1, shadow)
 

@@ -41,6 +41,25 @@ has 12 px corners. Existing widget names are kept.
   While a server track plays it is the server's favourite ([subsonic](subsonic.md)); stock's
   `manage_myfav` never writes the stream record.
 
+## Paused cover
+
+While paused (`mclGetPlayStatus() == 3`) the cover is 194 px (0.73, Apple Music's ratio), centred on the
+full cover; `img_np_shadow` (drawn `scale`) and the corner radius (12 → 9 px) scale with it, and the
+shadow fades with the size to opacity 64. Playing, stopped
+and every other status keep 264 px.
+
+- Motion: `np_art_size` steps a spring by elapsed time on a 16 ms frame timer: critically damped for 400 ms
+  to the small size, underdamped (zeta 0.75) for 640 ms back, 2 px past 264 before it lands. A change
+  mid-spring turns it round from the current size.
+- The cover springs only while the art page shows, lit and in front. Otherwise (opened while paused,
+  screen dark, another page or the lyrics or info page in front, no timer) it is put at its size at once;
+  a running spring that stops being seen lands on its next frame or tick.
+- Triggers: the page tick, and a tap on `btn_play`. Our click handler runs before stock's, so it checks
+  the status every 50 ms, up to 10 times, until it changes. Keys and the end of the queue wait for the tick.
+- Each frame invalidates the shadow's old and new rectangles and moves and resizes the two widgets; stock
+  `scale_auto` draws the art at the new size. A server or book cover of ours is drawn into the same box.
+- Radio Now Playing, the Pod theme, Vinyl and the big cover page are unchanged.
+
 ## Track position
 
 Settings > Now Playing > Track Position (`nowplaying-position`, `1` on, default off; read when the page starts and
