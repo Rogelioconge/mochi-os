@@ -102,6 +102,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [Wi-Fi Transfer](modules/wifi-transfer.md) | Web server, api.cgi, thttpd limits |
 | [Update Library](modules/libupdate.md) | Own page, scan time record, scan-finish hook |
 | [Bluetooth](modules/bluetooth.md) | Own page, codec picker, devices |
+| [USB DAC](modules/uac2.md) | XRUN recovery in `soc_aic.ko` (`start_threshold` prefill) |
 
 ### Settings and system
 

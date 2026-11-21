@@ -127,6 +127,20 @@ to stock.
    stock symbol, grep `tools/pod.py` for it.
 3. Run `make format` after editing C.
 
+## Rootfs binary or kernel module patch (`tools/mod_<x>.py`)
+
+Precedent: `tools/mod_bluealsa.py` (one byte in `/usr/bin/bluealsa`) and `tools/mod_uac2.py`
+(relocated `.text` in `/module_driver/soc_aic.ko`, [uac2](modules/uac2.md)).
+
+1. `tools/mod_<x>.py`: pin the stock input by SHA-256 and exact offsets/bytes/ELF fields, raise
+   `ValueError` on any mismatch, preserve stock mode and mtime with `write_keep_mode`, and leave
+   the kernel `xImage` untouched.
+2. `tools/build.py`: append `('mod_<x>', [])` to `STEPS` (if it adds files, implement `added_rels`).
+3. `test/pod/<x>.py`: verify stock pin, determinism, mode/mtime, refusals on bad input, ELF/disasm
+   checks, and Unicorn execution of any injected machine code.
+4. Docs: `docs/modules/<x>.md` with rows in [architecture](architecture.md) and
+   [pipeline](modules/pipeline.md). Run `make test TEST=<x>,docs`.
+
 ## Collateral to expect
 
 - Adding a top-level icon PNG prefix: add the prefix to `NEW_IMAGES` in `test/pod/navbars.py`.
