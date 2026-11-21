@@ -161,8 +161,8 @@ def hook_tests(ctx):
            and all(c[2] == 0 for c in m.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive')),
            'every tile not listed is hidden, ours too (a listed hidden id adds nothing)')
     lookups = {c[1] for c in m.calls if c[0] == 'widget_lookup'}
-    expect(lookups - {'view_bar_left'} == set(IMG + LAB) and not any(c[0] in ('widget_destroy_children', 'widget_set_prop_str', 'widget_set_text_utf8', 'widget_set_tr_text') for c in m.calls),
-           'only the thirty tiles and captions are looked up; nothing is renamed, destroyed or re-labelled')
+    expect(lookups - {'view_bar_left', 'pod_sleep'} == set(IMG + LAB) and not any(c[0] in ('widget_destroy_children', 'widget_set_prop_str', 'widget_set_text_utf8', 'widget_set_tr_text') for c in m.calls),
+           'only the thirty tiles and captions (and the bar refresh: view_bar_left, pod_sleep) are looked up; nothing is renamed, destroyed or re-labelled')
 
     # -- 3b. the bar copy at the dialog's init: the Battery Percentage and the EQ mark are there in the first frame, not one timer tick later ---------
     bp, lo = (cdefs.defines(os.path.join(ROOT, 'patch', f), strings=True) for f in ('battery.h', 'lineout.h'))
@@ -768,6 +768,20 @@ def own_tests(ctx):
     m = PT([H]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_sleeptimer')],
            f'Sleep: after the modal call our Sleep Timer page opens (open_page(POD_SLEEPTIMER_PAGE)), never the stock Power page ({pages(calls)})')
+    # Sleep Timer tile lit art: drop_sleepopen while a timer runs (sleepflag != 0 and sleep_time > 0), drop_sleep otherwise; still opens the page on tap
+    expect(asset_image('drop_sleepopen').size == (56, 56) and 'drop_sleepopen' in palette.ACCENT_DISC and 'drop_sleep' not in palette.ACCENT_DISC,
+           'drop_sleepopen.png is a 56 x 56 disc image and takes the accent disc like the other lit tiles')
+    a = asset_image('drop_sleepopen').convert('RGBA'); b = asset_image('drop_sleep').convert('RGBA')
+    expect(a.getpixel((28, 4))[:3] == (255, 255, 255) and a.getpixel((28, 4))[3] == 255 and b.getpixel((28, 4))[:3] == (0x2C, 0x2C, 0x2E) and b.getpixel((28, 4))[3] == 255,
+           'drop_sleepopen: flat white disc; drop_sleep: flat #2C2C2E disc')
+    for flag, secs, want_pic in ((0, 0, 'drop_sleep'), (1, 0, 'drop_sleep'), (0, 900, 'drop_sleep'), (1, 900, 'drop_sleepopen')):
+        m = PT([H]); m.u.mem_write(pod.DATA['SLEEP_FLAG'][0], bytes([flag])); m.setword(pod.DATA['SLEEP_TIME'][0], secs)
+        m.swipe(b'8\n')
+        art = [c[2] for c in m.calls if c[0] == 'image_base_set_image' and c[1] == m.widgets['pod_tile_sleep']]
+        expect(art == [want_pic], f'Sleep Timer ({flag}, {secs}): tile image is {want_pic} ({art})')
+    ret, calls = m.modal()   # (still an action: tapping the lit tile opens the Sleep Timer page)
+    m = PT([H]); m.u.mem_write(pod.DATA['SLEEP_FLAG'][0], b'\1'); m.setword(pod.DATA['SLEEP_TIME'][0], 900); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()
+    expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog'), ('window_open', 'm1plus_sleeptimer')], 'tapping the lit Sleep Timer tile still opens the Sleep Timer page')
     ret, calls = m.modal()
     expect(ret == QUIT and pages(calls) == [('navigator_to', 'dialog/dropdown_dialog')], 'the action runs once: the next modal call (a stock tile) opens nothing of ours')
     m = PT([H, SL, P_]); m.swipe(b'8\n'); m.tap('pod_tile_sleep'); ret, calls = m.modal()

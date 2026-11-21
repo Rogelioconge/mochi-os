@@ -52,6 +52,10 @@ Settings and Equalizer: the window in front is left alone, one in the stack is r
 (sub-pages closed first), else it is opened. The page has the usual top-right Now Playing button
 that restacks the player over it, so the stack holds one window.
 
+**Indicators.** While a timer is running (`sleepflag != 0` and `sleep_time > 0`), the status bar
+and the pull-down's bar copy show a white moon icon (`pod_sleep`, [lineout](lineout.md#sleep-timer-icon))
+and the Control Center's Sleep Timer tile lights up (`drop_sleepopen`, [pulldown](pulldown.md#tiles-of-ours)).
+
 ## Stock state and handlers
 
 | word | symbol | meaning |

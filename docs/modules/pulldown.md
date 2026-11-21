@@ -81,7 +81,7 @@ dispatcher, the pointer binds and the tile visitor's click bind.
 - The stock init runs first and its result is returned. Then the eight tile images and captions are
   looked up; **if any lookup fails nothing changes**.
 - Without the kill switch, after the tiles: `bp_pulldown` fills the bar copy's Battery Percentage label and
-  `lo_bar_refresh` sets its EQ mark (stock's face call has by then set `img_digital`), so both are in the
+  `lo_bar_refresh` sets its EQ mark and sleep timer icon (stock's face call has by then set `img_digital`), so all are in the
   first frame instead of one timer tick later.
 - The file is read. Shown tile k takes the place of stock tile k (positions read from the widgets)
   and its caption keeps its own offset; the other tiles and captions get `visible=false` **and**
@@ -143,7 +143,7 @@ Eight tiles can take any of the eight slots (hidden by default): six are actions
 
 | Id | Tile | Art (`mod_icons.PD_OWN`) | Action |
 |---|---|---|---|
-| `8` | Sleep Timer | `drop_sleep` (Lucide `moon`) | our Sleep Timer page ([sleeptimer](sleeptimer.md)) via `pd_open_own`; a page behind the player is restacked, one in front is left alone |
+| `8` | Sleep Timer | `drop_sleep` / `drop_sleepopen` (Lucide `moon`) | our Sleep Timer page ([sleeptimer](sleeptimer.md)) via `pd_open_own`; lit (`drop_sleepopen`, in `ACCENT_DISC`) while a timer is running (`sleepflag != 0` and `sleep_time > 0`); a page behind the player is restacked, one in front is left alone |
 | `9` | Settings | `drop_settings` (`layout-grid`) | our Settings root (`pod_open_settings`) |
 | `a` | Equalizer | `drop_equalizer` (`sliders-vertical`) | our Equalizer page (`pod_open_peq`) |
 | `b` | Power Off | `drop_power` (`power`) | the power key's long-press confirm, then `poweroff_page` ([Power Off](#power-off)) |
@@ -162,8 +162,9 @@ caption box in ru; both are accepted. The Screenshot row label is too long in ja
   widget is created at run time. The hook looks up all 28 widgets (any missing: nothing changes),
   moves a shown tile with its caption, binds a tap and makes it visible. Stock's tile visitor knows
   tiles by name and ignores ours.
-- Art is the flat disc, off look only for the six actions: an action has no on state because the
-  dialog closes on the tap.
+- Art is the flat disc, off look only for the five plain actions; Sleep Timer switches between
+  `drop_sleep` and `drop_sleepopen` (`ACCENT_DISC`) when the dialog opens (`pd_sleep_art`), and
+  remains an action (tapping closes the dialog and opens the Sleep Timer page).
 - **The page** has sixteen rows (`pod_row0..15`) with glyphs from `POD_ROWS`.
 - **Tap** (`pd_on_tile`, `pd_open_dialog`, payload hook 22). Stock's tiles never open a page from
   their click handler. They check three words (`DROPDOWN_BUSY`, `POWER_USBSTATE`,

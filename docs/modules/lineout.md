@@ -1,4 +1,4 @@
-# The Line Out pill, the EQ mark and the sync icon
+# The Line Out pill, the EQ mark, the sync icon and the sleep icon
 
 **Sources:** `patch/lineout.c`, `patch/lineout.h`, `tools/statusbar.py`, `LINEOUT_PINS` in `tools/pod_pins.py`; hook 20 in [payload](payload.md).
 **Behaviour.** While Line Out is on (stock's byte `0xa05aa7`), the status bar shows an amber pill with a black "LO" in place of stock's white "LO" text, and the same in the
@@ -50,4 +50,17 @@ The widget is added by `tools/statusbar.py` `apply` to both copies (`test/pod/as
 end (ink x 35..47), so the slot left of the box lies over the clock text. Shown, the icon moves Bluetooth's glyph 22 px left: with Bluetooth and Wi-Fi lit the ink starts clear of the 12 h and 24 h clock (`test/pod/lineout.py`); with the Battery Percentage at 4 characters and the Screenshot camera counting down as well it would not (rare, accepted).
 
 **Priority.** The worker runs at nice 10, see [cover cache](covercache.md).
+
+## Sleep Timer icon
+
+**Behaviour.** While a [Sleep Timer](sleeptimer.md) is running (stock's `sleepflag` non-zero and `sleep_time > 0`, whether set on our Sleep Timer page or stock's Power page), the status bar shows a static white solid crescent (our `assets/icons/custom/crescent.svg`, 16 x 16 with no pad; the Lucide outline moon read small beside Bluetooth and Wi-Fi), and the pull-down's bar copy shows it too. Neutral white like the other status glyphs (not Accent-tinted; Light Mode flips it with them). Hidden otherwise and with `/mnt/mmc/m1plus-off`. No setting.
+
+**Implementation.** No new hook: `lo_set_text` (hook 20, both bars' 1 s timers) calls `lo_sleep`, which looks up `pod_sleep` in the bar (`widget_lookup(bar, "pod_sleep", 1)`) and sets it visible and sensitive together only on a change (`widget_get_visible` differs), so a steady state costs no relayout. `lo_bar_refresh` also calls `lo_sleep` at the pull-down's init so its bar copy shows the moon on the first frame (not with the kill switch). A bar without `pod_sleep` (an older asset) is left as it is.
+The widget is added by `tools/statusbar.py` `apply` to both bar copies (`test/pod/assets.py` compares them): an `image` (`pod_bar_sleep`, 16 px wide, `draw_type center`, hidden and insensitive) in `view_bar_right` right after `pod_sync`. Image `pod_bar_sleep` (`tools/mod_icons.py` `SLEEP_BAR`, committed PNG).
+
+**Placement.** Right group, beside `pod_sync`, between the Bluetooth glyph and Wi-Fi (the layouter skips it while hidden, so nothing moves otherwise). Not left of Bluetooth: stock's 47 px `img_btclass` box also holds the codec badges (`bar_ldac`, `bar_aac`, `bar_sbc`, ink up to 38 px), so the slot left of it lies over the clock.
+
+**Room.** The moon yields to every other mark: `lo_sleep_fits` shows it only if the right group's visible ink, the moon included, spans at most `SLEEP_ROOM` (95 px: the group's right end at x 284 less the widest 12 h clock ink end at x 186 and 3 px). Each visible peer (`pod_sync`, `img_synclink`, `img_wifi`, `pod_pct` / `pod_pct_dd`, `pod_shot`) counts its box and a 4 px gap; the Bluetooth box counts only its image's ink (`widget_get_prop_str(bt, "image")`: glyph 11, AAC 16, SBC 28, LDAC 38 px; an unknown image its whole box). So with the AAC badge, Wi-Fi and `100%` the moon stays hidden, and with `99%` it shows. The lookups run only while a timer is running. Stock sets the Bluetooth image and `patch/battery.c` the percentage on the same tick, possibly after this call, so the moon follows a change there one tick late. Stock's own marks can still overrun the clock without the moon (for example LDAC with `100%`).
+
+`tools/preview/preview.py` writes `sleepbar.png` (off, on, on with EQ and Line Out, the pull-down's bar).
 

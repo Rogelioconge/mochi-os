@@ -238,7 +238,7 @@ def edit(root, ttf, texts, report):
     report.append(f'tiles {changed}')
     add_own(root)
     add_cards(root)
-    after = [(w.type, w.name, w.x, w.y, w.w, w.h) for w in root.walk() if w.name not in (statusbar.LO_WIDGET, statusbar.SYNC_WIDGET, statusbar.EQ_WIDGET) and not w.name.startswith(('pod_tile_', 'pod_cap_')) and w.name not in NEW]   # (the Line Out pill, the sync icon and the EQ mark statusbar.apply adds are the new widgets)
+    after = [(w.type, w.name, w.x, w.y, w.w, w.h) for w in root.walk() if w.name not in (statusbar.LO_WIDGET, statusbar.SYNC_WIDGET, statusbar.SLEEP_WIDGET, statusbar.EQ_WIDGET) and not w.name.startswith(('pod_tile_', 'pod_cap_')) and w.name not in NEW]   # (the Line Out pill, the sync and sleep timer icons and the EQ mark statusbar.apply adds are the new widgets)
     bar_names = {w.name for w in sysbar.walk()}
     moved = [a for a, b in zip(shape, after) if a != b and a[1] not in bar_names and a[1] not in want and a[1] not in bright]   # the bar's own widgets, the eight tiles and their captions (checked below)
     now = {w.name: (w.x, w.y, w.w, w.h) for w in root.walk()}

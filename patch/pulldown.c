@@ -140,6 +140,11 @@ static void pd_switch_art(unsigned id, void *img) {
     widget_invalidate_force(img, (void *)0);
 }
 
+static void pd_sleep_art(void *img) {
+    int on = *(volatile unsigned char *)SLEEP_FLAG != 0 && *(volatile int *)SLEEP_TIME > 0;
+    image_base_set_image(img, on ? "drop_sleepopen" : "drop_sleep");
+}
+
 static void pd_switch(unsigned id, void *img) {
     if (id == PD_AIRPLAY)
         airplay_switch();
@@ -511,7 +516,10 @@ static void pd_start(void *dlg) {
             pd_tile[id - PD_STOCK].img = img[id];
             pd_tile[id - PD_STOCK].id = id;
             if (widget_on(img[id], EVT_CLICK, pd_on_tile, &pd_tile[id - PD_STOCK])) {
-                if (pd_is_switch(id)) pd_switch_art(id, img[id]);
+                if (pd_is_switch(id))
+                    pd_switch_art(id, img[id]);
+                else if (id == PD_SLEEP)
+                    pd_sleep_art(img[id]);
                 m1_show(img[id], 1);
                 if (labels) m1_show(lab[id], 1);
             } else

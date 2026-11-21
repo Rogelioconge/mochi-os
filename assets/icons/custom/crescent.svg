@@ -1,0 +1,4 @@
+<!-- Own drawing: a solid crescent, a disc (centre 12 12, r 10.56) less an offset disc (centre 18.547 7.090, r 8.659). The status bar's Sleep Timer icon (tools/mod_icons.py SLEEP_BAR). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <path d="M22.133 14.971A10.56 10.56 0 1 1 11.985 1.44A8.659 8.659 0 0 0 22.133 14.971Z"/>
+</svg>

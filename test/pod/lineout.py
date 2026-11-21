@@ -54,8 +54,8 @@ def run(ctx):
     lab, pill = m.label, m.pill
     expect(m.names()[0] == 'widget_set_text_utf8' and log(m, 'widget_set_text_utf8') == [(lab, 'LO')], 'stock\'s widget_set_text_utf8 runs first, with the text unchanged')
     expect(log(m, 'widget_set_visible') == [(lab, 0), (pill, 1)] and log(m, 'widget_set_sensitive') == [(lab, 0), (pill, 1)], 'LO: label_volume hidden and insensitive, the pill visible and sensitive')
-    expect(sorted(c[1] for c in m.calls if c[0] == 'widget_lookup') == sorted([PILL, DEFS['SYNC_IND'], DEFS['EQ_IND']]), 'the pill, the sync icon and the EQ mark are looked up by name (once each)')
-    expect(m.icount < 900, f'cost: {m.icount} instructions')
+    expect(sorted(c[1] for c in m.calls if c[0] == 'widget_lookup') == sorted([PILL, DEFS['SYNC_IND'], DEFS['SLEEP_IND'], DEFS['EQ_IND']]), 'the pill, the sync icon, the sleep icon and the EQ mark are looked up by name (once each)')
+    expect(m.icount < 1000, f'cost: {m.icount} instructions')
 
     # 3. A number, or anything else: stock's label, the pill hidden.
     for text in ('87', '100', '0', 'L', 'LOL', 'lo', 'Lo', ' LO', 'LO ', ''):
@@ -95,7 +95,7 @@ def run(ctx):
                and kids.index(PILL) == kids.index('label_volume') + 1 and sum(c.name == PILL for c in bar.walk()) == 1 and statusbar.LO_WIDGET == PILL,
                f'{what}: {PILL} is one hidden, insensitive image right after label_volume ({kids})')
     stock_bar = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
-    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_pct', 'pod_sync', 'pod_eq'}, 'no stock widget is renamed or removed')
+    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_pct', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed')
 
     # 7. The image: amber, not the Accent Orange, a full pill, and no tint or flip touches it.
     png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.LO_IMAGE + '.png')
@@ -198,7 +198,7 @@ def run(ctx):
     expect(not eq_log(m), 'Equalizer off: the mark stays hidden, nothing is set')
     m = eq_machine(1); tick(m, '50')
     expect(eq_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)], 'Equalizer on: the mark is visible and sensitive')
-    expect(m.icount < 1100, f'cost with the mark: {m.icount} instructions')
+    expect(m.icount < 1200, f'cost with the mark: {m.icount} instructions')
     m.calls = []; tick(m, 'LO')
     expect(not eq_log(m) and log(m, 'widget_set_visible')[-1] == (m.pill, 1), 'a steady switch sets nothing again, and the Line Out pill works beside it')
     m.u.mem_write(pod.DATA['EQ_FLAG'][0], b'\0'); m.calls = []; tick(m, '50')
@@ -224,3 +224,90 @@ def run(ctx):
         expect(e.w >= StbText(font, statusbar.EQ_PX).layout('EQ')[1], f'{what}: the box holds "EQ" at 16 px ({e.w})')
         end = statusbar.EDGE + sum(c.w + statusbar.GAP for c in left.children if c.name not in (PILL, DEFS['EQ_DIGITAL'])) - statusbar.GAP
         expect(end + 3 <= clock_start, f'{what}: play state, volume and the mark end at x {end}, 3 px clear of the clock\'s ink ({clock_start})')
+
+    # 10. The Sleep Timer icon (hook 20's fourth job): pod_sleep in view_bar_right right after pod_sync, visible and sensitive iff sleepflag != 0 and sleep_time > 0 and the kill switch is absent; set only on a change.
+    SLEEP = DEFS['SLEEP_IND']
+
+    def sleep_machine(flag, secs):
+        m = machine(); m.sleep = m.widget(SLEEP); m.props[(m.sleep, 'visible')] = 0   # (hidden in the asset)
+        m.u.mem_write(pod.DATA['SLEEP_FLAG'][0], bytes([flag]))
+        m.setword(pod.DATA['SLEEP_TIME'][0], secs)
+        return m
+
+    def sleep_log(m): return [(c[0], c[2]) for c in m.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive') and c[1] == m.sleep]
+
+    for flag, secs in ((0, 0), (1, 0), (0, 900)):
+        m = sleep_machine(flag, secs); tick(m, '50')
+        expect(not sleep_log(m), f'Sleep Timer ({flag}, {secs}): stays hidden, nothing is set (no relayout each second)')
+    m = sleep_machine(1, 900); tick(m, '50')
+    expect(sleep_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)], 'Sleep Timer running: pod_sleep is visible and sensitive')
+    m.calls = []; tick(m, 'LO')
+    expect(not sleep_log(m) and log(m, 'widget_set_visible')[-1] == (m.pill, 1), 'a steady timer sets nothing again, and the Line Out pill still works beside it')
+    m.setword(pod.DATA['SLEEP_TIME'][0], 0); m.calls = []; tick(m, '50')
+    expect(sleep_log(m) == [('widget_set_visible', 0), ('widget_set_sensitive', 0)], 'time hits 0: hidden and insensitive')
+    m = sleep_machine(1, 900); tick(m, '50'); m.u.mem_write(pod.DATA['SLEEP_FLAG'][0], b'\0'); m.calls = []; tick(m, '50')
+    expect(sleep_log(m) == [('widget_set_visible', 0), ('widget_set_sensitive', 0)], 'switch cleared: hidden and insensitive')
+    m = sleep_machine(1, 900); m.present.add(KILL); tick(m, '50')
+    expect(not sleep_log(m), 'kill switch: hidden')
+    m = machine(); m.u.mem_write(pod.DATA['SLEEP_FLAG'][0], b'\1'); m.setword(pod.DATA['SLEEP_TIME'][0], 900); tick(m, '50')
+    expect(not [c for c in m.calls if c[0] == 'widget_set_visible' and c[1] not in (m.label, m.pill)], 'no sleep icon in the bar (an older asset): nothing else is touched')
+    # pull-down init refresh: lo_bar_refresh shows pod_sleep on the first frame
+    m = sleep_machine(1, 900); m.call(PSYMS['lo_bar_refresh'], a0=m.alloc(0x80), count=20000)
+    expect(sleep_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)], 'lo_bar_refresh sets pod_sleep on the pull-down\'s first frame')
+    # the assets: one hidden, insensitive 16 px image in view_bar_right right after pod_sync, in both bar copies
+    for what, bar in bars:
+        right = bar.find('view_bar_right'); kids = [c.name for c in right.children]; sl = bar.find(SLEEP)
+        expect(sl is not None and sl.type == 'image' and sl.get('visible') == 'false' and sl.get('sensitive') == 'false' and sl.get('image') == statusbar.SLEEP_IMAGE == 'pod_bar_sleep' and sl.w == 16
+               and kids.index(SLEEP) == kids.index(SYNC) + 1 and sum(c.name == SLEEP for c in bar.walk()) == 1 and statusbar.SLEEP_WIDGET == SLEEP,
+               f'{what}: {SLEEP} is one hidden, insensitive 16 px image right after {SYNC} in view_bar_right ({kids})')
+    png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.SLEEP_IMAGE + '.png')
+    expect(open(png, 'rb').read() == open(os.path.join(mod_icons.PNG, statusbar.SLEEP_IMAGE + '.png'), 'rb').read() and statusbar.SLEEP_IMAGE in mod_icons.pod_names(), 'pod_bar_sleep is added from the committed PNG')
+    im = Image.open(png).convert('RGBA'); px = im.load()
+    ink = [px[x, y] for x in range(im.width) for y in range(im.height) if px[x, y][3] > 0]
+    expect(im.size == (16, 16) and ink and all(c[:3] == (255, 255, 255) for c in ink) and im.getchannel('A').getbbox()[2] - im.getchannel('A').getbbox()[0] >= 15,
+           'a 16 x 16 white solid crescent (assets/icons/custom/crescent.svg) filling the canvas')
+    expect(statusbar.SLEEP_IMAGE not in palette.ACCENT_ALL and not statusbar.SLEEP_IMAGE.startswith(palette.ACCENT_GLYPH) and not statusbar.SLEEP_IMAGE.startswith(palette.WHOLE),
+           'the accent lists name no pod_bar_sleep: neutral white like the other status glyphs (Light Mode flips it with them)')
+    # room: the moon shows only if the right group's visible ink, the moon included, stays 3 px clear of the 12 h clock; it yields to every other mark (the review case: the AAC badge, Wi-Fi and "100%")
+    xx = os.path.join(rootfs, 'release/assets/default/raw/images/xx')
+    bbox = lambda f: Image.open(os.path.join(xx, f + '.png')).convert('RGBA').getchannel('A').getbbox()
+    bt_ink = {DEFS[f'SLEEP_BT_{k}']: DEFS[f'SLEEP_INK_{v}'] for k, v in (('GLYPH', 'GLYPH'), ('CON', 'GLYPH'), ('AAC', 'AAC'), ('SBC', 'SBC'), ('LDAC', 'LDAC'))}
+    expect(all(47 - bbox(f)[0] == ink and bbox(f)[2] == 47 for f, ink in bt_ink.items()), f'the Bluetooth ink widths match the images, each ending at the 47 px box\'s right edge ({bt_ink})')
+    peers = {DEFS[k] for k in ('SYNC_IND', 'SLEEP_SYNCLINK', 'SLEEP_WIFI', 'SLEEP_SHOT', 'SLEEP_PCT', 'SLEEP_PCT_DD')}
+    for what, bar in bars:
+        g, c = bar.find('view_bar_right'), bar.find('bar_dclock')
+        c_end = max(c.x + (c.w + StbText(font, int(c.get('style:normal:font_size'))).layout(t)[1]) // 2 for t in ('12:59', '12:59 PM', '10:59 AM', '12:59 AM'))
+        kids = [k.name for k in g.children]
+        expect(g.x + g.w - c_end - 3 == DEFS['SLEEP_ROOM'] and DEFS['SLEEP_GAP'] == statusbar.GAP and f's={statusbar.GAP}' in g.get('children_layout') and kids[0] == DEFS['SLEEP_BT']
+               and set(kids) - {DEFS['SLEEP_BT'], SLEEP} <= peers, f'{what}: SLEEP_ROOM is the group\'s end less the clock\'s ink end and 3 px, and every other child of the group is a counted peer ({kids})')
+    expect(DEFS['SLEEP_PCT'] == 'pod_pct' and DEFS['SLEEP_PCT_DD'] == 'pod_pct_dd' and DEFS['SLEEP_SHOT'] == 'pod_shot', 'the peer names are the battery percentage, its pull-down twin and the screenshot mark')
+    w_box = {k.name: k.w for k in group.children}
+    import itertools
+    pct_w = {'99%': StbText(font, statusbar.PCT_PX).layout('99%')[1], '100%': StbText(font, statusbar.PCT_PX).layout('100%')[1]}
+    wrong, shown_cases = [], 0
+    for bt, sync, wifi, pct, shot in itertools.product((None, 'bar_bt', 'bar_aac', 'bar_sbc', 'bar_ldac'), (0, 1), (0, 1), (None, '99%', '100%'), (0, 1)):
+        m = sleep_machine(1, 900)
+        m.setword(m.sleep + 8, statusbar.SLEEP_W)
+        for name, on, width in ((DEFS['SLEEP_BT'], bt is not None, 47), (SYNC, sync, 18), (DEFS['SLEEP_WIFI'], wifi, 24), (DEFS['SLEEP_PCT'], pct is not None, pct_w.get(pct, 0)), (DEFS['SLEEP_SHOT'], shot, 16)):
+            wd = m.widget(name); m.setword(wd + 8, width); m.props[(wd, 'visible')] = int(bool(on))
+        if bt: m.props[(m.widget(DEFS['SLEEP_BT']), 'image')] = m.cstr(bt)
+        if sync: build(m)
+        tick(m, '50'); shown = sleep_log(m) == [('widget_set_visible', 1), ('widget_set_sensitive', 1)]
+        # the geometry: right-aligned from the group's end, 4 px apart, in the group's order; the leftmost box's ink (Bluetooth: its image's) must start 3 px clear of the clock
+        order = [n for n in [c.name for c in group.children] if n == SLEEP or (n == DEFS['SLEEP_BT'] and bt) or (n == SYNC and sync) or (n == DEFS['SLEEP_WIFI'] and wifi) or (n == DEFS['SLEEP_PCT'] and pct) or (n == DEFS['SLEEP_SHOT'] and shot)]
+        widths = {**w_box, DEFS['SLEEP_PCT']: pct_w.get(pct, 0)}
+        start = group.x + group.w - sum(widths[n] for n in order) - 4 * (len(order) - 1)
+        ink = start + (47 - bt_ink[bt] if order[0] == DEFS['SLEEP_BT'] else 0)
+        if shown != (ink >= clock_end + 3): wrong.append((bt, sync, wifi, pct, shot, shown, ink))
+        shown_cases += shown
+    expect(not wrong, f'every combination of Bluetooth image, sync, Wi-Fi, battery percentage and screenshot mark: the moon shows exactly when the row\'s ink stays 3 px clear of the clock (wrong: {wrong[:4]})')
+    expect(0 < shown_cases < 120, f'the moon shows in some combinations and yields in others ({shown_cases} of 120 shown)')
+    # yielding: a percentage appearing beside AAC and Wi-Fi hides the moon on the next tick; its going away brings it back
+    m = sleep_machine(1, 900); m.setword(m.sleep + 8, statusbar.SLEEP_W)
+    for name, width in ((DEFS['SLEEP_BT'], 47), (DEFS['SLEEP_WIFI'], 24)): m.setword(m.widget(name) + 8, width)
+    m.props[(m.widget(DEFS['SLEEP_BT']), 'image')] = m.cstr('bar_aac'); pw = m.widget(DEFS['SLEEP_PCT']); m.setword(pw + 8, pct_w['100%']); m.props[(pw, 'visible')] = 0
+    tick(m, '50'); first = sleep_log(m); m.props[(pw, 'visible')] = 1; m.calls = []; tick(m, '50'); second = sleep_log(m); m.props[(pw, 'visible')] = 0; m.calls = []; tick(m, '50')
+    expect(first == [('widget_set_visible', 1), ('widget_set_sensitive', 1)] and second == [('widget_set_visible', 0), ('widget_set_sensitive', 0)] and sleep_log(m) == first,
+           'AAC + Wi-Fi: the moon shows; "100%" appears: it hides; the percentage goes: it shows again')
+    m = sleep_machine(1, 900); m.setword(m.sleep + 8, statusbar.SLEEP_W); m.calls = []; tick(m, '50')
+    expect(m.icount < 3000, f'cost with the timer running: {m.icount} instructions')

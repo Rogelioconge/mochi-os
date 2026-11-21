@@ -232,7 +232,7 @@ def vol_ink():
 
 
 BT_VOL_IMAGES = ['pod_ic_btvol_dn','pod_ic_btvol_dn_down', 'pod_ic_btvol_up', 'pod_ic_btvol_up_down']
-DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + VOLBAR_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'drop_transfer', 'drop_shot', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
+DAILY = DAILY + CARD_IMAGES + WIFI_IMAGES + BT_VOL_IMAGES + VOLBAR_IMAGES + ['drop_grabber', 'drop_sleep', 'drop_sleepopen', 'drop_settings', 'drop_equalizer', 'drop_power', 'drop_airplay', 'drop_airplayopen', 'drop_dlna', 'drop_dlnaopen', 'drop_transfer', 'drop_shot', 'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_mode'] + sorted(ES_ICONS) + sorted(HERO_ICONS)   # (pod_ic_sleep is not here: the Sleep Timer row is also a row of the Control Center page, so apply_pod_rows adds it; pod_ic_tape, pod_ic_vinyl, pod_ic_vu: Now Playing's More sheet's Cassette Mode, Vinyl Mode and VU Meter Mode rows, tools/mod_lists.py: no row page uses them)
 # M1+ Music menu and Shuffle page rows: label -> (added image, glyph). A bare white glyph (BARE_PX canvas) left of the title.
 # '@shanling' = the brand mark cut out of a stock image (shanling_mark below), not a glyph.
 POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': ('pod_ic_coverflow', '+coverflow'),   # audio-lines: the wave of the navbar's Now Playing button
@@ -259,8 +259,8 @@ POD_ROWS = {'Now Playing': ('pod_ic_nowplaying', 'audio-lines'), 'Cover Flow': (
 ROW_ALIAS = {('m1plus_pulldown', 'Settings'): 'Control Center Settings'}
 # the pull-down tiles of ours (tools/mod_pulldown.py adds their widgets to the dialog, patch/pulldown.c shows them): the same ring as the stock tiles, in the off look (an action, no on state)
 PD_OWN = {'drop_sleep': 'moon', 'drop_settings': 'layout-grid', 'drop_equalizer': 'sliders-vertical', 'drop_power': 'power', 'drop_airplay': 'airplay', 'drop_dlna': '+dlna:filled', 'drop_transfer': 'folder-sync', 'drop_shot': 'camera'}
-# the two switch tiles of ours (AirPlay, DLNA) are lit like the stock Wi-Fi tile when their setting is on: the white disc and dark glyph (ACCENT_DISC takes the accent)
-PD_OWN_ON = {'drop_airplayopen': 'airplay', 'drop_dlnaopen': '+dlna:filled'}
+# the tiles of ours that have a lit state (Sleep Timer while a timer runs, plus the AirPlay and DLNA switches): the white disc and dark glyph (ACCENT_DISC takes the accent)
+PD_OWN_ON = {'drop_sleepopen': 'moon', 'drop_airplayopen': 'airplay', 'drop_dlnaopen': '+dlna:filled'}
 # The Folders page's row glyphs (patch/folders.c): the menu rows' bare white 24 px glyph for what POD_ROWS has no row for: an audio file, the SD card, a USB drive (folders, playlist files, the CD Library and the wave are pod_ic_folders, pod_ic_playlists, pod_ic_cdripper, pod_ic_nowplaying)
 FOLDER_ROWS = {'fo_ic_file': 'file-music', 'fo_ic_sd': 'memory-stick'}   # a USB drive's row uses the USB Mode row's pod_ic_usbmode
 # The Navidrome pages' glyphs (patch/sbsrc.c row marks, tools/pod_nd.py): the Downloaded row and the downloaded-song disc.
@@ -325,6 +325,9 @@ SHOT_BAR_PX = 16
 # The status bar's sync icon (patch/lineout.c shows it on every page while a cover or duration build runs; tools/statusbar.py adds the hidden widget pod_sync to both bar copies): Lucide refresh-cw, white, 18 x 18, 1.5 px stroke, static
 SYNC_BAR = ('pod_bar_sync', 'refresh-cw')
 SYNC_BAR_PX = 18
+# The status bar's sleep timer icon (patch/lineout.c shows it on every page while a Sleep Timer is running; tools/statusbar.py adds the hidden widget pod_sleep to both bar copies): our solid crescent (assets/icons/custom/crescent.svg; the outline moon read small beside Bluetooth and Wi-Fi), white, 16 x 16 with no pad (the ink fills the box, so the bar keeps its clock clearance), static
+SLEEP_BAR = ('pod_bar_sleep', '+crescent:filled')
+SLEEP_BAR_PX = 16
 # The Home Made for You header's busy mark (patch/dailymix.c shows pod_dm_busy while a Daily Mix job runs): the same glyph in the secondary grey #AAAAAA, static, 16 px (about 14 px of ink, near the list chevron's 16 px height)
 SYNC_DM = 'dm_sync'
 SYNC_DM_PX = 16
@@ -432,7 +435,7 @@ def is_badge(g): return g.startswith('badge:')
 def used_glyphs():
     """(Lucide names, Tabler names) of every glyph the tables use; custom ones excluded."""
     gl = [e[2] for e in HOME + SETTINGS + LISTS] + list(PULLDOWN.values()) + list(STATUS.values()) + \
-        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [g for _, g in RM_PIN_ICONS] + [RM_DOTS[1]] + list(ES_ICONS.values()) + list(HERO_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
+        [g for g in WIFI_LEVELS if g] + [COVER_GLYPH, POD_HOME_GLYPH, SHOT_BAR[1], SYNC_BAR[1], SLEEP_BAR[1]] + list(NAV_VIEW.values()) + list(ND_ICONS.values()) + [g for _, g in PL_MENU_ICONS] + [g for _, g in RM_MENU_ICONS] + [RM_FAV_ON[1], RM_REMOVE[1]] + [g for _, g in RM_PIN_ICONS] + [RM_DOTS[1]] + list(ES_ICONS.values()) + list(HERO_ICONS.values()) + [v[1] for v in POD_ROWS.values() if v[1] != SHANLING] + list(FOLDER_ROWS.values()) + list(RADIO_ROWS.values()) + [RADIO_ART[1]] + [g for g in CARD_GLYPHS.values() if g != SHANLING] + \
         [g for _, g, _ in GLYPHS] + [v[0] for v in SONGS_IMAGES.values()] + [v[0] for v in KEYBOARD_IMAGES.values()] + [KB_CLEAR[1], DP_ADD_GLYPH] + list(PC_GLYPHS) + [g for _, g in DISCS] + [v[0] for v in NP.values() if not v[0].startswith('pil:')] + ['lock:filled'] + R3_GLYPHS
     names = {gname(g) for g in gl if g and not is_custom(g) and not is_badge(g)}
     return sorted(n for n in names if not n.startswith('T:')), sorted(n[2:] for n in names if n.startswith('T:'))
@@ -876,6 +879,7 @@ def generate_all(sizes):
     f[SHOT_BAR[0]] = fit(lambda p: glyph(SHOT_BAR[1], p, 'small'), SHOT_BAR_PX, SHOT_BAR_PX, SHOT_BAR_PX)
     f[LO_BAR] = lo_pill()
     f[SYNC_BAR[0]] = glyph_fit(SYNC_BAR[1], SYNC_BAR_PX, SYNC_BAR_PX, WHITE, 1, 1.5)
+    f[SLEEP_BAR[0]] = glyph_fit(SLEEP_BAR[1], SLEEP_BAR_PX, SLEEP_BAR_PX, WHITE, 0)
     f[SYNC_DM] = glyph_fit(SYNC_BAR[1], SYNC_DM_PX, SYNC_DM_PX, (0xAA,) * 3, 1, 1.5)
     # round 2: glyph images at the stock size, discs, recoloured line art, badges, pills
     for n, g, down in GLYPHS:
@@ -1807,7 +1811,7 @@ def replaced_names():
 
 def pod_row_names(): return sorted({n for n, _ in POD_ROWS.values()})
 def nav_names(): return sorted(set(NAV_VIEW) | {n + '_down' for n in NAV_VIEW})
-def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
+def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SLEEP_BAR[0], SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
 def np_names(): return sorted(set(NP) | {v[4] for v in NP.values() if v[4]})
 
 def added_rels(stock_rootfs=None, *args):
@@ -1971,7 +1975,7 @@ def add_nav_icons(out):
     the status bar's Screenshot camera (the hidden pod_shot image tools/pod_ui.py adds to ui/system_bar.bin) and the Playlists
     page's menu glyphs (ui/m1plus_playlists.bin)."""
     d = os.path.join(out, IMG)
-    for n in nav_names() + [SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
+    for n in nav_names() + [SHOT_BAR[0], LO_BAR, SYNC_BAR[0], SLEEP_BAR[0], SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
         q = os.path.join(d, n + '.png'); assert not os.path.exists(q), f'{n}.png already in the tree'
         shutil.copyfile(os.path.join(PNG, n + '.png'), q); os.chmod(q, IMG_MODE); os.utime(q, (IMG_MTIME, IMG_MTIME))
 

@@ -85,7 +85,7 @@ Tap the mini player's cover on Home, or tap the Now Playing button in a page's t
 
 - Use the centre button to pause or resume, and the buttons beside it to skip tracks.
 - Swipe across the cover to see lyrics, then swipe again for song details.
-- Tap **…** for more options, including display modes and the Sleep Timer.
+- Tap **…** for more options, including display modes and the Sleep Timer (a moon icon appears in the status bar while a timer is running, when the bar has room for it).
 
 ### Change the volume
 

@@ -19,6 +19,7 @@ SMALL_PX, CLOCK_PX = 16, 18      # volume number, clock
 PCT_PX = 13                      # the battery percentage label (patch/battery.c; hidden unless Settings > Battery > Battery Percentage is on): white, right-aligned in the right group
 LO_WIDGET, LO_IMAGE, LO_W = 'pod_lo', 'pod_bar_lo', 26   # the Line Out pill (patch/lineout.h LO_PILL; tools/mod_icons.py LO_BAR, 26 x 16): in view_bar_left right after label_volume, in both bar copies; the widget is label_volume's VOLUME_W wide with the image centred, so the icons after it do not move
 SYNC_WIDGET, SYNC_IMAGE, SYNC_W = 'pod_sync', 'pod_bar_sync', 18   # the sync icon (patch/lineout.h SYNC_IND; tools/mod_icons.py SYNC_BAR, 18 x 18): in view_bar_right right after img_btclass, in both bar copies, hidden and insensitive until patch/lineout.c shows it while a cover or duration build runs
+SLEEP_WIDGET, SLEEP_IMAGE, SLEEP_W = 'pod_sleep', 'pod_bar_sleep', 16   # the sleep timer icon (patch/lineout.h SLEEP_IND; tools/mod_icons.py SLEEP_BAR, 16 x 16): in view_bar_right right after pod_sync, in both bar copies, hidden and insensitive until patch/lineout.c shows it while a Sleep Timer is running
 EQ_WIDGET, EQ_TEXT, EQ_PX, EQ_W = 'pod_eq', 'EQ', SMALL_PX, 19   # the EQ mark (patch/lineout.h EQ_IND): a label in label_volume's colour at the volume number's size, 16 px ("EQ" is 19 px wide), in view_bar_left right after the Line Out pill, in both bar copies, hidden and insensitive until patch/lineout.c shows it while the Equalizer is on
 VOLUME_W = 30                # the volume label's box ("100" at 16 px)
 CLOCK_X, CLOCK_W = 104, 90       # centre 149: "12:59 PM" (66 px at 18) spans 116..182
@@ -55,3 +56,6 @@ def apply(bar):
     assert bt is not None, 'unexpected status bar layout'
     sync = Widget('image', 0, 0, SYNC_W, 0, [('name', SYNC_WIDGET), ('image', SYNC_IMAGE), ('draw_type', 'center'), ('visible', 'false'), ('sensitive', 'false')])
     right.children.insert(right.children.index(bt) + 1, sync)   # after the Bluetooth box (its 47 px box ends in the glyph, so the icon sits right of the glyph: left of the box would be over the clock); the layouter skips it while hidden
+    assert right.find(SLEEP_WIDGET) is None, 'the sleep timer icon is already in the bar'
+    sleep = Widget('image', 0, 0, SLEEP_W, 0, [('name', SLEEP_WIDGET), ('image', SLEEP_IMAGE), ('draw_type', 'center'), ('visible', 'false'), ('sensitive', 'false')])
+    right.children.insert(right.children.index(sync) + 1, sleep)   # beside the sync icon, between Bluetooth and Wi-Fi; the layouter skips it while hidden
