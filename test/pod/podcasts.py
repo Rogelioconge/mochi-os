@@ -479,6 +479,32 @@ def resume_tests(ctx):
     m = PM(); rec = m.track(ep); m.pt = (30, 3000, 1); m.note(rec); m.note(m.record(path='/mnt/mmc/Music/a.flac')); m.status = 2
     rec = m.track(ep); m.pt = (1, 3000, 1); m.note(rec)
     expect(m.seeks == [30], 'a place at the 30 s edge is a place')
+    # the episode the player is on is started again (Continue Listening, the resume pill, a book's Resume): the place last seen is kept and jumped to
+    m = machine(); rec = m.track(ep); m.pt = (2, 3000, 1); m.note(rec); m.clock += 3000; m.pt = (700, 3000, 1); m.note(rec)
+    expect(m.seeks == [500] and m.state(H) == (1, 700, 3000), 'the episode plays on from its place, then the listener jumps to 700 s')
+    m.call(PSYMS['pc_restart'], a0=H, count=30000000)
+    expect(m.state(H) == (1, 700, 3000) and m.ring()[1][0][:2] == (H, 700), 'pc_restart on the playing episode: its place is kept and written')
+    m.clock += 300; m.note(rec)
+    expect(m.seeks == [500] and m.state(H) == (1, 700, 3000), 'the player still says the old second: no jump yet, and the jump is not given up')
+    m.pt = (0, 3000, 1); m.clock += 300; m.note(rec)
+    m.pt = (2, 3000, 1); m.clock += 1000; m.note(rec)
+    expect(m.seeks == [500, 700] and m.state(H) == (1, 700, 3000), f'restarted by the player: the jump to 700 s, not from the beginning ({m.seeks})')
+    m = machine(); rec = m.track(ep); m.pt = (2, 3000, 1); m.note(rec); m.clock += 3000; m.pt = (700, 3000, 1); m.note(rec)
+    m.call(PSYMS['pc_restart'], a0=H, count=30000000); m.clock += O['PC_AGAIN_MS'] + 100; m.pt = (703, 3000, 1); m.note(rec)
+    expect(m.seeks == [500] and m.state(H) == (1, 703, 3000), 'a player that did not restart: after 2 s the jump is dropped and the place is recorded as before')
+    m = machine(); rec = m.track(ep); m.pt = (600, 3000, 1); m.note(rec)
+    m.call(PSYMS['pc_restart'], a0=pc_hash(ep + 'x'), count=30000000); m.clock += 100; m.pt = (601, 3000, 1); m.note(rec)
+    expect(m.seeks == [] and m.state(H) == (1, 601, 3000), 'pc_restart for another episode leaves the playing one alone')
+    # a mark made since the last look wins over the place last seen: the episode starts from the beginning
+    for played in (1, 0):
+        m = machine(); rec = m.track(ep); m.pt = (2, 3000, 1); m.note(rec); m.clock += 3000; m.pt = (700, 3000, 1); m.status = 3; m.note(rec)
+        m.call(PSYMS['pc_mark'], a0=H, a1=played, count=30000000)
+        m.call(PSYMS['pc_restart'], a0=H, count=30000000)
+        expect(m.state(H)[0] == 0, f'paused at 700 s, marked {"played" if played else "new"}, started again: no place comes back ({m.state(H)})')
+        m.status = 2; m.clock += 300; m.note(rec)
+        expect(m.state(H)[0] == 0, 'the old second the player still says is not recorded')
+        m.pt = (2, 3000, 1); m.clock += 1000; m.note(rec); m.pt = (40, 3000, 1); m.clock += 38000; m.note(rec)
+        expect(m.seeks == [500] and m.state(H) == (1, 40, 3000), f'it plays from the beginning: no jump, the new place is recorded ({m.seeks}, {m.state(H)})')
     # a player with no length yet
     m = machine(); rec = m.track(ep); m.pt = (2, 0, 1); m.note(rec); m.pt = (2, 3000, 0); m.note(rec)
     expect(m.seeks == [], 'no length, or a failed call: nothing happens')

@@ -312,7 +312,10 @@ first).
   the episode is marked played. Writes are limited to every 30 s, with immediate flushes on pause,
   track change, page actions and backgrounding.
 - A saved position resumes once playback reaches 1..4 s; it is abandoned after 15 s if it cannot be
-  applied. Played episodes restart at zero.
+  applied. Played episodes restart at zero. Starting the episode the player is already on
+  (`pc_restart`) saves its current position first and resumes there, unless it was marked
+  played or new since: then it starts at zero. For 2 s the player's old second is neither
+  recorded nor taken as the new start.
 - **Speeds** are 1x, 1.25x, 1.5x and 2x per show. They change RAM and player state without writing
   stock's PLAYSPEED configuration, and music restores the previous mode. A speed change is applied
   at the next track open.

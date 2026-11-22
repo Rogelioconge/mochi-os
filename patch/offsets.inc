@@ -1389,6 +1389,7 @@
 #define PC_SAVE_MS 30000          /* the ring is written at most this often while an episode plays (also at a track change, a pause and the page's own actions) */
 #define PC_SEEK_MAX 5             /* a saved place is jumped to only while the episode has played less than this (q2-pod RESUME_START_S) */
 #define PC_SEEK_WAIT_MS 15000     /* a seek that has not happened this long after the episode started is dropped */
+#define PC_AGAIN_MS 2000          /* after the playing episode is started again, the player's second may be the old one this long */
 #define PC_COVER_MAX_PX 2100000   /* a cover picture is decoded only when width * height is at most this (the stock loader holds the whole bitmap) */
 #define PC_ROW_H 64               /* the page's rows (LIST_ROW_H) */
 #define PC_TILES 44               /* text / cover tiles: the rows and cells in view and spare (a ring: the least recently used leaves) */

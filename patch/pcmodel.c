@@ -1063,6 +1063,8 @@ static struct {
     int pos, len; /* what the last look saw */
     int pend; /* a jump to pend_pos is due */
     unsigned pend_pos, pend_ms, hold_ms;
+    unsigned
+        again_ms; /* until then the player's second may still be the one of before a restart of the same episode (pc_restart) */
     unsigned save_ms;
     unsigned
         apply_ms; /* when the page last set the speed for an episode about to start (the music of before is seen playing until it does) */
@@ -1178,10 +1180,20 @@ void pc_mark_hold(unsigned hash, int played) {
     ++pm.rev;
 }
 
+static void pm_leave(void);
+
 void pc_restart(unsigned hash) {
     int at;
     pm_ring_load();
     at = pm.s ? pm_find_slot(hash) : -1;
+    if (hash && hash == pcs.cur) {
+        /* The episode the player is on starts again: pc_note sees a new start (the jump). Its place is kept as a track change keeps it, but only over a place:
+         * a played mark or no slot (marked new) is the listener's word since the last look, and the episode starts from the beginning. */
+        if (at >= 0 && !(pm.s[at].flags & 1)) pm_leave();
+        pcs.cur = 0;
+        pcs.again_ms = time_now_ms() + PC_AGAIN_MS;
+        at = pm.s ? pm_find_slot(hash) : -1;
+    }
     if (at >= 0 && (pm.s[at].flags & 1)) pc_mark(hash, 0);
 }
 
@@ -1410,6 +1422,9 @@ void pc_note(void *t) {
         return;
     }
     if (get_playtimeandlength(&pos, &len) != 1 || len <= 0 || pos < 0) return;
+    if (pcs.again_ms && (int)(now - pcs.again_ms) >= 0) pcs.again_ms = 0;
+    if (pcs.again_ms && (!pcs.pend || (unsigned)pos >= pcs.pend_pos))
+        return; /* the same episode was just started again: this second may be the old one until the player has restarted (not a place to record, not a reason to give the jump up) */
     if (pcs.pend) { /* the saved place: jump to it once, while the episode has just started and plays; meanwhile nothing is recorded (the first seconds would forget it) */
         if (now - pcs.pend_ms > PC_SEEK_WAIT_MS || (unsigned)pos >= pcs.pend_pos)
             pcs.pend = 0;
