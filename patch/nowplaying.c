@@ -241,12 +241,13 @@ static int np_art_live(void) {
     return np.fg && m1_screen_lit() && (!np.sv || widget_get_prop_int(np.sv, "value", NP_ART_PAGE) == NP_ART_PAGE);
 }
 
-/* The cover's size follows the player: small while paused, full otherwise. A new target springs from the size the cover has (a change mid-spring turns it round), or is set at once when
+/* The cover's size follows the player: small while paused or stopped (Wi-Fi Transfer stops the player under the page), full otherwise. A new target springs from the size the cover has (a change mid-spring turns it round), or is set at once when
  * `animate` is 0 or no frame timer is had. */
 static void np_art_sync(int animate) {
-    int want;
+    int want, st;
     if (!np.art) return;
-    want = mclGetPlayStatus() == NP_PAUSED ? NP_ART_SMALL : NP_ART;
+    st = mclGetPlayStatus();
+    want = st == NP_PAUSED || st == NP_STOPPED ? NP_ART_SMALL : NP_ART;
     if (want == np.ato) {
         if (!animate && np.anim) { /* the spring is no longer seen: it lands now */
             m1_timer_stop(&np.anim);

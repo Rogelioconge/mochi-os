@@ -1121,6 +1121,10 @@ def run(ctx):
     expect(m.timers == [(PSYMS['np_tick'], O['NP_TICK_MS'])], 'and without a spring (no frame timer)')
     op = [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.widgets['img_np_shadow']]
     expect(op[-1:] == [O['NP_SHADOW_DIM']] and O['NP_SHADOW_DIM'] < 100, f'and the shadow is much lighter ({op})')
+    m = paused_page(status=1)
+    expect(geo(m, 'img_playcover') == (small, small, S_, S_), f'opened while stopped (Wi-Fi Transfer stops the player): the cover is small too ({geo(m, "img_playcover")})')
+    m = paused_page(status=2); m.status = 1; m.calls = []; m.tick()
+    expect(('timer_add', PSYMS['np_art_frame'], O['NP_FRAME_MS']) in m.calls, 'a stop seen by the tick shrinks the cover like a pause')
     m = paused_page(status=2)
     expect(not any(c[0] in ('widget_move', 'widget_resize') and c[1] in (m.widgets['img_playcover'], m.widgets['img_np_shadow']) for c in m.calls), 'opened while playing: the asset\'s cover is left as it is')
     clicks = [c for c in m.calls if c[0] == 'widget_on' and c[1] == m.widgets['btn_play'] and c[2] == O['EVT_CLICK']]

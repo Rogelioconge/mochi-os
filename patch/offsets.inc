@@ -505,6 +505,7 @@
 #define NP_PLAY_MS 50
 #define NP_PLAY_CHECKS 10
 #define NP_PAUSED 3
+#define NP_STOPPED 1
 #define NP_ART_PAGE 0
 /* The info page (np_info; tools/mod_nowplaying.py is the model, its constants equal these): the stock text of the six data labels is read into NP_INFO_BUF bytes (stock writes them with a 0x200
  * buffer, so a longer text is never used). Every widget of the page is a child of one scroll_view (np_i_scroll) from window y NPI_TOP, NPI_VIEW_H high, which clips them; a child's y is its page y

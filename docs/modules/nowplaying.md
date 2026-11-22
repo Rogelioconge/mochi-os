@@ -43,9 +43,9 @@ has 12 px corners. Existing widget names are kept.
 
 ## Paused cover
 
-While paused (`mclGetPlayStatus() == 3`) the cover is 194 px (0.73, Apple Music's ratio), centred on the
+While paused or stopped (`mclGetPlayStatus()` 3 or 1; Wi-Fi Transfer stops the player) the cover is 194 px (0.73, Apple Music's ratio), centred on the
 full cover; `img_np_shadow` (drawn `scale`) and the corner radius (12 → 9 px) scale with it, and the
-shadow fades with the size to opacity 64. Playing, stopped
+shadow fades with the size to opacity 64. Playing
 and every other status keep 264 px.
 
 - Motion: `np_art_size` steps a spring by elapsed time on a 16 ms frame timer: critically damped for 400 ms
