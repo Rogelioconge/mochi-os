@@ -440,6 +440,23 @@ int pins_unpin_playlist(int id, const char *name) {
     return pn_unpin('p', (unsigned)id, nm, 1);
 }
 
+int pins_rename_playlist(int id, const char *old, const char *name) {
+    char nm[PIN_STR];
+    pin_t keep;
+    int at;
+    if (id <= 0 || !old || !*old || !name || !*name || pn_load() < 0) return 0;
+    at = pn_pl_at(id, old);
+    if (at < 0) return 0;
+    pn_copy(nm, sizeof nm, name);
+    if (!*nm) return 0;
+    memcpy(&keep, &pn.ent[at], sizeof keep);
+    memcpy(pn.ent[at].name, nm, sizeof nm);
+    if (pn_save() == 0) return 1;
+    memcpy(&pn.ent[at], &keep, sizeof keep);
+    pod_toast(TR("Can't update pins"));
+    return 0;
+}
+
 /* A song's identity: FNV-1a of its path (case as written: the card's names are), then its CUE start (the tracks of a CUE image share the file: 0, a plain file, leaves the hash as it was), never 0. */
 static unsigned pn_song_id(const char *path, unsigned start) {
     unsigned h = m1_fnv(FNV_SEED, path);

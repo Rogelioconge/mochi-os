@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2026 Xin. MIT licence (see LICENSE).
  *
- * One page, ui/m1plus_songs.bin (docs/modules/songs.md has the whole design): the glass navbar (Back, the small title, the "..." that holds Search Songs, Select, Albums / Songs and Sort, Now Playing) over a
+ * One page, ui/m1plus_songs.bin (docs/modules/songs.md has the whole design): the glass navbar (Back, the small title, the "..." that holds Select, a playlist's Rename / Clean Up / Pin Playlist, Albums / Songs and Sort, Now Playing) over a
  * stock list, list_view > scroll_view (songs_scrollview) whose ONE child, view_grid, is the content view of the Albums page (patch/albums.c): it paints the rows,
  * the section headers, the pinned header and the select marks itself in its own EVT_AFTER_PAINT, with no widget per song; the stock scroll_view does the scrolling.
  * The content view's only children are the large title and the Play / Shuffle pills (real flat buttons that scroll with it; a playlist's page has the album page's Shuffle disc and Play pill instead: image buttons, the glyph an image and the text painted here). Beside the list, as widgets of the
@@ -73,6 +73,7 @@
 #include "search.h"
 #include "pins.h"
 #include "selmode.h"
+#include "keyboard.h"
 
 #define ROW LIST_ROW_H
 #define SG_MARK_UP \
@@ -123,7 +124,7 @@ static struct {
         *st_subdim; /* a source's rows that cannot play: the title's and the grey line's dim styles (NULL: drawn as the others) */
     void *bar;
     vs_t
-        vs; /* the "..." card (patch/viewsort.c): Search Songs, Select, Albums / Songs (Recently Added), Title, File Name, Format, Recently Added (the library) */
+        vs; /* the "..." card (patch/viewsort.c): Select, a stock playlist's Rename (slot 6) / Clean Up / Pin Playlist, Albums / Songs (Recently Added), Title, File Name, Format, Recently Added (the library) */
     void *list; /* the stock list the index is of (*pdeq_showlist when valid) */
     void *first; /* its first record: with the size, tells a list another query replaced */
     unsigned count;
@@ -285,8 +286,8 @@ static unsigned sg_offers(void) {
     if (sg_lib()) return VS_WITH_SELECT | VS_ALL_SORTS;
     if (sg_recent()) return VS_WITH_VIEWS | (sg.rv ? 0 : VS_WITH_SELECT);
     if (sg_cleans())
-        return VS_WITH_SELECT | VS_WITH_ACT2 |
-               VS_WITH_ACT3; /* a playlist: Select, Clean Up Playlist (slot 8), Pin / Unpin Playlist (slot 9) */
+        return VS_WITH_SELECT | VS_SELECT_FIRST | VS_WITH_SEARCH | VS_WITH_ACT2 |
+               VS_WITH_ACT3; /* a playlist: Select, Rename (slot 6, below Select), Clean Up Playlist (slot 8), Pin / Unpin Playlist (slot 9) */
     return VS_WITH_SELECT;
 }
 
@@ -1284,12 +1285,37 @@ static int sg_on_selall(void *ctx, void *e) {
  * selected record, never a path keyed on the split name (patch/genresplit.c). */
 static int sg_op_cls(void) { return sg.gsplit ? CLASS_ALL_SONGS : sg.cls; }
 
+/* Remove from Playlist, a stock playlist's select mode trash (docs/modules/playlists.md "Remove from Playlist"): the stock delete (so_delete) would take each song out of every playlist that holds it
+ * and offers to delete the file, so this playlist's marked rows leave by their own row ids instead (so_remove_ids), after a confirm. The ids are taken before the dialog (it is modal: the page may
+ * read its list again under it); no file is ever deleted from here. */
+static int sg_remove_marked(void) {
+    char buf[200];
+    unsigned n = sg.sel.nsel, done = 0;
+    int *ids, yes;
+    if (!n) {
+        pod_toast(TR("msg_delsongfailed"));
+        return 0;
+    }
+    if (!sg_valid()) return 1; /* (another page's query replaced the list: the marks are of rows no longer shown) */
+    ids = so_marked_ids(sg.list, sg.count, sg.sel.bits, n);
+    if (!ids) return 0;
+    m1_fmt(buf, sizeof buf, TR(n == 1 ? "Remove %d song from this playlist?" : "Remove %d songs from this playlist?"),
+           (int)n);
+    yes = pod_confirm(buf);
+    if (yes) done = so_remove_ids(ids, n);
+    free(ids);
+    if (!yes) return 0;
+    pod_toast(TR(done ? "Removed from Playlist" : "Can't remove from playlist"));
+    return 1;
+}
+
 /* Delete and Add run the stock code on the stock selection vector (patch/songops.c), filled from the page's marks at that moment. */
 static int sg_on_delete(void *ctx, void *e) {
     (void)ctx;
     (void)e;
     if (!sg.select || sg.src) return RET_OK; /* (a source's tracks are not deleted from here) */
-    if (so_delete(sg_op_cls(), sg.list, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid())) {
+    if (sg_cleans() ? sg_remove_marked()
+                    : so_delete(sg_op_cls(), sg.list, sg.count, sg.sel.bits, sg.sel.nsel, sg_valid())) {
         sg_select(0);
         sg_load(1);
     }
@@ -1361,6 +1387,17 @@ static void sg_add_one(int row) {
     r = so_add(sg_op_cls(), sg.count, sg.sel.bits, 1, sg_valid(), sg.title_save, &sg.picker);
     memset(sg.sel.bits, 0, (sg.count + 7) / 8); /* (the picker and the stock vector have their own copies) */
     if (r < 0) sg_load(1);
+}
+
+/* Remove from Playlist for one row (the sheet's last row on a stock playlist): the row leaves by the row id of the menu's copy (so a list read again under the sheet cannot point it at another
+ * row; a copy of another playlist's row is refused), no dialog, then the toast and the list read again with its scroll offset. */
+static void sg_remove_one(void *rec) {
+    int id = I(rec, REC_ID);
+    unsigned done;
+    if (!sg_cleans() || !sg.view || I(rec, REC_DISC) != sg.pl_id) return;
+    done = so_remove_ids(&id, 1);
+    pod_toast(TR(done ? "Removed from Playlist" : "Can't remove from playlist"));
+    if (done) sg_load(1);
 }
 
 static void sg_open_menu(int a) {
@@ -1573,6 +1610,79 @@ static void sg_clean(void) {
     }
 }
 
+/* A playlist header's name in one or two lines (the album page's title, m1_wrap2) and what sits under it: the pills and the rows AH_TITLE_LH lower while it takes two. */
+static void sg_name_place(void) {
+    sg.tsh = m1_wrap2(sg.hname, sg.hname2, sg_name_text(), PH_NAME_W) ? AH_TITLE_LH : 0;
+    sg.al.top = PH_TOP + sg.tsh;
+    widget_move(sg.hd_play, AH_PLAY_X, PH_BTN_Y + sg.tsh);
+    widget_move(sg.hd_shuffle, AH_SHUF_X, PH_BTN_Y + sg.tsh);
+    widget_set_visible(sg.hname2, sg.tsh != 0, 0);
+    m1_pill_place(&sg.pill, PH_BTN_Y + sg.tsh);
+}
+
+/* Rename Playlist (the card's row on a stock playlist; docs/modules/playlists.md "Rename Playlist"): our keyboard as New Playlist opens it (pl_create), the current name in the field. The keyboard is not
+ * modal: sg_renamed runs on Done, after the keyboard page was told to close, with the name trimmed and 1 to KB_MAX (63) bytes; the playlist it is for is remembered (sg_rn_id), so a page that is no
+ * longer that playlist's changes nothing. Stock's ids start at 0, so "a rename is waiting" is its own flag (sg_rn_on), not the id. */
+static int sg_rn_id __attribute__((section(".scratch")));
+static int sg_rn_on __attribute__((section(".scratch")));
+
+/* The stock list of playlists (getAllPlayList into *pdeq_playlist, as New Playlist reads it) has another playlist called name: 1. A list that cannot be read is no duplicate (the statement still
+ * names one row). The stock read writes "Playlists" into nagvation_title: the title is put back whatever the read gave. */
+static int sg_pl_taken(int id, const char *name) {
+    char title[NAV_TITLE_SIZE];
+    void *list;
+    unsigned i, n;
+    int got;
+    memcpy(title, (void *)NAV_TITLE, sizeof title);
+    got = loadLocalClassList(CLASS_PLAYLISTS);
+    memcpy((void *)NAV_TITLE, title, sizeof title);
+    if (got <= 0) return 0;
+    list = *(void **)PDEQ_PLAYLIST;
+    n = list ? deque_size(list) : 0;
+    for (i = 0; i < n; ++i) {
+        void *r = deque_at(list, i);
+        if (I(r, REC_DISC) != id && (!strcmp(cc_str(r, REC_TITLE), name) || !strcmp(cc_str(r, REC_NAME), name)))
+            return 1;
+    }
+    return 0;
+}
+
+/* Done: an unchanged name does nothing; another playlist's name is stock's "already exists" message; else one statement renames the header row (so_rename_pl). Then the page's name, its header
+ * (one or two lines), the small title, stock's nagvation_title when it held the old name, and a Home pin of this playlist (pins_rename_playlist) follow; the Playlists page reads its list again when it is
+ * back in front (the database changed). A statement that did not run changes nothing and says so. */
+static void sg_renamed(const char *name) {
+    char old[sizeof sg.name];
+    int id = sg_rn_id, on = sg_rn_on;
+    sg_rn_on = 0;
+    if (!on || !sg.win || !sg_cleans() || sg.pl_id != id || !name || !*name || strlen(name) > KB_MAX) return;
+    if (!strcmp(name, sg.name)) return;
+    if (sg_pl_taken(id, name)) {
+        pod_toast(TR("msg_playlistexist"));
+        return;
+    }
+    if (!so_rename_pl(id, name)) {
+        pod_toast(TR("Can't rename playlist"));
+        return;
+    }
+    memcpy(old, sg.name, sizeof old);
+    snprintf(sg.name, sizeof sg.name, "%s", name);
+    if (!strcmp((const char *)NAV_TITLE, old)) snprintf((char *)NAV_TITLE, 0x200, "%s", name);
+    pins_rename_playlist(id, old, name);
+    az_fit(sg.big, sg_name_text());
+    sg_head();
+    if (sg.head) {
+        sg_name_place();
+        sg_load(1); /* (the rows start lower or higher with a name of the other number of lines) */
+    }
+}
+
+static void sg_rename(void) {
+    if (!sg_cleans() || !sg.view || sg.select) return;
+    sg_rn_id = sg.pl_id, sg_rn_on = 1;
+    if (keyboard_open(TR("Rename Playlist"), TR("msg_newplaylists"), sg.name, sg_renamed, (kb_cancel_fn)0, KB_DONE) < 0)
+        sg_rn_on = 0;
+}
+
 /* Pins the playlist to the top of Home, or takes the pin away (patch/pins.c): its id and name, and the mosaic's album keys from the list the page holds (grid_mosaic_keys, as the header's tile). */
 static void sg_pin(void) {
     unsigned key[4];
@@ -1593,6 +1703,10 @@ static int sg_on_item(void *ctx, void *e) {
     int k = (int)(long)ctx, cur = sg.sort > 3 ? 3 : sg.sort;
     (void)e;
     sg_menu(0);
+    if (k == VS_SEARCH) { /* a playlist's Rename (the Songs asset's slot 6; no other list offers it) */
+        sg_rename();
+        return RET_OK;
+    }
     if (k == VS_ACT2) { /* a playlist's Clean Up Playlist */
         sg_clean();
         return RET_OK;
@@ -1811,6 +1925,7 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
     vs_dated(&sg.vs, 1u << 3); /* only Recently Added reads Newest First / Oldest First */
     if (sg_lib()) sg.rev = set_read(SONGS_SORT_FILE, '0') == 'a';
     rowmenu_bind(&sg.rm, sg.win); /* the rows' "..." menu (optional: no widgets means no "...") */
+    if (sg_cleans()) rowmenu_set_remove(&sg.rm, sg_remove_one); /* a stock playlist: Remove from Playlist, last */
     if (sg_direct()) {
         if (sg_selects()) { /* the card would hold Select alone: the Select button takes the "..." place (left cap at 214, or the middle piece after Search / Cover Flow) and sg.btn_more stands for it from here on */
             m1_show(sg.btn_more, 0);
@@ -1848,21 +1963,13 @@ static int sg_open_page(int cls, int pl_id, const char *key, const char *name, c
             if (sg.src) sg.hg.url = sbs_cover_url;
             grid_placeholder(&sg.hg);
             sg.head = 1;
-            sg.tsh = m1_wrap2(sg.hname, sg.hname2, sg_name_text(), PH_NAME_W)
-                         ? AH_TITLE_LH
-                         : 0; /* the name in one or two lines (the album page's title) */
-            sg.al.top = PH_TOP + sg.tsh;
-            widget_move(sg.hd_play, AH_PLAY_X, PH_BTN_Y + sg.tsh);
-            widget_move(sg.hd_shuffle, AH_SHUF_X, PH_BTN_Y + sg.tsh);
             m1_show(sg.big, 0);
             widget_set_visible(sg.hname, 1, 0); /* (insensitive labels: shown, never a touch target) */
-            widget_set_visible(sg.hname2, sg.tsh != 0, 0);
+            sg_name_place();
         } else
             grid_free(&sg.hg);
     }
-    if (sg.head)
-        m1_pill_place(&sg.pill, PH_BTN_Y + sg.tsh);
-    else {
+    if (!sg.head) {
         m1_centre_pill(sg.btn_play, SG_PILL_W);
         m1_centre_pill(sg.btn_shuffle, SG_PILL_W);
     }

@@ -54,6 +54,11 @@ unsigned so_relink(void *list, unsigned count, const unsigned char *sel);
 /* Clean Up Playlist, the removal: each marked row leaves the playlist table by its own id (toolsDeleteItemById: this playlist's row only, never a file, never another
  * playlist's copy of the song). Returns how many rows went. */
 unsigned so_clean(void *list, unsigned count, const unsigned char *sel);
+/* Remove from Playlist (the row sheet, a stock playlist's select mode): the n playlist song rows of these ids (REC_ID of a playlist song record, taken before any dialog, so a list read
+ * again meanwhile changes nothing) leave the table by their own ids as so_clean's do; an id of 100 or less (a playlist, or 0) is skipped. Returns how many went. */
+unsigned so_remove_ids(const int *ids, unsigned n);
+/* Rename Playlist: the playlist `id` (1..PL_MAX) gets `name` (not empty; quotes doubled) in both name columns of its header row through toolsUpdateDbTable. 1 when the statement ran. */
+int so_rename_pl(int id, const char *name);
 
 /* The Add button: our picker (patch/picker.h) over the page, or where it cannot open the stock one (@0x5280c0: playlist_page with PICKER_ADD | cls). Either adds the selection to the playlist that is tapped and closes
  * itself. title_save (0x200 bytes) takes nagvation_title, which the picker may overwrite; *picker is set before the picker opens. 0: nothing marked; 1: the picker is open;

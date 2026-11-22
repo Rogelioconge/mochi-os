@@ -941,7 +941,9 @@
  * RM_DOTS_RGB) centred in a RM_MORE_W wide tap zone (flush with its right edge beside the rail) whose right edge is RM_MORE_RIGHT (the list's width); on the Songs page, while the A-Z rail is shown, RM_MORE_RIGHT_RAIL (flush with the rail's
  * touch column, which starts at SG_RAIL_X 284). The row's text ends RM_INK_GAP before the glyph's ink (the bitmap's columns from RM_INK_X on), as a chevron row's text ends 10 px before its chevron. A tap on it, or a press held RM_LONG_MS on the row, opens the sheet: RM_ROWS rows of PM_ROW_H at the window's foot in
  * Now Playing's More sheet's glass (pc_sheet5, 320 x 250, top corners only), laid out by the asset (the payload only shows and hides it). */
-#define RM_ROWS 6 /* the asset's rows: the five above and Pin Song / Unpin Song (a song of the card only: rowmenu_open_src hides it and makes the glass five rows high for any other row) */
+#define RM_ROWS 7 /* the asset's rows: the five above, Pin Song / Unpin Song (a song of the card only) and Remove from Playlist (a stock playlist's songs page only, rowmenu_set_remove): rowmenu_open_src hides the rows a row does not have, packs the last one up and sizes the glass to the rows shown */
+#define RM_PIN_ROW 5 /* the Pin Song row's slot */
+#define RM_REMOVE_ROW 6 /* the Remove from Playlist row's slot */
 #define RM_QUEUE_ROWS 3 /* the Queue page's sheet: Play Next, Play After, Remove from Queue (docs/modules/queue.md) */
 #define RM_ALBUM_ROWS 5 /* the album long-press sheet (Albums, Home pins, Recently Played): Play, Shuffle, Play Next, Play After, Pin / Unpin Album */
 #define RM_MORE_W 44
@@ -1812,6 +1814,7 @@
 #define VS_WITH_ACT2 (1u << VS_ACT2) /* the vs_bind mask bits that offer slots 8 and 9 */
 #define VS_WITH_ACT3 (1u << VS_ACT3)
 #define VS_TAIL (1u << VS_ROWS) /* the vs_bind / vs_offer mask bit that moves slot 9 (offered) after the view rows, a destructive last row with the hairline above it (Radio's Clear Recently Played) */
+#define VS_SELECT_FIRST (1u << (VS_ROWS + 1)) /* the vs_bind / vs_offer mask bit that puts the Select row (slot 7) above slot 6 (a stock playlist's card: Select, Rename, Clean Up, Pin Playlist) */
 #define VS_WITH_SEARCH (1u << VS_SEARCH) /* the vs_bind mask bit that offers the Search row */
 #define VS_WITH_SELECT (1u << VS_SELECT) /* the vs_bind mask bit that offers the Select row */
 #define VS_WITH_VIEWS (((1u << VS_VIEWS) - 1) << VS_SORTS) /* the vs_bind mask bits that offer the two view rows (Grid, List; the Artists page's Show group Artists, Album Artists) */

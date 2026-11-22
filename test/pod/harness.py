@@ -793,6 +793,7 @@ class Machine:
             self.clock += self.__dict__.get('load_ms', 0)   # a slow library query (a big Songs list): time passes while it runs
             if a0 == O['CLASS_PLAYLISTS']:   # getAllPlayList, assigned to *pdeq_playlist
                 self.setword(pod.DATA['PDEQ_PLAYLIST'][0], self.new_deque(self.playlists))
+                self.u.mem_write(pod.DATA['NAV_TITLE'][0], b'Playlists\0')   # as stock: the read names the page
                 u.reg_write(UC_MIPS_REG_V0, len(self.playlists)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
                 return
             if a0 == O['CLASS_PLAYLIST_SONGS']:   # getMusicByPlayList(classinfo[1]), assigned to *pdeq_showlist
@@ -907,8 +908,13 @@ class Machine:
         elif name == 'toolsUpdateDbTable':   # (db, sql): one statement, 1 when it ran. `update playlist set fileurl='..' where id=N` rewrites the path of the playlist row with that id (self.playlist_songs)
             sql = self.read_cstr(a1); self.calls.append(('toolsUpdateDbTable', self.read_cstr(a0), sql))
             u_ = re.fullmatch(r"update playlist set fileurl='((?:[^']|'')*)' where id=(\d+)", sql)
-            ret = 1 if u_ and not self.__dict__.get('update_fails') else 0xffffffff
-            if ret == 1:
+            n_ = re.fullmatch(r"update playlist set filename='((?:[^']|'')*)',name='((?:[^']|'')*)' where id=(\d+) and id<=100", sql)   # Rename Playlist: the header row's two name columns
+            ret = 1 if (u_ or n_) and not self.__dict__.get('update_fails') else 0xffffffff
+            if ret == 1 and n_:
+                for r in self.playlists:
+                    if self.word(r + O['REC_DISC']) == int(n_.group(3)):
+                        self.setword(r + O['REC_NAME'], self.cstr(n_.group(1).replace("''", "'"))); self.setword(r + O['REC_TITLE'], self.cstr(n_.group(2).replace("''", "'")))
+            elif ret == 1:
                 for rows in self.playlist_songs.values():
                     for r in rows:
                         if self.word(r + O['REC_ID']) == int(u_.group(2)): self.setword(r + O['REC_PATH'], self.cstr(u_.group(1).replace("''", "'")))

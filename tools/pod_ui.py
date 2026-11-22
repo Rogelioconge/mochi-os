@@ -904,13 +904,13 @@ def build_playlists_page(page):
 
 
 
-RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS)
+RM_KEYS = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song', 'Remove from Playlist')   # the track rows' "..." menu (patch/rowmenu.c): the rows in order, each with its glyph (tools/mod_icons.py RM_MENU_ICONS, then RM_REMOVE)
 RM_QUEUE_KEYS = ('Play Next', 'Play After', 'Remove from Queue')   # the Queue page's sheet: three rows (the same code path, patch/rowmenu.c rowmenu_bind_queue), the glass of three rows
 RM_QUEUE_GLASS = 'pc_sheet3'
 PIN_KEYS = ('Play', 'Shuffle', 'Unpin Album')   # the Artists page's long press sheet (patch/artists.c): three rows on the same sheet, the glyphs of tools/mod_icons.py RM_PIN_ICONS
 ALBUM_SHEET_KEYS = ('Play', 'Shuffle', 'Play Next', 'Play After', 'Unpin Album')   # the album long press sheet (Albums, Home pins, Recently Played; patch/albums.c, patch/pins.c): five rows on pc_sheet5
 ALBUM_SHEET_GLASS = 'pc_sheet5'
-RM_GLASS = 'pc_sheet6'                                       # the sheet's glass: Now Playing's More sheet's pane, six rows high (a row without Pin Song makes it five: patch/rowmenu.c rowmenu_set_rows), top corners only
+RM_GLASS = 'pc_sheet7'                                       # the sheet's glass: Now Playing's More sheet's pane, seven rows high (the payload makes it as high as the rows a row has, five to seven: patch/rowmenu.c rowmenu_set_rows), top corners only
 RM_ICON_X, RM_TEXT_X, RM_TEXT_R = 14, 48, 22                  # Now Playing's More sheet's rows (pod_tape: the 24 px glyph at x 14, the label from x 48, ending at 298)
 RM_LABEL_PX = 18
 
@@ -918,7 +918,7 @@ RM_LABEL_PX = 18
 def row_menu(queue=False, pins=False, album=False):
     """(scrim, card): the track rows' "..." menu, shared by the album page and the Songs page (patch/rowmenu.c, docs/modules/rowmenu.md): a bottom sheet as Now Playing's More sheet
     (tools/mod_lists.py edit_playmore): the window's dim scrim, a full-width card at the window's foot in that sheet's glass, five PM_ROW_H rows filling it, each a transparent button
-    (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info, Pin Song (the payload swaps its label and glyph to Unpin Song, and hides it, with the glass five rows high, for a row that is not a song of the card).
+    (6 % white pressed) with a bare 24 px glyph and the 18 px white label, the sheet's 13 % white hairline above every row but the first. Rows: Play Next, Play After, Add to Playlist, Favorite (the payload swaps its label and star), Get Info, Pin Song (the payload swaps its label and glyph to Unpin Song, and hides it for a row that is not a song of the card), Remove from Playlist (shown on a stock playlist's songs page only, moved up when Pin Song is hidden; the glass as high as the rows shown).
     Hidden AND insensitive until the payload shows them; nothing is placed or sized at open. Put it last in the window, above the list, the bars and the navbar.
     queue: the Queue page's sheet, three rows (Play Next, Play After, Remove from Queue) on the three-row glass.
     pins: the Artists page's long press sheet, three rows: Play, Shuffle, Unpin Album (the payload sets Pin Artist / Unpin Artist).
@@ -931,7 +931,7 @@ def row_menu(queue=False, pins=False, album=False):
     elif queue:
         keys, icons, glass, rows = RM_QUEUE_KEYS, RM_MENU_ICONS[:2] + (RM_REMOVE,), RM_QUEUE_GLASS, OFFSETS['RM_QUEUE_ROWS']
     else:
-        keys, icons, glass, rows = RM_KEYS, RM_MENU_ICONS, RM_GLASS, OFFSETS['RM_ROWS']
+        keys, icons, glass, rows = RM_KEYS, RM_MENU_ICONS + (RM_REMOVE,), RM_GLASS, OFFSETS['RM_ROWS']
     rh = OFFSETS['PM_ROW_H']
     assert len(keys) == rows == len(icons)
     scrim = modal_scrim('rm_scrim')
@@ -1363,8 +1363,8 @@ def build_songs_page(page):
     root.children.extend(azlist_labels())
     root.children.extend(azlist_rail())
     root.children.append(select_bar('sg_bar', [('sg_add', 'add'), ('sg_del', 'del')]))
-    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Search Songs', 'Select', 'Clean Up', 'Pin Playlist'),
-                                        act_glyphs=('pod_ic_vssearch', 'pod_ic_vsselect', 'pod_ic_vsclean', 'pod_ic_vspin')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Clean Up Playlist (slot 8) and Pin Playlist / Unpin Playlist (slot 9), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; the Search Songs row is never offered, Search is the navbar button)
+    root.children.extend(view_sort_card(sort_keys=pod_pages.SONGS_SORT_KEYS, view_keys=('Albums', 'Songs'), act_keys=('Rename', 'Select', 'Clean Up', 'Pin Playlist'),
+                                        act_glyphs=('pod_ic_vsrename', 'pod_ic_vsselect', 'pod_ic_vsclean', 'pod_ic_vspin')))   # above the list, the rail and the select bar (the "..." card: Select, a playlist's Rename (slot 6, packed under Select: VS_SELECT_FIRST), Clean Up Playlist (slot 8) and Pin Playlist / Unpin Playlist (slot 9), Albums / Songs on Recently Added, the four sort rows of the library; vs_bind hides what a list does not offer; Search is the navbar button)
     root.children.extend(row_menu())   # last: above everything (the track rows' "..." menu, patch/rowmenu.c)
     return root
 

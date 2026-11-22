@@ -15,11 +15,13 @@ ROW, MORE_W, DOTS = O['LIST_ROW_H'], O['RM_MORE_W'], O['RM_DOTS_PX']
 RIGHT, RIGHT_RAIL, INK_X, INK_GAP, LONG_MS = O['RM_MORE_RIGHT'], O['RM_MORE_RIGHT_RAIL'], O['RM_INK_X'], O['RM_INK_GAP'], O['RM_LONG_MS']
 PLROW = O['PM_ROW_H']
 CARD_H = 6 * PLROW
+ASSET_ROWS = O['RM_ROWS']                              # the asset's seven rows (Remove from Playlist last), 350 px from window y 100; the payload sizes the card to the rows a row has
+ASSET_H = ASSET_ROWS * PLROW
 CARD_Y = 450 - CARD_H                                   # the sheet sits on the window's foot (window y 150..450; a row without Pin Song: five rows, 200..450)
 LABEL_W = 320 - pod_ui.RM_TEXT_X - pod_ui.RM_TEXT_R    # 250: Now Playing's More sheet's label box (48..298)
 PLACED = [(0, 150), (320, 300)]   # the card at the foot, six rows high: what rowmenu_set_rows does for a song of the card
-EN = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song')
-WIDGETS = ('rm_scrim', 'rm_card', 'rm_item0', 'rm_item1', 'rm_item2', 'rm_item3', 'rm_item4', 'rm_item5', 'rm_label0', 'rm_label1', 'rm_label2', 'rm_label3', 'rm_label4', 'rm_label5', 'rm_icon2', 'rm_icon3', 'rm_icon5')
+EN = ('Play Next', 'Play After', 'Add to Playlist', 'Favorite', 'Get Info', 'Pin Song', 'Remove from Playlist')
+WIDGETS = ('rm_scrim', 'rm_card', 'rm_item0', 'rm_item1', 'rm_item2', 'rm_item3', 'rm_item4', 'rm_item5', 'rm_item6', 'rm_label0', 'rm_label1', 'rm_label2', 'rm_label3', 'rm_label4', 'rm_label5', 'rm_label6', 'rm_icon2', 'rm_icon3', 'rm_icon5', 'rm_icon6')
 SEL_VEC = pod.DATA['SEL_VEC'][0]
 UI_SONGS = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_songs.bin') if WORK else None
 UI_ALBUM = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui/m1plus_album.bin') if WORK else None
@@ -109,36 +111,37 @@ def asset_tests(ctx):
         tree = awtk_ui.parse(open(ui_path, 'rb').read())
         kids = [c.name for c in tree.children]
         scrim, card = tree.find('rm_scrim'), tree.find('rm_card')
-        items = [tree.find(f'rm_item{i}') for i in range(6)]
-        labels = [tree.find(f'rm_label{i}') for i in range(6)]
-        icons = [tree.find(f'rm_icon{i}') for i in range(6)]
+        items = [tree.find(f'rm_item{i}') for i in range(ASSET_ROWS)]
+        labels = [tree.find(f'rm_label{i}') for i in range(ASSET_ROWS)]
+        icons = [tree.find(f'rm_icon{i}') for i in range(ASSET_ROWS)]
         expect(kids[-2:] == ['rm_scrim', 'rm_card'] and tree.children[-2] is scrim and tree.children[-1] is card, f'{name}: the menu\'s scrim and card are the window\'s last children (above the list, the bars and the navbar)')
         expect(scrim.type == 'button' and (scrim.x, scrim.y, scrim.w, scrim.h) == (0, 0, 320, 450) and all(scrim.get(f'style:{st}:bg_color') == pod_ui.PL_DIM == '#00000082' for st in pod_ui.STATES),
                f'{name}: the scrim is the full window\'s #00000082 dim, a button (a tap closes the menu)')
-        expect((card.x, card.y, card.w, card.h) == (0, CARD_Y, 320, CARD_H) == (0, 150, 320, 300)
-               and all(card.get(f'style:{st}:bg_image') == 'pc_sheet6' and card.get(f'style:{st}:bg_image_draw_type') == 'default' and card.get(f'style:{st}:bg_color') == '#00000000'
+        expect((card.x, card.y, card.w, card.h) == (0, 450 - ASSET_H, 320, ASSET_H) == (0, 100, 320, 350)
+               and all(card.get(f'style:{st}:bg_image') == 'pc_sheet7' and card.get(f'style:{st}:bg_image_draw_type') == 'default' and card.get(f'style:{st}:bg_color') == '#00000000'
                        and card.get(f'style:{st}:round_radius') is None for st in pod_ui.STATES),
-               f'{name}: the card is a 320 x 300 bottom sheet (six 50 px rows: the payload makes it five for a row that is not a song of the card) on the window\'s foot, the glass drawn 1:1 over no fill')
+               f'{name}: the card is a 320 x 350 bottom sheet (seven 50 px rows: the payload makes it as high as the rows a row has) on the window\'s foot, the glass drawn 1:1 over no fill')
         expect(all(w.get('visible') == 'false' and w.get('sensitive') == 'false' for w in (scrim, card)), f'{name}: the scrim and the card start hidden and insensitive')
-        expect([(i.type, i.x, i.y, i.h, i.w) for i in items] == [('button', 0, k * PLROW, PLROW, 320) for k in range(6)]
+        expect([(i.type, i.x, i.y, i.h, i.w) for i in items] == [('button', 0, k * PLROW, PLROW, 320) for k in range(ASSET_ROWS)]
                and all(i.get(f'style:{st}:bg_color') == ('#FFFFFD10' if st == 'pressed' else '#00000000') and i.get(f'style:{st}:text_color') == '#FFFFFF' for i in items for st in pod_ui.STATES)
                and all(i.get(f'style:{st}:border') == ('top' if k else 'none') and i.get(f'style:{st}:border_width') == ('1' if k else '0')
                        and i.get(f'style:{st}:border_color') == ('#FFFFFF22' if k else '#00000000') for k, i in enumerate(items) for st in pod_ui.STATES),
-               f'{name}: six transparent full-width 50 px rows, pressed 6 % white, the sheet\'s 13 % white hairline above every row but the first')
-        expect([ic.get('image') for ic in icons] == ['rm_ic_next', 'rm_ic_after', 'rm_ic_add', 'rm_ic_fav', 'rm_ic_info', 'rm_ic_pin'] == [n for n, _ in mod_icons.RM_MENU_ICONS] and mod_icons.RM_FAV_ON == ('rm_ic_unfav', 'star')
+               f'{name}: seven transparent full-width 50 px rows, pressed 6 % white, the sheet\'s 13 % white hairline above every row but the first')
+        expect([ic.get('image') for ic in icons] == ['rm_ic_next', 'rm_ic_after', 'rm_ic_add', 'rm_ic_fav', 'rm_ic_info', 'rm_ic_pin', 'rm_ic_remove'] == [n for n, _ in mod_icons.RM_MENU_ICONS + (mod_icons.RM_REMOVE,)] and mod_icons.RM_FAV_ON == ('rm_ic_unfav', 'star')
+               and mod_icons.RM_REMOVE == ('rm_ic_remove', 'list-x')
                and [g for _, g in mod_icons.RM_MENU_ICONS] == ['list-start', 'list-end', 'list-plus', 'star', 'info', 'pin']
                and all((ic.x, ic.y, ic.w, ic.h) == (14, 13, 24, 24) and ic.get('sensitive') == 'false' for ic in icons),
-               f'{name}: Lucide list-start, list-end, list-plus, star, info and pin, 24 px at x 14 (the More sheet\'s own rows, pod_tape_icon)')
+               f'{name}: Lucide list-start, list-end, list-plus, star, info, pin and list-x, 24 px at x 14 (the More sheet\'s own rows, pod_tape_icon)')
         expect(all(lb.x == 48 and lb.w == LABEL_W == 250 and lb.get('sensitive') == 'false' and lb.get('style:normal:font_size') == '18' and lb.get('style:normal:text_color') == '#FFFFFF'
                    for lb in labels) and [pod_i18n.shown_english(lb) for lb in labels] == list(EN),
-               f'{name}: the labels start at x 48, 18 px white: Play Next, Play After, Add to Playlist, Favorite, Get Info, Pin Song')
+               f'{name}: the labels start at x 48, 18 px white: Play Next, Play After, Add to Playlist, Favorite, Get Info, Pin Song, Remove from Playlist')
     # the images: the glass is the generator's, five rows high; the glyphs and the dots are in the tree
     xx = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/images/xx')
     w, h, r = mod_icons.GLASS_ROWMENU
-    raw_ = open(os.path.join(xx, 'pc_sheet6.png'), 'rb').read()
+    raw_ = open(os.path.join(xx, 'pc_sheet7.png'), 'rb').read()
     gen = mod_icons.glass_image(w, h, r, fill=mod_icons.GLASS_SHEET_FILL, top_only=True)
-    expect(raw_ == open(os.path.join(mod_icons.PNG, 'pc_sheet6.png'), 'rb').read() and same_pixels(raw_, gen) and (w, h, r) == (320, CARD_H, 18) and r == mod_icons.GLASS_SHEET[2],
-           'pc_sheet6.png is the generator\'s: 320 x 300 (the sheet\'s height), Now Playing\'s sheet: 18 px top corners only, the sheet\'s fill')
+    expect(raw_ == open(os.path.join(mod_icons.PNG, 'pc_sheet7.png'), 'rb').read() and same_pixels(raw_, gen) and (w, h, r) == (320, ASSET_H, 18) and r == mod_icons.GLASS_SHEET[2],
+           'pc_sheet7.png is the generator\'s: 320 x 350 (the asset\'s sheet height), Now Playing\'s sheet: 18 px top corners only, the sheet\'s fill')
     expect(all(open(os.path.join(xx, n + '.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, n + '.png'), 'rb').read() for n, _ in mod_icons.RM_MENU_ICONS + (mod_icons.RM_FAV_ON, mod_icons.RM_DOTS)),
            'the six glyphs, the filled star and rm_dots are the committed PNGs')
     expect(mod_icons.RM_DOTS == ('rm_dots', 'ellipsis') and mod_icons.RM_DOTS_PX == DOTS == 24 and O['RM_DOTS_RGB'] == 0x8c8c8c,
@@ -148,7 +151,7 @@ def asset_tests(ctx):
     press, worst = 0x10 / 255, 99
     for level in (0, 125):   # over black, and over white under the 130/255 dim
         for pressed in (False, True):
-            for k in range(6):
+            for k in range(ASSET_ROWS):
                 for y in range(k * PLROW + (PLROW - 22) // 2, k * PLROW + (PLROW + 22) // 2):
                     p = g.getpixel((w // 2, y)); al = p[3] / 255
                     c = [al * p[i] + (1 - al) * level for i in range(3)]

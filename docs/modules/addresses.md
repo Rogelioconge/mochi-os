@@ -102,7 +102,7 @@ hciplayer (`$gp` `0xb16750`, payload `0xe10000`): equalizer `af_info` `0x893808`
 Pins by page: `LYRICS_PINS` (`scroll_lrc` `0x751c3c`, `lrc_time` `0x751c80`, the online timer
 `0x537fec` and the lyric deque `*0xa062e8`), `IDLE_PINS`, `TAPE_PINS`, `PLAYLIST_PINS`
 (`createPlayListItem` `0x4eeca8`, `getPlayListMaxId` `0x4ee184`, `checkPlayListExist` `0x4ee1a8`,
-`addPlayList` `0x4ee1cc`, `nagvation_title` `0xa0533c`, `navigation_status` `0xa05a24`, `*pdeq_playlist`
+`addPlayList` `0x4ee1cc`, the name columns in `createPlayListItem` and `toolsInsertDbTable` `0x5ee2fc`, `nagvation_title` `0xa0533c`, `navigation_status` `0xa05a24`, `*pdeq_playlist`
 `0xa045d0`), `SHUFFLE_PINS`, `NEXTALBUM_PINS`, `TSDOWN_PINS`, `LOCKSCREEN_PINS`, `RADIO_PINS`,
 `JPEG_PINS`, `COVER_PINS`, `LIGHT_PINS`, `TEXTGAMMA_PINS`.
 

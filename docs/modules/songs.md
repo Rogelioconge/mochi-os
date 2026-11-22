@@ -70,11 +70,12 @@ the glass of its row count).
 | Songs (library) | Select, hairline, Title, File Name, Format, Recently Added | `vs_glass5` |
 | Recently Added, songs view | Select, hairline, Albums, Songs (ticked) | `vs_glass3` |
 | Recently Added, albums view | Albums (ticked), Songs; Select goes (`vs_offer` repacks) | `vs_glass2` |
-| a stock playlist | Select, Clean Up ([playlists](playlists.md) "Clean Up Playlist") | `vs_glass2` |
+| a stock playlist | Select, Rename, Clean Up, Pin Playlist ([playlists](playlists.md) "Rename Playlist", "Clean Up Playlist") | `vs_glass4` |
 | Favorites, Recently Played, Most Played, Hi-Res, a genre, an artist, a server playlist | no card: the Select button | - |
 
 **Select** is a Tabler `circle-check` glyph (`pod_ic_vsselect`); it works only with songs listed and
-not in Recently Added's albums view. Albums / Songs switch to a newest-first Albums grid
+not in Recently Added's albums view. On a stock playlist Rename is the asset's slot 6 (`VS_SEARCH`,
+Lucide `pencil`, `pod_ic_vsrename`), packed under Select by `VS_SELECT_FIRST`. Albums / Songs switch to a newest-first Albums grid
 ([recent-albums](recent-albums.md)).
 
 **Sort** (library only): **Title, File Name, Format, Recently Added** (`SONGS_SORT_KEYS`), a tick on
@@ -328,6 +329,10 @@ Stock's multi-select **Add to Playlist** and **Delete** are called with a select
   `*pdeq_showlist`, 1 = selected, tied to no page. Our page keeps marks in its own bitset and fills
   the stock vector **at the moment of the action** (`select_recordinit(count)`, then
   `set_selectindex(i)` per marked row, once the list is checked to be the stock one).
+- **A stock playlist's trash** is not the stock delete (it would take each song out of every playlist
+  and offer to delete the file): `sg_remove_marked` asks "Remove N song(s) from this playlist?" and
+  removes the marked rows by their row ids ([playlists](playlists.md) "Remove from Playlist").
+  Every other list keeps the stock delete below.
 - **Delete**: nothing selected shows `msg_delsongfailed`; else `confirminfo_dialog` (kind 3, a
   checkbox "also delete the file"; returns 0xa library only, 0x14 with the file); then
   `batch_delete_file(class, *pdeq_showlist, vector, 0, delete_file)`: per marked row

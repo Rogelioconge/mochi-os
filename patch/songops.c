@@ -188,15 +188,48 @@ unsigned so_relink(void *list, unsigned count, const unsigned char *sel) {
     return done;
 }
 
-unsigned so_clean(void *list, unsigned count, const unsigned char *sel) {
-    unsigned i, done = 0;
-    for (i = 0; i < count; ++i) {
-        int id = so_marked(sel, i) ? so_row_id(deque_at(list, i)) : 0;
-        if (id && toolsDeleteItemById("playlist", STOCK_DB_PATH, id) == 1) ++done;
-    }
+/* One playlist song row out of the table by its own id (`delete from playlist where id=N`); ids up to PL_MAX (the playlists) are never deleted here. */
+static int so_drop(int id) { return id > PL_MAX && toolsDeleteItemById("playlist", STOCK_DB_PATH, id) == 1; }
+
+static unsigned so_dropped(unsigned done) {
     if (done)
         *(volatile unsigned char *)DELETE_FLAG = 1; /* as batch_delete_file leaves it after a delete (@0x4e1474) */
     return done;
+}
+
+unsigned so_clean(void *list, unsigned count, const unsigned char *sel) {
+    unsigned i, done = 0;
+    for (i = 0; i < count; ++i)
+        if (so_marked(sel, i) && so_drop(so_row_id(deque_at(list, i)))) ++done;
+    return so_dropped(done);
+}
+
+unsigned so_remove_ids(const int *ids, unsigned n) {
+    unsigned i, done = 0;
+    for (i = 0; ids && i < n; ++i)
+        if (so_drop(ids[i])) ++done;
+    return so_dropped(done);
+}
+
+/* A playlist's name: `update playlist set filename='..',name='..' where id=N and id<=100`. createPlayListItem writes the name into both columns of the playlist's header row
+ * (the record's +8, filename, and +0x10, name: toolsInsertDbTable's value order; PLAYLIST_PINS); getAllPlayList reads them back as REC_NAME and REC_TITLE. */
+int so_rename_pl(int id, const char *name) {
+    static const char head[] = "update playlist set filename=", mid[] = ",name=";
+    unsigned q = 2 * strlen(name) + 2;
+    char tail[48], *sql, *o;
+    int ok;
+    if (id < 0 || id > PL_MAX || !*name) return 0; /* (stock's playlist ids start at 0) */
+    sql = calloc(sizeof head + sizeof mid + 2 * q + sizeof tail, 1);
+    if (!sql) return 0;
+    memcpy(sql, head, sizeof head - 1);
+    o = so_quoted(sql + sizeof head - 1, name);
+    memcpy(o, mid, sizeof mid - 1);
+    o = so_quoted(o + sizeof mid - 1, name);
+    snprintf(tail, sizeof tail, " where id=%d and id<=%d", id, PL_MAX);
+    memcpy(o, tail, strlen(tail) + 1);
+    ok = toolsUpdateDbTable(STOCK_DB_PATH, sql) == 1;
+    free(sql);
+    return ok;
 }
 
 /* Add to playlist: our picker (patch/picker.c: the Playlists page in pick mode) over the page, which adds the selection to the playlist that is tapped and closes. Where

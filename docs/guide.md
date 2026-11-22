@@ -71,7 +71,7 @@ example, in Albums you can switch between grid and list or sort by title, artist
 
 On Songs, Folders, Playlists, Podcasts or an album, choose **Select** (on an album, in the **…** menu), then tap items to mark them.
 **Select All** (top right) marks everything. The icons in the pill at the bottom act on the marked items:
-add to a playlist, or delete (the trash can). They stay dim until something is marked. Tap **×** to leave.
+add to a playlist, or delete (the trash can; in a playlist it removes the songs from that playlist only). They stay dim until something is marked. Tap **×** to leave.
 
 ## Control playback
 

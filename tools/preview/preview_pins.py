@@ -84,7 +84,7 @@ def main():
     rp = home(s, PINNED[:2], daily, scroll=640)   # Home scrolled to the Recently Played shelf: a tile held
     PSG.row_menu(s, rp, keys=('Play', 'Shuffle', 'Play Next', 'Play After', 'Pin Album'), glyphs=('rm_ic_pplay', 'rm_ic_pshuffle', 'rm_ic_next', 'rm_ic_after', 'rm_ic_pin'))
     tr_ = PSG.page(s).convert('RGBA')   # a track row's sheet: the sixth row, Pin Song
-    PSG.row_menu(s, tr_, keys=U.RM_KEYS, glyphs=tuple(n for n, _ in __import__('mod_icons').RM_MENU_ICONS))
+    PSG.row_menu(s, tr_, keys=U.RM_KEYS[:6], glyphs=tuple(n for n, _ in __import__('mod_icons').RM_MENU_ICONS))
     mixed = home(s, ARTIST_PINS, daily)   # artists (round photos) among albums and playlists (an item with a third field is an artist)
     ar_sheet = home(s, ARTIST_PINS[:4], daily)
     PSG.row_menu(s, ar_sheet, keys=('Play', 'Shuffle', 'Unpin Artist'), glyphs=('rm_ic_pplay', 'rm_ic_pshuffle', 'rm_ic_unpin'))

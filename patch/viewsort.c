@@ -30,6 +30,7 @@ void vs_offer(vs_t *v, unsigned mask) {
     int i;
     v->sorts = mask & (VS_ALL_SORTS | VS_WITH_VIEWS | VS_WITH_SEARCH | VS_WITH_SELECT | VS_WITH_ACT2 | VS_WITH_ACT3);
     v->tail = v->sorts >> VS_ACT3 & 1 && mask & VS_TAIL;
+    v->selfirst = (mask & VS_SELECT_FIRST) != 0;
     for (i = 0, v->rows = 0; i < VS_ROWS; ++i) v->rows += vs_has(v, i);
     for (i = 0; i < VS_ROWS; ++i)
         m1_show(v->item[i], vs_has(v, i)); /* a row the page does not offer: hidden and insensitive, the widgets stay */
@@ -147,7 +148,10 @@ static void vs_fit(vs_t *v) {
         widget_resize(v->hair, w, 1);
     }
     for (i = 0, y = 0; i <= VS_ROWS; ++i) {
-        int k = i == VS_ROWS ? VS_ACT3 : VS_ORDER[i], x0 = k >= VS_SORTS ? lx : VS_LABEL_X, two = k == v->sort;
+        int k = i == VS_ROWS ? VS_ACT3 : VS_ORDER[i], x0, two;
+        if (v->selfirst && (k == VS_SEARCH || k == VS_SELECT))
+            k = k == VS_SEARCH ? VS_SELECT : VS_SEARCH; /* (Select above slot 6: VS_SELECT_FIRST) */
+        x0 = k >= VS_SORTS ? lx : VS_LABEL_X, two = k == v->sort;
         if (!vs_has(v, k) || (i == VS_ROWS ? !v->tail : v->tail && k == VS_ACT3))
             continue; /* (the tail row last, in the extra pass) */
         if (k >= VS_SORTS && v->glyph[k - VS_SORTS]) widget_move(v->glyph[k - VS_SORTS], gx, (VS_ROW_H - VS_GLYPH) / 2);

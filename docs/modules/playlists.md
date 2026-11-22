@@ -100,7 +100,9 @@ vector, 0, 0)`; `msg_delplaylistsuccess`; the mode ends and the page reads again
 ## The stock database calls
 
 - Playlists are rows of the `playlist` table of `/mnt/data/database.db`. A row with `id <= 100` is a
-  playlist (`getAllPlayList`: name in `REC_TITLE`, id in `REC_ID` and `REC_DISC`, type 4). A row
+  playlist (`getAllPlayList`: name in `REC_TITLE`, id in `REC_ID` and `REC_DISC`, type 4). Its name
+  is in two columns: `createPlayListItem` copies it into the record's `+8` and `+0x10`, which
+  `toolsInsertDbTable` writes as `filename` and `name` (`REC_NAME`, `REC_TITLE` when read back). A row
   with `id > 100` is a song linked by `cd_num` = the playlist id (`getMusicByPlayList`, no ORDER BY:
   insertion order). Rows have the 18 columns of a library song, `REC_ALBUM` and `REC_ARTIST` as when
   added.
@@ -189,7 +191,7 @@ so it does not depend on `g_class_type`. The selection vector is the Songs page'
 
 ## Pin Playlist (`patch/songs.c` `sg_pin`)
 
-A stock playlist's songs page also has **Pin Playlist** / **Unpin Playlist** as the third row of the "..." card (slot 9,
+A stock playlist's songs page also has **Pin Playlist** / **Unpin Playlist** as the fourth row of the "..." card (slot 9,
 `VS_ACT3`, `pod_ic_vspin` / `pod_ic_vsunpin`): the playlist is pinned to the top of Home ([pins](pins.md)).
 
 ## Clean Up Playlist (`patch/songs.c` `sg_clean`, `patch/songops.c`)
@@ -202,8 +204,8 @@ Shuffle check the first file with `access` and toast **"File not found"** with t
 "Storage unavailable" without it: `so_missing`.)
 
 **The row.** A stock playlist's songs page has the "..." in place of Select (`sg_cleans`); its card
-is two rows in `vs_glass2`: **Select**, then **Clean Up** (slot 8, `VS_ACT2`, glyph
-`pod_ic_vsclean`, Lucide broom). A server playlist keeps the Select button. It works on this playlist only:
+is four rows in `vs_glass4`: **Select**, **Rename**, **Clean Up** (slot 8, `VS_ACT2`, glyph
+`pod_ic_vsclean`, Lucide broom), **Pin Playlist**. A server playlist keeps the Select button. It works on this playlist only:
 
 1. **Check** (`sg_gone`, `so_gone_mark`): each row whose path starts with `/mnt/mmc/` is tested
    with `access`. Other paths (USB, none) are never tested, marked or written.
@@ -233,6 +235,50 @@ thread from a tap, as stock's do.
 **Why not the stock delete.** `batch_delete_file(0xff13, ...)` runs `deleteMusicFromPlaylist`, whose
 WHERE has `filename`, `fileurl`, `time`, `time_end` and no id or `cd_num`: it removes the song from
 every playlist that holds it. The clean-up removes this playlist's row alone.
+
+## Remove from Playlist (`patch/songs.c` `sg_remove_one`, `sg_remove_marked`)
+
+Only on a stock playlist's songs page (`sg_cleans`: not Favorites, other lists or a server
+playlist). Both take this playlist's rows out by their own row ids through `so_remove_ids`
+(`toolsDeleteItemById("playlist", db, id)`, ids over 100 only, then stock's `delete_flag`), as the
+clean-up does. No file is ever deleted and no other playlist's copy of the song goes.
+
+- **Row sheet**: the seventh row **Remove from Playlist** (`rm_ic_remove`, Lucide `list-x`), last,
+  under Pin Song; with Pin Song hidden it moves up into its place ([rowmenu](rowmenu.md)). The page
+  registers it with `rowmenu_set_remove`; a tap removes the row the menu's record copy is of (its
+  `REC_ID`, refused when its `REC_DISC` is not this playlist), without a dialog, toasts "Removed
+  from Playlist" and reads the list again with its scroll offset kept. A list read again under the
+  sheet closes it, so a stale row is never removed by index.
+- **Select mode trash**: `pod_confirm` "Remove N song(s) from this playlist?" (the key by 1 / more),
+  the marked rows' ids taken before the dialog (`so_marked_ids`), then "Removed from Playlist",
+  select mode ends and the list is read again. No keeps select mode. Every other list's trash is
+  still `so_delete`.
+- A statement that removed nothing toasts "Can't remove from playlist".
+- A pinned playlist keeps the cover keys it was pinned with; the Playlists page sees the changed
+  database (`pl_dbsig`) and reads its list and mosaics again when it is back in front.
+
+## Rename Playlist (`patch/songs.c` `sg_rename`, `patch/songops.c` `so_rename_pl`)
+
+The "..." card's second row on a stock playlist, **Rename** (Lucide `pencil`, `pod_ic_vsrename`,
+slot 6 packed under Select by `VS_SELECT_FIRST`). It opens our keyboard as New Playlist does
+(title "Rename Playlist", hint `msg_newplaylists`, action key **Done**, the current name in the
+field). The keyboard is not modal; `sg_renamed` runs on Done for the playlist it was opened for
+(`sg_rn_id`; `sg_rn_on` says one is waiting, since stock's ids start at 0), with the name trimmed and 1 to 63 bytes:
+
+- The same name changes nothing. A name another playlist has (`REC_TITLE` or `REC_NAME` of the
+  stock list `loadLocalClassList(0xf00b)` reads) shows stock's `msg_playlistexist`. That read
+  writes "Playlists" into `nagvation_title`; `sg_pl_taken` puts the title back.
+- Else one statement through `toolsUpdateDbTable`:
+  `update playlist set filename='..',name='..' where id=N and id<=100`, quotes doubled. A statement
+  that did not run toasts "Can't rename playlist" and changes nothing.
+- Then `sg.name`, the header name (one or two lines, `sg_name_place`; the list is read again for
+  the new row offset), the small title, stock's `nagvation_title` when it held the old name, and a
+  Home pin of this playlist (`pins_rename_playlist`: same place and cover keys) take the new name.
+  The Playlists page reads the list again when it is back in front.
+
+**Pins** (`PLAYLIST_PINS`): `getMusicByPlayList` passes the song row callback (a song record's
+`REC_DISC` is its `cd_num`, the playlist id); `createPlayListItem`'s two name copies and
+`toolsInsertDbTable`'s loads and value order for `filename` and `name`, and its insert statement.
 
 ## Limits
 

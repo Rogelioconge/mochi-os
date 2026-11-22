@@ -942,6 +942,14 @@ PLAYLIST_PINS = (   # (address, stock word, what it proves)
     (0x5ef3f8, 0x24c67ec0, 'toolsDeleteItemById: a2 = "delete from %s where id=%d" 0x757ec0'), (0x5ef418, 0x0320f809, 'toolsDeleteItemById: jalr sqlite3_exec'),
     (0x4edfc4, 0x0320f809, 'deletePlaylist: jalr toolsDeleteItemById("playlist", the database path, id): stock\'s own use on this table'),
     (0x4e22b0, 0x04112f39, 'batch_delete_file, class 0xf00b loop: bal deletePlaylist 0x4edf98'), (0x4e22d4, 0x04112f41, 'batch_delete_file, class 0xf00b loop: bal deleteAllMusicByPlaylist 0x4edfdc'),
+    # Remove from Playlist (patch/songs.c sg_remove_one): a playlist song record's REC_DISC is its cd_num, the playlist's id, because getMusicByPlayList reads its rows with the library's song row callback
+    (0x4ede28, 0x24c69058, 'getMusicByPlayList: a2 = the song row callback 0x4e9058 (REC_DISC = cd_num)'),
+    # Rename Playlist (patch/songops.c so_rename_pl): createPlayListItem copies the name into the record's +8 and +0x10, and toolsInsertDbTable writes +8 as the second value (column filename) and +0x10
+    # as the seventh (column name) of `create table %s(id, filename, fileurl, album, songer, style, name, ...)`: a playlist's name is in both columns
+    (0x4eee04, 0xafa20020, 'createPlayListItem: rec+8 = a copy of the name'), (0x4eee3c, 0xafa20028, 'createPlayListItem: rec+0x10 = a copy of the name'),
+    (0x5ee388, 0x8e070008, 'toolsInsertDbTable: a3 = rec+8 (the filename value)'), (0x5ee50c, 0x8e070010, 'toolsInsertDbTable: a3 = rec+0x10 (the name value)'),
+    (0x5ee644, 0xafbe0014, 'toolsInsertDbTable: the second value (filename) is the rec+8 copy'), (0x5ee654, 0xafb50028, 'toolsInsertDbTable: the seventh value (name) is the rec+0x10 copy'),
+    (0x5ee67c, 0x24c67d20, 'toolsInsertDbTable: a2 = "insert into %s values(%d,\'%s\',..." 0x757d20'),
 )
 PICKER_PINS = (
     (0x4da7dc, 0x3c1c0053, 'batch_add_file prologue'), (0x4da7e0, 0x279c96f4, 'batch_add_file prologue'), (0x4da7e4, 0x0399e021, 'batch_add_file prologue'),

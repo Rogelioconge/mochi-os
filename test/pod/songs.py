@@ -2539,8 +2539,12 @@ def clean_tests(ctx):
     xx = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/images/xx')
     expect(f('vs_label8').get('tr_text') == 'Clean Up' and f('vs_glyph8').get('image') == 'pod_ic_vsclean' and f('vs_label7').get('tr_text') == 'Select'
            and f('vs_item8').get('enable') == 'true' and f('vs_label8').get('sensitive') == 'false' and f('vs_glyph8').get('sensitive') == 'false' and f('vs_tick8') is None
-           and f('vs_label9').get('tr_text') == 'Pin Playlist' and f('vs_glyph9').get('image') == 'pod_ic_vspin' and f('vs_item9').get('enable') == 'true' and f('vs_tick9') is None,
-           'the Songs asset\'s card has a third and a fourth action row: slot 8 Clean Up with the broom glyph, slot 9 Pin Playlist with the pin glyph, no ticks')
+           and f('vs_label9').get('tr_text') == 'Pin Playlist' and f('vs_glyph9').get('image') == 'pod_ic_vspin' and f('vs_item9').get('enable') == 'true' and f('vs_tick9') is None
+           and f('vs_label6').get('tr_text') == 'Rename' and f('vs_glyph6').get('image') == 'pod_ic_vsrename' and f('vs_tick6') is None,
+           'the Songs asset\'s card has four action rows: slot 6 Rename with the pencil glyph, slot 8 Clean Up with the broom glyph, slot 9 Pin Playlist with the pin glyph, no ticks')
+    expect(mod_icons.SONGS_IMAGES['pod_ic_vsrename'] == ('pencil', mod_icons.WHITE, None, 20)
+           and open(os.path.join(xx, 'pod_ic_vsrename.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, 'pod_ic_vsrename.png'), 'rb').read(),
+           'pod_ic_vsrename is Lucide pencil on the cards\' 20 px canvas, the committed PNG in the package')
     expect(mod_icons.SONGS_IMAGES['pod_ic_vsclean'] == ('broom', mod_icons.WHITE, None, 20)
            and open(os.path.join(xx, 'pod_ic_vsclean.png'), 'rb').read() == open(os.path.join(mod_icons.PNG, 'pod_ic_vsclean.png'), 'rb').read(),
            'pod_ic_vsclean is Lucide broom on the cards\' 20 px canvas, the committed PNG in the package')
@@ -2550,10 +2554,11 @@ def clean_tests(ctx):
     m = page()
     m.click('btn_more', count=900000000)
     card = m.widgets['vs_card']
-    expect(vis(m, 'vs_card') == (1, 1) and [vis(m, f'vs_item{i}') for i in range(10)] == [(0, 0)] * 7 + [(1, 1)] * 3
-           and all(m.props.get((card, f'style:{st}:bg_image')) == 'vs_glass3' for st in ('normal', 'pressed', 'over'))
-           and ('widget_move', m.widgets['vs_item7'], 0, 0) in m.calls and ('widget_move', m.widgets['vs_item8'], 0, 50) in m.calls and ('widget_move', m.widgets['vs_item9'], 0, 100) in m.calls,
-           'a playlist\'s card: Select, Clean Up, then Pin Playlist, three rows in vs_glass3')
+    expect(vis(m, 'vs_card') == (1, 1) and [vis(m, f'vs_item{i}') for i in range(10)] == [(0, 0)] * 6 + [(1, 1)] * 4
+           and all(m.props.get((card, f'style:{st}:bg_image')) == 'vs_glass4' for st in ('normal', 'pressed', 'over'))
+           and ('widget_move', m.widgets['vs_item7'], 0, 0) in m.calls and ('widget_move', m.widgets['vs_item6'], 0, 50) in m.calls
+           and ('widget_move', m.widgets['vs_item8'], 0, 100) in m.calls and ('widget_move', m.widgets['vs_item9'], 0, 150) in m.calls,
+           'a playlist\'s card: Select, Rename, Clean Up, then Pin Playlist, four rows in vs_glass4')
     m.click('vs_scrim', count=900000000)
     expect(vis(m, 'vs_card') == (0, 0), 'the scrim closes it')
     m.call(PSYMS['sg_on_destroy'], count=4000000)
@@ -2726,4 +2731,158 @@ def clean_tests(ctx):
     expect(m.played and m.played[1] == 0, 'a row whose file is there plays as before')
 
 
-SECTIONS = [asset_tests, open_and_paint_tests, touch_tests, rail_tests, switch_tests, order_search_and_stale_tests, collapse_and_select_tests, loader_tests, big_library_tests, lists_tests, clean_tests, src_tests, src_marks_tests, src_ring_accent_tests, src_dsd_tests, src_dlqueue_tests]   # tools/check.py runs each as its own task
+def edit_tests(ctx):
+    """A stock playlist's edits (docs/modules/playlists.md "Remove from Playlist", "Rename Playlist"; patch/songs.c sg_remove_one / sg_remove_marked / sg_rename, patch/songops.c so_remove_ids /
+    so_rename_pl, patch/rowmenu.c the seventh row, patch/pins.c pins_rename_playlist): the row sheet's Remove from Playlist (this row's id alone, by the menu's copy, no dialog; other lists and
+    a source never show it), the select mode trash (a confirm, the marked rows' ids, never batch_delete_file or a file), Rename (unchanged, duplicate, a quote, a failed statement, the
+    header, the titles and a Home pin follow)."""
+    expect = ctx.expect
+    import pod_pins_home as PH
+    RM = sibling('rowmenu')
+    pls, name, DB = O['CLASS_PLAYLIST_SONGS'], 'Road', '/mnt/data/database.db'
+    titles = ['Zed', 'Alpha', 'Mike', 'Bravo', 'Echo', 'Yankee', 'Delta', 'Kilo']
+    rid = lambda i: 201 + i
+    PINS = '/mnt/mmc/.m1plus/home-pins'
+
+    def page(n=5, paths=None, pin=None, rename_fails=False, pid=7):
+        """Playlist 7 'Road' with rows of the first n songs (cd_num 7), playlist 3 'Other' holding the same songs; the menu's widgets; optionally a Home pin of playlist 7."""
+        m = list_machine(titles)
+        RM.with_menu(m, 0)
+
+        def row(i, r, pl, p):
+            rec = m.record(album=f'Album {i % 5}', artist=f'Artist {i % 5}', path=p, title=titles[i], name=f'{i + 1}.flac', rid=r)
+            m.setword(rec + O['REC_DISC'], pl)
+            return rec
+        m.playlist_songs = {pid: [row(i, rid(i), pid, (paths or {}).get(i, f'/mnt/mmc/m/{i + 1}.flac')) for i in range(n)], 3: [row(i, 301 + i, 3, f'/mnt/mmc/m/{i + 1}.flac') for i in range(n)]}
+        for hid, nm in ((pid, name), (3, 'Other')):
+            h = m.record(path='', title=nm, name=nm, rid=hid); m.setword(h + O['REC_DISC'], hid); m.setword(h + O['REC_TYPE'], 4)
+            m.playlists.append(h)
+        m.present.add('/tmp/mmc_add'); m.card_mounted = True
+        if pin: m.fs[PINS] = PH.dump(pin)
+        if rename_fails: m.update_fails = True
+        assert m.call(PSYMS['songs_open_playlist'], a0=pid, a1=m.cstr(name), count=900000000) == 0
+        settle(m)
+        m.u.mem_write(NAV_TITLE, name.encode() + b'\0')   # as the Playlists page's tap leaves it
+        m.calls = []
+        return m
+
+    gone_ids = lambda calls: [c[3] for c in calls if c[0] == 'toolsDeleteItemById' and c[1:3] == ('playlist', DB)]
+    said = lambda calls: [c[1] for c in calls if c[0] == 'toast']
+    asked = lambda calls: [c[1] for c in calls if c[0] == 'confirm']
+    sheet = lambda m, row: m.call(PSYMS['sg_open_menu'], a0=row, count=900000000)
+    card = lambda m: m.widgets['rm_card']
+
+    # the row sheet: seven rows on a stock playlist, Remove from Playlist last with the list-x glyph, below Pin Song
+    m = page()
+    sheet(m, 1)
+    expect(vis(m, 'rm_card') == (1, 1) and vis(m, 'rm_item5') == (1, 1) and vis(m, 'rm_item6') == (1, 1) and ('widget_move', m.widgets['rm_item6'], 0, 6 * O['PM_ROW_H']) in m.calls
+           and m.props.get((card(m), 'style:normal:bg_image')) == 'pc_sheet7' and ('widget_resize', card(m), 320, 350) in m.calls,
+           'a stock playlist\'s row: the sheet has seven rows, Remove from Playlist under Pin Song, on the seven-row glass')
+    m.calls = []
+    m.click('rm_item6', count=900000000)
+    calls = list(m.calls)
+    flag = pod.DATA['DELETE_FLAG'][0]
+    expect(gone_ids(calls) == [rid(1)] and not asked(calls) and said(calls) == ['Removed from Playlist'] and 'batch_delete_file' not in [c[0] for c in calls]
+           and [r for r in m.playlist_songs[7]] and len(m.playlist_songs[7]) == 4 and len(m.playlist_songs[3]) == 5 and m.u.mem_read(flag, 1) == b'\x01',
+           f'Remove from Playlist: that row\'s id alone leaves the table, no dialog, "Removed from Playlist", delete_flag set; the other playlist keeps the song ({gone_ids(calls)})')
+    expect([c[1] for c in calls if c[0] == 'loadLocalClassList'][-1:] == [pls] and m.wtext[m.widgets['sg_foot']] == '4 songs' and vis(m, 'rm_card') == (0, 0),
+           'the sheet closes and the page reads the playlist again ("4 songs")')
+    # the menu's copy: rows shifting under the open sheet do not move the removal to another row; a list read again closes the sheet
+    m = page()
+    sheet(m, 2)
+    m.playlist_songs[7] = m.playlist_songs[7][1:]   # (row 0 went elsewhere: index 2 is now another song)
+    m.calls = []
+    m.click('rm_item6', count=900000000)
+    expect(gone_ids(m.calls) == [rid(2)], f'the row the sheet was opened for goes by its own id, not by its index in a newer list ({gone_ids(m.calls)})')
+    m = page()
+    sheet(m, 2)
+    m.call(PSYMS['sg_load'], a0=1, count=900000000); m.calls = []
+    m.click('rm_item6', count=900000000)
+    expect(not gone_ids(m.calls) and vis(m, 'rm_card') == (0, 0), 'a list read again under the sheet closes it: its row does nothing')
+    # a row whose path the pins cannot hold: no Pin Song, Remove from Playlist moves up into its place on the six-row glass
+    m = page(paths={1: 'x.flac'})
+    sheet(m, 1)
+    expect(vis(m, 'rm_item5') == (0, 0) and vis(m, 'rm_item6') == (1, 1) and ('widget_move', m.widgets['rm_item6'], 0, 5 * O['PM_ROW_H']) in m.calls
+           and m.props.get((card(m), 'style:normal:bg_image')) == 'pc_sheet6', 'no Pin Song: Remove from Playlist is the sixth row, six rows of glass')
+    # other lists: no such row
+    m = list_machine(titles, O['CLASS_FAV']); RM.with_menu(m, 0)
+    m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000); settle(m); m.calls = []
+    sheet(m, 1)
+    expect(vis(m, 'rm_item6') == (0, 0) and vis(m, 'rm_item5') == (1, 1) and m.props.get((card(m), 'style:normal:bg_image')) == 'pc_sheet6', 'Favorites: no Remove from Playlist, six rows as before')
+
+    # select mode: the trash asks, then the marked rows leave by id; never the stock delete, never a file
+    lay = Layout(['A'] * 5, sections=False, top=O['PH_TOP'])
+    m = page()
+    m.click('btn_more', count=900000000); m.click('vs_item7', count=900000000); settle(m)
+    for i in (1, 3): tap(m, 150, lay.row_y(i) + 30)
+    m.confirm_yes = False; m.calls = []
+    m.click('sg_del', count=900000000)
+    expect(asked(m.calls) == ['Remove 2 songs from this playlist?'] and not gone_ids(m.calls) and vis(m, 'sg_bar') == (1, 1),
+           f'two rows marked: "Remove 2 songs from this playlist?"; No removes nothing and stays in select mode ({asked(m.calls)})')
+    m.confirm_yes = True; m.calls = []
+    m.click('sg_del', count=900000000)
+    calls = list(m.calls)
+    expect(gone_ids(calls) == [rid(1), rid(3)] and said(calls) == ['Removed from Playlist'] and not any(c[0] in ('batch_delete_file', 'select_recordinit', 'remove', 'unlink') for c in calls)
+           and not any(c[0] == 'confirm' and c[1] == 'msg_delsong' for c in calls) and len(m.playlist_songs[3]) == 5,
+           f'Yes: rows 1 and 3 by their ids, no batch_delete_file, no file, the other playlist untouched ({gone_ids(calls)})')
+    expect(not is_shown(m, 'sg_bar') and m.wtext[m.widgets['sg_foot']] == '3 songs', 'select mode ends and the list is read again')
+    m = page()
+    m.click('btn_more', count=900000000); m.click('vs_item7', count=900000000); settle(m)
+    tap(m, 150, lay.row_y(0) + 30)
+    m.confirm_yes = True; m.on_confirm = lambda mm: mm.playlist_songs.__setitem__(7, mm.playlist_songs[7][2:]); m.calls = []
+    m.click('sg_del', count=900000000)
+    expect(asked(m.calls) == ['Remove 1 song from this playlist?'] and gone_ids(m.calls) == [rid(0)], f'one row: the singular; the ids are the ones asked about, whatever the list is after the dialog ({gone_ids(m.calls)})')
+    # other lists keep the stock delete
+    m = list_machine(titles, O['CLASS_FAV']); m.call(PSYMS['songs_open_list'], a0=O['HOME_FAV'], count=900000000); settle(m)
+    m.click('btn_more', count=900000000); tap(m, 150, Layout(['A'] * 8, sections=False).row_y(1) + 30)
+    m.confirm_answer = O['CONFIRM_DELETE_LIBRARY']; m.calls = []
+    m.click('sg_del', count=900000000)
+    expect(any(c[0] == 'batch_delete_file' for c in m.calls) and not gone_ids(m.calls), 'Favorites\' trash is still the stock delete')
+
+    # Rename: the card's row (slot 6) opens our keyboard on the current name
+    m = page()
+    m.click('btn_more', count=900000000); m.calls = []
+    m.click('vs_item6', count=900000000)
+    expect(('window_open', 'm1plus_keyboard') in m.calls and vis(m, 'vs_card') == (0, 0), 'Rename closes the card and opens our keyboard')
+    rn = lambda m, s, pid=7: (m.setword(PSYMS['sg_rn_id'], pid), m.setword(PSYMS['sg_rn_on'], 1), m.call(PSYMS['sg_renamed'], a0=m.cstr(s), count=900000000))
+    upd = lambda calls: [c[2] for c in calls if c[0] == 'toolsUpdateDbTable' and c[1] == DB]
+    m.calls = []; rn(m, 'Road')
+    expect(not upd(m.calls) and not said(m.calls), 'the same name: nothing written, nothing said')
+    m.calls = []; rn(m, 'Other')
+    expect(not upd(m.calls) and said(m.calls) == ['msg_playlistexist'], 'another playlist\'s name: stock\'s "already exists", nothing written')
+    m.calls = []; rn(m, 'Trip', 3)
+    expect(not upd(m.calls), 'a name for another playlist than the page\'s changes nothing')
+    pin = [('p', 7, (11, 22, 0, 0), 'Road', ''), ('a', 0x1234, (5, 0, 0, 0), 'Blue', '')]
+    m = page(pin=pin)
+    m.calls = []; rn(m, "Rock'n Roll")
+    hrec = m.playlists[0]
+    expect(upd(m.calls) == ["update playlist set filename='Rock''n Roll',name='Rock''n Roll' where id=7 and id<=100"]
+           and m.read_cstr(m.word(hrec + O['REC_TITLE'])) == "Rock'n Roll" and m.read_cstr(m.word(hrec + O['REC_NAME'])) == "Rock'n Roll",
+           f'a new name: one statement on the header row, both name columns, the quote doubled ({upd(m.calls)})')
+    expect(m.wtext[m.widgets['sg_hname']] == "Rock'n Roll" and m.wtext[m.widgets['label_title']] == "Rock'n Roll" and not said(m.calls),
+           'the header and the small title read the new name')
+    expect(m.read_cstr(pod.DATA['NAV_TITLE'][0]) == "Rock'n Roll", f'stock\'s navigation title follows, though the duplicate check\'s read wrote "Playlists" over it ({m.read_cstr(pod.DATA["NAV_TITLE"][0])!r})')
+    expect(PH.parse(m.fs[PINS]) == [('p', 7, (11, 22, 0, 0), "Rock'n Roll", ''), pin[1]], f'the Home pin follows, in its place with its covers ({PH.parse(m.fs.get(PINS, b""))})')
+    m = page()
+    m.calls = []; rn(m, 'Other')
+    expect(m.read_cstr(pod.DATA['NAV_TITLE'][0]) == name, 'a refused name leaves the navigation title as it was')
+    m.calls = []; m.setword(PSYMS['sg_rn_on'], 0); m.call(PSYMS['sg_renamed'], a0=m.cstr('Trip'), count=900000000)
+    expect(not upd(m.calls), 'no rename waiting: nothing written')
+    # stock's first playlist has id 0
+    m = page(pid=0)
+    m.calls = []; rn(m, 'Zero', 0)
+    expect(upd(m.calls) == ["update playlist set filename='Zero',name='Zero' where id=0 and id<=100"] and m.wtext[m.widgets['sg_hname']] == 'Zero' and not said(m.calls),
+           f'playlist 0 is renamed ({upd(m.calls)}, {said(m.calls)})')
+    m = page(rename_fails=True)
+    m.calls = []; rn(m, 'Trip')
+    expect(said(m.calls) == ["Can't rename playlist"] and m.wtext[m.widgets['sg_hname']] == name and m.read_cstr(m.word(m.playlists[0] + O['REC_TITLE'])) == name,
+           'a statement that did not run: "Can\'t rename playlist", the page keeps its name')
+    # a name of two lines moves the pills and the rows down
+    m = page()
+    m.calls = []; rn(m, 'W' * 60)
+    expect(vis(m, 'sg_hname2')[0] == 1 and ('widget_move', m.widgets['hd_play'], O['AH_PLAY_X'], O['PH_BTN_Y'] + O['AH_TITLE_LH']) in m.calls, 'a long new name wraps to two lines: the pills go down a line')
+    expect(all(k in pod_i18n.TEXT and set(pod_i18n.TEXT[k]) == set(pod_i18n.LOCALES) for k in ('Remove from Playlist', 'Removed from Playlist', 'Remove %d song from this playlist?',
+           'Remove %d songs from this playlist?', "Can't remove from playlist", 'Rename', 'Rename Playlist', "Can't rename playlist")), 'the new texts exist in the 13 languages')
+
+
+SECTIONS = [asset_tests, open_and_paint_tests, touch_tests, rail_tests, switch_tests, order_search_and_stale_tests, collapse_and_select_tests, loader_tests, big_library_tests, lists_tests, clean_tests, edit_tests, src_tests, src_marks_tests, src_ring_accent_tests, src_dsd_tests, src_dlqueue_tests]   # tools/check.py runs each as its own task

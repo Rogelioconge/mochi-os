@@ -196,6 +196,16 @@ static void rm_pin_song(rowmenu_t *rm) {
     rowmenu_close(rm);
 }
 
+/* Remove from Playlist: the page removes the row the copy is of (its own row id, not an index of a list that may have been read again), then the copy goes. */
+static void rm_remove(rowmenu_t *rm) {
+    void *rows = rm->rows, *rec = rows ? deque_at(rows, 0) : (void *)0;
+    rowmenu_remove_fn fn = rm->rm_row ? rm->remove : (rowmenu_remove_fn)0;
+    rm->rows = (void *)0;
+    rowmenu_close(rm);
+    if (rec && fn) fn(rec);
+    if (rows) deque_destroy(rows);
+}
+
 /* Get Info: the page opens on the row's copy (it copies what it shows), then the copy goes. */
 static void rm_info(rowmenu_t *rm) {
     void *rows = rm->rows, *rec = rows ? deque_at(rows, 0) : (void *)0;
@@ -217,7 +227,9 @@ static int rm_on_item(void *ctx, void *e) {
         if (fn) fn(row, s->k);
         return RET_OK;
     }
-    if (s->k == 5) {
+    if (s->k == RM_REMOVE_ROW) {
+        rm_remove(rm);
+    } else if (s->k == RM_PIN_ROW) {
         if (rm->pin) rm_pin_song(rm);
     } else if (rm->src && s->k == 2) {
         rm_download(rm);
@@ -245,7 +257,8 @@ static int rm_on_item(void *ctx, void *e) {
 }
 
 static int rm_bind(rowmenu_t *rm, void *win, int rows) {
-    static const char *const ITEMS[RM_ROWS] = {"rm_item0", "rm_item1", "rm_item2", "rm_item3", "rm_item4", "rm_item5"};
+    static const char *const ITEMS[RM_ROWS] = {"rm_item0", "rm_item1", "rm_item2", "rm_item3",
+                                               "rm_item4", "rm_item5", "rm_item6"};
     int i, ok;
     memset(rm, 0, sizeof *rm);
     rm->win = win;
@@ -275,7 +288,7 @@ static int rm_bind(rowmenu_t *rm, void *win, int rows) {
 
 void rowmenu_set_rows(rowmenu_t *rm, int n) {
     static const char *const glass[] = {"",          "pc_sheet1", "pc_sheet2", "pc_sheet3",
-                                        "pc_sheet4", "pc_sheet5", "pc_sheet6"};
+                                        "pc_sheet4", "pc_sheet5", "pc_sheet6", "pc_sheet7"};
     int h;
     if (!rm->card || n < 1 || n >= (int)(sizeof glass / sizeof glass[0])) return;
     h = n * PM_ROW_H;
@@ -359,18 +372,27 @@ static void rm_third(rowmenu_t *rm, const ls_row_t *x) {
     if (rm->dl_icon) widget_set_prop_str(rm->dl_icon, "image", icon);
 }
 
-/* The sixth row, Pin Song / Unpin Song, for a song of the card (no source, a path the pins can hold); any other row has the five and the glass five rows high, as before the row existed. */
-static void rm_pin_row(rowmenu_t *rm, void *rec) {
+/* The rows after the five: Pin Song / Unpin Song for a song of the card (no source, a path the pins can hold), then Remove from Playlist on a page that has it (rowmenu_set_remove) for a playlist song
+ * record (REC_ID over PL_MAX), moved up into the Pin row's place when that row is hidden. The glass is as many rows high as are shown (five for a row with neither, as before the rows existed). */
+static void rm_tail_rows(rowmenu_t *rm, void *rec) {
     const char *path = cc_str(rec, REC_PATH);
-    rm->pin = !rm->src && rm->pin_label && rm->pin_icon && rm->item[5] && pins_song_ok(path, I(rec, REC_CUE_START));
+    rm->pin =
+        !rm->src && rm->pin_label && rm->pin_icon && rm->item[RM_PIN_ROW] && pins_song_ok(path, I(rec, REC_CUE_START));
     if (rm->pin) {
         int has = pins_has_song(path, I(rec, REC_CUE_START));
         widget_set_tr_text(rm->pin_label, has ? "Unpin Song" : "Pin Song");
         widget_set_prop_str(rm->pin_icon, "image", has ? "rm_ic_unpin" : "rm_ic_pin");
     }
-    m1_show(rm->item[5], rm->pin);
-    rowmenu_set_rows(rm, rm->pin ? RM_ROWS : RM_ROWS - 1);
+    m1_show(rm->item[RM_PIN_ROW], rm->pin);
+    rm->rm_row = !rm->src && rm->remove && rm->item[RM_REMOVE_ROW] && I(rec, REC_ID) > PL_MAX;
+    if (rm->item[RM_REMOVE_ROW]) {
+        m1_show(rm->item[RM_REMOVE_ROW], rm->rm_row);
+        if (rm->rm_row) widget_move(rm->item[RM_REMOVE_ROW], 0, (RM_PIN_ROW + rm->pin) * PM_ROW_H);
+    }
+    rowmenu_set_rows(rm, RM_PIN_ROW + rm->pin + rm->rm_row);
 }
+
+void rowmenu_set_remove(rowmenu_t *rm, rowmenu_remove_fn fn) { rm->remove = fn; }
 
 int rowmenu_open_src(rowmenu_t *rm, int row, void *rec, rowmenu_add_fn add, const lib_src_t *src) {
     void *d;
@@ -397,7 +419,7 @@ int rowmenu_open_src(rowmenu_t *rm, int row, void *rec, rowmenu_add_fn add, cons
     rm_third(rm, &x);
     if (rm->fav_label) widget_set_tr_text(rm->fav_label, rm->fav ? "Undo Favorite" : "Favorite");
     if (rm->fav_icon) widget_set_prop_str(rm->fav_icon, "image", rm->fav ? "rm_ic_unfav" : "rm_ic_fav");
-    rm_pin_row(rm, rec);
+    rm_tail_rows(rm, rec);
     rm->rows = d, rm->row = row, rm->add = add, rm->open = 1;
     m1_show(rm->scrim, 1);
     m1_show(rm->card, 1);

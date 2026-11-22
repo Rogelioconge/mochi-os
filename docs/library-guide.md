@@ -28,6 +28,13 @@ albums without a year appear under Unknown. View and sort choices are remembered
 An album whose tracks carry disc numbers in their tags shows a **Disc 1**, **Disc 2**… heading
 before each disc, and numbers each disc's tracks from 1. Run **Update Library** after tagging.
 
+### Edit a playlist
+
+Open a playlist and tap **… → Rename** to give it a new name; a pinned playlist keeps its pin. To
+take one song out, tap its **…** (or long-press it) and choose **Remove from Playlist**. To take out
+several, choose **… → Select**, mark them and tap the trash can. Only this playlist changes; the
+songs stay in your library and on the card.
+
 ### Repair a playlist
 
 After moving music files, run **Update Library**, then open the playlist and choose **… → Clean Up
@@ -65,7 +72,7 @@ shows the remaining hours and minutes. This is the same timer as **All System Se
 
 On an album or Songs list, tap a track's **…** or long-press its row. Choose **Play Next**,
 **Play After**, **Add to Playlist**, **Favorite** or **Get Info**. A favorited track offers
-**Undo Favorite** instead. Get Info shows the track's format, quality, length, size and path.
+**Undo Favorite** instead. In a playlist, **Remove from Playlist** is the last choice. Get Info shows the track's format, quality, length, size and path.
 
 ### Manage Up Next
 

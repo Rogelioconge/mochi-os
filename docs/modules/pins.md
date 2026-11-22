@@ -124,13 +124,13 @@ One line per pin, in the user's order (a new pin is appended), at most six.
 
 `pins_pin_album(album, ckey, path)`, `pins_pin_playlist(id, name, keys, nk)`, `pins_unpin_album(album)`,
 `pins_unpin_playlist(id, name)`, `pins_has_album`, `pins_has_playlist(id, name)`, `pins_label_album`, `pins_label_playlist(id, name)`
-(the translation key for a "Pin" / "Unpin" row). Each reads the file fresh and writes it back; none needs a
+(the translation key for a "Pin" / "Unpin" row), `pins_rename_playlist(id, old, name)` (Rename Playlist: the pin keeps its place and cover keys; a file that cannot be written says "Can't update pins"). Each reads the file fresh and writes it back; none needs a
 menu. A pin that would be the seventh shows the toast "Unpin an item first" and returns `PINS_FULL`; a pin
 already there returns `PINS_OK` and changes nothing. A live menu shows the change at its next to-foreground
 (`pn_on_foreground` reads the file and redoes only the tiles that changed).
 
-**Playlist entry:** the Songs page of a playlist: "..." card, row 9 (slot `VS_ACT3`, under Select and Clean
-Up Playlist) **Pin Playlist** / **Unpin Playlist** (`pod_ic_vspin` / `pod_ic_vsunpin`). `sg_pin_row` sets
+**Playlist entry:** the Songs page of a playlist: "..." card, the fourth row (slot `VS_ACT3`, under Select, Rename and Clean
+Up) **Pin Playlist** / **Unpin Playlist** (`pod_ic_vspin` / `pod_ic_vsunpin`). `sg_pin_row` sets
 words and glyph at each open; `sg_pin` takes the mosaic keys from the list the page holds
 (`grid_mosaic_keys`).
 

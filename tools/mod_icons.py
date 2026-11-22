@@ -303,7 +303,7 @@ PL_MENU_ICONS = (('pl_ic_new', 'list-plus'), ('pl_ic_import', 'file-input'), ('p
 # the row's own "..." (RM_DOTS: the Lucide ellipsis, 24 px white on transparent; the payload makes it a RM_DOTS_RGB bitmap from the image's coverage and paints it at the right end of a track row)
 RM_MENU_ICONS = (('rm_ic_next', 'list-start'), ('rm_ic_after', 'list-end'), ('rm_ic_add', 'list-plus'), ('rm_ic_fav', 'star'), ('rm_ic_info', 'info'), ('rm_ic_pin', 'pin'))
 RM_PIN_ICONS = (('rm_ic_pplay', 'play'), ('rm_ic_pshuffle', 'shuffle'), ('rm_ic_unpin', 'pin-off'))   # the Home pins' long press sheet (patch/pins.c, docs/modules/pins.md): Play, Shuffle, Unpin Album / Unpin Playlist
-RM_REMOVE = ('rm_ic_remove', 'list-x')   # the Queue page's sheet (patch/rowmenu.c, docs/modules/queue.md): Remove from Queue
+RM_REMOVE = ('rm_ic_remove', 'list-x')   # the Queue page's sheet (patch/rowmenu.c, docs/modules/queue.md): Remove from Queue; the track sheet's Remove from Playlist (a stock playlist's songs page)
 RM_FAV_ON = ('rm_ic_unfav', 'star')   # Favorite's glyph while the track is a favourite (Undo Favorite): the same star filled solid; the payload swaps the row's image
 RM_DL_ICONS = (('rm_ic_dl', 'download'), ('rm_ic_cxdl', 'x'))   # a Navidrome row's sheet (patch/rowmenu.c rm_third): the third row's Download / Remove Download / Cancel Download, in place of Add to Playlist's glyph
 RM_DOTS = ('rm_dots', 'ellipsis')
@@ -885,6 +885,7 @@ SONGS_IMAGES = {'sg_play': ('play:filled', WHITE, 14, 16), 'sg_shuffle': ('shuff
                 'pod_ic_vsdownload': ('download', WHITE, None, 20),   # the Subsonic album page's "..." card (patch/albumpage.c): Download Album
                 'pod_ic_vspin': ('pin', WHITE, None, 20), 'pod_ic_vsunpin': ('pin-off', WHITE, None, 20),   # a playlist's "..." card (patch/songs.c): Pin Playlist / Unpin Playlist
                 'pod_ic_vsclean': ('broom', WHITE, None, 20),   # a playlist's "..." card (patch/songs.c): Clean Up
+                'pod_ic_vsrename': ('pencil', WHITE, None, 20),   # a playlist's "..." card (patch/songs.c): Rename
                 'pod_ic_vsorder': ('arrow-down-wide-narrow', WHITE, None, 20), 'pod_ic_vslink': ('link', WHITE, None, 20), 'pod_ic_vsimport': ('import', WHITE, None, 20), 'pod_ic_vstrash': ('trash', (0xFF, 0x6B, 0x6B), None, 20),   # the Radio stations' "..." card (patch/radiopage.c): Sort by Name, Add by URL, Import from Card, Clear History (red)
                 'pod_ic_vsphoto': ('user-round-search', WHITE, None, 20),   # an artist's page "..." card (patch/albums.c): Find Artist Photo
                 'nd_st_ok': ('circle-check', WIFI_GREY, 14, 14), 'nd_st_off': ('unplug', WIFI_GREY, 14, 14)}   # the Subsonic root's status line: connected, and not connected / offline (14 px, the spinner's size, the line's grey)   # the "..." cards' row glyphs (bare, as the Playlists menu's rows); ink None: drawn on the icon set's own 24 grid at VS_GRID_PX, not fitted to the box, so a round or square shape keeps the set's optical balance and the rows' glyphs look one size
@@ -1534,7 +1535,7 @@ GLASS_VIEWSORT4 = (72, 200, 14)   # the Artists "..." card: Search, the two Show
 GLASS_VIEWSORT1 = (72, 50, 14)    # the Genres and Composers "..." card: Name alone (one row); the Songs page's genre and artist lists: Select alone
 GLASS_VIEWSORT2 = (72, 100, 14)   # the Songs page's lists with Search Songs and Select (two rows)
 GLASS_VIEWSORT3 = (72, 150, 14)   # Recently Added's albums view: Search Songs, Grid, List (three rows)
-GLASS_ROWMENU = (320, 300, 18)   # the track rows' menu (patch/rowmenu.c, docs/modules/rowmenu.md): Now Playing's More sheet's pane, six rows high (pc_sheet6; five rows for a row without Pin Song: pc_sheet5), top corners only
+GLASS_ROWMENU = (320, 350, 18)   # the track rows' menu (patch/rowmenu.c, docs/modules/rowmenu.md): Now Playing's More sheet's pane, seven rows high (pc_sheet7; the payload picks pc_sheet5..7 by the rows a row has), top corners only
 GLASS_PEQDIALOG = (72, 276, 14)  # the band page's unsaved-changes dialog (docs/modules/peq.md "Preset editing"): the Playlists menu's pane, 76 px of head and four 50 px buttons high; drawn patch3_x
 GLASS_BANDKEYPAD = (320, 320, 18)   # the band page's number keypad sheet (docs/modules/peq.md "Preset editing"): the track rows' menu's pane, 320 px high
 GLASS_MENU = (72, 200, 14)    # the Playlists page's "..." menu card (patch/playlists.c, docs/modules/playlists.md): the sheet's glass, all four corners; drawn patch3_x

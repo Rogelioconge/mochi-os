@@ -15,6 +15,9 @@ typedef struct rowmenu rowmenu_t;
 /* A page's "Add to Playlist" for the row `row` (its own one-row selection and the picker, patch/songops.c so_add). Called after the menu has closed. */
 typedef void (*rowmenu_add_fn)(int row);
 
+/* A stock playlist's "Remove from Playlist" (rowmenu_set_remove): called after the menu has closed with the menu's own copy of the row's record (its REC_ID is the playlist row's id; freed after the call). */
+typedef void (*rowmenu_remove_fn)(void *rec);
+
 /* The Queue page's sheet (rowmenu_open_queue): called once the sheet has closed with the row it opened for and the row of the sheet that was tapped (RMQ_*). */
 typedef void (*rowmenu_queue_fn)(int row, int act);
 #define RMQ_NEXT 0 /* Play Next */
@@ -33,7 +36,7 @@ typedef void (*rowmenu_queue_fn)(int row, int act);
 
 struct rowmenu_slot {
     rowmenu_t *rm;
-    int k; /* 0 Play Next, 1 Play After, 2 Add to Playlist, 3 Favorite, 4 Get Info, 5 Pin Song */
+    int k; /* 0 Play Next, 1 Play After, 2 Add to Playlist, 3 Favorite, 4 Get Info, 5 Pin Song, 6 Remove from Playlist */
 };
 
 struct rowmenu {
@@ -60,6 +63,8 @@ struct rowmenu {
     void *pin_label,
         *pin_icon; /* the sixth row's label and glyph (Pin Song / Unpin Song, rm_ic_pin / rm_ic_unpin), set at every open; NULL: the page's asset has no such row */
     int pin; /* the open menu has the Pin Song row: a song of the card (no source), the asset has the row */
+    rowmenu_remove_fn remove; /* the page's Remove from Playlist (rowmenu_set_remove), NULL: the page has no such row */
+    int rm_row; /* the open menu has the Remove from Playlist row */
     int dl; /* the third row's action for a source: LS_ACT_DOWNLOAD / LS_ACT_CANCEL_DL / LS_ACT_DELETE_DL */
 };
 
@@ -117,3 +122,6 @@ int rowmenu_open_src(rowmenu_t *rm, int row, void *rec, rowmenu_add_fn add, cons
 
 /* Closes the menu and drops the row copy. */
 void rowmenu_close(rowmenu_t *rm);
+
+/* The page's Remove from Playlist (a stock playlist's songs page, patch/songs.c): the sheet then has the row last (after Pin Song when that shows) for a playlist song record (REC_ID over PL_MAX). Call after rowmenu_bind; NULL takes it away. */
+void rowmenu_set_remove(rowmenu_t *rm, rowmenu_remove_fn fn);
