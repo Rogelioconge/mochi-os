@@ -465,6 +465,43 @@ def run(ctx):
     expect(stock_back(m, 'A' * 600) and not any(shown(m, f'np_i_h{r}') for r in range(4)), 'a text too long to read whole: our rows go, stock\'s label shows (never a stale line)')
     m.texts[m.widgets['label_info']] = QS; m.tick()
     expect(rowv(m, 1) == ('Sample Rate', '44.1 kHz') and gone(m, 'label_info'), 'readable again: ours again')
+    # a track the player converts to the rate its output is kept at (Crossfade, patch/xfsrc.c XFOUT_FILE): the Sample Rate says so
+    XFOUT, RUN = '/tmp/m1plus-xfout', pod.DATA['HCI_RUNNING'][0]
+    xfo = lambda rate, magic=0x314f4658: struct.pack('<ii', magic, rate)
+    def out(m, blob, running=1):
+        m.blobs.pop(XFOUT, None)
+        if blob is not None: m.blobs[XFOUT] = blob
+        m.u.mem_write(RUN, bytes([running])); m.calls = []; m.tick()
+        return (rowv(m, 1) or (None, None))[1]
+    expect(out(m, xfo(96000)) == '44.1 \u2192 96 kHz' == mn.resampled('44.1 kHz', 96000)[0], f'the output kept at 96 kHz: "44.1 \u2192 96 kHz" ({rowv(m, 1)}), as the preview\'s model')
+    expect(P(m, 'np_i_v1')[2] >= ms('44.1 \u2192 96 kHz', 16) and len([c for c in sets(m) if c[0] == 'widget_set_text_utf8']) == 8, 'it fits the value box, laid out once')
+    m.calls = []; m.tick()
+    expect(not sets(m), 'an unchanged output rate: the next tick lays nothing out')
+    expect(out(m, xfo(0)) == '44.1 kHz', 'the output is the track\'s own again (the record says 0): the plain rate')
+    bad = [(r, got) for r, want in ((176400, '176.4 kHz'), (48000, '48 kHz'), (22050, '22.05 kHz'), (384000, '384 kHz'), (8000, '8 kHz'))
+           for got in [out(m, xfo(r))] if not got == '44.1 \u2192 ' + want == mn.resampled('44.1 kHz', r)[0]]
+    expect(not bad, f'the output rate as stock writes a rate ({bad})')
+    bad = [what for what, blob, run in (('the track\'s own rate', xfo(44100), 1), ('no record', None, 1), ('another magic', xfo(96000, 0x304f4658), 1), ('a short record', xfo(96000)[:7], 1),
+                                       ('a rate out of range', xfo(400000), 1), ('a negative rate', xfo(-1), 1), ('the player not running', xfo(96000), 0)) if out(m, blob, run) != '44.1 kHz']
+    expect(not bad, f'the plain rate otherwise ({bad})')
+    m.texts[m.widgets['label_info']] = 'FLAC|0kHz|16bit|0kbps'; out(m, xfo(96000))
+    expect(rowv(m, 1) is None, 'no Sample Rate from stock: no row for the output rate alone')
+    m.texts[m.widgets['label_info']] = 'DSD256|11289.6kHz|1bit|22579kbps'
+    expect(out(m, xfo(352800)) == '11289.6 \u2192 352.8 kHz', 'the longest pair is whole')
+    # a long label (French, Polish) leaves no room for both rates: the output's alone, after the arrow; never a cut text
+    short, bad, cut = [], [], []
+    for lang in pod_i18n.LOCALES:
+        for line, rate, full, alt in (('FLAC|44.1kHz|16bit|950kbps', 96000, '44.1 \u2192 96 kHz', '\u2192 96 kHz'), ('FLAC|352.8kHz|24bit|9000kbps', 176400, '352.8 \u2192 176.4 kHz', '\u2192 176.4 kHz')):
+            mm = info({'label_info': line}, lang); got = out(mm, xfo(rate)); room = P(mm, 'np_i_v1')[2]
+            want = full if ms(full, 16) <= room else alt
+            if (full, alt) != mn.resampled(mn.qparse(line)[1], rate): bad.append((lang, 'model'))
+            if ms(alt, 16) > room: cut.append((lang, rate, got))
+            elif got != want or ms(got, 16) > room: bad.append((lang, got))
+            if want == alt and rate == 96000: short.append(lang)
+    expect(not bad and short == ['fr_FR', 'po_PL'], f'every language: both rates when they fit beside the label, else the output\'s alone ({bad}; 44.1 to 96 kHz short in {short})')
+    expect([c[:2] for c in cut] == [('fr_FR', 176400)] and cut[0][2].startswith('\u2192 176.4') and cut[0][2].endswith('...'),
+           f'only the French label leaves less than "\u2192 176.4 kHz" needs: that one is cut like any long value ({cut})')
+    m.blobs.pop(XFOUT, None); m.u.mem_write(RUN, b'\0'); m.texts[m.widgets['label_info']] = QS; m.tick()
     m.texts[m.widgets['label_info']] = '||||'; m.tick()
     expect(stock_back(m, '||||'), 'a text with no field: stock\'s label')
     m.texts[m.widgets['label_info']] = QS; m.get_ret = 1; m.tick(); m.get_ret = 0

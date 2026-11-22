@@ -8,26 +8,28 @@ Settings > Playback Settings is an own hub page (`m1plus_playset`) with two own 
 `playset/playset_page` ("All Playback Settings") and its sub-pages, as [Buttons & Power](keyspower.md)
 and [Display](display.md) replaced theirs. Every row shows stock's own state word and calls setters
 that repeat stock's click handler stores in order, store for store and call for call. Nothing of ours
-is saved (except Mono and Crossfeed). No hook, nothing boot-reachable. Values are read again when each
+is saved (except Mono, Crossfeed and Crossfade). No hook, nothing boot-reachable. Values are read again when each
 page opens and on `EVT_WINDOW_TO_FG`; a picker or slider page returns to the sub-page that opened it
 (the window stack, no parent is recorded), and the Gain row's dim is applied wherever the row sits.
 
 ## The pages
 
 The Settings row **Playback Settings** (Settings > Playback, after EQ; `ACT_PAGE`, `PLAYSET_PAGE`)
-replaces **All Playback Settings** and takes **Continue Playing** with it. The hub holds the Playback
-card, then a card (after a GAP, no header) of two link rows, **Volume & Sound** (`ACT_PAGE`,
+replaces **All Playback Settings** and takes **Continue Playing** with it. The hub has three
+groups under headers: **Queue** (Play Mode, Continue Playing, Folder Skip, Resume), **Transitions**
+(Gapless, Crossfade) and **Audio**, two link rows, **Volume & Sound** (`ACT_PAGE`,
 `PSVOLUME_PAGE`) and **Output** (`ACT_PAGE`, `PSOUTPUT_PAGE`). **Volume & Sound** has a Volume header
 and a Stereo header; **Output** starts with a card without a header, then a USB & Digital header.
 The two pages come last in `PAGE_ORDER` so no other page's number moved. Rows, in order:
 
 | Section | Row | Control | State (stock's own) | Setter = stock's click, in its order |
 |---|---|---|---|---|
-| Hub | Play Mode | value row, picker: List Play, Repeat Track, Shuffle, Repeat All | `pod_play_mode()` ([shuffle](shuffle.md)) | `pod_set_mode(m)`: `mclSetPlayMode`, `notifyPlayMode`, `dmrSendPlayMode`, `write_int_config(m, "PLAYSET", "PLAYMODE")`; nothing when `m` is shown already |
-| | Gapless | switch | `mclGetGaplessMode()` | `write_int_config(new, "PLAYSET", "GAPLESS")`, `mclSetGaplessMode(new)` |
-| | Resume | value row, picker: Off, Track, Location | word `memory_play` | the word, `write_int_config(i, "PLAYSET", "MEMORYPLAY")` |
-| | Folder Skip | switch | `mclGetJumpFolder()` | `write_int_config(new, "PLAYSET", "JUMPFOLDER")`, `mclSetJumpFolder(new)` |
+| Hub > Queue | Play Mode | value row, picker: List Play, Repeat Track, Shuffle, Repeat All | `pod_play_mode()` ([shuffle](shuffle.md)) | `pod_set_mode(m)`: `mclSetPlayMode`, `notifyPlayMode`, `dmrSendPlayMode`, `write_int_config(m, "PLAYSET", "PLAYMODE")`; nothing when `m` is shown already |
 | | Continue Playing | value row | ours ([nextalbum](nextalbum.md)), moved here unchanged | |
+| | Folder Skip | switch | `mclGetJumpFolder()` | `write_int_config(new, "PLAYSET", "JUMPFOLDER")`, `mclSetJumpFolder(new)` |
+| | Resume | value row, picker: Off, Track, Location | word `memory_play` | the word, `write_int_config(i, "PLAYSET", "MEMORYPLAY")` |
+| Hub > Transitions | Gapless | switch | `mclGetGaplessMode()` | `write_int_config(new, "PLAYSET", "GAPLESS")`, `mclSetGaplessMode(new)` |
+| | Crossfade | value row (Off or N s) opening the Crossfade page: a switch, a 1 to 12 s duration slider, Keep Albums Gapless | ours: files `playback-crossfade`, `playback-crossfade-auto` ([crossfade](crossfade.md)) | `xfade_on_toggle`, `xfade_sec_set`, `xfade_auto_toggle` |
 | Volume & Sound > Volume | Gain | value row, picker: Low, High | `mclGetGainMode()` | `write_int_config(new, "PLAYSET", "GAIN")`, `mclSetGainMode(new, 1)`; dimmed and refused while Line Out is on |
 | | Max Volume | value row (number), slider page | word `max_volume` | stock's slider, `btn_dec`, `btn_add` handlers ("Loudness pages") |
 | | Default Volume | value row (`Memory` while the byte is 1, else the number), page with Volume Memory switch and slider | byte `boot_volflag`, word `boot_volume` | switch: byte xor 1, `write_int_config(byte, "PLAYSET", "BOOTVOLFLAG")`; slider: stock's handlers |

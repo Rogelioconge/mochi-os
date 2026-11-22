@@ -20,6 +20,9 @@ RAW = PI.RAW
 
 # What a typical device shows: widget name -> text (values), name -> on (switches), name -> shown (checks, the hidden card), per page key.
 WT_STATE = {'values': {'pod_big0_t': '192.168.100.100:8888'}}   # Wi-Fi Transfer: the big card's text, four three-digit groups (the digits are tabular: 255.255.255.255 is as wide)
+XFADE_SHOWN = {'pod_sec0', 'pod_xfcard', 'pod_row1', 'pod_note0', 'pod_note1'}   # the items of the Crossfade page the payload shows while its switch is on (patch/xfadeset.c xfade_show)
+XFADE_ON = {'switches': {'pod_switch0': True, 'pod_switch1': True}, 'items': XFADE_SHOWN, 'vol': 5, 'xf_text': '5 seconds'}
+XFADE_OFF = {'switches': {'pod_switch0': False, 'pod_switch1': True}}
 STATE = {
     'm1plus_settings': {'values': {'pod_value0': 'Off', 'pod_value1': 'Off', 'pod_value6': 'Rock'}},   # Wi-Fi, Bluetooth and EQ (the 10-Band EQ's curve name, or Off)
     'm1plus_appearance': {'values': {'pod_value0': 'Black', 'pod_value1': 'Neutral'}, 'switches': {'pod_switch3': True}},
@@ -34,7 +37,8 @@ STATE = {
     'm1plus_datetime': {'values': {'pod_value1': 'Auckland', 'pod_value2': '2026-11-15', 'pod_value3': '14:05'}, 'switches': {'pod_switch0': False, 'pod_switch4': True}},
     'm1plus_lighttime': {'shown': {'pod_check2'}},
     'm1plus_keyspower': {'values': {'pod_value0': 'Both', 'pod_value3': '5min'}, 'switches': {'pod_switch1': True, 'pod_switch2': False, 'pod_switch4': True}},
-    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value2': 'Location', 'pod_value4': 'Off'}, 'switches': {'pod_switch1': False, 'pod_switch3': True}},
+    'm1plus_playset': {'values': {'pod_value0': 'Repeat All', 'pod_value1': 'Off', 'pod_value3': 'Location', 'pod_value5': '5 s'}, 'switches': {'pod_switch2': True, 'pod_switch4': False}},
+    'm1plus_psxfade': XFADE_ON,
     'm1plus_psvolume': {'values': {'pod_value0': 'Low', 'pod_value1': '80', 'pod_value2': 'Memory', 'pod_value3': 'Off', 'pod_value4': 'L3', 'pod_value6': 'Medium'}, 'switches': {'pod_switch5': True}},
     'm1plus_psoutput': {'values': {'pod_value1': 'D2P', 'pod_value3': 'Variable'}, 'switches': {'pod_switch4': False}},
     'm1plus_psxfeed': {'shown': {'pod_check2'}},
@@ -94,7 +98,7 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
     values, switches, shown = st.get('values', {}), st.get('switches', {}), st.get('shown', set())
     sv = next(w for w in root.walk() if w.name == 'pod_scrollview')
     hidden = st.get('hidden', set())
-    kids = [c for c in sv.children if c.name not in hidden and c.get('visible') != 'false']   # the list_view layouter stacks the visible children (it ignores their y)
+    kids = [c for c in sv.children if c.name not in hidden and (c.get('visible') != 'false' or c.name in st.get('items', ()))]   # the list_view layouter stacks the visible children (it ignores their y)
     end = sum(c.h for c in kids)
     base = ink((0, 0, 0))
     im = Image.new('RGBA', (W, max(SCREEN, NAV + end) if full else SCREEN), base + (255,)); d = ImageDraw.Draw(im)
@@ -105,6 +109,7 @@ def draw_page(s, key, full=False, state=None, lit=False, pal=None, pressed=None,
             draw_row(s, im, d, c, y, values, switches, shown, ink, img, pal, pal is not None and pressed is not None and s.shown(lab) == pressed)
         if c.name == 'pod_bright': draw_brightness(im, c, y, img, st.get('brightness', 60))
         elif c.name in ('pod_vsval', 'pod_vsctl'): draw_volcard(s, im, c, y, img, ink, st.get('vol_text', ''), st.get('vol', 0), st.get('vol_dim', False))
+        elif c.name == 'pod_xfcard': draw_xfcard(s, im, c, y, img, ink, st.get('vol', 5), st.get('xf_text', ''))
         elif c.name == 'pod_volume': draw_volume(s, im, c, y, ink, img, st)
         elif c.name == 'pod_hero': draw_hero(s, im, c, y, ink, img)
         elif c.name.startswith('pod_big'): draw_bigcard(s, im, c, y, ink, img, values)
@@ -135,10 +140,25 @@ def draw_slider(im, t, y, img, value, dx=0):
     """A slider of the pages (the Display page's, the loudness pages'): its bar images stretched to its width, the fill up to the thumb, the thumb's image centred on `value` (0 .. its max)."""
     bar, dot = int(t.get('bar_size')), img(t.get('style:normal:icon'))
     by, travel = y + t.y + (t.h - bar) // 2, t.w - dot.width
-    tx = dx + t.x; x = tx + dot.width // 2 + travel * value // int(t.get('max', '100'))
+    lo = int(t.get('min', '0'))
+    tx = dx + t.x; x = tx + dot.width // 2 + travel * (value - lo) // (int(t.get('max', '100')) - lo)
     im.alpha_composite(img(t.get('style:normal:bg_image')).resize((t.w, bar)), (tx, by))
     if x > tx: im.alpha_composite(img(t.get('style:normal:fg_image')).resize((x - tx, bar)), (tx, by))
     im.alpha_composite(dot, (x - dot.width // 2, y + t.y + (t.h - dot.height) // 2))
+
+
+def draw_xfcard(s, im, c, y, img, ink, value, text):
+    """The Crossfade page's duration card (tools/pod_ui.py cards_xfade): the two card pieces, the duration text, "1 s", the slider at `value` (1 .. 12), "12 s" and the dots image."""
+    for k in c.children:
+        if k.type == 'view': im.alpha_composite(img(k.get('style:normal:bg_image')), (0, y + k.y))
+    for t in c.children:
+        px = int(style(t, 'font_size')) if t.type == 'label' else 0
+        if t.type == 'label':
+            al = style(t, 'text_align_h'); lab = text if t.name == 'pod_xf_val' else s.shown(t)
+            if al == 'left': s.text(im, t.x, y + t.y + t.h / 2, lab, px, ink(rgb(style(t, 'text_color'))))
+            else: s.text(im, t.x + t.w, y + t.y + t.h / 2, lab, px, ink(rgb(style(t, 'text_color'))), anchor='r')
+        elif t.type == 'slider': draw_slider(im, t, y, img, value)
+        elif t.type == 'image': im.alpha_composite(img(t.get('image')), (t.x, y + t.y))
 
 
 def draw_volcard(s, im, c, y, img, ink, text, value, dim=False):
@@ -576,7 +596,10 @@ def main():
         t = PI.Side(sys.argv[1], True, loc); t.mark = lambda *a: None
         tr = lambda k: t.strings.get(k, k)
         sheet([('Settings, whole list', draw_page(t, 'm1plus_settings', full=True, state={'values': {'pod_value0': tr('Off'), 'pod_value1': tr('Off'), 'pod_value5': tr('Rock')}})),
-               ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value2': tr('Location'), 'pod_value4': tr('Off')}, 'switches': {'pod_switch1': True, 'pod_switch3': True}})),
+               ('Playback', draw_page(t, 'm1plus_playset', full=True, state={'values': {'pod_value0': tr('Repeat All'), 'pod_value1': tr('Off'), 'pod_value3': tr('Location'), 'pod_value5': '5 s'}, 'switches': {'pod_switch2': True, 'pod_switch4': False}})),
+               ('Crossfade, on', draw_page(t, 'm1plus_psxfade', full=True, state={**XFADE_ON, 'xf_text': '5 ' + tr('seconds')})),
+               ('Crossfade, 1 second', draw_page(t, 'm1plus_psxfade', full=True, state={**XFADE_ON, 'vol': 1, 'xf_text': '1 ' + tr('second')})),
+               ('Crossfade, off', draw_page(t, 'm1plus_psxfade', full=True, state=XFADE_OFF)),
                ('Volume & Sound', draw_page(t, 'm1plus_psvolume', full=True, state={'values': {'pod_value0': tr('Low'), 'pod_value1': '80', 'pod_value2': tr('Memory'), 'pod_value3': tr('Off'), 'pod_value4': 'L3', 'pod_value6': tr('Medium')}, 'switches': {'pod_switch5': True}})),
                ('Output', draw_page(t, 'm1plus_psoutput', full=True, state={'values': {'pod_value1': tr('D2P'), 'pod_value3': tr('Variable')}, 'switches': {'pod_switch4': False}})),
                ('Max Volume', draw_page(t, 'm1plus_psmaxvol', state={'vol_text': '80', 'vol': 80})),

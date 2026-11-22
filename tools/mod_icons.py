@@ -141,7 +141,7 @@ DAILY = DAILY + VU
 # chevron (Lucide chevron-right fitted to 9 x 15, #777777, stroke 2) and the picker's check (20 px, white).
 CARD_GLYPH_PX, CARD_CHEVRON, CARD_CHECK = 20, ('pod_chev', 10, 16, (0x8A,) * 3), ('pod_check', 20)
 CARD_GLYPHS = {'Wi-Fi': 'wifi', 'Bluetooth': 'bluetooth', 'Home Screen': 'house', 'Library': 'disc-3', 'Now Playing': 'audio-lines',
-               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': '+gain-high', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'monitor-speaker', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'gauge', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Volume & Sound': 'volume-2', 'Output': 'monitor-speaker', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'General': 'settings', 'Accent': 'palette', 'Background': '+contrast',
+               'EQ': 'sliders-vertical', 'Playback Settings': 'headphones', 'Play Mode': 'repeat', 'Gapless': 'infinity', 'Crossfade': 'audio-lines', 'Resume': 'history', 'Folder Skip': 'folder', 'Gain': '+gain-high', 'ReplayGain': 'scale', 'Digital Filter': 'waves', 'DSD Output Mode': 'audio-lines', 'USB Volume': 'monitor-speaker', 'Digital Output': 'cable', 'Folder Album Cover': 'image', 'Max Volume': 'gauge', 'Default Volume': 'volume-1', 'Channel Balance': 'sliders-horizontal', 'Mono Audio': 'volume', 'Crossfeed': 'headphones', 'Volume Memory': 'memory-stick', 'Volume & Sound': 'volume-2', 'Output': 'monitor-speaker', 'Display': 'sun', 'Buttons & Power': 'power', 'Button Lock': 'lock-keyhole', 'Tap to Wake': 'pointer', 'Auto-Standby': 'moon', 'Auto-Shutdown': 'power', 'Screen Timeout': 'timer', 'LED Light': 'lightbulb', 'Appearance': 'palette', 'General': 'settings', 'Accent': 'palette', 'Background': '+contrast',
                'Control Center': 'layout-grid', 'Control Labels': 'a-large-small', 'Lock Screen': 'lock', 'Wallpaper': 'image', 'Enable': 'lock', 'Show Time': 'clock', 'Player Style': 'square-play', 'Custom Wallpaper': 'info',
                'Keyboards': '+keyboard', 'About': 'info', 'All System Settings': 'settings', 'Developer': 'code', 'Main Menu': 'list-checks', 'Extras': 'ellipsis',
                'Recent Albums': 'history', 'Daily Mix': 'shuffle', 'Regenerate Daily Mix': 'refresh-cw', 'Update Library': 'refresh-cw',
@@ -171,7 +171,7 @@ CARD_TALL_IMAGES = [f'pod_cdl_{p}{d}' for p in CARD_PIECES for d in ('', '_down'
 # The Accent picker's swatches (docs/modules/accent.md): a round disc of accent i (tools/palette.py ACCENTS' order; Neutral is today's #EEEEEC fill) where a row's glyph goes, SWATCH_PX in the glyph's canvas.
 SWATCH_PX = 20
 SWATCHES = [f'pod_sw{i}' for i in range(7)]
-CARD_IMAGES = sorted({card_name(g) for g in CARD_GLYPHS.values()}) + [CARD_CHEVRON[0], CARD_CHECK[0]] + CARD_PIECE_IMAGES + CARD_TALL_IMAGES + SWATCHES + ['pod_sl_thumb']
+CARD_IMAGES = sorted({card_name(g) for g in CARD_GLYPHS.values()}) + [CARD_CHEVRON[0], CARD_CHECK[0]] + CARD_PIECE_IMAGES + CARD_TALL_IMAGES + SWATCHES + ['pod_sl_thumb', 'pod_xf_dots']
 # Find Cover & Lyrics' empty and failed states (docs/modules/onlineart.md): a muted grey glyph, ES_PX px, stroke 2, over the state's title (tools/pod_ui.py oa_es_icon; patch/onlineart.c names them)
 ES_ICONS = {'pod_es_timer': 'timer', 'pod_es_music': 'music', 'pod_es_image': 'image', 'pod_es_wifi': 'wifi-off', 'pod_es_calendar': 'calendar', 'pod_es_lock': 'lock', 'pod_es_plug': 'plug',
             'pod_es_info': 'info', 'pod_es_card': 'memory-stick', 'pod_es_drive': 'hard-drive', 'pod_es_download': 'download', 'pod_es_check': 'badge-check'}
@@ -643,6 +643,21 @@ def slider_thumb():
     top = Image.new('RGBA', (cw, ch), WHITE + (0,)); top.putalpha(capsule(0)); im.alpha_composite(top); return im
 
 
+XF_DOTS = ('pod_xf_dots', 200, 5, 12)   # the Crossfade page's tick dots (name, width = the slider's, height, count): one per second under the track, at the thumb's travel (tools/pod_ui.py cards_xfade)
+XF_DOT_PX, XF_DOT_RGB = 3, (0x8E, 0x8E, 0x93)
+
+
+def xf_dots():
+    """Twelve small grey dots in a row, the first and last half a thumb (SLIDER_THUMB's canvas) from the ends: where the slider's thumb rests for 1 .. 12."""
+    from PIL import Image, ImageDraw
+    _, w, h, n = XF_DOTS; ss = 8; half = SLIDER_THUMB[3] // 2
+    big = Image.new('L', (w * ss, h * ss), 0); d = ImageDraw.Draw(big)
+    for k in range(n):
+        cx = (half + (w - 2 * half) * k / (n - 1)) * ss; cy = h * ss / 2; r = XF_DOT_PX * ss / 2
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
+    im = Image.new('RGBA', (w, h), XF_DOT_RGB + (0,)); im.putalpha(big.resize((w, h), Image.LANCZOS)); return im
+
+
 def card_icon(g):
     """A Settings card row's glyph: the glyph at CARD_GLYPH_PX (stroke 2) centred in a POD_ICON canvas; a badge and the Shanling mark keep their size."""
     from PIL import Image
@@ -819,6 +834,7 @@ def generate_all(sizes):
     f[CARD_CHECK[0]] = glyph_fit('check', CARD_CHECK[1], CARD_CHECK[1])
     for i, n in enumerate(SWATCHES): f[n] = swatch(i)
     f[SLIDER_THUMB[0]] = slider_thumb()
+    f[XF_DOTS[0]] = xf_dots()
     f['pod_vol_track'], f['pod_vol_fill'], f['pod_vol_ink'] = vol_capsule(VOLBAR_TRACK), vol_capsule(WHITE), vol_ink()
     f[DROP_GRABBER[0]] = pil_glyph('drop_grabber', DROP_GRABBER[1:], *NP_TONES['ghost'])   # the pull-down's grabber: Now Playing's pill (GRABBER, the ghost tone) on a canvas of just the pill
     for n, (g, px, rgb) in WIFI_GLYPHS.items(): f[n] = glyph_fit(g, px, px, rgb, 1, 2.0 if px >= 22 else 1.5)

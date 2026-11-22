@@ -275,8 +275,8 @@ def row_tests(ctx):
     S, N = P.PLAYSET_PAGE, P.NEXTALBUM_PAGE
     labels = [r.label for r in S.rows]
     i = labels.index('Continue Playing')
-    expect(labels[i - 1:i + 2] == ['Folder Skip', 'Continue Playing', 'Volume & Sound'] and 'Play Next Album' not in labels,
-           'the Playback card of Playback Settings: Play Mode, Gapless, Memory Playback, Folder Skip, Continue Playing')
+    expect(labels[i - 1:i + 2] == ['Play Mode', 'Continue Playing', 'Folder Skip'] and 'Play Next Album' not in labels,
+           'the Queue group of Playback Settings: Play Mode, Continue Playing, Folder Skip, Resume')
     expect((P.ACT_NEXTALBUM, P.ACT_NASET) == (90, 91) and S.rows[i].action == 90 and S.rows[i].arg == P.NEXTALBUM_PAGE_INDEX and P.PAGES[P.NEXTALBUM_PAGE_INDEX] is P.NEXTALBUM_PAGE and 90 in P.VALUE_ACTIONS and 90 not in P.SWITCH_ACTIONS
            and P.row_kind(S.rows[i]) == 'value' and P.VALUE_INIT[90] == 'Off', 'ACT_NEXTALBUM 90, a value row opening the Continue Playing picker; ACT_NASET 91')
     expect(P.PAGES[P.NEXTALBUM_PAGE_INDEX] is N and N.title == 'Continue Playing' and [(r.label, r.action, r.arg) for r in N.rows] == [('Off', 91, DEFS['NA_OFF']), ('Next Albums', 91, DEFS['NA_ALBUMS'])]

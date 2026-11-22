@@ -46,7 +46,7 @@ LD = os.path.join(LLD, 'ld.lld')
 # compiled in this order, linked with --gc-sections (docs/architecture.md)
 SOURCES = ['m1plus.c', 'common.c', 'filetime.c', 'libload.c', 'menu.c', 'covercache.c', 'artistphoto.c', 'durations.c', 'coverflow.c', 'albums.c', 'artists.c', 'artsplit.c', 'genresplit.c', 'shuffle.c', 'nowplaying.c', 'bigcover.c', 'lockscreen.c', 'display.c', 'keyspower.c', 'playset.c', 'idlelyrics.c', 'minibar.c', 'grid.c', 'pins.c', 'recent.c','dailymix.c', 'homecover.c', 'covlist.c', 'setfiles.c', 'rows.c', 'shot.c', 'home.c', 'fontregion.c', 'textgamma.c',
            'scroll.c', 'playmore.c', 'pulldown.c', 'playlists.c', 'azlist.c', 'songops.c', 'selmode.c', 'libsrc.c', 'rowmenu.c', 'songs.c', 'albumpage.c', 'queuepage.c', 'upnext.c', 'ipod.c', 'ipod_cf.c', 'ipod_theme.c', 'ipod_render.c', 'pcmodel.c', 'bkmodel.c', 'bknet.c', 'bkdl.c', 'pcfeed.c', 'pcjson.c', 'pcopml.c', 'pcpng.c', 'pccover.c', 'pcwrap.c', 'pcnotes.c', 'pcdetail.c', 'upver.c', 'net.c', 'netfile.c', 'pcnet.c', 'podcasts.c', 'bkpage.c', 'bkfind.c', 'pcfind.c', 'radio.c', 'radiopage.c', 'radionp.c', 'radioinfo.c', 'songinfo.c', 'tape.c', 'palette.c', 'vinyl.c', 'vupage.c', 'onlineart.c', 'update.c', 'relnotes.c', 'keyboard.c', 'search.c', 'battery.c', 'power.c', 'charging.c', 'batthist.c', 'bhpage.c', 'nextalbum.c', 'stereoset.c', 'lineout.c', 'lyrics.c', 'picker.c', 'folders.c', 'timezones.c', 'pcregion.c', 'viewsort.c', 'wifictl.c', 'wifipage.c', 'sbnet.c', 'sbparse.c', 'sbdl.c', 'sbapi.c', 'sbsrc.c', 'ndserver.c', 'ndroot.c', 'ndfolders.c',
-           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'libupdate.c', 'lupick.c', 'btset.c', 'btpage.c', 'volume.c', 'cardrun.c']
+           'tidalkb.c', 'peq.c', 'peq_ui.c', 'peqpage.c', 'peqlib.c', 'autoeq.c', 'tenband.c', 'peqband.c', 'peqout.c', 'scrobble.c', 'scrobup.c', 'scrobpage.c', 'tracklamp.c', 'language.c', 'datetime.c', 'sleeptimer.c', 'netservice.c', 'libupdate.c', 'lupick.c', 'btset.c', 'btpage.c', 'volume.c', 'cardrun.c', 'xfadeset.c']
 
 # LibriVox (patch/bknet.c, patch/bkdl.c): kept by the linker until the Audiobooks pages that call them exist; the Book level's download row (phase 3b) takes the rest; test/pod/bkdl.py calls these
 BN_KEEP = ['bd_fat', 'bd_present']
@@ -272,6 +272,8 @@ FUNCTIONS.update({
     'mclSetPlayPos':           ('void', 'int', 0x5d42d8),
     # the Gapless setter: stores the setting byte, and for 0 with a preload open sends {mcl-closegapless} and stores -1 in the preload state (the one cancel helper of patch/shuffle.c cancel_preload: reorders, insert, Clear)
     'mclSetGaplessMode':       ('int', 'int', 0x5d28ac),
+    # Crossfade (patch/xfadeset.c, docs/modules/crossfade.md): current playback position/total in seconds
+    'mclGetPlayTime':          ('int', 'int *, int *', 0x5d35a8),
     # Playback settings (patch/playset.c, docs/modules/playset.md): the mcl getters and setters the stock click handlers call, and the stop / restart pair the DSD mode runs on USB audio (hooked by Internet Radio, SAVE_STOP)
     'mclGetGaplessMode':       ('int', 'void', 0x5d44b4),
     'mclGetJumpFolder':        ('int', 'void', 0x5d4450), 'mclSetJumpFolder': ('int', 'int', 0x5d4468),
@@ -402,6 +404,7 @@ FUNCTIONS.update({
     # until patch/nowplaying.c calls it again when the page is back in front.
 })
 NP_MODE_BUTTON = 0x539888   # not a symbol (the stock names there are the neighbouring page's): pinned by SONGS_PINS
+MCL_GAPLESS_PRELOAD = 0x5d0ea4   # static in demo (Crossfade, patch/xfadeset.c): sends set-gapless and sets MCL_PRELOAD; pinned by XFADE_PINS
 # The iPod page (patch/ipod.c, docs/modules/ipod.md): the previous-track twin of next_quick_click (same prologue, same 1 s guard on e->time, `prev_music` 0x4e428c in place of
 # `next_music` 0x4e4338; the Now Playing button @0x53c1d8 and the hardware key @0x4cdb64 call it with (event, 0)), and the album track query loadAlbumdetailList(class, ROW RECORD)
 # (@0x4eea98: its second argument is the album record of the shown list, `lw v0, (a1)` the id and `0x14(a1)` the name; class 0xf003 -> 0xff10, 0xff01 -> 0xff11, 0xff02 -> 0xff14).
@@ -1102,6 +1105,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define STOCK_HOME_CLICK 0x{HOME_CLICK:x}u')   # the icon click handler stock registers per icon
     h.append(f'#define POD_ENTRY_NAME "{pod_pages.HOME_ENTRY}"')   # the added icon's widget name (a decimal id, as stock's)
     h.append(f'#define stock_np_mode_button ((int (*)(void *))0x{NP_MODE_BUTTON:x}u)')   # Now Playing's mode button picture (patch/nowplaying.c)
+    h.append(f'#define mcl_gapless_preload ((void (*)(void))0x{MCL_GAPLESS_PRELOAD:x}u)')   # Crossfade early preload (patch/xfadeset.c; XFADE_PINS)
     h.append(f'#define stock_playlist_import ((int (*)(void *, void *))0x{PLAYLIST_IMPORT:x}u)')   # the stock Playlists page's Import / Export rows
     h.append(f'#define stock_playlist_export ((int (*)(void *, void *))0x{PLAYLIST_EXPORT:x}u)')
     h.append(f'#define stock_tidal_search ((int (*)(void *, void *))0x{TIDALKB_SEARCH:x}u)')   # the stock Tidal search page's search routine (patch/tidalkb.c; TIDALKB_PINS)
@@ -1198,7 +1202,7 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define POD_ENTRY_ID {pod_pages.HOME_ENTRY}')
     h.append('#define POD_ENTRY_PAGE 0')
     h.append('#define POD_MENU_PAGE 0')
-    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'GSPLIT', 'PLAYSET', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'VOLUME', 'PSVOLUME', 'PSGAIN', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'BATTERY', 'BATTHIST', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER', 'LIBUPDATE', 'BTCODEC', 'CARDRUN'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
+    for macro in ('SETTINGS', 'EXTRAS', 'MENUCFG', 'EXTRASCFG', 'DEVELOPER', 'CACHE', 'DISPLAY', 'RGB_THEME', 'KEYSPOWER', 'LIBRARY', 'LB', 'LF', 'SCROBBLING', 'ASPLIT', 'GSPLIT', 'PLAYSET', 'PSXFADE', 'PSMAXVOL', 'PSBOOTVOL', 'PSBAL', 'VOLUME', 'PSVOLUME', 'PSGAIN', 'FILES', 'PULLDOWN', 'PEQ', 'LOCK', 'PEQP', 'PEQLIB', 'TENBAND', 'TENCURVE', 'TENPREAMP', 'PEQBAND', 'DATETIME', 'DTDATE', 'DTTIME', 'DTYEAR', 'BATTERY', 'BATTHIST', 'SLEEPTIMER', 'NETSERVICE', 'WIFITRANSFER', 'LIBUPDATE', 'BTCODEC', 'CARDRUN'):   # the pages patch/m1plus.c opens by number: POD_<macro>_PAGE is pod_pages.<macro>_PAGE_INDEX, a place in pod_pages.PAGE_ORDER
         h.append(f'#define POD_{macro}_PAGE {getattr(pod_pages, macro + "_PAGE_INDEX")}')
     (out / 'pages.h').write_text('\n'.join(h) + '\n')
     return slots
@@ -1481,7 +1485,7 @@ def patch_demo(raw, payload, ps, demo_path):
     check_pins(patched, RADIO_PINS)
     check_pins(patched, LANGUAGE_PINS)
     patch_radio(patched, ps, len(payload))
-    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + BACKLIGHT_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS + DATETIME_PINS + SLEEPTIMER_PINS + NETSERVICE_PINS + LIBUPDATE_PINS + STOCKROWS_PINS + BLUETOOTH_PINS + VOLUME_PINS + KEYS_PINS)   # stock code the Playlists and Songs pages call: checked, not written
+    check_pins(patched, LOCKROW_PINS + KEYSPOWER_PINS + PLAYSET_PINS + PLAYLIST_PINS + SONGS_PINS + IPOD_PINS + PODCAST_PINS + SETTINGS_PINS + TIDALKB_PINS + PINYIN_PINS + JPEG_PINS + COVER_PINS + TAPE_PINS + LYRICS_PINS + SCAN_PINS + QUERY_PINS + FONT_PINS + TEXTGAMMA_PINS + BATTERY_PINS + BACKLIGHT_PINS + PLAYREC_PINS + LINEOUT_PINS + SHUFFLE_PINS + NEXTALBUM_PINS + FILETIME_PINS + LCL_PINS + PICKER_PINS + FOLDER_PINS + UPDATE_PINS + TFUPDATE_PINS + LIGHT_PINS + EQ_PINS + DATETIME_PINS + SLEEPTIMER_PINS + NETSERVICE_PINS + LIBUPDATE_PINS + STOCKROWS_PINS + BLUETOOTH_PINS + VOLUME_PINS + KEYS_PINS + XFADE_PINS)   # stock code the Playlists and Songs pages call: checked, not written
     for at, text in ((0x74bad8, ALBUM_SQL.replace('songtable', '%s')), (0x74ba4c, 'songtable')):   # the strings getAllAlbum fills: the payload's STOCK_ALBUM_SQL is their sprintf
         want = text.encode() + b'\0'
         check(bytes(patched[fileoff(patched, at):fileoff(patched, at) + len(want)]) == want, f'{at:#x}: not the string "{text}" the album cover map reproduces')

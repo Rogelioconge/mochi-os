@@ -110,13 +110,14 @@ Open **Settings → Playback → EQ** for the [equalizer](equalizer-guide.md), o
 
 | Page | Settings |
 |---|---|
-| Playback Settings | Play Mode, Gapless, Resume, Folder Skip and Continue Playing. |
+| Playback Settings | Queue: Play Mode, Continue Playing, Folder Skip and Resume. Transitions: Gapless and Crossfade. Audio: Volume & Sound and Output. |
 | Volume & Sound | Gain, Max Volume, Default Volume, ReplayGain, Channel Balance, Mono Audio and Crossfeed. |
 | Output | Digital Filter, DSD Output Mode, USB Mode, USB Volume and Digital Output. |
 
 | Setting | What it does |
 |---|---|
 | Play Mode | List Play, Repeat Track, Shuffle or Repeat All. |
+| Crossfade | A switch (off by default) and, while it is on, a slider for the duration (1 to 12 s, 5 s by default); overlaps the end of one track with the start of the next. **Keep Albums Gapless** (on by default) keeps consecutive tracks from the same album gapless while crossfading album changes, playlists and shuffle. Not applied to DSD, CUE, podcasts or audiobooks. While tracks follow one another, the output keeps its sample rate and later tracks are resampled to it, so the sound never stops between them; pausing or skipping returns to the track's own rate. While a track is resampled, Now Playing's information page shows both rates in its Sample Rate row (`44.1 → 96 kHz`). |
 | Resume | Off, Track or Location: choose where playback resumes after a restart. |
 | Continue Playing | **Next Albums** continues through the current album order after an album started from Albums, an artist's albums or Cover Flow. It does not apply to Songs or Search, or while Repeat or Shuffle is on. There is a short gap between albums. |
 | Gain | Low or High; unavailable on Line Out. |

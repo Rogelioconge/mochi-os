@@ -2178,6 +2178,11 @@ def bright_control(lo, slider, hi, dx):
     y = (ST.ROW_H - BRIGHT_SUN) // 2
     lo.x, lo.y, hi.x, hi.y = dx + ST.PAD, y, dx + ST.CARD_W - ST.PAD - BRIGHT_SUN, y
     slider.x, slider.y, slider.w, slider.h = dx + ST.TEXT_X - ST.CM, BRIGHT_SLIDER_Y, BRIGHT_SLIDER_W, BRIGHT_SLIDER_H
+    slider_look(slider)
+
+
+def slider_look(slider):
+    """The slider of the Display page's brightness card, kept by every slider card that follows it (the loudness pages, the Crossfade page): the 6 px track and fill under the white capsule thumb."""
     for k, val in (('slide_with_bar', 'true'), ('bar_size', '6'), ('dragger_size', '50'), ('dragger_adapt_to_icon', 'true')): slider.set(k, val)
     for st in ('normal', 'pressed', 'over', 'disable', 'focused'):
         styled(slider, (st,), 'bg_color', '#00000000'); styled(slider, (st,), 'fg_color', '#00000000')
@@ -2204,6 +2209,43 @@ def cards_brightness():
     lab = Widget('label', 0, 0, 1, 1, [('name', 'label_brightness'), ('text', ''), ('visible', 'false'), ('sensitive', 'false')])
     for st in STATES: styled(lab, (st,), 'text_color', '#FFFFFF')   # (never shown; the contrast scan reads every label)
     v.children.append(lab)
+    return v
+
+
+XF_LABEL_Y, XF_LABEL_H, XF_LABEL_PX, XF_END_PX = 12, 22, 17, 16   # the Crossfade card: the duration text's top, height and size; the "1 s" / "12 s" ends' size
+XF_SLIDER_X, XF_SLIDER_Y, XF_END_W, XF_DOTS_Y = 54, 33, 30, 73   # the slider's x in the page (its width BRIGHT_SLIDER_W, 50 high: centre 58), the end labels' width, the dots' top
+
+
+def cards_xfade():
+    """The Crossfade page's duration card (patch/xfadeset.c xfade_show / xfade_opened): the item is the card (ST.XFADE_CARD_H, a top and a bottom piece overlapping) and the gap under it. In it the duration as text (pod_xf_val,
+    grey 17 px: "5 seconds", written as the slider moves), under it "1 s" (pod_xf_lo), the slider (pod_xf_slider, 1 .. 12, step 1: the Display page's look, slider_look) and "12 s" (pod_xf_hi), and twelve small dots under the
+    track, one per second (the image pod_xf_dots, tools/mod_icons.py xf_dots: the thumb's travel is the dots' span)."""
+    import pod_settings as ST, mod_icons
+    v = Widget('view', 0, 0, ST.LIST_W, ST.XFADE_H, [('name', 'pod_xfcard')])
+    for st in STATES: styled(v, (st,), 'bg_color', '#00000000')
+    for k, (piece, y) in enumerate((('top', 0), ('bot', ST.XFADE_CARD_H - ST.ROW_H))):
+        p = Widget('view', 0, y, ST.LIST_W, ST.ROW_H, [('name', f'pod_xfcard{k}'), ('sensitive', 'false')])
+        for st in STATES:
+            styled(p, (st,), 'bg_color', '#00000000')
+            styled(p, (st,), 'bg_image', ST.piece_images(piece)[0])
+            styled(p, (st,), 'bg_image_draw_type', 'default')
+        v.children.append(p)
+
+    def label(name, x, y, w, h, text, px, rgb, align):
+        lab = Widget('label', x, y, w, h, [('name', name), pod_i18n.text_prop(text) if text else ('text', ''), ('sensitive', 'false')])
+        for st in ('normal', 'disable', 'focused'):
+            styled(lab, (st,), 'font_size', str(px)); styled(lab, (st,), 'text_color', rgb)
+            styled(lab, (st,), 'text_align_h', align); styled(lab, (st,), 'text_align_v', 'middle')
+        return lab
+    x0, w = ST.CM + ST.PAD, ST.CARD_W - 2 * ST.PAD
+    v.children.append(label('pod_xf_val', x0, XF_LABEL_Y, w, XF_LABEL_H, '', XF_LABEL_PX, ST.GREY, 'left'))
+    cy = XF_SLIDER_Y + BRIGHT_SLIDER_H // 2
+    v.children.append(label('pod_xf_lo', x0, cy - 12, XF_END_W, 24, '1 s', XF_END_PX, '#FFFFFF', 'left'))
+    v.children.append(label('pod_xf_hi', ST.CM + ST.CARD_W - ST.PAD - XF_END_W - 4, cy - 12, XF_END_W + 4, 24, '12 s', XF_END_PX, '#FFFFFF', 'right'))
+    sl = Widget('slider', XF_SLIDER_X, XF_SLIDER_Y, BRIGHT_SLIDER_W, BRIGHT_SLIDER_H, [('name', 'pod_xf_slider'), ('min', '1'), ('max', '12'), ('step', '1'), ('value', '5')])
+    slider_look(sl)
+    v.children.append(sl)
+    v.children.append(Widget('image', XF_SLIDER_X, XF_DOTS_Y, BRIGHT_SLIDER_W, mod_icons.XF_DOTS[2], [('name', 'pod_xf_dots'), ('image', mod_icons.XF_DOTS[0]), ('draw_type', 'default'), ('sensitive', 'false')]))
     return v
 
 
@@ -2529,6 +2571,7 @@ def build_cards_page(page):
         elif isinstance(it, pod_pages.HSliders): sv.children.append(cards_hsliders())
         elif isinstance(it, pod_pages.Brightness): sv.children.append(cards_brightness())
         elif isinstance(it, pod_pages.VolCard): sv.children.append(cards_volcard(it))
+        elif isinstance(it, pod_pages.XfadeCard): sv.children.append(cards_xfade())
         elif isinstance(it, pod_pages.VolumeCard): sv.children.append(cards_volume())
         elif isinstance(it, pod_pages.Hdr): sv.children.append(cards_text(f'pod_sec{n_hdr}', ST.HDR_LABEL_Y, ST.HDR_LABEL_H, it.text, ST.HDR_PX, ST.HDR_H)); n_hdr += 1
         elif isinstance(it, pod_pages.Hero): sv.children.append(cards_hero(it, n_note)); n_note += 1

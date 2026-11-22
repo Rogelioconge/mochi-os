@@ -20,7 +20,7 @@ settings-file table and the stock pages we open; a page with its own doc is a po
 | | Library | [Update Library](libupdate.md), Rebuild rows, Split Artists, Split Genres, List Navigation, Folders, Cover Flow, Podcasts, Scrobbling | [albums](albums.md), [podcasts](podcasts.md), [scrobble](scrobble.md) |
 | | Now Playing | Cassette Theme, Lyrics Text Size, Idle Display, Track Position | [tape](tape.md), [bigcover](bigcover.md) |
 | **Playback** | EQ | our Equalizer page | [peq](peq.md) |
-| | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [nextalbum](nextalbum.md) |
+| | Playback Settings | our hub `m1plus_playset` (modes) with sub-pages `m1plus_psvolume` (Volume & Sound) and `m1plus_psoutput` (Output) | [playset](playset.md), [crossfade](crossfade.md), [nextalbum](nextalbum.md) |
 | (card) | General | About, Software Update; Date & Time, Keyboards, Language | [General](#general) |
 | | Display | our page | [display](display.md) |
 | | Buttons & Power | our page | [keyspower](keyspower.md) |
@@ -186,6 +186,8 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `playback-eq` | Equalizer curve | the `M1PEQ02` record ([peq](peq.md)); missing/invalid: 10-Band EQ, Flat, Auto. The switch is stock's `[PLAYSET] EQFLAG`. Per output ([peq](peq.md#per-output-eq-patchpeqoutc)): `playback-eq-headphones`, `-lineout`, `-usb` (the same record) and `playback-eq-output` (the owner and each output's switch) |
 | `playback-mono` | Playback Settings > Mono Audio | `1` on; missing/other off ([stereo](stereo.md)) |
 | `playback-crossfeed` | Playback Settings > Crossfeed | `0` Off .. `3` High; missing/other off (the user's level; the player reads `playback-stereo`, the effective record, which is derived and not listed) |
+| `playback-crossfade` | Playback Settings > Crossfade | one character: `a`..`l` on with 1..12 s, `A`..`L` off with the duration kept; missing/other off, 5 s ([crossfade](crossfade.md)) |
+| `playback-crossfade-auto` | Crossfade > Keep Albums Gapless | `0` Always; missing/other `1` Keep Albums Gapless (default) ([crossfade](crossfade.md)) |
 | `playback-next-album` | Continue Playing | `1` Next Albums; missing/other Off (the default); `2` reserved for Auto Mix ([nextalbum](nextalbum.md)) |
 | `playback-shuffle` | Shuffle (the payload's flag; stock's mode is never 2) | `1` songs, `2` albums; missing/other off ([shuffle](shuffle.md)) |
 | `playlists-sort` | Playlists order | `a` Name Z-A; missing/other Name A-Z ([playlists](playlists.md)) |

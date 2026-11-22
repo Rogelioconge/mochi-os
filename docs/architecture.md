@@ -82,6 +82,7 @@ binary. See [workflow](workflow.md) for commands, [UI](ui.md) for layout and ass
 | [VU Meter](modules/vu.md) | Display Mode meters, level tap |
 | [Parametric EQ](modules/peq.md) | Engine, presets, Equalizer page |
 | [Mono and Crossfeed](modules/stereo.md) | Stereo stage and hciplayer flag |
+| [Crossfade](modules/crossfade.md) | Dual-decoder overlap in hciplayer, preload bridge, kept output with sample-rate conversion |
 | [Playback settings](modules/playset.md) | Grouped Playback Settings page |
 | [Volume page](modules/volume.md) | Status bar tap's own Volume page |
 | [Scrobbling](modules/scrobble.md) | Card log, ListenBrainz and Last.fm upload |

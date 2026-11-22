@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Approximate PIL mock-up of the Now Playing page (ui/playing_page.bin + its page theme); not pixel-exact AWTK.
 
-  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing][,paused|,art=PX] ...
+  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,out=HZ][,key1=LABEL][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing][,paused|,art=PX] ...
 
 RAW_DIR is a tree's rootfs/release/assets/default/raw. Each panel draws a 30 px status bar and the 450 px
 window under it. Styles resolve as on the device: inline style:<state>:<prop>, then the window theme
@@ -167,7 +167,7 @@ class Painter:
         page coordinates on a canvas as tall as it is; the scroll_view shows the 252 px from y 36 + self.scroll, or with self.full the whole content is returned as a taller window image."""
         I = self.info
         adv = lambda t, px: self.stb(px).layout(t)[1] if t else 0
-        rows = {r: (MN.I_KEYS[r], v) for r, v in MN.qparse(I['quality']).items()}
+        rows = {r: (getattr(self, 'key1', None) if r == 1 and getattr(self, 'key1', None) else MN.I_KEYS[r], v) for r, v in MN.qparse(I['quality']).items()}
         for r, k, v in ((4, 'Genre', I['genre']), (5, 'Year', I['year']), (6, 'File Size', I['size'].replace('MB', ' MB')), (7, 'Location', I['location'])): rows[r] = (k, v)
         present = [r in rows for r in range(MN.I_ROWS)]
         loc = MN.loc_wrap(I['location'], MN.I_W, lambda t: adv(t, MN.I_ROW_PX)) if present[7] else []
@@ -194,7 +194,10 @@ class Painter:
             if r == MN.I_LOC_ROW:
                 for line, y in zip(loc, locy): put(MN.I_X, y, line, MN.I_ROW_PX, '#FFFFFF')
                 continue
-            v = end_fit(v, MN.I_ROW_PX, MN.I_W - adv(k, MN.I_ROW_PX) - MN.I_KEY_GAP)
+            room = MN.I_W - adv(k, MN.I_ROW_PX) - MN.I_KEY_GAP
+            conv = MN.resampled(v, I.get('out', 0)) if r == 1 else None   # a track converted to the kept output's rate
+            if conv: v = conv[0] if adv(conv[0], MN.I_ROW_PX) <= room else conv[1]
+            v = end_fit(v, MN.I_ROW_PX, room)
             put(MN.I_R - adv(v, MN.I_ROW_PX), text[r], v, MN.I_ROW_PX, '#FFFFFF')
             if r == 0 and I['badge']:
                 bw = MN.I_BADGE_W[I['badge']]
@@ -276,6 +279,8 @@ def main():
             if o == 'paused': p.art = MN.ART_SMALL
             if o.startswith('art='): p.art = int(o[4:])
             if o.startswith('info='): p.info = INFO[o[5:]]
+            if o.startswith('out='): p.info = dict(p.info, out=int(o[4:]))   # after info=: the rate the output is kept at
+            if o.startswith('key1='): p.key1 = o[5:]   # another language's Sample Rate label
             if o.startswith('scroll='): p.scroll = int(o[7:])
             if o == 'full': p.full = True
             if o.startswith('tint='): p.tint = tone(*(int(o[5:][k:k + 2], 16) for k in (0, 2, 4)))

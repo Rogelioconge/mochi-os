@@ -181,6 +181,9 @@ ACT_BALANCE = 127    # value row (Playback Settings): Channel Balance, stock's b
 ACT_MONO = 145        # switch row (Playback Settings, Volume card): Mono Audio, ours (/mnt/data/m1plus/playback-mono; patch/stereoset.c stereo_mono_toggle)
 ACT_XFEED = 146       # value row (Playback Settings, Volume card): Crossfeed (Off, Low, Medium, High); opens its picker page (patch/stereoset.c stereo_crossfeed)
 ACT_XFEEDSET = 147    # picker row (Crossfeed): choose the level (arg = 0 .. 3; patch/stereoset.c stereo_crossfeed_set); a check shows on the chosen row
+ACT_XFADE = 215       # value row (Playback Settings): Crossfade (Off, or N s); opens the Crossfade page (patch/xfadeset.c xfade_on, xfade_sec)
+ACT_XFADESET = 216    # switch row (Crossfade page): Crossfade on or off, off by default (patch/xfadeset.c xfade_on_toggle); the page's other items show only while it is on
+ACT_XFADEAUTO = 217   # switch row (Crossfade): Keep Albums Gapless, on by default (patch/xfadeset.c xfade_auto_toggle); dimmed and inert while Off
 ACT_BOOTMEM = 128    # switch row (the Default Volume page): Volume Memory, stock's byte boot_volflag (saved as [PLAYSET] BOOTVOLFLAG; patch/playset.c ps_bootmem_toggle)
 ACT_LANG = 150       # value row (Settings > General): Language, stock's language word (the language's own name; opens its picker page, arg = the page index; patch/language.c lang_get)
 ACT_LANGSET = 151    # picker row (Language): choose the language (arg = stock's word 0 .. 12, the order of stock's language page); stock's click handler's changes, then Home (patch/language.c lang_set)
@@ -212,12 +215,12 @@ ACT_PDLABELS = 209    # switch row (Settings > Appearance): Control Labels, on b
 _ACTS = [v for k, v in globals().items() if k.startswith('ACT_')]
 assert len(set(_ACTS)) == len(_ACTS), 'two ACT_* share an id (patch/m1plus.c mirrors them)'
 SWITCH_ACTIONS = (ACT_ASPLIT, ACT_GSPLIT) + ASSEP_ACTIONS + GSSEP_ACTIONS + (ACT_TAPWAKE, ACT_STANDBY, ACT_STARTUP, ACT_LANDSCAPE, ACT_SHELF, ACT_DAILY, ACT_KB_EN, ACT_KB_FR, ACT_KB_ZH, ACT_PCSEARCH, ACT_BATTPCT, ACT_PEQ_SWITCH, ACT_AZRAIL, ACT_AZHEAD, ACT_LOCKON, ACT_LOCKTIME, ACT_VOLKEYS, ACT_LEDFOLLOW, ACT_SCROBBLE, ACT_LBAUTO, ACT_GAPLESS, ACT_FOLDERSKIP, ACT_DIGITAL, ACT_FOLDERCOVER, ACT_BOOTMEM, ACT_MONO, ACT_BATTHIST, ACT_NPPOS)
-SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA, ACT_LUAUTO, ACT_SWAPKEYS, ACT_PDLABELS)
+SWITCH_ACTIONS += (ACT_ROTATE, ACT_CARMODE, ACT_NETAIR, ACT_NETDLNA, ACT_LUAUTO, ACT_SWAPKEYS, ACT_PDLABELS, ACT_XFADEAUTO, ACT_XFADESET)
 NO_CHEVRON_ACTIONS = (ACT_PLAYER, ACT_SHUFFLE, ACT_REGEN)   # rows that play or act in place (a switch or a value row has none either)
-VALUE_ACTIONS = (ACT_ASPAGE, ACT_GSPAGE, ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_BHPAGE, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
+VALUE_ACTIONS = (ACT_ASPAGE, ACT_GSPAGE, ACT_PCDIR, ACT_CTHEME, ACT_VREC, ACT_VTHEME, ACT_CCLIST, ACT_SFOLD, ACT_BG, ACT_ACCENT, ACT_REGION, ACT_PEQ, ACT_PEQ_PRESETS, ACT_PEQ_TENBAND, ACT_CHGLIM, ACT_BHPAGE, ACT_LOCKSTYLE, ACT_IDLE, ACT_LYRSIZE, ACT_NEXTALBUM, ACT_NDVALUE, ACT_LIGHT, ACT_LED, ACT_KEYLOCK, ACT_SHUTDOWN, ACT_LB, ACT_LF, ACT_SCROBPAGE, ACT_PLAYMODE, ACT_MEMPLAY, ACT_GAIN, ACT_REPLAYGAIN, ACT_DSD, ACT_USBVOL, ACT_MAXVOL, ACT_BOOTVOL, ACT_BALANCE, ACT_RGBROW, ACT_XFEED, ACT_XFADE)    # rows with a grey value at the right, left of the chevron (the widget pod_value<row>); they open a picker page (arg = its page index)
 CHECK_ACTIONS = (ACT_PCDIRSET, ACT_THEMESET, ACT_RECSET, ACT_VTHSET, ACT_BGSET, ACT_ACCENTSET, ACT_LOCKSET, ACT_REGIONSET, ACT_CHGLIMSET, ACT_PEQ_PICK, ACT_PEQ_CPICK, ACT_PEQ_PAUTO, ACT_PEQ_PVAL, ACT_IDLESET, ACT_LYRSIZESET, ACT_NASET, ACT_LIGHTSET, ACT_LEDSET, ACT_KEYLOCKSET, ACT_SHUTDOWNSET, ACT_RGBTHEME, ACT_PLAYMODESET, ACT_MEMPLAYSET, ACT_GAINSET, ACT_RGSET, ACT_FILTERSET, ACT_DSDSET, ACT_USBVOLSET, ACT_XFEEDSET, ACT_SLEEPSET)   # picker rows: a check at the right of the chosen one (the image pod_check<row>), no icon
 ACTION_ACTIONS = NO_CHEVRON_ACTIONS + (ACT_LUNOW, ACT_SHOT, ACT_REBUILD, ACT_AREBUILD, ACT_CLEARCACHE, ACT_CLEARDUR, ACT_SFDELALL, ACT_RESETALL, ACT_GRID, ACT_NDACT, ACT_SCROBUP)   # rows that act in place on a settings page: no chevron
-VALUE_INIT = {ACT_ASPAGE: 'Off', ACT_GSPAGE: 'Off', ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_BHPAGE: 'Off', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off'}   # what the asset's value label says before the payload sets it
+VALUE_INIT = {ACT_ASPAGE: 'Off', ACT_GSPAGE: 'Off', ACT_PCDIR: 'Apple Podcasts', ACT_CTHEME: 'Normal', ACT_VREC: 'Black', ACT_VTHEME: 'Graphite', ACT_BG: 'Black', ACT_ACCENT: 'Neutral', ACT_REGION: 'Automatic', ACT_CHGLIM: '100%', ACT_BHPAGE: 'Off', ACT_LOCKSTYLE: 'Large Cover', ACT_IDLE: 'Album Cover', ACT_LYRSIZE: 'Large', ACT_NEXTALBUM: 'Off', ACT_NDVALUE: '', ACT_LIGHT: '30s', ACT_LED: 'Off', ACT_KEYLOCK: 'Off', ACT_SHUTDOWN: 'Off', ACT_LB: 'Not Set', ACT_LF: 'Not Set', ACT_SCROBPAGE: 'Off', ACT_PLAYMODE: 'Repeat All', ACT_MEMPLAY: 'Location', ACT_GAIN: 'Low', ACT_REPLAYGAIN: 'Off', ACT_DSD: 'D2P', ACT_USBVOL: 'Variable', ACT_MAXVOL: '100', ACT_BOOTVOL: 'Memory', ACT_BALANCE: '0', ACT_RGBROW: 'Reference', ACT_XFEED: 'Off', ACT_XFADE: 'Off'}   # what the asset's value label says before the payload sets it
 VALUE_ACTIONS += (ACT_LANG,)
 CHECK_ACTIONS += (ACT_LANGSET, ACT_BTCODECSET)
 VALUE_INIT[ACT_LANG] = ''   # the language's own name: the payload sets it as the page opens
@@ -328,6 +331,11 @@ class VolCard:
     the label stock's refresh writes (label_vol, "VOL: 80"; label_balance, "L3"), part 'slider' the - and + buttons (btn_dec, btn_add) and the slider (vol_slider, slider_balance) that stock's own handlers are bound to.
     kind: 'maxvol', 'bootvol' or 'balance'."""
     def __init__(self, kind, part): self.kind, self.part = kind, part
+
+
+class XfadeCard:
+    """The Crossfade page's duration card (patch/xfadeset.c, docs/modules/crossfade.md): 96 px high and the 20 px gap under it (the item), the duration as text ("5 seconds", pod_xf_val) over "1 s", the slider (pod_xf_slider, 1 .. 12, the Display page's look) and "12 s",
+    and a row of twelve small dots, one per second, under the track (the image pod_xf_dots)."""
 
 
 class VolumeCard:
@@ -479,6 +487,7 @@ PAGE_ORDER = [   # every page, in the order of its number: this table alone deci
     'm1plus_cardrun',
     'm1plus_cardlog',
     'm1plus_cardsrc',
+    'm1plus_psxfade',
 ]
 _PAGE_NUMBER = {k: i for i, k in enumerate(PAGE_ORDER)}
 assert len(_PAGE_NUMBER) == len(PAGE_ORDER), 'PAGE_ORDER lists a page key twice: ' + ', '.join(sorted({k for k in PAGE_ORDER if PAGE_ORDER.count(k) > 1}))
@@ -594,6 +603,7 @@ PSMAXVOL_PAGE_INDEX = page_index('m1plus_psmaxvol')   # ... and the three loudne
 PSBOOTVOL_PAGE_INDEX = page_index('m1plus_psbootvol')
 PSBAL_PAGE_INDEX = page_index('m1plus_psbal')
 PSXFEED_PAGE_INDEX = page_index('m1plus_psxfeed')   # the Crossfeed picker (last in PAGE_ORDER: no other page's number moved)
+PSXFADE_PAGE_INDEX = page_index('m1plus_psxfade')   # the Crossfade page (last in PAGE_ORDER: no other page's number moved)
 LYRSIZE_PAGE_INDEX = page_index('m1plus_lyrsize')   # the Lyrics Text Size picker
 PCSET_PAGE_INDEX = page_index('m1plus_podcastsettings')   # Settings > Library > Podcasts
 PCDIR_PAGE_INDEX = page_index('m1plus_podcastdirectory')   # Settings > Library > Podcasts > Podcast Directory picker
@@ -766,7 +776,7 @@ ABOUT_PAGE = Page('m1plus_about', 'm1plus_about_page', 'About', layout=[
 # Settings > Developer > Cache (patch/homecover.c, docs/modules/homecover.md "Cache page"): the Covers card holds the cache folder's counts (INFO_CC_*: homecover_stat reads each, an ellipsis until counted), the build's Status and Clear Cover Cache;
 # the Track Durations card holds Measured Tracks (INFO_DUR: dur_stat, patch/durations.c) and Clear Track Durations.
 INFO_CC_ALBUMS, INFO_CC_COVERS, INFO_CC_NOART, INFO_CC_MISSING, INFO_CC_OLD, INFO_CC_SIZE, INFO_CC_STATUS = range(8, 15)   # (patch/m1plus.c INFO_CC = 8 + the index homecover_stat takes)
-INFO_DUR = INFO_CC_STATUS + 61  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
+INFO_DUR = INFO_CC_STATUS + 63  # patch/m1plus.c INFO_DUR = INFO_SFOLD + 1 (asserted below the Settings Files kinds)
 INFO_APHOTOS, INFO_ANONE = INFO_DUR + 1, INFO_DUR + 2   # patch/m1plus.c: the Artist Photos card's counts (homecover_stat 7, 8)
 INFO_LBACCT = INFO_DUR + 3   # patch/m1plus.c: the ListenBrainz page's Account row (patch/scrobpage.c lb_account_text)
 INFO_LFACCT = INFO_DUR + 4   # ... and the Last.fm page's
@@ -800,7 +810,7 @@ COVLIST = Page('m1plus_covlist', 'm1plus_covlist_page', 'Missing Covers', kind='
 # Only the setting files (ACT_SFDEL) are tappable, while present: a tap deletes the file after a confirm. The guard files and the folder stay ACT_INFO (never deleted).
 SETTING_FILES = ('albums-view', 'albums-sort', 'artists-sort', 'genres-sort', 'composers-sort', 'songs-sort-rev', 'folders-sort', 'playlists-sort', 'playlists-view', 'recently-added-view', 'coverflow-landscape', 'coverflow-volume-keys', 'cassette-theme', 'vinyl-record', 'vinyl-base', 'nowplaying-idle', 'nowplaying-lyrics-size', 'nowplaying-position', 'pod-appearance',
                  'appearance-accent', 'appearance-background', 'lockscreen-layout', 'appearance-index-rail', 'appearance-headers', 'home-recent-albums', 'home-daily-mix', 'home-menu', 'pulldown-tiles', 'keyboard-pinyin', 'keyboard-french', 'podcast-online-search', 'podcast-region',
-                 'battery-percentage', 'battery-charge-limit', 'battery-history', 'playback-shuffle', 'playback-eq', 'playback-next-album', 'scrobbling', 'scrobble-auto', 'search-history', 'radio-view', 'radio-recent', 'covers-rebuild', 'artists-rebuild', 'wifi-networks', 'podcast-directory', 'led-dynamic', 'playback-mono', 'playback-crossfeed', 'library-artist-split', 'buttons-swap', 'library-genre-split', 'pulldown-labels')
+                 'battery-percentage', 'battery-charge-limit', 'battery-history', 'playback-shuffle', 'playback-eq', 'playback-next-album', 'scrobbling', 'scrobble-auto', 'search-history', 'radio-view', 'radio-recent', 'covers-rebuild', 'artists-rebuild', 'wifi-networks', 'podcast-directory', 'led-dynamic', 'playback-mono', 'playback-crossfeed', 'library-artist-split', 'buttons-swap', 'library-genre-split', 'pulldown-labels', 'playback-crossfade', 'playback-crossfade-auto')
 GUARD_FILES = ('m1plus-start', 'm1plus-run', 'm1plus-bad', 'm1plus-off')
 # The files older builds left behind (patch/setfiles.c sf_retired, the same order; each with its .tmp sibling). Unsupported Files counts and lists them and
 # Delete Unsupported Files removes them. A renamed setting's old name goes here, never a guard file or a setting above (tests: unsupported_tests).
@@ -810,7 +820,7 @@ RETIRED_FILES = ('/mnt/data/m1plus-albums', '/mnt/data/m1plus-playlists', '/mnt/
                  '/mnt/data/m1plus-battpct', '/mnt/data/m1plus-pod-theme', '/mnt/data/m1plus-mix', '/mnt/data/m1plus-mix.art', '/mnt/data/m1plus/recently-played')
 FOLDER_LABEL = 'm1plus/'
 INFO_SF = INFO_CC_STATUS + 1   # patch/m1plus.c INFO_SF = INFO_CC + 7; row k reads setfiles_stat(k): 4 guard files, the folder, the settings
-INFO_SFOLD = INFO_SF + 59      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
+INFO_SFOLD = INFO_SF + 61      # patch/m1plus.c: the Unsupported Files count (setfiles_old_count), above the setting rows
 assert len(GUARD_FILES) + 1 + len(SETTING_FILES) <= INFO_SFOLD - INFO_SF, 'the Settings Files rows reach INFO_SFOLD: raise it here and in patch/m1plus.c'
 assert INFO_DUR == INFO_SFOLD + 1, 'INFO_DUR must follow INFO_SFOLD (patch/m1plus.c)'
 FILES_PAGE_INDEX = page_index('m1plus_files')
@@ -1204,8 +1214,8 @@ KEYLOCK_PAGE = Page('m1plus_keylock', 'm1plus_keylock_page', 'Button Lock', layo
     Note('Only effective when the screen is off'),
 ])
 SHUTDOWN_PAGE = Page('m1plus_shutdown', 'm1plus_shutdown_page', 'Auto-Shutdown', layout=[Row(v, ACT_SHUTDOWNSET, i) for i, v in enumerate(SHUTDOWN_VALUES)])
-# Settings > Playback Settings (patch/playset.c, docs/modules/playset.md): stock's All Playback Settings list as a hub and two sub-pages, every state stock's own. The hub's first card holds Play Mode (a value row and its picker),
-# Gapless and Folder Skip (stock's switches), Resume (a value row and its picker) and Continue Playing (ours, patch/nextalbum.c); its second card links Volume & Sound and Output. Volume & Sound holds, under Volume, Gain, Max Volume,
+# Settings > Playback Settings (patch/playset.c, docs/modules/playset.md): stock's All Playback Settings list as a hub and two sub-pages, every state stock's own. The hub has three groups: Queue holds Play Mode (a value row and its picker), Continue Playing (ours, patch/nextalbum.c),
+# Folder Skip (stock's switch) and Resume (a value row and its picker); Transitions holds Gapless (stock's switch) and Crossfade (ours, a value row opening the Crossfade page); Audio links Volume & Sound and Output. Volume & Sound holds, under Volume, Gain, Max Volume,
 # Default Volume (value rows opening the three loudness pages below) and ReplayGain, and under Stereo Channel Balance, Mono Audio and Crossfeed (ours, patch/stereoset.c); Output holds Digital Filter (a link row: its eight names do not
 # fit a value) and DSD Output Mode (a value row and a picker), then under USB & Digital USB Mode (stock's page), USB Volume (a value row and a picker) and Digital Output (stock's switch).
 PLAYMODE_VALUES = ('List Play', 'Repeat Track', 'Shuffle', 'Repeat All')   # the mode as shown (patch/shuffle.c pod_play_mode): stock's 0 and 1, our Shuffle request (stock's own mode 2 never runs) and stock's 3
@@ -1217,12 +1227,15 @@ DSD_VALUES = ('D2P', 'DOP', 'Native')               # stock's dsd mode 0 .. 2
 USBVOL_VALUES = ('Fixed', 'Variable')               # stock's usbvol_mode 0, 1 (Volume Fixed, Volume Variable)
 MAXVOL_VALUES, BOOTVOL_VALUES, BALANCE_VALUES = ('100',), ('Memory', '100'), ('L10', 'R10')   # the loudness rows' longest texts (patch/playset.c ps_value_text: the numbers and L3 / R2 are the same in every language; Memory is a key)
 PLAYSET_PAGE = Page('m1plus_playset', 'm1plus_playset_page', 'Playback', layout=[
+    Hdr('Queue'),
     Row('Play Mode', ACT_PLAYMODE, PSMODE_PAGE_INDEX),
-    Row('Gapless', ACT_GAPLESS),
-    Row('Resume', ACT_MEMPLAY, PSMEM_PAGE_INDEX),
-    Row('Folder Skip', ACT_FOLDERSKIP),
     Row('Continue Playing', ACT_NEXTALBUM, NEXTALBUM_PAGE_INDEX),
-    GAP,
+    Row('Folder Skip', ACT_FOLDERSKIP),
+    Row('Resume', ACT_MEMPLAY, PSMEM_PAGE_INDEX),
+    Hdr('Transitions'),
+    Row('Gapless', ACT_GAPLESS),
+    Row('Crossfade', ACT_XFADE, PSXFADE_PAGE_INDEX),
+    Hdr('Audio'),
     Row('Volume & Sound', ACT_PAGE, PSVOLUME_PAGE_INDEX),
     Row('Output', ACT_PAGE, PSOUTPUT_PAGE_INDEX),
 ])
@@ -1252,6 +1265,16 @@ PSRG_PAGE = Page('m1plus_psrg', 'm1plus_psrg_page', 'ReplayGain', layout=[Row(v,
 XFEED_VALUES = ('Off', 'Low', 'Medium', 'High')   # patch/stereo.h STEREO_OFF .. STEREO_HIGH (the user's choice; the player's effective level is 0 on Line Out and a USB DAC)
 PSXFEED_PAGE = Page('m1plus_psxfeed', 'm1plus_psxfeed_page', 'Crossfeed', layout=[Row(v, ACT_XFEEDSET, i) for i, v in enumerate(XFEED_VALUES)]
                     + [Note('For headphones and Bluetooth. Not applied to Line Out, USB DAC or DSD.', lines=2)])
+def _off_hidden(*items):
+    """The items shown only while a switch is on start hidden (the switch is off by default; the payload shows them: patch/xfadeset.c xfade_show)."""
+    for it in items: it.start_hidden = True
+    return items
+
+
+PSXFADE_PAGE = Page('m1plus_psxfade', 'm1plus_psxfade_page', 'Crossfade', layout=[Row('Crossfade', ACT_XFADESET)] + list(_off_hidden(
+    Hdr('Crossfade Duration'), XfadeCard(), Row('Keep Albums Gapless', ACT_XFADEAUTO),
+    Note('Overlaps tracks at transitions. Not applied to DSD, CUE, podcasts or audiobooks.', lines=2),
+    Note("The sample rate stays the same from track to track; later tracks are resampled to it. Pause or skip to return to a track's own rate.", lines=4))))
 PSFILTER_PAGE = Page('m1plus_psfilter', 'm1plus_psfilter_page', 'Digital Filter', layout=[Row(v, ACT_FILTERSET, i) for i, v in enumerate(FILTER_VALUES)])
 PSDSD_PAGE = Page('m1plus_psdsd', 'm1plus_psdsd_page', 'DSD Output Mode', layout=[Row(v, ACT_DSDSET, i) for i, v in enumerate(DSD_VALUES)])
 PSUSB_PAGE = Page('m1plus_psusb', 'm1plus_psusb_page', 'USB Volume', layout=[Row(v, ACT_USBVOLSET, i) for i, v in enumerate(USBVOL_VALUES)])
@@ -1546,7 +1569,7 @@ CARDRUN_PAGE = Page('m1plus_cardrun', 'm1plus_cardrun_page', 'Card Script', layo
 ])
 CARDLOG_PAGE = Page('m1plus_cardlog', 'm1plus_cardlog_page', 'Card Script Log', kind='relnotes')
 CARDSRC_PAGE = Page('m1plus_cardsrc', 'm1plus_cardsrc_page', 'm1plus-run.sh', kind='relnotes')
-NOGLYPH_ACTIONS = (ACT_LUNOW, ACT_LUFOLDERS, ACT_LUAUTO, ACT_CRRUN, ACT_CRLOG, ACT_CRSRC)   # rows with no glyph: the Update Library page's (tools/pod_ui.py cards_row)
+NOGLYPH_ACTIONS = (ACT_LUNOW, ACT_LUFOLDERS, ACT_LUAUTO, ACT_CRRUN, ACT_CRLOG, ACT_CRSRC, ACT_XFADEAUTO, ACT_XFADESET)   # rows with no glyph: Update Library, Card Script, Crossfade's switches (tools/pod_ui.py cards_row)
 
 # PAGES[0] is the entry page. The order is PAGE_ORDER's; a key with no page, or a page missing from PAGE_ORDER, stops the import.
 _missing = [k for k in PAGE_ORDER if k not in _REGISTRY]

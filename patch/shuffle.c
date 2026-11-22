@@ -36,6 +36,7 @@
 #include "i18n.h"
 #include "podcasts.h"
 #include "home.h"
+#include "xfade.h"
 #include "nextalbum.h"
 #include "songops.h"
 
@@ -292,6 +293,7 @@ static void restore_order(void *q, unsigned n, int pos) {
 static void cancel_preload(void) {
     unsigned char old = *(unsigned char *)MCL_GAPLESS;
     if (*(int *)MCL_PRELOAD != 1) return;
+    xfade_on_preload_cancel();
     mclSetGaplessMode(0);
     mclSetGaplessMode(old);
 }

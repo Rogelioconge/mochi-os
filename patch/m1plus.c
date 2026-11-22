@@ -144,6 +144,9 @@ enum {
     ACT_MONO = 145, /* Playback Settings: Mono Audio, a switch row, ours (patch/stereoset.c) */
     ACT_XFEED = 146, /* Playback Settings: Crossfeed, a value row opening its picker */
     ACT_XFEEDSET = 147, /* the Crossfeed picker's rows (arg = the level: 0 off, 1 low, 2 medium, 3 high) */
+    ACT_XFADE = 215, /* Playback Settings: Crossfade, a value row opening the Crossfade page (patch/xfadeset.c) */
+    ACT_XFADESET = 216, /* the Crossfade page's switch (xfade_on_toggle) */
+    ACT_XFADEAUTO = 217, /* Crossfade page: Keep Albums Gapless switch (smart cross-album mode) */
     ACT_BOOTMEM = 128, /* the Default Volume page: Volume Memory, a switch row, stock's own byte */
     ACT_AREBUILD =
         92, /* Settings > Library: Rebuild Artist Photos, an action row (a confirm, then the request file Home's pass acts on) */
@@ -246,8 +249,8 @@ enum {
     INFO_CAP,
     INFO_FREE,
     INFO_CC, /* the Cache page's seven Covers values start here: homecover_stat(kind - INFO_CC) */
-    INFO_SF = INFO_CC + 7, /* the Settings Files page's 59 values: setfiles_stat(kind - INFO_SF) */
-    INFO_SFOLD = INFO_SF + 59, /* the Unsupported Files count (setfiles_old_count), above those rows */
+    INFO_SF = INFO_CC + 7, /* the Settings Files page's 61 values: setfiles_stat(kind - INFO_SF) */
+    INFO_SFOLD = INFO_SF + 61, /* the Unsupported Files count (setfiles_old_count), above those rows */
     INFO_DUR = INFO_SFOLD + 1, /* the Cache page's Measured Tracks: dur_stat (patch/durations.c) */
     INFO_APHOTOS = INFO_DUR +
         1, /* the Cache page's Artist Photos card: the photos, and the artists with none (homecover_stat 7, 8) */
@@ -297,6 +300,7 @@ enum {
     VK_GSPLIT, /* ... and its Split Genres row */
     VK_RGBTHEME, /* the LED Light page's Theme row: the Dynamic lamp's theme's name */
     VK_XFEED, /* the Playback Settings Crossfeed row: Off, Low, Medium or High */
+    VK_XFADE, /* the Playback Settings Crossfade row: Off, or N s */
     VK_LANG, /* the Language row: the loaded language's own name (stock's key lan_*) */
     VK_DTZONE, /* Date & Time: the zone's label (our table, patch/datetime.c) */
     VK_DTDATE, /* ... the date and the time of day */
@@ -335,6 +339,7 @@ static const char HOME_NAMES[18][3] = {"0", "1",  "2",  "3",  "4",  "5",  "6",  
 #include "batthist.h"
 #include "nextalbum.h"
 #include "stereo.h"
+#include "xfade.h"
 #include "albums.h"
 #include "artists.h"
 #include "entries.h"
@@ -568,6 +573,7 @@ static const struct pick_def {
     {ACT_BOOTVOL, VK_PSBOOTVOL, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_BALANCE, VK_PSBAL, 0, (int (*)(void))0, (int (*)(int))0},
     {ACT_XFEED, VK_XFEED, ACT_XFEEDSET, stereo_crossfeed, stereo_crossfeed_set},
+    {ACT_XFADE, VK_XFADE, 0, (int (*)(void))0, (int (*)(int))0}, /* the Crossfade row opens its own page: no picker */
     {ACT_LANG, VK_LANG, ACT_LANGSET, lang_get, lang_set},
     {ACT_DTZONE, VK_DTZONE, ACT_DTZONESET, dt_zone, dt_zone_set}, /* Date & Time (patch/datetime.c) */
     {-1, VK_NONE, ACT_BTCODECSET, bp_codec,
@@ -854,6 +860,8 @@ static const struct pod_switch {
     {ACT_GSSEP9, sw_gs9, sw_gs9_t},
     {ACT_LBAUTO, scrobble_auto_setting, scrobble_auto_toggle},
     {ACT_GAPLESS, ps_gapless, ps_gapless_toggle},
+    {ACT_XFADEAUTO, xfade_auto, xfade_auto_toggle},
+    {ACT_XFADESET, xfade_on, xfade_on_toggle},
     {ACT_FOLDERSKIP, ps_folderskip, ps_folderskip_toggle},
     {ACT_DIGITAL, ps_digital, ps_digital_toggle},
     {ACT_FOLDERCOVER, ps_foldercover, ps_foldercover_toggle},
@@ -893,6 +901,8 @@ static int on_switch(void *ctx, void *e) {
     if (s->sw->action == ACT_ASPLIT)
         pod_page_refresh(POD_ASPLIT_PAGE); /* the separators dim and wake with the switch */
     if (s->sw->action == ACT_GSPLIT) pod_page_refresh(POD_GSPLIT_PAGE);
+    if (s->sw->action == ACT_XFADESET)
+        pod_page_refresh(POD_PSXFADE_PAGE); /* the duration card shows and hides with the switch */
     if (s->sw->action == ACT_STANDBY) pod_page_refresh(POD_KEYSPOWER_PAGE); /* turning it on turned Auto-Shutdown off */
     if (s->sw->action == ACT_BOOTMEM) pod_page_refresh(POD_PSBOOTVOL_PAGE); /* the slider's cards follow the switch */
     if (s->sw->action == ACT_DTAUTO || s->sw->action == ACT_DT24)
@@ -1030,6 +1040,13 @@ static void value_text(void *label, int kind) {
         VK_XFEED) { /* the level the user chose (the player's own may be off for the output: patch/stereoset.c) */
         static const char *const xfeed[] = {"Off", "Low", "Medium", "High"};
         key = xfeed[stereo_crossfeed()];
+    } else if (kind == VK_XFADE) { /* Playback Settings > Crossfade: Off, or N s (the same in every language) */
+        if (xfade_on()) {
+            snprintf(buf, sizeof buf, "%d s", xfade_sec());
+            widget_set_text_utf8(label, buf);
+            return;
+        }
+        key = "Off";
     } else if (kind == VK_CHGLIM) { /* "80%" .. "100%" (100: no limit) */
         snprintf(buf, sizeof buf, "%d%%", chg_limit());
         widget_set_text_utf8(label, buf);
@@ -1148,6 +1165,8 @@ static void page_refresh(void *win, const struct pod_page *page) {
     stock_front = (void *)0;
     if (page == &POD_PAGES[POD_DISPLAY_PAGE]) disp_refresh(win); /* the slider follows the pull-down's */
     if (page == &POD_PAGES[POD_RGB_THEME_PAGE]) rgb_note(win);
+    if (page == &POD_PAGES[POD_PSXFADE_PAGE])
+        xfade_show(win); /* the duration card and Keep Albums Gapless follow the switch */
     if (page == &POD_PAGES[POD_BATTHIST_PAGE])
         bhpage_show(win); /* Battery History's charts: shown while the switch is on */
     if (page == &POD_PAGES[POD_CARDRUN_PAGE]) cardrun_watch(); /* the status and rows follow a run in progress */
@@ -1452,6 +1471,8 @@ static int open_page(int index, int as_home) {
         ps_vol_opened(win, PS_VOL_BOOT);
     else if (index == POD_PSBAL_PAGE)
         ps_vol_opened(win, PS_VOL_BAL);
+    else if (index == POD_PSXFADE_PAGE)
+        xfade_opened(win); /* the duration slider's handlers (after the refresh: setting it is not a change to save) */
     else if (index == POD_VOLUME_PAGE)
         volpage_opened(win); /* stock's volume handlers, bound to our widgets */
     { /* the Settings page is the way out to the grid; the menu may be the Home instance (no navbar) */

@@ -30,6 +30,8 @@
 #include "peq.h"
 #include "stereo.h"
 #include "vu.h"
+#include "xfade.h"
+#include "xfsrc.h"
 
 _Static_assert(sizeof(af_data) == 24, "audio ABI");
 _Static_assert(__builtin_offsetof(af_instance, setup) == 16, "setup ABI");
@@ -38,6 +40,7 @@ _Static_assert(__builtin_offsetof(af_instance, mul) == 40, "multiplier ABI");
 
 #define AF_CONTROL_REINIT 0x10000100
 #define AF_CONTROL_COMMAND_LINE 0x20000300
+#define AF_CONTROL_RESAMPLE_RATE_SET 0x40000100 /* arg: int * the rate the chain must end at; AF_OK takes it */
 #define AF_CONTROL_EQ_GAIN_SET 0x40001d00
 #define AF_CONTROL_EQ_GAIN_GET 0x40001d01
 #define AF_OK 1
@@ -58,12 +61,20 @@ _Static_assert(__builtin_offsetof(af_instance, mul) == 40, "multiplier ABI");
 typedef struct {
     peq_dsp dsp;
     stereo_dsp st;
+    xfade_dsp xf;
     peq_preset preset;
     int off; /* the kill switch was there at the open: pass everything through */
     int fresh; /* REINIT done, no block yet: the first one may adopt the carried memory */
     int played; /* this instance has filtered a block */
     int ramp_in; /* it replaces a pass-through instance mid-track: Mono Audio and Crossfeed ramp in */
     int vu_native; /* the native pass-through blocks of this instance can be measured */
+    int xf_native; /* the native pass-through blocks of this instance may crossfade */
+    int in_rate, orate; /* the rate that arrives and the rate this instance sends on (the sticky output's) */
+    int src_ok; /* it may take the chain's rate request (float path, 1 or 2 channels) */
+    int want; /* the rate the chain asked for (AF_CONTROL_RESAMPLE_RATE_SET, accepted) */
+    xf_src *src; /* converts in_rate to orate; created at the first block or adopted from the last file */
+    float *obuf; /* the converted block */
+    int ocap; /* its capacity in frames */
 } player_state;
 
 /* The memory of the instance that just ended, in the payload's .data (no .bss here; one writer: the playback thread). */
@@ -72,9 +83,12 @@ static struct {
     double z[PEQ_CHANNELS][PEQ_BANDS][2];
     peq_preset preset;
     stereo_carry st_mem;
+    xfade_carry xf_mem;
+    xf_src *src; /* the converter that went on from the last file (Track B's, or the last file's own) */
     long long at; /* ms, CLOCK_MONOTONIC, when it was left */
     int rate, channels, valid;
-    int eq, st; /* which of the two was left: the cascade's memory (settled, finite), the stereo stage */
+    int eq, st,
+        xf; /* which of the three was left: the cascade's memory, the stereo stage, a partial crossfade fade-in */
 } carry __attribute__((section(".data")));
 
 static long long now_ms(void) {
@@ -90,27 +104,48 @@ static int track_ended(void) {
     return ds && *(volatile int *)(ds + 0x1c);
 }
 
+/* Nothing carries: the converter goes too. */
+static void carry_drop(void) {
+    xfsrc_free(carry.src);
+    carry.src = 0;
+    carry.valid = 0;
+    carry.eq = carry.st = carry.xf = 0;
+}
+
 /* An instance that filtered at least one block is going away: keep its memory if it played its track out, in a settled
  * curve, with finite state; otherwise drop what an earlier one left (the stream has moved on). */
 static void leave(player_state *s) {
     if (!s->played) return;
-    carry.valid = 0;
+    carry_drop();
     long long t = now_ms();
-    if (s->off || !s->dsp.channels || t < 0 || !track_ended()) return;
-    carry.eq = !s->dsp.current.bypass && !s->dsp.ramp && !s->dsp.waiting;
-    for (int ch = 0; ch < PEQ_CHANNELS; ++ch)
-        for (int b = 0; b < PEQ_BANDS; ++b)
-            for (int k = 0; k < 2; ++k)
-                if (!__builtin_isfinite(s->dsp.current.z[ch][b][k])) carry.eq = 0;
-    if (carry.eq) {
-        memcpy(carry.z, s->dsp.current.z, sizeof carry.z);
-        carry.preset = s->preset;
+    if (s->off || t < 0 || !track_ended()) return;
+    carry.xf = xfade_carry_out(&s->xf, &carry.xf_mem);
+    carry.src = xfade_take_src(&s->xf); /* Track B's: the join's own converter */
+    if (!carry.src) {
+        carry.src = s->src;
+        s->src = 0;
     }
-    carry.st = stereo_carry_out(&s->st, &carry.st_mem);
+    if (s->dsp.channels) {
+        carry.eq = !s->dsp.current.bypass && !s->dsp.ramp && !s->dsp.waiting;
+        for (int ch = 0; ch < PEQ_CHANNELS; ++ch)
+            for (int b = 0; b < PEQ_BANDS; ++b)
+                for (int k = 0; k < 2; ++k)
+                    if (!__builtin_isfinite(s->dsp.current.z[ch][b][k])) carry.eq = 0;
+        if (carry.eq) {
+            memcpy(carry.z, s->dsp.current.z, sizeof carry.z);
+            carry.preset = s->preset;
+        }
+        carry.st = stereo_carry_out(&s->st, &carry.st_mem);
+        carry.rate = s->dsp.rate;
+        carry.channels = s->dsp.channels;
+    } else {
+        carry.rate = 0;
+        carry.channels = 0;
+    }
     carry.at = t;
-    carry.rate = s->dsp.rate;
-    carry.channels = s->dsp.channels;
-    carry.valid = carry.eq || carry.st;
+    carry.valid = carry.eq || carry.st || carry.xf || carry.src;
+    if (carry.src) {
+    }
 }
 
 /* The join guards: what was left is this stream's, a moment ago. */
@@ -120,11 +155,23 @@ static int joins(int rate, int channels) {
 }
 
 /* The first block of a new instance: one try, and the memory is gone either way. The cascade's needs the same curve;
- * the stereo stage's does not (its weights go on toward what the record asks now). */
+ * the stereo stage's does not; a partial crossfade fade-in carries across rate/channel changes too. */
 static void adopt(player_state *s) {
-    int ok = joins(s->dsp.rate, s->dsp.channels);
+    long long t = now_ms();
+    int recent = carry.valid && t >= carry.at && t - carry.at < CARRY_MS;
+    int same = recent && s->dsp.channels && carry.rate == s->dsp.rate && carry.channels == s->dsp.channels;
+    xf_src *src = carry.src;
+    carry.src = 0;
     carry.valid = 0;
-    if (!ok) return;
+    /* The converter goes on only into a track that arrives in the same format and ends in the same rate. */
+    if (src && recent && s->orate != s->in_rate && !s->src && src->in_rate == s->in_rate && src->out_rate == s->orate &&
+        src->nch == s->dsp.channels) {
+        s->src = src;
+    } else
+        xfsrc_free(src);
+    if (!recent) return;
+    if (carry.xf) xfade_carry_in(&s->xf, &carry.xf_mem);
+    if (!same) return;
     if (carry.eq && !s->dsp.current.bypass && !s->dsp.waiting &&
         !memcmp(&carry.preset, &s->preset, sizeof carry.preset))
         memcpy(s->dsp.current.z, carry.z, sizeof carry.z);
@@ -180,38 +227,61 @@ static int control(af_instance *af, int command, void *arg) {
     if (command == AF_CONTROL_REINIT) {
         af_data *in = arg;
         if (!in || in->nch < 1 || in->nch > PEQ_CHANNELS) return AF_ERROR;
+        int irate = in->rate;
+        xfsrc_free(s->src);
+        s->src = 0;
+        xfade_release(&s->xf);
         *af->data = *in;
         pass_native = 0;
         s->vu_native = 0;
+        s->xf_native = 0;
+        memset(&s->xf, 0, sizeof s->xf);
+        s->in_rate = s->orate = irate;
+        s->src_ok = 0;
+        af->mul = 1;
         if (s->off || in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) {
             s->dsp.channels = 0; /* play leaves every block alone */
-            carry.valid = 0; /* nothing carries through a pass-through track */
+            carry_drop(); /* nothing carries through a pass-through track */
             if (!s->off) vu_note(0, 0); /* no levels: DSD, a special format, a rate out of range */
             return AF_OK;
         }
+        /* The sticky output (patch/xfsrc.c): when the chain asked for the open output's rate and this instance took it
+         * (control below), the conversion is this filter's, and everything after it runs at the output rate. */
+        s->src_ok = in->nch <= 2;
+        /* A request taken while the output was kept is over with the session (pause, patch/xfsrc.c). */
+        if (!xf_sticky()) s->want = 0;
+        int kept = s->src_ok ? xf_out_rate(irate) : 0;
+        int orate = kept ? kept : s->want && s->want != irate && s->src_ok ? s->want : irate;
+        s->orate = af->data->rate = orate;
+        af->mul = (double)orate / (double)irate;
         stereo_record rec;
         stereo_load(&rec);
         /* Switch off and no stereo option: the filter only sits in the chain and stock's bits go through. Not while the
          * last file's stage would still be heard (an option switched off just before its end): this file filters, to
          * finish that fade, and then leaves every sample alone. */
-        int fading = joins(in->rate, in->nch) && carry.st && stereo_carry_live(&carry.st_mem, in->rate);
-        if (eq_off && !(in->nch == 2 && stereo_on(&rec)) && !fading) {
+        int fading = joins(orate, in->nch) && carry.st && stereo_carry_live(&carry.st_mem, orate);
+        if (eq_off && !(in->nch == 2 && stereo_on(&rec)) && !fading && orate == irate) {
             s->dsp.channels = 0;
-            carry.valid = 0;
+            if (!carry.xf) carry_drop();
             pass_native = 1;
             s->vu_native = vu_supported(in->format, in->bps) && in->rate > 0;
+            s->xf_native = s->vu_native && in->nch <= 2;
+            if (s->xf_native) xfade_reset(&s->xf, in->rate, in->nch, in->format, in->bps);
+            s->fresh = 1;
             vu_note(s->vu_native ? in->rate : 0, in->nch);
             return AF_OK;
         }
         effective(&s->preset);
-        peq_reset(&s->dsp, in->rate, in->nch, &s->preset);
-        stereo_reset(&s->st, in->rate, in->nch, &rec, s->ramp_in && !s->played);
+        peq_reset(&s->dsp, orate, in->nch, &s->preset);
+        stereo_reset(&s->st, orate, in->nch, &rec, s->ramp_in && !s->played);
+        xfade_reset(&s->xf, orate, in->nch, AF_FORMAT_FLOAT, 4);
         s->fresh = 1;
         af->data->format = AF_FORMAT_FLOAT;
         af->data->bps = 4;
-        vu_note(in->rate, in->nch);
+        vu_note(orate, in->nch);
         if (in->format != AF_FORMAT_FLOAT || in->bps != 4) {
-            *in = *af->data; /* ask the chain for float */
+            *in = *af->data; /* ask the chain for float, at the rate that arrives */
+            in->rate = irate;
             return AF_FALSE;
         }
         return AF_OK;
@@ -235,11 +305,58 @@ static int control(af_instance *af, int command, void *arg) {
         return AF_OK;
     }
     if (command == AF_CONTROL_COMMAND_LINE) return AF_OK;
+    if (command == AF_CONTROL_RESAMPLE_RATE_SET) {
+        /* hciplayer's rate negotiation (0x44c710) asks the chain's filters, last to first, before it inserts a resampler.
+         * Only while the kept output format differs from the track's: otherwise stock's own conversion. */
+        int rate = arg ? *(int *)arg : 0;
+        int ok = xf_sticky() && s->src_ok && rate >= 8000 && rate <= 384000 && rate != s->in_rate;
+        if (!ok) return AF_UNKNOWN;
+        s->want = rate;
+        return AF_OK;
+    }
     return AF_UNKNOWN;
+}
+
+/* The conversion to the open output's rate (this instance's own, after the chain asked for it): the converter's waiting
+ * frames, then this block's, in one buffer, sent on as the instance's output (a different frame count, as af_resample's).
+ * Its delay (the filter's half length, 8 frames at XF_SRC_FILTER_SIZE 16) is under 1 ms: not reported. */
+static af_data *convert(af_instance *af, player_state *s, af_data *data) {
+    af_data *d = af->data;
+    int nch = data->nch;
+    if (!s->src) s->src = xfsrc_new(s->in_rate, s->orate, nch);
+    d->len = 0;
+    if (!s->src) return d; /* out of memory: this block is dropped */
+    int n_in = data->len / (4 * nch);
+    int need = (int)((double)n_in * s->orate / s->in_rate) + s->src->count + 64;
+    if (need > s->ocap) {
+        float *o = calloc((unsigned)(need * nch), sizeof(float));
+        if (!o) return d;
+        free(s->obuf);
+        s->obuf = o;
+        s->ocap = need;
+    }
+    int n = xfsrc_run(s->src, data->audio, n_in, s->obuf, s->ocap);
+    /* Every field, every block: the filters after this one (af_format) rewrite the af_data they are handed, which is
+     * this instance's own; a format left at their S32 would make the next block's floats pass as integers (static). */
+    d->audio = s->obuf;
+    d->len = n * 4 * nch;
+    d->rate = s->orate;
+    d->nch = nch;
+    d->format = AF_FORMAT_FLOAT;
+    d->bps = 4;
+    return d;
 }
 
 static af_data *play(af_instance *af, af_data *data) {
     player_state *s = af->setup;
+    if (s->orate != s->in_rate && data && data->len > 0 && data->format == AF_FORMAT_FLOAT && data->bps == 4 &&
+        data->nch == s->dsp.channels && data->rate == s->in_rate && !(data->len % (4 * data->nch))) {
+        if (s->fresh) {
+            s->fresh = 0;
+            adopt(s);
+        }
+        data = convert(af, s, data);
+    }
     if (data && data->len > 0 && data->format == AF_FORMAT_FLOAT && data->bps == 4 && data->nch == s->dsp.channels &&
         data->rate == s->dsp.rate && !(data->len % (4 * data->nch))) {
         if (s->fresh) {
@@ -248,21 +365,35 @@ static af_data *play(af_instance *af, af_data *data) {
         }
         s->played = 1;
         unsigned frames = (unsigned)data->len / (4 * data->nch);
+        xfade_process_float(&s->xf, data->audio, frames);
         stereo_pre(&s->st, data->audio, frames);
         peq_process(&s->dsp, data->audio, frames);
         stereo_post(&s->st, data->audio, frames);
         tap(data);
-    } else if (s->vu_native && !s->dsp.channels && data && data->len > 0 && data->format == af->data->format &&
-               data->bps == af->data->bps && data->nch == af->data->nch && data->rate == af->data->rate &&
-               !(data->len % (data->bps * data->nch))) {
-        tap(data); /* the native pass-through: read, never written */
+    } else if ((s->vu_native || s->xf_native) && !s->dsp.channels && data && data->len > 0 &&
+               data->format == af->data->format && data->bps == af->data->bps && data->nch == af->data->nch &&
+               data->rate == af->data->rate && !(data->len % (data->bps * data->nch))) {
+        if (s->fresh) {
+            s->fresh = 0;
+            adopt(s);
+        }
+        s->played = 1;
+        unsigned frames = (unsigned)data->len / (unsigned)(data->bps * data->nch);
+        if (s->xf_native) xfade_process_native(&s->xf, data->audio, frames);
+        if (s->vu_native) tap(data); /* the native pass-through: read, never written (unless crossfade active) */
     }
     return data;
 }
 
 static void uninit(af_instance *af) {
     pass_native = 0;
-    if (af->setup) leave(af->setup);
+    if (af->setup) {
+        player_state *s = af->setup;
+        leave(s);
+        xfsrc_free(s->src);
+        xfade_release(&s->xf);
+        free(s->obuf);
+    }
     free(af->data);
     free(af->setup);
     af->data = 0;

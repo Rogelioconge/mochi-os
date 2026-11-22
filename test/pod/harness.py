@@ -298,6 +298,7 @@ class Machine:
         self.handlers[pod.PLAYLIST_IMPORT] = 'stock_playlist_import'   # the stock Playlists page's Import / Export click handlers
         self.handlers[pod.PLAYLIST_EXPORT] = 'stock_playlist_export'
         self.handlers[pod.GLYPH_CACHE_LOOKUP] = 'glyph_cache_lookup'   # the stb font's glyph path (patch/textgamma.c wraps it): mocked, test/pod/textgamma.py
+        self.handlers[pod.MCL_GAPLESS_PRELOAD] = 'mcl_gapless_preload'   # Crossfade early preload (patch/xfadeset.c; XFADE_PINS)
         self.handlers[O['STB_GET_GLYPH']] = 'font_stb_get_glyph'
         # the Home guard's world (patch/home.c): flash/SD files, file descriptors, the window stack
         self.fs, self.fds, self.next_fd, self.fail = {}, {}, 3, set()
@@ -1037,6 +1038,17 @@ class Machine:
             self.calls.append(('mclSetGaplessMode', a0)); self.u.mem_write(pod.DATA['MCL_GAPLESS'][0], bytes([a0 & 0xff])); ret = 1
             if a0 == 0 and self.word(pod.DATA['MCL_PRELOAD'][0]) == 1: self.setword(pod.DATA['MCL_PRELOAD'][0], -1); self.calls.append(('closegapless',))
             ret = 1
+        elif name == 'mclGetPlayTime':   # @0x5d35a8: (int *cur, int *tot); returns 1, writes current position and total duration in seconds
+            cur, tot = getattr(self, 'play_time', (0, 0))
+            if a0: self.setword(a0, cur)
+            if a1: self.setword(a1, tot)
+            self.calls.append(('mclGetPlayTime', cur, tot)); ret = getattr(self, 'play_time_ret', 1)
+        elif name == 'mcl_gapless_preload':   # @0x5d0ea4: sends set-gapless using MCL_GAPLESS byte and sets MCL_PRELOAD to 1 (or -1 on refusal)
+            gl = self.u.mem_read(pod.DATA['MCL_GAPLESS'][0], 1)[0]
+            self.calls.append(('mcl_gapless_preload', gl))
+            if getattr(self, 'preload_fail', False): self.setword(pod.DATA['MCL_PRELOAD'][0], -1)
+            else: self.setword(pod.DATA['MCL_PRELOAD'][0], 1)
+            ret = 0
         elif name == 'stock_loadplaylist':   # stock's mclLoadPlayList behind its trampoline: the play queue becomes a copy of the deque, the position the index
             recs = []   # deque_assign copies the records (their strings are shared)
             for r in self.deques[a0]:

@@ -237,9 +237,9 @@ def settings_tests(ctx):
     expect(P.PAGES[P.PLAYSET_PAGE_INDEX] is PS and all(P.PAGES[i_] is p_ for i_, p_ in zip((P.PSMODE_PAGE_INDEX, P.PSMEM_PAGE_INDEX, P.PSGAIN_PAGE_INDEX, P.PSRG_PAGE_INDEX, P.PSFILTER_PAGE_INDEX, P.PSDSD_PAGE_INDEX, P.PSUSB_PAGE_INDEX), pickers))
            and all(P.PAGES[i_] is p_ for i_, p_ in ((P.PSMAXVOL_PAGE_INDEX, P.PSMAXVOL_PAGE), (P.PSBOOTVOL_PAGE_INDEX, P.PSBOOTVOL_PAGE), (P.PSBAL_PAGE_INDEX, P.PSBAL_PAGE))) and PS.key == 'm1plus_playset' and PS.title == 'Playback'
            and [p.key for p in pickers] == ['m1plus_psmode', 'm1plus_psmem', 'm1plus_psgain', 'm1plus_psrg', 'm1plus_psfilter', 'm1plus_psdsd', 'm1plus_psusb'], 'the page, its seven pickers and the three loudness pages are in the page table at their indexes')
-    expect([(r.label, r.action, r.arg) for r in PS.rows] == [('Play Mode', P.ACT_PLAYMODE, P.PSMODE_PAGE_INDEX), ('Gapless', P.ACT_GAPLESS, 0), ('Resume', P.ACT_MEMPLAY, P.PSMEM_PAGE_INDEX), ('Folder Skip', P.ACT_FOLDERSKIP, 0),
-                                                           ('Continue Playing', P.ACT_NEXTALBUM, P.NEXTALBUM_PAGE_INDEX), ('Volume & Sound', P.ACT_PAGE, P.PSVOLUME_PAGE_INDEX), ('Output', P.ACT_PAGE, P.PSOUTPUT_PAGE_INDEX)]
-           and [P.row_kind(r) for r in PS.rows] == ['value', 'switch', 'value', 'switch', 'value', 'link', 'link'], 'the hub\'s rows and their kinds')
+    expect([(r.label, r.action, r.arg) for r in PS.rows] == [('Play Mode', P.ACT_PLAYMODE, P.PSMODE_PAGE_INDEX), ('Continue Playing', P.ACT_NEXTALBUM, P.NEXTALBUM_PAGE_INDEX), ('Folder Skip', P.ACT_FOLDERSKIP, 0), ('Resume', P.ACT_MEMPLAY, P.PSMEM_PAGE_INDEX),
+                                                           ('Gapless', P.ACT_GAPLESS, 0), ('Crossfade', P.ACT_XFADE, P.PSXFADE_PAGE_INDEX), ('Volume & Sound', P.ACT_PAGE, P.PSVOLUME_PAGE_INDEX), ('Output', P.ACT_PAGE, P.PSOUTPUT_PAGE_INDEX)]
+           and [P.row_kind(r) for r in PS.rows] == ['value', 'value', 'switch', 'value', 'switch', 'value', 'link', 'link'], 'the hub\'s rows and their kinds')
     VS, OP = P.PSVOLUME_PAGE, P.PSOUTPUT_PAGE
     expect([(r.label, r.action, r.arg) for r in VS.rows] == [('Gain', P.ACT_GAIN, P.PSGAIN_PAGE_INDEX), ('Max Volume', P.ACT_MAXVOL, P.PSMAXVOL_PAGE_INDEX), ('Default Volume', P.ACT_BOOTVOL, P.PSBOOTVOL_PAGE_INDEX), ('ReplayGain', P.ACT_REPLAYGAIN, P.PSRG_PAGE_INDEX),
                                                              ('Channel Balance', P.ACT_BALANCE, P.PSBAL_PAGE_INDEX), ('Mono Audio', P.ACT_MONO, 0), ('Crossfeed', P.ACT_XFEED, P.PSXFEED_PAGE_INDEX)]
@@ -250,10 +250,10 @@ def settings_tests(ctx):
            'the Output page: its rows, kinds and place in the page table')
 
     def lay(p): return [x.text if isinstance(x, P.Hdr) else 'gap' if x is P.GAP else x.label for x in p.layout]
-    expect(lay(PS) == ['Play Mode', 'Gapless', 'Resume', 'Folder Skip', 'Continue Playing', 'gap', 'Volume & Sound', 'Output']
+    expect(lay(PS) == ['Queue', 'Play Mode', 'Continue Playing', 'Folder Skip', 'Resume', 'Transitions', 'Gapless', 'Crossfade', 'Audio', 'Volume & Sound', 'Output']
            and lay(VS) == ['Volume', 'Gain', 'Max Volume', 'Default Volume', 'ReplayGain', 'Stereo', 'Channel Balance', 'Mono Audio', 'Crossfeed']
            and lay(OP) == ['Digital Filter', 'DSD Output Mode', 'USB & Digital', 'USB Mode', 'USB Volume', 'Digital Output'],
-           f'the hub: the playback card, then a card of two links; Volume & Sound: Volume and Stereo; Output: a card, then USB & Digital ({lay(PS)}, {lay(VS)}, {lay(OP)})')
+           f'the hub: Queue, Transitions and Audio groups; Volume & Sound: Volume and Stereo; Output: a card, then USB & Digital ({lay(PS)}, {lay(VS)}, {lay(OP)})')
     expect([(r.label, r.action, r.arg) for r in P.PSMODE_PAGE.rows] == [(t, P.ACT_PLAYMODESET, i) for i, t in enumerate(('List Play', 'Repeat Track', 'Shuffle', 'Repeat All'))]
            and [(r.label, r.action, r.arg) for r in P.PSMEM_PAGE.rows] == [(t, P.ACT_MEMPLAYSET, i) for i, t in enumerate(('Off', 'Track', 'Location'))]
            and [(r.label, r.action, r.arg) for r in P.PSGAIN_PAGE.rows] == [('Low', P.ACT_GAINSET, 0), ('High', P.ACT_GAINSET, 1)]
@@ -335,12 +335,12 @@ def settings_tests(ctx):
     # the pages: values, switches, the Gain row's grey, the rows that open pickers and sub-pages
     PK = ('pod_value', 'pod_label', 'pod_switch')
     state = dict(gapless=1, jump=0, gain=1, replay=2, dsd=2, usbvol=0, mem=1, digital=1, maxv=80, bootv=35, bal=7)
-    hub = page(P.PLAYSET_PAGE_INDEX, 7, PK, **state)
+    hub = page(P.PLAYSET_PAGE_INDEX, 8, PK, **state)
     hub.mode = 1
     hub.calls = []; hub.fire(O['EVT_WINDOW_TO_FG'])
-    vals = {i: value(hub, i)[1] for i in (0, 2, 4)}
-    expect(vals == {0: ['Repeat Track'], 2: ['Track'], 4: ['Off']} and [sw_images(hub, i)[-1] for i in (1, 3)] == ['sset_on', 'sset_off'] and not value(hub, 5)[0] and not value(hub, 6)[0],
-           f'the hub: Play Mode, Resume and Continue Playing show their state, Gapless on, Folder Skip off, the two link rows have no value ({vals})')
+    vals = {i: value(hub, i)[1] for i in (0, 1, 3, 5)}
+    expect(vals == {0: ['Repeat Track'], 1: ['Off'], 3: ['Track'], 5: ['Off']} and [sw_images(hub, i)[-1] for i in (4, 2)] == ['sset_on', 'sset_off'] and not value(hub, 6)[0] and not value(hub, 7)[0],
+           f'the hub: Play Mode, Continue Playing, Resume and Crossfade show their state, Gapless on, Folder Skip off, the two link rows have no value ({vals})')
     vp = page(P.PSVOLUME_PAGE_INDEX, 7, PK, **state)
     vp.calls = []; vp.fire(O['EVT_WINDOW_TO_FG'])
     vals = {i: value(vp, i)[1] for i in (0, 3, 6)}
@@ -358,7 +358,7 @@ def settings_tests(ctx):
         se = [c[2] for c in m.calls if c[0] == 'widget_set_sensitive' and c[1] == m.widgets['pod_row0']]
         expect(op_[-1:] == [153 if dim else 255] and se[-1:] == [0 if dim else 1], f'Line Out {lo}: the Gain row is {"dimmed and insensitive" if dim else "plain and sensitive"} ({op_}, {se})')
         expect(not [c for c in m.calls if c[0] in ('widget_set_opacity', 'widget_set_sensitive') and c[1] != m.widgets['pod_row0']], f'Line Out {lo}: only the Gain row is touched')
-    for p_, n_ in ((P.PLAYSET_PAGE_INDEX, 7), (P.PSOUTPUT_PAGE_INDEX, 5)):
+    for p_, n_ in ((P.PLAYSET_PAGE_INDEX, 8), (P.PSOUTPUT_PAGE_INDEX, 5)):
         m = page(p_, n_, PK, lineout=1)
         expect(not [c for c in m.calls if c[0] in ('widget_set_opacity', 'widget_set_sensitive')], 'the hub and the Output page never grey a row, Line Out or not')
     m = page(P.PSVOLUME_PAGE_INDEX, 7, PK, lineout=1)
@@ -366,15 +366,15 @@ def settings_tests(ctx):
     expect([c[2] for c in m.calls if c[0] == 'widget_set_sensitive' and c[1] == m.widgets['pod_row0']] == [1] and [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.widgets['pod_row0']] == [255],
            'back in front after Line Out went off (the pull-down\'s tile): the Gain row is live again and the grey goes')
     # taps: the switches toggle through ours, the value rows open their pickers, Digital Filter is a link, Continue Playing opens its own picker
-    m = page(P.PLAYSET_PAGE_INDEX, 7, PK, gapless=0, jump=1)
-    m.click('pod_row1')
-    expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'GAPLESS'), ('mclSetGaplessMode', 1)] and sw_images(m, 1)[-1] == 'sset_on', 'a tap on Gapless: stock\'s save and setter, the switch follows')
-    m.calls = []; m.click('pod_row3')
-    expect(seen(m) == [('write_int_config', 0, 'PLAYSET', 'JUMPFOLDER'), ('mclSetJumpFolder', 0)] and sw_images(m, 3)[-1] == 'sset_off', 'a tap on Folder Skip')
+    m = page(P.PLAYSET_PAGE_INDEX, 8, PK, gapless=0, jump=1)
+    m.click('pod_row4')
+    expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'GAPLESS'), ('mclSetGaplessMode', 1)] and sw_images(m, 4)[-1] == 'sset_on', 'a tap on Gapless: stock\'s save and setter, the switch follows')
+    m.calls = []; m.click('pod_row2')
+    expect(seen(m) == [('write_int_config', 0, 'PLAYSET', 'JUMPFOLDER'), ('mclSetJumpFolder', 0)] and sw_images(m, 2)[-1] == 'sset_off', 'a tap on Folder Skip')
     m = page(P.PSOUTPUT_PAGE_INDEX, 5, PK, digital=0)
     m.click('pod_row4')
     expect(seen(m) == [('write_int_config', 1, 'PLAYSET', 'DIGITALMODE'), ('mclSetLineOut', 1)] and sw_images(m, 4)[-1] == 'sset_on', 'a tap on Digital Output')
-    for index, nrows, taps in ((P.PLAYSET_PAGE_INDEX, 7, ((0, 'm1plus_psmode'), (2, 'm1plus_psmem'), (4, 'm1plus_nextalbum'), (5, 'm1plus_psvolume'), (6, 'm1plus_psoutput'))),
+    for index, nrows, taps in ((P.PLAYSET_PAGE_INDEX, 8, ((0, 'm1plus_psmode'), (5, 'm1plus_psxfade'), (3, 'm1plus_psmem'), (1, 'm1plus_nextalbum'), (6, 'm1plus_psvolume'), (7, 'm1plus_psoutput'))),
                                (P.PSVOLUME_PAGE_INDEX, 7, ((0, 'm1plus_psgain'), (1, 'm1plus_psmaxvol'), (2, 'm1plus_psbootvol'), (3, 'm1plus_psrg'), (4, 'm1plus_psbal'), (6, 'm1plus_psxfeed'))),
                                (P.PSOUTPUT_PAGE_INDEX, 5, ((0, 'm1plus_psfilter'), (1, 'm1plus_psdsd'), (3, 'm1plus_psusb')))):
         for row, target in taps:
@@ -392,7 +392,7 @@ def settings_tests(ctx):
     # the assets
     raw = os.path.join(WORK, 'rootfs/release/assets/default/raw/ui')
     trees = {k: awtk_ui.parse(open(os.path.join(raw, k + '.bin'), 'rb').read()) for k in ['m1plus_playset', 'm1plus_psvolume', 'm1plus_psoutput', 'm1plus_settings', 'm1plus_library'] + [p.key for p in pickers]}
-    for p, glyphs, title in ((PS, ['repeat', 'infinity', 'history', 'folder', 'skip_forward', 'volume_2', 'monitor_speaker'], 'Playback'),
+    for p, glyphs, title in ((PS, ['repeat', 'skip_forward', 'folder', 'history', 'infinity', 'audio_lines', 'volume_2', 'monitor_speaker'], 'Playback'),
                              (VS, ['gain_high', 'gauge', 'volume_1', 'scale', 'sliders_horizontal', 'volume', 'headphones'], 'Volume & Sound'),
                              (OP, ['waves', 'audio_lines', 'usb', 'monitor_speaker', 'cable'], 'Output')):
         t = trees[p.key]

@@ -14,6 +14,7 @@ only the module doc of the feature you are changing. Symbols are given instead o
 | Card types to widgets (layout, names) | `tools/pod_ui.py` |
 | Page builder, payload sources (`SOURCES` list near the top), stock symbols and data (`FUNCTIONS`, `DATA`), `POD_<X>_PAGE` macros (`gen_stock_h`), `--undefined=` symbols (`compile_payload`), hook writes and `check_pins` (`patch_demo`), manifest `hook_*` keys (`main`) | `tools/pod.py` |
 | Pinned sites and words (`<X>_SITE`, `<X>_PINS`) | `tools/pod_pins.py` |
+| Player Crossfade decoder calls, vendor FLAC seek threshold isolation, and the kept output (driver slots `AO_SLOTS`, wrapped calls `UNINIT_CALLS`) | `patch/xfade.c`, `patch/xfsrc.c`, `tools/mod_player.py` `PINS`; [Crossfade](modules/crossfade.md) |
 | Our strings, all languages (`_t('English', zh_CN, zh_HK, ja, ko, fr, de, es, it, th, pl, ru, uk)`) | `tools/pod_i18n.py` |
 | Row icons (label to Lucide name) | `tools/mod_icons.py` `CARD_GLYPHS` |
 | Row dispatch: `ACT_*` enum (mirrors `pod_pages.py`), `on_row`, the `pod_switch` table, `open_page` (per-page binding after the window opens), `pod_open_*` | `patch/m1plus.c` |

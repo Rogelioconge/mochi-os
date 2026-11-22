@@ -103,6 +103,14 @@ I_UNITS = ('', 'kHz', 'bit', 'kbps')
 
 def i_box(y, px): return y - I_PAD, px + 2 * I_PAD
 
+def resampled(v, out):
+    """patch/nowplaying.c np_resampled: the Sample Rate value v ("44.1 kHz") of a track the player converts to out Hz (the rate its output is kept at, Crossfade) as (full, alt): "44.1 \u2192 96 kHz", and
+    "\u2192 96 kHz" for a row whose label leaves no room for both. None when out is 0 or the track's own rate."""
+    if not out or not v: return None
+    o = ('%d.%03d' % divmod(out, 1000)).rstrip('0').rstrip('.') + ' kHz'
+    if v == o: return None
+    return f'{v[:-4] if len(v) > 4 and v.endswith(" kHz") else v} \u2192 {o}', f'\u2192 {o}'
+
 def qparse(s):
     """patch/nowplaying.c np_qparse: stock's "FLAC|44.1kHz|16bit|1021kbps" as {row: text} for rows 0..3 ("96 kHz": the unit after a space), a field with no value (or a zero one, except the format) left out."""
     out = {}

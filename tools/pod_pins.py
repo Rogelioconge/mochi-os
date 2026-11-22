@@ -1513,3 +1513,15 @@ KEYS_PINS = (   # (address, stock word, what it proves)
     (0x75b324 + 0xa3 * 4, 0xd7, 'event1 table: KEY_NEXTSONG -> next'), (0x75b324 + 0xa5 * 4, 0xd6, 'event1 table: KEY_PREVIOUSSONG -> previous'),
     (0x75b7f8 + 0xa3 * 4, 0xeb, 'event2 table: KEY_NEXTSONG is not next there'), (0x75b7f8 + 0xa5 * 4, 0xea, 'event2 table: KEY_PREVIOUSSONG is not previous there'),
 )
+# Crossfade (patch/xfadeset.c, docs/modules/crossfade.md): early gapless preload via Hook 36 (rd_auto_change -> xfade_auto_change).
+# Calls stock mclGetPlayTime and mcl_gapless_preload (both pinned prologues); no new binary hook in demo.
+XFADE_PINS = (   # (address, stock word, what it proves)
+    (0x5d35a8, 0x3c1c0043, 'mclGetPlayTime prologue (1/3)'),
+    (0x5d35ac, 0x279c0928, 'mclGetPlayTime prologue (2/3)'),
+    (0x5d35b0, 0x0399e021, 'mclGetPlayTime prologue (3/3)'),
+    (0x5d0ea4, 0x3c1c0043, 'mcl_gapless_preload prologue (1/3)'),
+    (0x5d0ea8, 0x279c302c, 'mcl_gapless_preload prologue (2/3)'),
+    (0x5d0eac, 0x0399e021, 'mcl_gapless_preload prologue (3/3)'),
+    (0x5d0eb0, 0x27bdffd8, 'mcl_gapless_preload frame setup'),
+    (0x5d0eb4, 0xafb10020, 'mcl_gapless_preload save s1'),
+)

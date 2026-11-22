@@ -138,6 +138,10 @@ at offset 0.
   and (over 48 kHz, or 24 bit from 44.1 kHz) is HI-RES, 1 bit is DSD, nothing for CD quality or
   lossy. DSD files are also recognised by extension when the player has no stream yet.
 - Format, Sample Rate, Bit Depth and Bitrate are read from stock's quality line (`label_info`).
+- While the player converts the track to the rate its output is kept at (Crossfade,
+  [crossfade](crossfade.md) `xfade_out_rate`, one read of a tmpfs file per tick), the Sample Rate
+  value is `44.1 → 96 kHz`. A label that leaves no room for both rates (French, Polish) gets
+  `→ 96 kHz` (`np_resampled`, `np_set_row`'s `alt`; model `mod_nowplaying.resampled`).
   Genre, Year and File Size are our keys; Location is stock's word in the app language.
 - Stock's `label_*` widgets stay as the data source, never rewritten, and are hidden once ours
   show.

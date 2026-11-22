@@ -28,6 +28,7 @@
 #include "pccover.h"
 #include "covercache.h"
 #include "radio.h"
+#include "xfade.h"
 #include "icy.h"
 #include "fnv.h"
 
@@ -1206,7 +1207,7 @@ void rd_save_start(int paused) {
  * itself. Its result is not read by the caller. One comparison otherwise, then stock. */
 int rd_auto_change(void) {
     if (rd.owns && rd.state != RD_IDLE && !home_off()) return 0;
-    return mclAutoChange();
+    return xfade_auto_change();
 }
 
 int rd_notice(const char *path, int mode) {

@@ -52,6 +52,7 @@ static int np_on_queue(void *ctx, void *e) {
 #include "books.h" /* bk_art_cover */
 #include "minibar.h" /* mb_art_t: the header cover of the info page */
 #include "fnv.h"
+#include "xfade.h" /* xfade_out_rate: the output rate of a converted track */
 
 /* Our widgets of the page: the scroll_view that holds them all, the cover view, title, artist, album, the two badge pictures, then per row (label, value; the Location's second line is the value NPI_ROWS) and the
  * row hairlines. Names in the asset (tools/mod_nowplaying.py). */
@@ -945,8 +946,9 @@ static void np_row_own(int r, int own) {
     if (own) widget_set_sensitive(s, 0);
 }
 
-/* Row r's label and value texts, measured; np_flow places them. A value is right aligned in what its label leaves, the Location's path (np_loc_fit) is under its label. */
-static void np_set_row(int r, const char *key, const char *val) {
+/* Row r's label and value texts, measured; np_flow places them. A value is right aligned in what its label leaves, the Location's path (np_loc_fit) is under its label. alt (or 0): the text for a value that does
+ * not fit whole. */
+static void np_set_row(int r, const char *key, const char *val, const char *alt) {
     void *k = np.iw[NI_KEY + r], *w = np.iw[NI_VAL + r];
     int room;
     widget_set_text_utf8(k, key);
@@ -958,6 +960,7 @@ static void np_set_row(int r, const char *key, const char *val) {
         if (room < 0) room = 0;
         np.rvx[r] = NPI_R - room;
         np.rvw[r] = room;
+        if (alt && m1_text_wn(w, 0, val, (unsigned)strlen(val)) > room) val = alt; /* the shorter text, whole */
         m1_fit(w, val, room);
         if (r == 0) np.fmtw = np_tw(w);
     }
@@ -1077,18 +1080,41 @@ static int np_on_page(void *ctx, void *e) {
     return RET_OK;
 }
 
+/* The Sample Rate of a track the player converts to the rate out its output is kept at (Crossfade,
+ * docs/modules/crossfade.md), from stock's value v ("44.1 kHz"): full "44.1 \xe2\x86\x92 96 kHz", and alt "\xe2\x86\x92 96 kHz" for a
+ * row whose label leaves no room for both. 0 (nothing written) when out is 0 or the track's own rate. */
+static int np_resampled(const char *v, int out, char full[48], char alt[24]) {
+    char o[16];
+    unsigned n, vl = 0;
+    if (!out || !v[0]) return 0;
+    n = (unsigned)snprintf(o, sizeof o, "%d.%03d", out / 1000, out % 1000);
+    while (o[n - 1] == '0') --n;
+    if (o[n - 1] == '.') --n;
+    snprintf(o + n, sizeof o - n, " kHz");
+    if (!strcmp(v, o)) return 0;
+    while (v[vl]) ++vl;
+    if (vl > 4 && !strcmp(v + vl - 4, " kHz")) vl -= 4;
+    if (vl > 23) vl = 23;
+    memcpy(full, v, vl);
+    snprintf(full + vl, 48 - vl, " \xe2\x86\x92 %s", o);
+    snprintf(alt, 24, "\xe2\x86\x92 %s", o);
+    return 1;
+}
+
 /* The quality line. Stock rewrites label_info with the compact text on every page tick, so it stays the data source: hidden and insensitive while rows 0..3 (Format, Sample Rate, Bit Depth, Bitrate) show, laid out
  * when its text changes; a field it has no value for leaves its row out. A page without them, an unreadable text or one with no field gives the line back to label_info (never a stale line). */
 static void np_quality(int force) {
-    char s[NP_INFO_BUF], q[4][32];
+    char s[NP_INFO_BUF], q[4][32], full[48], alt[24];
     unsigned h;
-    int need, f;
+    int need, f, out, conv;
     if (!np.irow || !np.info[0]) return;
     need = m1_text_utf8(np.info[0], s, sizeof s);
     if (need > 0 && (unsigned)need < sizeof s) { /* else none, empty or cut short */
-        h = np_hash(s);
+        out = xfade_out_rate();
+        h = np_hash(s) ^ (unsigned)out * 2654435761u;
         if (h == np.qdone && np.qown && !force) return;
         if (np_qparse(s, q)) {
+            conv = np_resampled(q[1], out, full, alt);
             for (f = 0; f < 4; ++f) {
                 if (q[f][0])
                     np_set_row(f,
@@ -1096,7 +1122,7 @@ static void np_quality(int force) {
                                   : f == 1 ? "Sample Rate"
                                   : f == 2 ? "Bit Depth"
                                            : "Bitrate"),
-                               q[f]);
+                               f == 1 && conv ? full : q[f], f == 1 && conv ? alt : 0);
                 else
                     np_row_own(f, 0);
             }
@@ -1137,7 +1163,7 @@ static int np_row(int i, const char *s) {
         np_size_text(v, val, sizeof val);
     else
         np_cut(val, sizeof val, v);
-    np_set_row(i + 2, key, val);
+    np_set_row(i + 2, key, val, 0);
     return 1;
 }
 
