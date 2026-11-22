@@ -99,7 +99,7 @@ MINI_TITLE_PX, MINI_ARTIST_PX, MINI_ARTIST_RGB = _C['LK_TITLE_PX'], _C['LK_ARTIS
 # status bar (tools/statusbar.py battery_parts).
 GAUGE_W, GAUGE_H = battery_art.STATUS.canvas
 GAUGE_FILL = battery_art.STATUS.fill         # pgbar_battery inside the image: x, y, w, h
-GAUGE_RIGHT = 310 + battery_art.STATUS.tail  # the image's right edge: the nub ends at 310 as in the status bar, the bolt's room after it
+GAUGE_RIGHT = 310                            # the image's right edge: the nub ends at 310 as in the status bar
 PCT_SUFFIX = '_lk'; PCT_WIDGET = 'pod_pct' + PCT_SUFFIX   # pod_pct_lk and pod_pct_bg_lk (patch/battery.h BP_LABEL_LK, BP_BG_LK)
 GAUGE_STATE = {'screens_battery': 'normal', 'screens_charge': 'charge', 'screens_lowbattery': 'low'}
 SLIDE_IMAGE = 'screens_rightslide'           # only this page uses it

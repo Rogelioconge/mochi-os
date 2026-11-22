@@ -22,6 +22,8 @@ LO_WIDGET, LO_IMAGE, LO_W = 'pod_lo', 'pod_bar_lo', 26   # the Line Out pill (pa
 SYNC_WIDGET, SYNC_IMAGE, SYNC_W = 'pod_sync', 'pod_bar_sync', 16   # the sync icon (patch/lineout.h SYNC_IND; tools/mod_icons.py SYNC_BAR, 16 x 18): in view_bar_right right after img_btclass, in both bar copies, hidden and insensitive until patch/lineout.c shows it while a cover or duration build runs
 SLEEP_WIDGET, SLEEP_IMAGE, SLEEP_W = 'pod_sleep', 'pod_bar_sleep', 17   # the sleep timer icon (patch/lineout.h SLEEP_IND; tools/mod_icons.py SLEEP_BAR, 17 x 16): in view_bar_right right after pod_sync, in both bar copies, hidden and insensitive until patch/lineout.c shows it while a Sleep Timer is running
 EQ_WIDGET, EQ_TEXT, EQ_PX, EQ_W = 'pod_eq', 'EQ', SMALL_PX, 19   # the EQ mark (patch/lineout.h EQ_IND): a label in label_volume's colour at the volume number's size, 16 px ("EQ" is 19 px wide), in view_bar_left right after the Line Out pill, in both bar copies, hidden and insensitive until patch/lineout.c shows it while the Equalizer is on
+CHG_LEVEL, CHG_GREEN = 'pod_chg_lvl', '#34C759'   # the battery's green level while charging (patch/battery.h BP_LEVEL; battery_art.CHARGE)
+CHG_WIDGET, CHG_IMAGE, CHG_S_WIDGET, CHG_S_IMAGE = 'pod_chg_bolt', 'pod_bar_chg', 'pod_chg_bolts', 'pod_bar_chgs'   # the battery's charging bolts (patch/battery.h BP_BOLT, BP_BOLT_S; tools/mod_icons.py CHG_BAR, CHG_BAR_S): the middle one, and the small one right of the number (battery_parts)
 WIFI_W = 16                  # stock's img_wifi, narrowed to the glyph (tools/status_art.py wifi: 16 x 16)
 VOLUME_W = 30                # the volume label's box ("100" at 16 px)
 CLOCK_X, CLOCK_W = 104, 90       # centre 149: "12:59 PM" (66 px at 18) spans 116..182
@@ -35,7 +37,7 @@ def apply(bar):
     fill (tools/mod_battery.py) are already placed; the right-hand icon group is kept BAT_GAP px clear of the outline."""
     left, right, clock, vol, img = (bar.find(n) for n in ('view_bar_left', 'view_bar_right', 'bar_dclock', 'label_volume', 'img_battery'))
     assert all(w is not None for w in (left, right, clock, vol, img)), 'unexpected status bar layout'
-    assert img.x + img.w - battery_art.STATUS.tail == 320 - EDGE, 'the battery outline is not at the bar\'s right edge'
+    assert img.x + img.w == 320 - EDGE, 'the battery outline is not at the bar\'s right edge'
     left.set('children_layout', f'default(r=1,c=0,x={EDGE},s={GAP})')
     for st in STATES:
         vol.set(f'style:{st}:font_size', str(SMALL_PX)); vol.set(f'style:{st}:text_align_v', 'middle')
@@ -68,8 +70,10 @@ def apply(bar):
 def battery_parts(root, suffix=''):
     """The Battery Percentage's widgets around the battery of `root` (the status bar, the pull-down's bar copy, the lock screen), named with `suffix`
     ('' / '_dd' / '_lk'; patch/battery.h). In paint order: pod_bat_bg (the body's grey, battery_art.EMPTY), pod_pct_bg (the lighter grey EMPTY_PCT, hidden),
-    pgbar_battery (the white level, its own background now transparent), img_battery (the rim, the nub, the bolt) and pod_pct (the number: black, the bold
-    face, its ink centred in the body, hidden). All three new widgets are insensitive; patch/battery.c shows pod_pct_bg and pod_pct together."""
+    pgbar_battery (the white level, its own background now transparent), pod_chg_lvl (the same bar in the charging green, hidden: it covers the white level),
+    img_battery (the rim and the nub), pod_chg_bolt (the charging bolt in the body's middle, hidden), pod_chg_bolts (the small bolt at the interior's right end, hidden)
+    and pod_pct (the number: black, the bold face, its ink centred in the body, hidden). All the new widgets are insensitive; patch/battery.c shows pod_pct_bg and pod_pct
+    together, and while charging pod_chg_lvl with the level's value and one of the bolts: the middle one without the number, the small one right of a number of one or two digits."""
     img, pg = root.find('img_battery'), root.find('pgbar_battery')
     owner = next(w for w in root.walk() if pg in w.children)
     assert img in owner.children and owner.children.index(pg) < owner.children.index(img) and root.find('pod_pct' + suffix) is None, 'unexpected battery layout'
@@ -80,9 +84,15 @@ def battery_parts(root, suffix=''):
         v.set('style:normal:bg_color', rgb); return v
     at = owner.children.index(pg)
     owner.children[at:at] = [backdrop('pod_bat_bg', battery_art.EMPTY, True), backdrop('pod_pct_bg', battery_art.EMPTY_PCT, False)]
+    green = Widget('progress_bar', pg.x, pg.y, pg.w, pg.h, [('name', CHG_LEVEL + suffix)] + [(k, v) for k, v in pg.props if k not in ('name', 'visible', 'sensitive')] + [('visible', 'false'), ('sensitive', 'false')])
+    for st in STATES: green.set(f'style:{st}:fg_color', CHG_GREEN)
+    owner.children.insert(owner.children.index(pg) + 1, green)
     bx, by, bw, bh = battery_art.STATUS.body
     props = [('name', 'pod_pct' + suffix), ('text', '87'), ('visible', 'false'), ('sensitive', 'false')]
     for st in STATES:
         props += [(f'style:{st}:text_color', PCT_RGB), (f'style:{st}:font_size', str(PCT_PX)), (f'style:{st}:font_name', PCT_FACE),
                   (f'style:{st}:text_align_h', 'center'), (f'style:{st}:text_align_v', 'middle')]
-    owner.children.insert(owner.children.index(img) + 1, Widget('label', img.x + bx, img.y + by + PCT_DY, bw, PCT_PX, props))
+    def bolt(name, image, box):
+        return Widget('image', img.x + box[0], img.y + box[1], box[2], box[3], [('name', name + suffix), ('image', image), ('draw_type', 'default'), ('visible', 'false'), ('sensitive', 'false')])
+    owner.children[owner.children.index(img) + 1:owner.children.index(img) + 1] = [
+        bolt(CHG_WIDGET, CHG_IMAGE, battery_art.BOLT_MID), bolt(CHG_S_WIDGET, CHG_S_IMAGE, battery_art.BOLT_SMALL), Widget('label', img.x + bx, img.y + by + PCT_DY, bw, PCT_PX, props)]

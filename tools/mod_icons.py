@@ -322,6 +322,7 @@ CHEVRON, CHEVRON_DOWN = (0x8A,) * 3, (0x6E,) * 3     # every list chevron (stock
 # the sync icon (patch/lineout.c, while a cover or duration build runs), the Sleep Timer moon (patch/lineout.c) and the Line Out pill (patch/lineout.c,
 # for stock's white "LO" text; amber, so Light Mode's flip and the accent tints leave it as drawn). tools/statusbar.py and tools/pod_ui.py add the hidden widgets.
 SHOT_BAR, SYNC_BAR, SLEEP_BAR, LO_BAR = 'pod_bar_shot', 'pod_bar_sync', 'pod_bar_sleep', 'pod_bar_lo'
+CHG_BAR, CHG_BAR_S = 'pod_bar_chg', 'pod_bar_chgs'   # the battery's charging bolts (tools/battery_art.py bolt; patch/battery.c shows one over the battery while charging): white, the middle one with a dark edge, so no tint or flip applies
 NARROWED = {f'bar_wifi{i}' for i in range(5)}   # stock images whose canvas is not stock's size: the Wi-Fi glyph is 16 x 16 (stock 24 x 16) and tools/statusbar.py narrows img_wifi, its only widget, to match (WIFI_W)
 # The Home Made for You header's busy mark (patch/dailymix.c shows pod_dm_busy while a Daily Mix job runs): Lucide refresh-cw in the secondary grey #AAAAAA, static, 16 px (about 14 px of ink, near the list chevron's 16 px height)
 SYNC_DM, SYNC_DM_GLYPH, SYNC_DM_PX = 'dm_sync', 'refresh-cw', 16
@@ -1801,7 +1802,7 @@ def replaced_names():
 
 def pod_row_names(): return sorted({n for n, _ in POD_ROWS.values()})
 def nav_names(): return sorted(set(NAV_VIEW) | {n + '_down' for n in NAV_VIEW})
-def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
+def pod_names(): return sorted(set(pod_row_names()) | set(FOLDER_ROWS) | set(ND_ICONS) | set(RADIO_ROWS) | {RADIO_ART[0], ARTIST_ART[0]} | set(POD_HOME) | set(nav_names()) | set(ALBUM) | set(DAILY) | {SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, CHG_BAR, CHG_BAR_S, SYNC_DM} | {n for n, _ in PL_MENU_ICONS} | {n for n, _ in RM_MENU_ICONS} | {RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]} | {n for n, _ in RM_PIN_ICONS} | {n for n, _ in RM_DL_ICONS})
 def np_names(): return sorted(set(NP) | {v[4] for v in NP.values() if v[4]})
 
 def added_rels(stock_rootfs=None, *args):
@@ -1965,7 +1966,7 @@ def add_nav_icons(out):
     the status bar's Screenshot camera (the hidden pod_shot image tools/pod_ui.py adds to ui/system_bar.bin) and the Playlists
     page's menu glyphs (ui/m1plus_playlists.bin)."""
     d = os.path.join(out, IMG)
-    for n in nav_names() + [SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
+    for n in nav_names() + [SHOT_BAR, LO_BAR, SYNC_BAR, SLEEP_BAR, CHG_BAR, CHG_BAR_S, SYNC_DM] + [n for n, _ in PL_MENU_ICONS] + [n for n, _ in RM_MENU_ICONS] + [n for n, _ in RM_DL_ICONS] + [n for n, _ in RM_PIN_ICONS] + [RM_FAV_ON[0], RM_DOTS[0], RM_REMOVE[0]]:
         q = os.path.join(d, n + '.png'); assert not os.path.exists(q), f'{n}.png already in the tree'
         shutil.copyfile(os.path.join(PNG, n + '.png'), q); os.chmod(q, IMG_MODE); os.utime(q, (IMG_MTIME, IMG_MTIME))
 

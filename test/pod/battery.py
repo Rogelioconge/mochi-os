@@ -9,6 +9,11 @@ DEFS = cdefs.defines(os.path.join(ROOT, 'patch', 'battery.h'), strings=True)
 FILE, GAUGE, KILL = DEFS['BP_FILE'], DEFS['BP_GAUGE'], '/mnt/mmc/m1plus-off'
 LABEL, LABEL_DD, LABEL_LK = DEFS['BP_LABEL'], DEFS['BP_LABEL_DD'], DEFS['BP_LABEL_LK']
 BG, BG_DD, BG_LK = DEFS['BP_BG'], DEFS['BP_BG_DD'], DEFS['BP_BG_LK']
+LEVEL, LEVEL_DD, LEVEL_LK = DEFS['BP_LEVEL'], DEFS['BP_LEVEL_DD'], DEFS['BP_LEVEL_LK']
+BOLT, BOLT_DD, BOLT_LK = DEFS['BP_BOLT'], DEFS['BP_BOLT_DD'], DEFS['BP_BOLT_LK']
+BOLT_S, BOLT_S_DD, BOLT_S_LK = DEFS['BP_BOLT_S'], DEFS['BP_BOLT_S_DD'], DEFS['BP_BOLT_S_LK']
+W, W_CHG = int(DEFS['BP_W']), int(DEFS['BP_W_CHG'])
+INK, INK_CHG = DEFS['BP_INK'], DEFS['BP_INK_CHG']
 STOCK_CAP = 40
 
 
@@ -178,6 +183,55 @@ def run(ctx):
         expect(texts(m) == [] and vis_calls(m) == [] and not any(c[0] == 'widget_lookup' for c in m.calls), f'bp_lock with {why}: nothing looked up, the label stays hidden as the asset has it')
     m = machine(gauge=b'42\n'); m.call(PSYMS['bp_lock'], a0=win, count=200000)
     expect(texts(m) == [] and vis_calls(m) == [], 'bp_lock without the label in the page: nothing shown')
+    # The charging look: while stock's faces show the charging picture (external power, not the USB DAC's no-charge case, not full) the green level with the capacity's
+    # value, and a bolt: the middle one without the number, the small one right of a number of one or two digits (its label BP_W_CHG wide then).
+    D = lambda k: pod.DATA[k][0]
+    def chg_machine(ext=1, usb=0, flag=0, dac=0, pmu=1, **kw):
+        m = machine(**kw)
+        for n in (LEVEL, BOLT, BOLT_S): m.widget(n)
+        if LABEL in m.widgets: m.setword(m.widgets[LABEL] + 8, W); m.setword(m.widgets[LABEL] + 12, 15)
+        m.setword(D('POWER_EXT'), ext); m.setword(D('POWER_USBSTATE'), usb); m.u.mem_write(D('POWER_FLAG'), bytes([flag])); m.setword(D('USBDAC_CHARGEFLAG'), dac); m.setword(D('PMUCHARGE_STATUS'), pmu)
+        return m
+    def look(m):
+        """(level shown, its value, middle bolt, small bolt, the label's width) after the calls so far; None for a widget never touched."""
+        last = lambda n: next((v for h, v in reversed(vis_calls(m)) if h == m.widgets[n]), None)
+        val = next((c[3] for c in reversed(m.calls) if c[0] == 'widget_set_prop_int' and c[1] == m.widgets[LEVEL] and c[2] == 'value'), None)
+        return last(LEVEL), val, last(BOLT), last(BOLT_S), m.s32(m.widgets[LABEL] + 8)
+    def ink(m): return [c for h, k, c in getattr(m, 'styled', []) if h == m.widgets[LABEL] and k == 'normal:text_color']
+    def bg_shown(m): return next((v for h, v in reversed(vis_calls(m)) if h == m.widgets[BG]), None)
+    for kw, want, why in ((dict(), (1, 87, 0, 1, W_CHG), 'charging at 87: green level 87, the small bolt, the narrow label'),
+                          (dict(gauge=b'5\n'), (1, 5, 0, 1, W_CHG), 'charging at 5: the same (and not the low picture\'s 0)'),
+                          (dict(gauge=b'100\n'), (1, 100, 0, 0, W), 'charging at 100: green level, no bolt (no room), the full label'),
+                          (dict(usb=2, flag=1, dac=1), (1, 87, 0, 1, W_CHG), 'charging as a USB DAC'),
+                          (dict(setting=None), (1, STOCK_CAP, 1, 0, W), 'charging with the setting off: green level at stock\'s capacity, the middle bolt'),
+                          (dict(gauge=b'x'), (1, STOCK_CAP, 1, 0, W), 'charging with a bad gauge: the same'),
+                          (dict(pmu=2), (0, None, 0, 0, W), 'full (stock shows bar_power): white level, no bolt'),
+                          (dict(ext=0), (0, None, 0, 0, W), 'on battery'), (dict(usb=2, flag=1, dac=0), (0, None, 0, 0, W), 'a USB DAC that does not charge')):
+        m = chg_machine(**kw); tick(m)
+        expect(look(m) == want and not any(c[0] == 'widget_set_sensitive' for c in m.calls), f'{why} ({look(m)})')
+    m = chg_machine(); tick(m)
+    expect(ink(m) == [INK_CHG] and bg_shown(m) == 0, f'charging with the number: white digits, the lighter backdrop hidden ({ink(m)}, {bg_shown(m)})')
+    m2 = chg_machine(ext=0); tick(m2); tick(m2)
+    expect(ink(m2) == [] and bg_shown(m2) == 1, 'on battery: the label\'s colour is never set (the asset\'s black), the lighter backdrop shown')
+    m.calls = []; tick(m)
+    expect(look(m) == (1, 87, 0, 1, W_CHG) and not any(c[0] == 'widget_resize' for c in m.calls), 'the next charging tick keeps the look and does not resize the label again')
+    m.setword(D('POWER_EXT'), 0); m.calls = []; tick(m)
+    expect(look(m) == (0, None, 0, 0, W) and [t for _, t in texts(m)][:1] == ['87'] and ink(m)[-1] == INK and bg_shown(m) == 1, 'unplugged: the next tick hides the green level and the bolt, the label is full width again, the number stays')
+    m = chg_machine(setting=None); tick(m); m.setword(D('POWER_EXT'), 0); m.calls = []; tick(m)
+    expect(look(m)[:4] == (0, None, 0, 0), 'unplugged with the setting off: the next tick hides the green level and the bolt')
+    m.calls = []; tick(m)
+    expect(m.names() == ['get_battery_capacity', 'access'], f'and the tick after is stock\'s function and the kill switch test only again ({m.names()})')
+    m = chg_machine(setting=None); tick(m); m.present.add(KILL); m.calls = []; tick(m)
+    expect(look(m)[:4] == (0, None, 0, 0), 'the kill switch while charging: the green level and the bolt are hidden')
+    m = chg_machine(setting=None); m.present.add(KILL); tick(m)
+    expect(vis_calls(m) == [] and not any(c[0] == 'widget_lookup' for c in m.calls), 'the kill switch from the start: charging touches nothing')
+    for sym, names in (('bp_lock', (LABEL_LK, LEVEL_LK, BOLT_LK, BOLT_S_LK)), ('bp_pulldown', (LABEL_DD, LEVEL_DD, BOLT_DD, BOLT_S_DD))):
+        for setting, want in ((None, [1, 1, 0]), (b'1\n', [1, 0, 1])):
+            m = chg_machine(setting=setting)
+            for n in names: m.widget(n)
+            m.call(PSYMS[sym], a0=win, count=200000)
+            got = [next((v for h, v in reversed(vis_calls(m)) if h == m.widgets[n]), None) for n in names[1:]]
+            expect(got == want, f'{sym} while charging, setting {setting!r}: the page\'s green level and its bolt are shown at its init ({got})')
     m = keep
 
     # 5. The Settings switch
@@ -236,6 +290,8 @@ def run(ctx):
 
     # 7. The assets: the hidden number and its backdrops inside the battery of the system bar and the pull-down
     import awtk_ui, statusbar, battery_art
+    from PIL import Image
+    expect((W, W_CHG) == (battery_art.STATUS.body[2], battery_art.PCT_W_CHG) and W_CHG <= battery_art.BOLT_SMALL[0], 'BP_W and BP_W_CHG are the art\'s: the body, and its part left of the small bolt')
     from awtk_text import Ttf, StbText
     font = Ttf(os.path.join(WORK, 'rootfs', 'release/assets/default/raw/fonts/default.ttf'))
     stock_bar = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
@@ -248,11 +304,21 @@ def run(ctx):
         group, img, pg = root.find('view_bar_right'), root.find('img_battery'), root.find('pgbar_battery')
         owner = next(w for w in root.walk() if pg in w.children)
         names = [c.name for c in owner.children if c in owner.children]
-        order = [c.name for c in owner.children if c.name in ('pod_bat_bg' + sfx, 'pod_pct_bg' + sfx, 'pgbar_battery', 'img_battery', 'pod_pct' + sfx)]
+        seq = ['pod_bat_bg' + sfx, 'pod_pct_bg' + sfx, 'pgbar_battery', LEVEL + sfx, 'img_battery', BOLT + sfx, BOLT_S + sfx, 'pod_pct' + sfx]
+        order = [c.name for c in owner.children if c.name in seq]
         bg, bgp, lab = root.find('pod_bat_bg' + sfx), root.find('pod_pct_bg' + sfx), root.find('pod_pct' + sfx)
-        expect(order == ['pod_bat_bg' + sfx, 'pod_pct_bg' + sfx, 'pgbar_battery', 'img_battery', 'pod_pct' + sfx] and lab not in group.children and root.find(LABEL + sfx) is lab
-               and all(sum(c.name == n + sfx for c in root.walk()) == 1 for n in ('pod_bat_bg', 'pod_pct_bg', 'pod_pct')),
-               f'{what}: the battery\'s parent paints pod_bat_bg, pod_pct_bg, the level, the picture, then the number, once each, none in the right group ({names})')
+        expect(order == seq and lab not in group.children and root.find(LABEL + sfx) is lab and all(sum(c.name == n for c in root.walk()) == 1 for n in seq),
+               f'{what}: the battery\'s parent paints pod_bat_bg, pod_pct_bg, the level, the green level, the picture, the two bolts, then the number, once each, none in the right group ({names})')
+        lvl, white, bm, bs, pic = root.find(LEVEL + sfx), root.find('pgbar_battery'), root.find(BOLT + sfx), root.find(BOLT_S + sfx), root.find('img_battery')
+        same = [(k, v) for k, v in lvl.props if k not in ('name', 'visible', 'sensitive') and 'fg_color' not in k] == [(k, v) for k, v in white.props if k not in ('name', 'visible', 'sensitive') and 'fg_color' not in k]
+        expect(lvl.type == 'progress_bar' and (lvl.x, lvl.y, lvl.w, lvl.h) == (white.x, white.y, white.w, white.h) and same and lvl.get('visible') == 'false' and lvl.get('sensitive') == 'false'
+               and all(lvl.get(f'style:{st}:fg_color') == statusbar.CHG_GREEN == '#%02X%02X%02X' % battery_art.CHARGE for st in statusbar.STATES),
+               f'{what}: {LEVEL + sfx} is stock\'s level bar again, hidden and insensitive, in the charging green')
+        expect(all(b.type == 'image' and b.get('visible') == 'false' and b.get('sensitive') == 'false' and b.get('image') == f and (b.x - pic.x, b.y - pic.y, b.w, b.h) == box
+                   and Image.open(os.path.join(WORK, 'rootfs/release/assets/default/raw/images/xx', f + '.png')).size == box[2:]
+                   for b, f, box in ((bm, statusbar.CHG_IMAGE, battery_art.BOLT_MID), (bs, statusbar.CHG_S_IMAGE, battery_art.BOLT_SMALL)))
+               and (statusbar.CHG_WIDGET, statusbar.CHG_S_WIDGET, statusbar.CHG_LEVEL) == (BOLT, BOLT_S, LEVEL),
+               f'{what}: the two bolts are hidden, insensitive images of their pictures\' size over the body')
         expect(all((w.x, w.y, w.w, w.h) == (pg.x, pg.y, pg.w, pg.h) for w in (bg, bgp)) and bg.type == bgp.type == 'view'
                and bg.get('style:normal:bg_color') == battery_art.EMPTY and bgp.get('style:normal:bg_color') == battery_art.EMPTY_PCT
                and bg.get('visible') is None and bgp.get('visible') == 'false' and bg.get('sensitive') == bgp.get('sensitive') == 'false'
@@ -262,7 +328,7 @@ def run(ctx):
         expect(lab.type == 'label' and lab.get('visible') == 'false' and lab.get('sensitive') == 'false' and (lab.x, lab.y, lab.w, lab.h) == (img.x + body[0], img.y + body[1] + statusbar.PCT_DY, body[2], statusbar.PCT_PX)
                and all(v == (statusbar.PCT_RGB, str(statusbar.PCT_PX), statusbar.PCT_FACE, 'center', 'middle') for v in sty.values()) and statusbar.PCT_RGB == '#000000' and statusbar.PCT_FACE == 'lyrics',
                f'{what}: pod_pct{sfx} is a hidden, insensitive label over the battery body ({body[2]} px wide, PCT_PX high, PCT_DY below its top), black {statusbar.PCT_PX} px {statusbar.PCT_FACE} text, centred in every state')
-    expect({n.name for n in stock_bar.walk()} == {n.name for n in bar.walk()} - {'pod_bat_bg', 'pod_pct_bg', 'pod_pct', 'pod_shot', 'pod_lo', 'pod_sync', 'pod_sleep', 'pod_eq'},
+    expect({n.name for n in stock_bar.walk()} == {n.name for n in bar.walk()} - {'pod_bat_bg', 'pod_pct_bg', 'pod_pct', LEVEL, BOLT, BOLT_S, 'pod_shot', 'pod_lo', 'pod_sync', 'pod_sleep', 'pod_eq'},
            'no stock widget is renamed or removed (the battery\'s three widgets and the other marks are the only additions)')
     # layout: the group is right-aligned from its right edge (4 px before the outline); the number is inside the battery, so it takes no room in the group. Every icon's ink must stay clear of the clock.
     from PIL import Image
@@ -310,9 +376,9 @@ def run(ctx):
     expect(same and (limg.w, limg.h, lpg.w, lpg.h) == (simg.w, simg.h, spg.w, spg.h) and (lpg.x - limg.x, lpg.y - limg.y) == (spg.x - simg.x, spg.y - simg.y),
            'the lock screen\'s gauge is the status bar\'s: the same three pictures, size and fill box')
     kids = [c.name for c in view.children]
-    order = [n for n in kids if n in ('pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', 'img_battery', LABEL_LK)]
-    expect(order == ['pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', 'img_battery', LABEL_LK] and [c.name for c in bar.walk() if c.name in ('pgbar_battery', 'img_battery')] == ['pgbar_battery', 'img_battery'],
-           'the backdrops and the fill are drawn under the picture on both (the charging bolt stays whole), the number over it')
+    order = [n for n in kids if n in ('pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', LEVEL_LK, 'img_battery', BOLT_LK, BOLT_S_LK, LABEL_LK)]
+    expect(order == ['pod_bat_bg_lk', 'pod_pct_bg_lk', 'pgbar_battery', LEVEL_LK, 'img_battery', BOLT_LK, BOLT_S_LK, LABEL_LK] and [c.name for c in bar.walk() if c.name in ('pgbar_battery', 'img_battery')] == ['pgbar_battery', 'img_battery'],
+           'the backdrops and the fill are drawn under the picture on both (the rim stays whole), the bolts and the number over it')
     sty = {st: (lab.get(f'style:{st}:text_color'), lab.get(f'style:{st}:font_size'), lab.get(f'style:{st}:font_name'), lab.get(f'style:{st}:text_align_h'), lab.get(f'style:{st}:text_align_v')) for st in statusbar.STATES}
     expect(lab is not None and lab.type == 'label' and lab in view.children and lab.get('visible') == 'false' and lab.get('sensitive') == 'false' and sum(c.name == LABEL_LK for c in lock.walk()) == 1
            and all(v == (statusbar.PCT_RGB, str(statusbar.PCT_PX), statusbar.PCT_FACE, 'center', 'middle') for v in sty.values()), f'{LABEL_LK} is one hidden, insensitive label of the time block, the status bar label\'s text style')

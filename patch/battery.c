@@ -10,7 +10,8 @@
  * pull-down's bar use the real level, charging included) and shows the number in the label pod_pct in the battery's body (its twin pod_pct_dd in the pull-down's bar), over the lighter grey pod_pct_bg.
  * At BP_LOW (5) percent or less on battery (and when stock's own bucket is 0) the stored value is 0, which is how stock's own test shows the red bar_lowpower (battery.md "BP_LOW").
  * The lock screen (screensaver_page) draws its gauge from the same power_capacity; its label pod_pct_lk is set by the same tick and, at once, by bp_lock at the page's init. The pull-down's label pod_pct_dd is set at once the same way, by bp_pulldown at its init.
- * In every other case the stock value stays and the labels are hidden (visible and sensitive off). The icon pictures stay stock's (charging, low).
+ * In every other case the stock value stays and the labels are hidden (visible and sensitive off). The icon pictures stay stock's (charging, low). While stock shows the
+ * charging picture, with or without the setting, the same tick shows the green level pod_chg_lvl over stock's white one and a bolt (bp_face; battery.md "Charging").
  * The same tick then runs the Charge Limit's check (patch/charging.c chg_tick: the kill switch and, when it was read here, the gauge).
  * Two more hooks, the call-site words `jalr toolSetBackLight` at 0x4e71cc (on) and 0x4e71fc (off) in screen_action (0x4e71a4), now `jal bp_light_on` / `jal bp_light_off`, repaint the
  * status bar when the screen wakes (battery.md "The wake repaint"): cost on a wake only (one access, ~34 ms), none while the screen stays lit.
@@ -29,6 +30,7 @@
 static struct {
     int state; /* the setting: 0 not read yet, 1 off, 2 on */
     int shown; /* a label may be showing: the hide path has work to do */
+    int chg; /* the charging look may be showing: the same */
     int dark; /* the backlight went off (bp_light_off) and has not come on since: the wake repaint is due */
 } bp __attribute__((section(".scratch")));
 
@@ -73,17 +75,41 @@ int battery_gauge(void) {
     return v;
 }
 
-/* Show the percentage in the label `name` of root (the number as its text) and the lighter grey `bg` under the level, or hide both for pct < 0. Both stay insensitive. */
-static void bp_label(void *root, const char *name, const char *bg, int pct) {
+/* Stock's three battery faces (show_sysbar_face 0x54510c..0x54514c, dropdown_showface, the lock screen) leave the low / normal test for the charging pictures: 1, else 0. */
+static int bp_external(void) {
+    return *(int *)POWER_EXT == 1 &&
+           !(*(int *)POWER_USBSTATE == 2 && *(char *)POWER_FLAG == 1 && *(int *)USBDAC_CHARGEFLAG == 0);
+}
+
+/* Stock's faces show the charging picture (external power and not full: 0x5452e4..0x54535c): 1, else 0. */
+static int bp_charging(void) { return bp_external() && *(int *)PMUCHARGE_STATUS != 2; }
+
+#define BP_NAMES(s) BP_LABEL##s, BP_BG##s, BP_LEVEL##s, BP_BOLT##s, BP_BOLT_S##s
+
+/* One battery of root (BP_NAMES: the status bar's, the pull-down's or the lock screen's). The percentage in the label `name` (the number as its text) over the lighter grey
+ * `bg`, or both hidden for pct < 0 (while chg the number is white over the body's own darker grey, without `bg`). While chg (stock shows the charging picture): the green level `lvl` with power_capacity's value over stock's white one, and a bolt:
+ * `bolt` in the body's middle without the number, the small `bolt_s` right of a number of one or two digits, whose label is BP_W_CHG wide then (BP_W otherwise).
+ * Everything stays insensitive. */
+static void bp_face(void *root, const char *name, const char *bg, const char *lvl, const char *bolt, const char *bolt_s,
+                    int pct, int chg) {
     char t[4];
-    int n = 0;
+    int n = 0, small = chg && pct >= 0 && pct < 100, width;
     void *w = root ? widget_lookup(root, name, 1) : (void *)0, *b;
     if (!w) return;
-    if ((b = widget_lookup(root, bg, 1))) widget_set_visible(b, pct >= 0, 0);
+    if ((b = widget_lookup(root, bg, 1))) widget_set_visible(b, pct >= 0 && !chg, 0);
+    if ((b = widget_lookup(root, lvl, 1))) {
+        if (chg) widget_set_prop_int(b, "value", *(int *)POWER_CAPACITY);
+        widget_set_visible(b, chg, 0);
+    }
+    if ((b = widget_lookup(root, bolt, 1))) widget_set_visible(b, chg && pct < 0, 0);
+    if ((b = widget_lookup(root, bolt_s, 1))) widget_set_visible(b, small, 0);
     if (pct < 0) {
         widget_set_visible(w, 0, 0);
         return;
     }
+    width = *(int *)((char *)w + 8); /* widget_t.w (BATTERY_PINS) */
+    if (small ? width != BP_W_CHG : width == BP_W_CHG)
+        widget_resize(w, small ? BP_W_CHG : BP_W, *(int *)((char *)w + 12));
     if (pct >= 100)
         t[n++] = '1', t[n++] = '0', t[n++] = '0';
     else {
@@ -91,29 +117,39 @@ static void bp_label(void *root, const char *name, const char *bg, int pct) {
         t[n++] = (char)('0' + pct % 10);
     }
     t[n] = 0;
+    if (chg || bp.chg) { /* white digits while charging, the asset's black again after it */
+        unsigned v[4]; /* value_t: type at 0, the uint32 at 8 */
+        memset(v, 0, sizeof v);
+        value_set_uint32(v, chg ? BP_INK_CHG : BP_INK);
+        widget_set_style(w, "normal:text_color", v);
+    }
     widget_set_text_utf8(w, t);
     widget_set_visible(w, 1, 0);
 }
 
-/* A page's label at its init (after stock's init and only without the kill switch): the percentage at once, where the status bar's tick would show it up to a second later. The label is hidden in
- * the asset, so with the setting off or an unreadable gauge nothing is touched. */
-static void bp_init_label(void *win, const char *name, const char *bg) {
-    int pct;
+/* A page's battery at its init (after stock's init and only without the kill switch): the percentage and the charging look at once, where the status bar's tick would show
+ * them up to a second later. All of it is hidden in the asset, so on battery with the setting off or an unreadable gauge nothing is touched. */
+static void bp_init_face(void *win, const char *name, const char *bg, const char *lvl, const char *bolt,
+                         const char *bolt_s) {
+    int pct = -1, chg = bp_charging();
     if (bp.state == 0) bp.state = bp_read_setting() ? 2 : 1;
-    if (bp.state != 2 || (pct = battery_gauge()) < 0) return;
-    bp_label(win, name, bg, pct);
-    bp.shown = 1;
+    if (bp.state == 2) pct = battery_gauge();
+    if (pct < 0 && !chg) return;
+    bp_face(win, name, bg, lvl, bolt, bolt_s, pct, chg);
+    if (pct >= 0) bp.shown = 1;
+    if (chg) bp.chg = 1;
 }
 
-/* The lock screen's label (patch/lockscreen.c). */
-void bp_lock(void *win) { bp_init_label(win, BP_LABEL_LK, BP_BG_LK); }
+/* The lock screen's battery (patch/lockscreen.c). */
+void bp_lock(void *win) { bp_init_face(win, BP_NAMES(_LK)); }
 
-/* The pull-down's label (patch/pulldown.c m1plus_pulldown_init). */
-void bp_pulldown(void *dlg) { bp_init_label(dlg, BP_LABEL_DD, BP_BG_DD); }
+/* The pull-down's battery (patch/pulldown.c m1plus_pulldown_init). */
+void bp_pulldown(void *dlg) { bp_init_face(dlg, BP_NAMES(_DD)); }
 
 /* The hook (tools/pod.py BATTERY_SITE): stock's get_battery_capacity, then the real percentage when asked for. Returns what stock's function returned, or the percentage. */
 int bp_capacity(void) {
     int cap = get_battery_capacity(), pct = -1, killed = access(KILL_SD, F_OK) == 0;
+    int chg = !killed && bp_charging(); /* get_battery_capacity has just refreshed the power state */
     void *bar, *wm;
     if (!killed) {
         if (bp.state == 0) bp.state = bp_read_setting() ? 2 : 1;
@@ -123,19 +159,19 @@ int bp_capacity(void) {
     if (!killed) bh_poll(); /* Battery History (patch/batthist.c): starts its recorder thread while the setting is on */
     if (!killed)
         scrobble_auto_tick(); /* the automatic scrobble upload (patch/scrobble.c): a compare while Auto Upload is off */
-    if (pct < 0 && !bp.shown) return cap; /* off and nothing to hide: stock, no lookups */
+    if (pct < 0 && !bp.shown && !chg && !bp.chg)
+        return cap; /* off, on battery and nothing to hide: stock, no lookups */
     if (pct >= 0) {
         /* stock picks bar_lowpower only for power_capacity <= 0, and only when it reaches that test (not on the charging / full pictures: show_sysbar_face 0x54510c..0x54514c) */
-        int low_test = *(int *)POWER_EXT != 1 ||
-                       (*(int *)POWER_USBSTATE == 2 && *(char *)POWER_FLAG == 1 && *(int *)USBDAC_CHARGEFLAG == 0);
-        *(int *)POWER_CAPACITY = cap = low_test && (pct <= BP_LOW || cap <= 0) ? 0 : pct;
+        *(int *)POWER_CAPACITY = cap = !bp_external() && (pct <= BP_LOW || cap <= 0) ? 0 : pct;
     }
     bar = *(void **)SYSTEM_BAR;
-    bp_label(bar, BP_LABEL, BP_BG, pct);
+    bp_face(bar, BP_NAMES(), pct, chg);
     wm = window_manager();
-    bp_label(wm, BP_LABEL_DD, BP_BG_DD, pct);
-    bp_label(wm, BP_LABEL_LK, BP_BG_LK, pct);
+    bp_face(wm, BP_NAMES(_DD), pct, chg);
+    bp_face(wm, BP_NAMES(_LK), pct, chg);
     bp.shown = pct >= 0;
+    bp.chg = chg;
     return cap;
 }
 

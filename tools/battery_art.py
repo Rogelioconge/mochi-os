@@ -8,14 +8,18 @@ is a view of its own, tools/statusbar.py battery_parts), and the image is only t
 body's corners, and the nub:
 
   normal    EMPTY grey rim and nub
-  charging  green #34C759 rim and nub + a green bolt right of the nub (the body's middle is the percentage's)
+  charging  the normal picture; patch/battery.c shows the level in green #34C759 (CHARGE) and a bolt over the body (below)
   low       red #FF3B30 rim and nub + a red sliver at the level's left end (the app's low icon, capacity 0)
 
-The image has no pixel outside the body, the nub and the bolt, so it sits on any background (the lock screen's wallpaper).
+The image has no pixel outside the body and the nub, so it sits on any background (the lock screen's wallpaper).
 
-  STATUS  36 x 14 canvas, body 26 x 14 (radius 4), nub 1.6 x 5, the bolt in the last `tail` 8 px (6 x 10),
+  STATUS  28 x 14 canvas, body 26 x 14 (radius 4), nub 1.6 x 5,
           fill (pgbar_battery) 24 x 12 at (1, 1)   bar_power/charge/lowpower
           the lock screen's screens_battery/charge/lowbattery are the same three pictures (tools/mod_lockscreen.py)
+
+The charging bolts are images of their own over the picture (tools/statusbar.py battery_parts, hidden until patch/battery.c shows one):
+  BOLT_MID    white with a dark edge, 8 x 12 in the body's middle: charging without the Battery Percentage
+  BOLT_SMALL  white like the digits beside it (patch/battery.c turns them white while charging), 5 x 9 at the interior's right end: charging with the number left of it (PCT_W_CHG)
 
 Output is a plain zlib RGBA PNG (the bytes do not depend on an image library's version; supersampling is integer box
 reduction). Used by mod_battery.py and mod_lockscreen.py.
@@ -25,20 +29,25 @@ import struct, zlib
 EMPTY = '#5A5A5A'                  # the body under the level (tools/status_art.py DIM)
 EMPTY_PCT = '#8E8E93'              # the same while the percentage shows in it: light enough for the black digits
 WHITE, GREY, CHARGE, LOW = (255, 255, 255), (0x5A, 0x5A, 0x5A), (0x34, 0xC7, 0x59), (0xFF, 0x3B, 0x30)
+BOLT_EDGE, BOLT_EDGE_PX = (0x0B, 0x3A, 0x18), 0.75   # the dark edge round the middle bolt
 SS = 8
 SLIVER = 3                         # the low picture's red level, px
 
 class Spec:
-    def __init__(self, canvas, body, nub, radius, fill, bolt, tail):
-        self.canvas, self.body, self.nub, self.radius, self.fill, self.bolt, self.tail = canvas, body, nub, radius, fill, bolt, tail
+    def __init__(self, canvas, body, nub, radius, fill):
+        self.canvas, self.body, self.nub, self.radius, self.fill = canvas, body, nub, radius, fill
 
-STATUS = Spec((36, 14), (0, 0, 26, 14), (26.4, 4.5, 1.6, 5), 4, (1, 1, 24, 12), (30, 2, 6, 10), 8)   # tail: the px right of the nub's end (the bolt's)
-STATES = {'normal': (GREY, False), 'charge': (CHARGE, True), 'low': (LOW, False)}
+STATUS = Spec((28, 14), (0, 0, 26, 14), (26.4, 4.5, 1.6, 5), 4, (1, 1, 24, 12))
+STATES = {'normal': GREY, 'charge': GREY, 'low': LOW}
 
 BOLT = ((0.62, 0.0), (0.0, 0.58), (0.42, 0.58), (0.30, 1.0), (1.0, 0.38), (0.55, 0.38))   # unit box, y down
+# the bolts' widgets in the battery image's box (x, y, w, h), and the bolt inside each (x, y, w, h)
+BOLT_MID, BOLT_MID_INK = (8, 0, 10, 14), (1, 1, 8, 12)
+BOLT_SMALL, BOLT_SMALL_INK = (19, 2, 6, 10), (0, 0.5, 5, 9)
+PCT_W_CHG = 19                     # the number's box while the small bolt shows: the body's left 19 px (patch/battery.h BP_W_CHG)
 
-def mask(spec, bolt):
-    """-> (rim + nub, bolt or None) as L masks at 1x."""
+def mask(spec):
+    """-> the rim + nub as an L mask at 1x."""
     from PIL import Image, ImageDraw
     w, h = spec.canvas; s = SS
     S = lambda *v: [round(x * s) for x in v]
@@ -51,18 +60,13 @@ def mask(spec, bolt):
     nx, ny, nw, nh = spec.nub
     d.rounded_rectangle(S(nx, ny, nx + nw - 1 / s, ny + nh - 1 / s), radius=nw / 2 * s, fill=255)
     d.rectangle(S(nx, ny, nx + nw / 2, ny + nh - 1 / s), fill=255)         # square on the body's side
-    if bolt:
-        ox, oy, ow, oh = spec.bolt
-        core = Image.new('L', m.size, 0); ImageDraw.Draw(core).polygon([tuple(S(ox + u * ow, oy + v * oh)) for u, v in BOLT], fill=255)
-        return m.reduce(s), core.reduce(s)
-    return m.reduce(s), None
+    return m.reduce(s)
 
 def render(spec, state):
     from PIL import Image
-    rgb, bolt = STATES[state]
-    rim, bolt_m = mask(spec, bolt)
+    rgb = STATES[state]
     w, h = spec.canvas
-    im = Image.new('RGBA', (w, h), rgb + (0,)); im.putalpha(rim)
+    im = Image.new('RGBA', (w, h), rgb + (0,)); im.putalpha(mask(spec))
     if state == 'low':
         fx, fy, fw, fh = spec.fill
         from PIL import ImageDraw
@@ -70,8 +74,18 @@ def render(spec, state):
         ImageDraw.Draw(m).rounded_rectangle((fx * SS, fy * SS, (fx + fw) * SS - 1, (fy + fh) * SS - 1), radius=(spec.radius - 1) * SS, fill=255)
         ImageDraw.Draw(m).rectangle(((fx + SLIVER) * SS, 0, w * SS, h * SS), fill=0)
         s = Image.new('RGBA', (w, h), rgb + (255,)); s.putalpha(m.reduce(SS)); im.alpha_composite(s)
-    if bolt:
-        g = Image.new('RGBA', (w, h), rgb + (255,)); g.putalpha(bolt_m); im.alpha_composite(g)
+    return im
+
+def bolt(small):
+    """The charging bolt's image: BOLT_SMALL (white) or BOLT_MID (white, dark edge), on a transparent canvas of its widget's size."""
+    from PIL import Image, ImageDraw, ImageFilter
+    (_, _, w, h), (ox, oy, ow, oh) = (BOLT_SMALL, BOLT_SMALL_INK) if small else (BOLT_MID, BOLT_MID_INK)
+    core = Image.new('L', (w * SS, h * SS), 0)
+    ImageDraw.Draw(core).polygon([(round((ox + u * ow) * SS), round((oy + v * oh) * SS)) for u, v in BOLT], fill=255)
+    layers = [(WHITE, core)] if small else [(BOLT_EDGE, core.filter(ImageFilter.MaxFilter(2 * round(BOLT_EDGE_PX * SS) + 1))), (WHITE, core)]
+    im = Image.new('RGBA', (w, h), layers[0][0] + (0,))
+    for c, a in layers:
+        g = Image.new('RGBA', (w, h), c + (255,)); g.putalpha(a.reduce(SS)); im.alpha_composite(g)
     return im
 
 def png(spec, state):

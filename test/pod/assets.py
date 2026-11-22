@@ -306,7 +306,7 @@ def run(ctx):
         return (w.type, unsfx(w), w.x, w.y, w.w, w.h if (clock_h or w.name != 'bar_dclock') else None, props)
     # the one difference by design: the Screenshot countdown's camera (pod_shot, hidden, patch/shot.h) is in the real bar only; the pull-down covers
     # the bar while it is open, and the payload looks the camera up in the window manager's tree (the real bar), so the pull-down gets no copy
-    # (the battery's three widgets, pod_bat_bg / pod_pct_bg / pod_pct, carry the _dd suffix in the pull-down's bar, so they are compared with the suffix removed; test/pod/battery.py checks both)
+    # (the battery's own widgets, pod_bat_bg / pod_pct_bg / pod_chg_lvl / pod_chg_bolt / pod_chg_bolts / pod_pct, carry the _dd suffix in the pull-down's bar, so they are compared with the suffix removed; test/pod/battery.py checks both)
     def own(bar): return [w for w in bar.walk() if w is not bar and w.name != 'pod_shot']
     def unsfx(w): return (w.name[:-3] if w.name.endswith('_dd') else w.name)
     ref = [sig(w) for w in own(real)]
@@ -325,7 +325,7 @@ def run(ctx):
     vol, clk, lv, rv = (pb.find(n) for n in ('label_volume', 'bar_dclock', 'view_bar_left', 'view_bar_right'))
     expect(all(vol.get(f'style:{st}:font_size') == '16' and vol.get(f'style:{st}:text_align_v') == 'middle' for st in ('normal', 'disable', 'focused'))
            and clk.get('style:normal:font_size') == '18' and (clk.x, clk.w) == (104, 90) and lv.get('children_layout') == 'default(r=1,c=0,x=10,s=4)'
-           and rv.get('children_layout') == 'default(r=1,c=0,a=right,s=3)' and pb.find('img_battery').x + pb.find('img_battery').w - battery_art.STATUS.tail == 310,
+           and rv.get('children_layout') == 'default(r=1,c=0,a=right,s=3)' and pb.find('img_battery').x + pb.find('img_battery').w == 310,
            'volume 16 px middle, clock 18 px at x 104 (90 wide), left group from x 10, right group 3 px apart, battery outline ends 10 px from the edge')
     expect(StbText(font, 16).layout('100')[1] <= vol.w and StbText(font, 18).layout('12:59 PM')[1] <= clk.w,
            '"100" fits the volume label and "12:59 PM" (12 h mode) the clock box in the shipped font')

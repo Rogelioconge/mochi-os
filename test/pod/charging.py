@@ -15,6 +15,9 @@ class CM(Machine):
     COUNT = True
 
 
+STEADY = ['get_battery_capacity', 'access', 'widget_lookup', 'widget_lookup']   # the tick on external power with nothing to do: stock's call, the kill switch test and the charging look's two lookups (patch/battery.c bp_face: the pull-down's and the lock screen's battery, not open here; the bar is null)
+
+
 def machine(limit=b'0\n', gauge=b'80\n', ext=1, switch=b'1\n', battpct=None):
     """The status bar's tick with a saved limit (b'0\\n' = 80 %), the gauge, external power (POWER_EXT) and the driver's switch file."""
     m = CM()
@@ -85,7 +88,7 @@ def hold_tests(ctx):
         tick(m)
         expect(writes(m) == [] and not opened(m, SWITCH) and not opened(m, GAUGE), f'limit file {saved!r}: no limit, the switch and the gauge untouched')
         tick(m)
-        expect(m.names() == ['get_battery_capacity', 'access'] and m.icount < 400, f'and the steady state is stock\'s call and the kill switch test ({m.names()}, {m.icount} instructions)')
+        expect(m.names() == STEADY and m.icount < 400, f'and the steady state is stock\'s call and the kill switch test ({m.names()}, {m.icount} instructions)')
     # the cycle at 80 %
     m = machine(gauge=b'79\n')
     expect(tick(m) == [] and opened(m, GAUGE) and not opened(m, SWITCH), '79 % on external power: read the gauge, no write')
@@ -112,7 +115,7 @@ def hold_tests(ctx):
     m = machine(gauge=b'70\n'); tick(m)
     for dt in (1,) * (PERIOD - 1):
         tick(m, dt)
-        expect(m.names() == ['get_battery_capacity', 'access'], f'within {PERIOD} s of the last check: no file read ({m.names()}; the mock does not log time())')
+        expect(m.names() == STEADY, f'within {PERIOD} s of the last check: no file read ({m.names()}; the mock does not log time())')
     tick(m, 1)
     expect(opened(m, GAUGE), f'{PERIOD} s after it: checked')
     gauge(m, 85)
@@ -197,7 +200,7 @@ def release_tests(ctx):
     # the limit changed in Settings: applied at the next tick
     m = held()
     expect(m.call(PSYMS['chg_set'], a0=100, count=4000000) == 100 and tick(m, 0) == [b'1\n'], 'limit set to 100 % while held: released at the next tick, in the same second')
-    expect(tick(m) == [] and m.names() == ['get_battery_capacity', 'access'], 'then no limit: stock\'s steady state')
+    expect(tick(m) == [] and m.names() == STEADY, 'then no limit: stock\'s steady state')
     m = held()
     expect(m.call(PSYMS['chg_set'], a0=90, count=4000000) == 90 and tick(m, 0) == [b'1\n'], 'limit raised to 90 % at 85 %: released (85 is 90 - 5)')
     m = held()

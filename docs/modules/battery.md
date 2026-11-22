@@ -22,19 +22,18 @@ The look is iOS's solid battery: one grey body with the level in white, 14 px ta
 status glyphs ([icons](icons.md)). Under `pgbar_battery` the view `pod_bat_bg` fills the body's
 interior (inset 1 px) with `EMPTY` `#5A5A5A`; the bar draws the level in white over it (its own
 background is transparent); the image is the 1 px rim (its inner corners rounded too, covering the
-fill's square corners) that rounds the body's corners, the nub, and while charging a bolt right of
-the nub (the body's middle belongs to the number). The picture has no pixel outside these, so it
+fill's square corners) that rounds the body's corners, and the nub. The picture has no pixel outside the body and the nub, so it
 sits on any background (the lock screen's wallpaper). 8x supersampled, written as a plain zlib PNG (bytes independent of Pillow).
 
 | Look | Rim and nub | Inside |
 |---|---|---|
 | Normal | grey `#5A5A5A` | white level |
-| Charging | green `#34C759`, a green 6x10 bolt right of the nub | white level |
+| Charging | grey `#5A5A5A` (the normal picture) | green `#34C759` level and a bolt ([Charging](#charging)) |
 | Low | red `#FF3B30`, a 3 px red sliver at the level's left end | grey (the level is 0) |
 
 | Place | Image | Fill | Right edge |
 |---|---|---|---|
-| Status bar and pull-down (`STATUS`) | 36x14 at (282, 8): body 26x14, nub 1.6x5, corner radius 4, then the bolt's 8 px (`tail`) | 24x12 at (283, 9) | the nub at x 310 as stock, the bolt in the bar's margin |
+| Status bar and pull-down (`STATUS`) | 28x14 at (282, 8): body 26x14, nub 1.6x5, corner radius 4 | 24x12 at (283, 9) | the nub at x 310 as stock |
 | Lock screen (`screens_battery/charge/lowbattery`) | same size, at (282, 11) on the date line | same, under the picture | same |
 
 The right icon group ends 5 px before the image (its box ends at x 277).
@@ -57,7 +56,7 @@ the number. Otherwise stock's value stays and the label is hidden. The platform_
 stay stock.
 
 - **Charging:** stock adds 10 to `power_capacity` per call as a fill animation; with the setting on
-  the real percentage replaces it every tick. The bolt picture stays stock's logic.
+  the real percentage replaces it every tick. The charging picture stays stock's logic.
 - **Cost:** setting off, one `access` and a cached flag (read once from the 1-byte file; a hand edit
   applies after a restart). On: one open/read/close of the gauge and a few lookups per second. No
   allocation, timer or thread. The hook first runs when the UI starts, not at boot.
@@ -118,8 +117,32 @@ descender, so this centres their ink.
   For that the rest must be light: the hidden view `pod_pct_bg` (`EMPTY_PCT` `#8E8E93`, drawn
   between `pod_bat_bg` and the level) is shown together with the label. With the setting off the
   body keeps the darker `EMPTY`, which sets the level off better when there is no number.
-- **Charging** keeps the number: the bolt is right of the nub, not in the body.
+- **Charging** keeps the number, in white: it moves left and the small bolt shows right of it
+  ([Charging](#charging)).
 - The contrast scan (`tools/mod_theme.py` `DRAWN_OVER`) rates the digits against `EMPTY_PCT`.
+
+## Charging
+
+While stock's faces show the charging picture, the level is green and a bolt shows in the body, with
+or without the Battery Percentage. `bp_charging` repeats stock's test: `POWER_EXT` 1, not the USB
+DAC's no-charge case, and `PMUCHARGE_STATUS` not 2 (full shows `bar_power` at 100, in white).
+
+| Widget (`battery_parts`, hidden and insensitive) | Shown |
+|---|---|
+| `pod_chg_lvl`: a copy of `pgbar_battery` with a green `fg_color`, drawn right over it | while charging, with `power_capacity` as its value |
+| `pod_chg_bolt`: `pod_bar_chg`, a white 8x12 bolt with a dark edge in the body's middle | charging without the number |
+| `pod_chg_bolts`: `pod_bar_chgs`, a white 5x9 bolt at the interior's right end | charging with a number of one or two digits |
+
+- While charging the number is white (`BP_INK_CHG`, set on the label's style; black again on the
+  tick after) over the body's darker grey: `pod_pct_bg` stays hidden.
+- With the small bolt the label is `BP_W_CHG` (19) px wide, so the number is centred left of the
+  bolt; otherwise it is the body's 26 px. `100` has no room for a bolt.
+- `bp_face` sets all of this for the status bar, the pull-down (`_dd`) and the lock screen (`_lk`)
+  on the status bar's tick; `bp_pulldown` and `bp_lock` set their page at its init.
+- On battery with the setting off the tick does no lookups; the tick after an unplug hides the look.
+- The pull-down and the lock screen feed their white level on their own timers, so after a change
+  of the level it can show beside the green one for up to a second.
+- With the kill switch a charging battery looks like a normal one (white level, no bolt).
 
 ## The lock screen
 

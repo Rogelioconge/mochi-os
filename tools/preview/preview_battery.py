@@ -28,13 +28,21 @@ def draw(tree, root, spec, imgs, fill, bg, level, number):
     w, h = spec.canvas
     im = Image.new('RGBA', (w, h), bg)
     fx, fy, fw, fh = fill
-    img = root.find('img_battery'); grey = next(v for v in root.walk() if v.name.startswith('pod_pct_bg' if number else 'pod_bat_bg'))
+    charging = os.path.basename(imgs) in ('bar_charge.png', 'screens_charge.png')   # patch/battery.c bp_face: the green level, a bolt, white digits on the darker grey
+    img = root.find('img_battery'); grey = next(v for v in root.walk() if v.name.startswith('pod_pct_bg' if number and not charging else 'pod_bat_bg'))
     ImageDraw.Draw(im).rectangle((fx, fy, fx + fw - 1, fy + fh - 1), fill=PT.rgba(grey.get('style:normal:bg_color')))
+    green = next(v for v in root.walk() if v.name.startswith('pod_chg_lvl'))
     n = round(fw * level / 100)
-    if n: ImageDraw.Draw(im).rectangle((fx, fy, fx + n - 1, fy + fh - 1), fill=(255, 255, 255, 255))
+    if n: ImageDraw.Draw(im).rectangle((fx, fy, fx + n - 1, fy + fh - 1), fill=PT.rgba(green.get('style:normal:fg_color')) if charging else (255, 255, 255, 255))
     im.alpha_composite(Image.open(imgs).convert('RGBA'))
+    small = charging and number and level < 100
+    if charging and (small or not number):
+        b = next(v for v in root.walk() if v.name.startswith('pod_chg_bolts' if small else 'pod_chg_bolt') and (small or not v.name.startswith('pod_chg_bolts')))
+        im.alpha_composite(Image.open(os.path.join(os.path.dirname(imgs), b.get('image') + '.png')).convert('RGBA'), (b.x - img.x, b.y - img.y))
     if number:
         lab = next(v for v in root.walk() if v.type == 'label' and v.name.startswith('pod_pct'))
+        if charging:
+            lab = awtk_ui.Widget(lab.type, lab.x, lab.y, B.PCT_W_CHG if small else lab.w, lab.h, list(lab.props)); lab.set('style:normal:text_color', '#FFFFFF')
         PT.face_text(im, os.path.join(tree, RAW), lab, str(level), -img.x, -img.y)
     return im
 
@@ -53,8 +61,8 @@ def main():
              {'normal': 'bar_power', 'charge': 'bar_charge', 'low': 'bar_lowpower'}, (0, 0, 0, 255)),
             ('Lock screen (screens_battery / screens_charge / screens_lowbattery, over the card)', B.STATUS, 'screensaver_page.bin', 'img_battery', 'pgbar_battery',
              {'normal': 'screens_battery', 'charge': 'screens_charge', 'low': 'screens_lowbattery'}, (0x40, 0x3A, 0x38, 255))]
-    cols = [('empty', 'normal', 0, 0), ('half', 'normal', 50, 0), ('charging 50%', 'charge', 50, 0), ('low (0%)', 'low', 0, 0),
-            ('100', 'normal', 100, 1), ('87', 'normal', 87, 1), ('charging 63', 'charge', 63, 1), ('5 (low)', 'low', 5, 1)]
+    cols = [('half', 'normal', 50, 0), ('charging 20%', 'charge', 20, 0), ('charging 50%', 'charge', 50, 0), ('charging 90%', 'charge', 90, 0), ('low (0%)', 'low', 0, 0),
+            ('87', 'normal', 87, 1), ('charging 8', 'charge', 8, 1), ('charging 63', 'charge', 63, 1), ('charging 88', 'charge', 88, 1), ('charging 100', 'charge', 100, 1), ('5 (low)', 'low', 5, 1)]
     rows = []
     for title, spec, ui, iname, pname, files, bg in sets:
         root, img, pg, fill = geometry(tree, ui, iname, pname)

@@ -95,7 +95,7 @@ def run(ctx):
                and kids.index(PILL) == kids.index('label_volume') + 1 and sum(c.name == PILL for c in bar.walk()) == 1 and statusbar.LO_WIDGET == PILL,
                f'{what}: {PILL} is one hidden, insensitive image right after label_volume ({kids})')
     stock_bar = awtk_ui.parse(open(os.path.join(paths.find_stock(paths.ZIP), 'rootfs', 'release/assets/default/raw/ui/system_bar.bin'), 'rb').read())
-    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_bat_bg', 'pod_pct_bg', 'pod_pct', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed')
+    expect({n.name for n in stock_bar.walk()} == {n.name for n in bars[0][1].walk()} - {PILL, 'pod_shot', 'pod_bat_bg', 'pod_pct_bg', 'pod_pct', 'pod_chg_lvl', 'pod_chg_bolt', 'pod_chg_bolts', 'pod_sync', 'pod_sleep', 'pod_eq'}, 'no stock widget is renamed or removed')
 
     # 7. The image: amber, not the Accent Orange, a full pill, and no tint or flip touches it.
     png = os.path.join(rootfs, 'release/assets/default/raw/images/xx', statusbar.LO_IMAGE + '.png')

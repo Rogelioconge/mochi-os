@@ -12,6 +12,7 @@ capitals; Line Out is a GLYPH_H px amber pill with black bold "LO". The battery 
 Used by tools/mod_icons.py --generate (the committed PNGs in assets/icons/png).
 """
 import math, os
+import battery_art
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BOLD = os.path.join(ROOT, 'assets', 'fonts', 'Inter-Bold-m1plus.ttf')
@@ -146,7 +147,7 @@ def images():
          'bar_digital': place(plug(), 18, 18),
          'bar_synclink': place(synclink(False), 16, 16, 'r'), 'bar_synclinkcon': place(synclink(True), 16, 16, 'r'),
          'pod_bar_shot': place(camera(), 16, 16), 'pod_bar_sync': place(sync(), 16, 18, 'r'), 'pod_bar_sleep': place(moon(), 17, 16, 'r'),
-         'pod_bar_lo': place(lo_pill(), 26, 16)}
+         'pod_bar_lo': place(lo_pill(), 26, 16), 'pod_bar_chg': battery_art.bolt(False), 'pod_bar_chgs': battery_art.bolt(True)}
     for i in range(5):
         f[f'bar_vol{i}'] = place(speaker(i), 24, 18, 'l'); f[f'bar_wifi{i}'] = place(wifi(i), 16, 16)
     for n, s in CODECS.items(): f[n] = place(ink_crop(text(s, max_w=46)), 47, 18, 'r')

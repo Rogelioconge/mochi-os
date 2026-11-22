@@ -20,6 +20,20 @@
 #define BP_BG "pod_pct_bg" /* the lighter grey under the level, shown with the number so that its black digits read */
 #define BP_BG_DD "pod_pct_bg_dd"
 #define BP_BG_LK "pod_pct_bg_lk"
+#define BP_LEVEL "pod_chg_lvl" /* the green level over stock's white one, shown while charging */
+#define BP_LEVEL_DD "pod_chg_lvl_dd"
+#define BP_LEVEL_LK "pod_chg_lvl_lk"
+#define BP_BOLT "pod_chg_bolt" /* the bolt in the body's middle: charging without the number */
+#define BP_BOLT_DD "pod_chg_bolt_dd"
+#define BP_BOLT_LK "pod_chg_bolt_lk"
+#define BP_BOLT_S "pod_chg_bolts" /* the small bolt at the body's right end: charging with a one or two digit number */
+#define BP_BOLT_S_DD "pod_chg_bolts_dd"
+#define BP_BOLT_S_LK "pod_chg_bolts_lk"
+#define BP_INK \
+    0xff000000u /* the number's colour (0xAABBGGRR): black, as the asset has it (tools/statusbar.py PCT_RGB) */
+#define BP_INK_CHG 0xffffffffu /* and white while charging, like the small bolt */
+#define BP_W 26 /* the number's label: the body's width (tools/battery_art.py STATUS.body) */
+#define BP_W_CHG 19 /* and while the small bolt shows (tools/battery_art.py PCT_W_CHG) */
 
 #define BP_LOW \
     5 /* a gauge reading of at most this, on battery, is stored as 0: stock's red bar_lowpower (and its other low-battery readers) */
