@@ -790,6 +790,7 @@ class Machine:
         # ---- Cover Flow: the stock library
         elif name == 'loadLocalClassList':
             self.calls.append(('loadLocalClassList', a0))
+            self.clock += self.__dict__.get('load_ms', 0)   # a slow library query (a big Songs list): time passes while it runs
             if a0 == O['CLASS_PLAYLISTS']:   # getAllPlayList, assigned to *pdeq_playlist
                 self.setword(pod.DATA['PDEQ_PLAYLIST'][0], self.new_deque(self.playlists))
                 u.reg_write(UC_MIPS_REG_V0, len(self.playlists)); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
@@ -864,14 +865,21 @@ class Machine:
             f_ = re.fullmatch(r"select \* from songtable where fileurl='((?:[^']|'')*)'( limit 1)?", sql)   # one file's row (patch/folders.c fo_album_of): the library's first row with that path; without the limit every row with it (a CUE image's tracks; patch/pins.c pn_song_album)
             d_ = re.fullmatch(r"select \* from songtable where fileurl>='((?:[^']|'')*)/' and fileurl<'((?:[^']|'')*)0' order by fileurl limit 1", sql)   # a folder's first row in path order (BINARY: bytes)
             album_sql = sql == pod.ALBUM_SQL and a2 == 0x4e93c8   # getAllAlbum's statement with stock's album row callback (payload cc_cmap_build): one record per album (class_lists[0xf003]), the empty-album group skipped as the callback does
-            n_ = re.fullmatch(r"select \* from songtable where filename in \((.*)\)", sql)   # the library's rows with those file names (Clean Up Playlist's repair, patch/songops.c so_relink_chunk)
+            n_ = re.fullmatch(r"select \* from songtable where filename in \((.*)\)", sql)
+            g_ = re.fullmatch(r"select \* from songtable where (?:style like '((?:[^']|'')*)'|(ifnull\(style,''\)='')) group by (songer|album) COLLATE NOCASE", sql)   # a Pod genre row's artists or albums (patch/ipod.c ip_genre_count): the genre's songs (self.genre_songs), one row per group, ASCII case folded   # the library's rows with those file names (Clean Up Playlist's repair, patch/songops.c so_relink_chunk)
             u_ = sql == pod.UNTAGGED_SQL and a2 == 0x4e9058   # patch/covercache.c cc_drop_unknown_album: the library's (class_lists[0xf001], else the shown list) first track without an album tag
             if (album_sql or a_) and self.__dict__.get('album_query_fails') or u_ and self.__dict__.get('untagged_fails'):
                 ret = -1
-            elif not m_ and not a_ and not album_sql and not f_ and not d_ and not n_ and not u_:
+            elif not m_ and not a_ and not album_sql and not f_ and not d_ and not n_ and not u_ and not g_:
                 ret = -1
             else:
-                if u_:
+                if g_:
+                    key = ('', 1) if g_.group(2) else (g_.group(1).replace("''", "'"), 0)
+                    field = O['REC_ARTIST'] if g_.group(3) == 'songer' else O['REC_ALBUM']
+                    groups = {}
+                    for r in self.genre_songs.get(key, []): groups.setdefault(self.read_cstr(self.word(r + field)).lower(), r)
+                    rows = list(groups.values())
+                elif u_:
                     rows = [r for r in self.class_lists.get(0xf001, self.showlist) if not self.read_cstr(self.word(r + O['REC_ALBUM']))][:1]
                 elif n_:
                     wanted = {p.replace("''", "'") for p in re.findall(r"'((?:[^']|'')*)'", n_.group(1))}

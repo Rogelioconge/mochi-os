@@ -7,9 +7,11 @@ static int dark __attribute__((section(".scratch")));
 
 /* Colours are AWTK's low 24 bits: r | g << 8 | b << 16. */
 /* Dark is the case and wheel only, as the black iPod Classic: its screen is the same white screen (the reference app and the real one). */
-#define SCREEN_COLORS 0xffffffu, 0x000000u, 0x666666u, 0x666666u
+#define SCREEN_COLORS \
+    0xffffffu, 0x000000u, 0x666666u, \
+        0x3c3c3cu /* np_text: the artist, album and queue place, a dark grey under the black title (the user's nano photo) */
 #define SCREEN_REST \
-    0xf5f3f2u, 0xddddddu, {0xfdfdfdu, 0xe7e7e7u, 0xd8d8d8u, 0xabababu}, 0x6a6a6au, 0xeeeeeeu, 0xc6c6c6u, 0x646363u, \
+    0xf5f3f2u, 0xddddddu, {0xfdfdfdu, 0xe7e7e7u, 0xd8d8d8u, 0xabababu}, 0x6a6a6au, 0x646363u, \
         {0x5b5853u, 0x797471u, 0xa6a4a0u}, 0x000000u
 static const struct ip_theme_palette palettes[2] = {{SCREEN_COLORS, 0xcec9c6u, SCREEN_REST},
                                                     {SCREEN_COLORS, 0x111111u, SCREEN_REST}};
@@ -38,18 +40,18 @@ static void color(void *widget, const char *property, unsigned rgb) {
 void ip_theme_apply(void *win, void *wheel_img) {
     static const char *const labels[] = {"label_ip_row",    "label_ip_sel", "label_ip_title", "label_ip_small",
                                          "label_ip_subsel", "label_ip_np1", "label_ip_np2",   "label_ip_time",
-                                         "label_ip_val",    "label_ip_np3"};
+                                         "label_ip_val",    "label_ip_np3", "label_ip_shuf",  "label_ip_selb"};
     const struct ip_theme_palette *p = ip_theme_colors();
-    unsigned colors[10];
+    unsigned colors[12];
     unsigned i;
     if (!win) return;
     color(win, "normal:bg_color", p->body);
     color(widget_lookup(win, "ipod_screen", 1), "normal:bg_color", p->bg);
     colors[0] = colors[2] = colors[5] = p->fg;
-    colors[1] = colors[4] = 0xffffffu;
+    colors[1] = colors[4] = colors[11] = 0xffffffu;
     colors[3] = p->sub;
-    colors[6] = p->np_text, colors[7] = p->fg, colors[8] = 0xd2620cu, colors[9] = p->sub;
-    for (i = 0; i < 10; ++i) color(widget_lookup(win, labels[i], 1), "normal:text_color", colors[i]);
+    colors[6] = colors[9] = p->np_text, colors[7] = p->fg, colors[8] = colors[10] = 0xd2620cu;
+    for (i = 0; i < 12; ++i) color(widget_lookup(win, labels[i], 1), "normal:text_color", colors[i]);
     if (wheel_img) widget_set_prop_str(wheel_img, "image", dark ? "ipod_wheel_dark" : "ipod_wheel");
     widget_invalidate_force(win, (void *)0);
 }

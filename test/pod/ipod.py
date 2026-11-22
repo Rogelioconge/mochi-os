@@ -1,6 +1,6 @@
 """The virtual iPod Classic (patch/ipod.c, tools/pod_ui.py build_ipod_page, tools/mod_icons.py ipod_wheel, docs/modules/ipod.md): the menu item, the asset (a fullscreen
 320 x 480 window, the screen view and the wheel's touch view, the hit test with demo's own widget_find_target, the wheel picture), the wheel's angle math against math.atan2,
-the page's open / destroy / background / foreground, the paint of the main menu, the lists, the title bar and Now Playing, the wheel (one row per 15 degrees, reversal hysteresis, the chord dead zone, tiers on long lists, the hard stop at the ends, the centre
+the page's open / destroy / background / foreground, the paint of the main menu, the lists, the title bar and Now Playing, the wheel (one row per 20 degrees, reversal hysteresis, the chord dead zone, tiers on long lists, the hard stop at the ends, the centre
 button, the four ring sectors, the taps that are not taps, the touch outside the circle), the navigation (Albums -> an album's tracks -> play, Artists, Songs,
 Playlists, the existing Cover Flow page), the main menu's cover pane (q2-pod's pan: the playing album's cover or a random one, one decode and none in paint, a 1:1 copy moving a whole pixel at a time, the timer's fast and slow interval), Shuffle Songs on the page's own
 Now Playing, the Settings list (Shuffle, Repeat, Appearance), the stock calls (loadAlbumdetailList, start_player, the quick clicks), a stock list replaced under the page,
@@ -21,9 +21,16 @@ WX, WY, WD, RING, HUB = O['IP_WHEEL_X'], O['IP_WHEEL_Y'], O['IP_WHEEL_D'], O['IP
 CX, CY = WX + WD // 2, WY + WD // 2        # the wheel's centre in the window
 STEP_DEG = O['IP_STEP'] / 16
 ROWS, ROWH, BARH = O['IP_ROWS'], O['IP_ROW_H'], O['IP_BAR_H']
-STYLES = ('label_ip_row', 'label_ip_sel', 'label_ip_title', 'label_ip_small', 'label_ip_subsel', 'label_ip_np1', 'label_ip_np2', 'label_ip_time', 'label_ip_val', 'label_ip_np3')
-MAIN_KEYS = ['Music', 'Cover Flow', 'Podcasts', 'Shuffle Songs', 'Now Playing', 'cdrippersettings']
-MUSIC_KEYS = ['Cover Flow', 'Albums', 'Artists', 'Songs', 'Playlists', 'Shuffle Songs']
+
+
+def row_y(i, n=ROWS): return BARH + i * (O['IP_SCREEN_H'] - BARH) // n   # patch/ipod.c ip_row_y: n rows share the screen under the bar exactly
+def row_of(y, n=ROWS): return max(i for i in range(n) if row_y(i, n) <= y)
+def row_h(i, n=ROWS): return row_y(i + 1, n) - row_y(i, n)
+SONGS_N = O['IP_SONG_ROWS']
+TEXT_YS = {row_y(i) + d for i in range(ROWS) for d in (0, 4)} | {row_y(i, SONGS_N) + 2 for i in range(SONGS_N)}   # plain rows; Music > Songs' titles
+STYLES = ('label_ip_row', 'label_ip_sel', 'label_ip_title', 'label_ip_small', 'label_ip_subsel', 'label_ip_np1', 'label_ip_np2', 'label_ip_time', 'label_ip_val', 'label_ip_np3', 'label_ip_shuf', 'label_ip_selb')
+MAIN_KEYS = ['Music', 'Cover Flow', 'Podcasts', 'cdrippersettings', 'Shuffle Songs', 'Now Playing']
+MUSIC_KEYS = ['Cover Flow', 'Playlists', 'Artists', 'Albums', 'Songs', 'Genres', 'Composers']
 TRAPS = ('coverflow_open',)
 SET_KEYS = ['Shuffle', 'Repeat', 'Appearance']
 PANE = (O['IP_PANE_X'], 0, O['IP_PANE_W'], O['IP_SCREEN_H'])
@@ -43,6 +50,8 @@ class IM(Machine):
     def __init__(self):
         super().__init__()
         self.status, self.cmds, self.pt, self.battery_img = 3, [], None, 'bar_power'
+        self.seeks, self.seek_moves = [], True   # seek_time's arguments; whether the player then reads the new position
+        self.sets, self.set_ret, self.cue = [], 1, 0   # mclSetSeek's arguments (absolute seconds, CUE start included), its result, the CUE start the mock player subtracts again
         self.album_tracks, self.opened = {}, []
         self.window = WIN
         self.top_main = WIN
@@ -51,6 +60,7 @@ class IM(Machine):
         self.canvas = self.alloc(0x80)
         self.styles, self.origins, self.clip_frames = {}, [], []
         self.img_ox = []   # the canvas origin of each canvas_draw_image, parallel to blits
+        self.fill_clip = []
         self.setword(self.canvas + O['CANVAS_CLIP'] + 8, 319)
         self.setword(self.canvas + O['CANVAS_CLIP'] + 12, 239)
         for w in STYLES + ('ipod_screen', 'ipod_wheel', 'ipod_wheel_img', 'pgbar_battery', 'img_battery'): Machine.widget(self, w)
@@ -62,8 +72,13 @@ class IM(Machine):
         for off, v in ((0, WX), (4, WY), (8, WD), (0xc, WD), (0x44, win)): self.setword(wheel + off, v)
         self.images = {'ipod_placeholder': (24, 24, bytes((0x40, 0x40, 0x40, 255)) * 576)}
         for n in TRAPS: self.handlers[PSYMS[n]] = n
-        for n in ('mclGetPlayStatus', 'playpause_quick_click', 'next_quick_click', 'prev_quick_click', 'loadAlbumdetailList', 'get_playtimeandlength'):
+        for n in ('mclGetPlayStatus', 'playpause_quick_click', 'next_quick_click', 'prev_quick_click', 'loadAlbumdetailList', 'get_playtimeandlength', 'seek_time', 'mclSetSeek'):
             self.handlers[pod.FUNCTIONS[n][2]] = n
+        self.radio = 0   # a station connects or plays (patch/radio.h rd_running): the hold scan does nothing
+        for n in ('VOLP_ADD', 'VOLP_DEC', 'VOLP_STOP'): self.handlers[pod.DATA[n][0]] = n   # stock's volume dialog steps and stop (run for real in test/pod/volume.py): +1 / -1 up to max_volume, logged
+        self.setword(pod.DATA['G_VOLUME'][0], 40); self.setword(pod.DATA['MAX_VOLUME'][0], 100); self.setword(pod.DATA['HEADSET_OUTPUT'][0], 0)
+        self.vol = []   # ('add' | 'dec' | 'stop', window) in order
+        self.handlers[PSYMS['rd_running']] = 'rd_running'
         self.stock_songlist = True
         self.sbtrack, self.sbcover = {}, {}   # server track REC_ID -> track id (sba_rec_track); REC_ID -> (sba_rec_cover's answer, the file's path) (patch/sbapi.c, tested in sbapi.py)
         for n in ('sba_rec_track', 'sba_rec_cover'): self.handlers[PSYMS[n]] = n
@@ -84,6 +99,7 @@ class IM(Machine):
         if name in ('canvas_fill_rect', 'canvas_draw_image', 'canvas_draw_text_in_rect'):
             self.origins.append(self.word(self.canvas + O['CANVAS_OX']))
             if name == 'canvas_draw_image': self.img_ox.append(self.word(self.canvas + O['CANVAS_OX']))
+            if name == 'canvas_fill_rect': self.fill_clip.append((a1, a3, self.word(self.canvas + 16), self.word(self.canvas + 24)))   # x, w, clip x0, clip x1
             self.clip_frames.append(tuple(self.word(self.canvas + o) for o in (O['CANVAS_OX'], 16, 24)))
         if name in ('canvas_measure_text', 'canvas_draw_text_in_rect'):
             chars = list(struct.unpack(f'<{a2}I', u.mem_read(a1, 4 * a2))) if a2 else []
@@ -92,10 +108,13 @@ class IM(Machine):
                 u.reg_write(UC_MIPS_REG_F0, struct.unpack('<I', struct.pack('<f', w))[0]); self.measures.append(a2)
             else:
                 self.texts.append((''.join(map(chr, chars)), struct.unpack('<4i', u.mem_read(a3, 16)))); self.text_styles.append(self.cur_style)
+                oy = self.word(self.canvas + O['CANVAS_OY']); self.__dict__.setdefault('text_oy', []).append(oy - (1 << 32) if oy >= 1 << 31 else oy)
+                ox = self.word(self.canvas + O['CANVAS_OX']); self.__dict__.setdefault('text_ox', []).append(ox - (1 << 32) if ox >= 1 << 31 else ox)
             u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
-        if name == 'bitmap_create_ex' and self.fail_projection and (a0, a1) == (O['IP_ART'], O['IP_NP_REFLECT']):
+        if name == 'bitmap_create_ex' and self.fail_projection and (a0, a1) == (O['IP_NP_ART_W'], O['IP_NP_ART_W'] + O['IP_NP_REFLECT']):
             self.calls.append(('bitmap_create_ex', 0)); ret = 0
         elif name in TRAPS: self.calls.append((name,)); self.opened.append(name); ret = 0
+        elif name == 'rd_running': ret = self.radio
         elif name == 'sba_rec_track':
             rid = a0 - (1 << 32) if a0 >= 1 << 31 else a0; ret = self.cstr(self.sbtrack.get(rid, ''))
         elif name == 'sba_rec_cover':   # (the record, path, cap): 1 and the path, 0 on its way, -1 none
@@ -105,10 +124,27 @@ class IM(Machine):
             if r == 1: self.u.mem_write(a1, path.encode() + b'\0')
             ret = r
         elif name == 'mclGetPlayStatus': ret = self.status
+        elif name in ('VOLP_ADD', 'VOLP_DEC', 'VOLP_STOP'):
+            self.vol.append((name[5:].lower(), a0))
+            v = self.word(pod.DATA['G_VOLUME'][0])
+            if name == 'VOLP_ADD' and v < min(100, self.word(pod.DATA['MAX_VOLUME'][0])): self.setword(pod.DATA['G_VOLUME'][0], v + 1)
+            if name == 'VOLP_DEC' and v > 0: self.setword(pod.DATA['G_VOLUME'][0], v - 1)
+            ret = 0
         elif name == 'playpause_quick_click':
             self.calls.append(('playpause_quick_click',)); self.cmds.append(('playpause',)); self.status = 2 if self.status != 2 else 3; ret = 1
         elif name in ('next_quick_click', 'prev_quick_click'):
             self.calls.append((name, a1)); self.cmds.append((name[:4], self.word(a0 + 8), a1)); ret = 1
+        elif name == 'seek_time':   # stock: the player moves there, a paused one resumes
+            self.calls.append(('seek_time', a0)); self.seeks.append(a0)
+            if self.pt and self.seek_moves: self.pt = (a0, self.pt[1])
+            if self.status == 3: self.status = 2
+            ret = 1
+        elif name == 'mclSetSeek':   # stock: fire and forget, the status does not change; -1 without the player link
+            self.calls.append(('mclSetSeek', a0, self.clock))
+            if self.set_ret >= 0:
+                self.sets.append(a0)
+                if self.pt and self.seek_moves: self.pt = (a0 - self.cue, self.pt[1])
+            ret = self.set_ret
         elif name == 'get_playtimeandlength':
             if self.pt: self.setword(a0, self.pt[0]); self.setword(a1, self.pt[1])
             ret = 1 if self.pt else 0
@@ -142,10 +178,11 @@ class IM(Machine):
     def paint(self, animated=False):
         """One EVT_AFTER_PAINT on the screen view: (texts, fills, blits) of that frame."""
         if not animated and self.call(PSYMS['ip_render_active']):
-            self.clock += 301
+            self.clock += 421
             self.call(PSYMS['ip_tick'], count=40000000)
         ev = self.paint_event()
-        self.texts, self.fills, self.blits, self.text_styles, self.img_ox = [], [], [], [], []
+        self.texts, self.fills, self.blits, self.text_styles, self.img_ox, self.text_oy, self.text_ox = [], [], [], [], [], [], []
+        self.fill_clip = []
         self.call(PSYMS['ip_on_paint'], a0=0, a1=ev, count=8000000)
         return list(self.texts), list(self.fills), list(self.blits)
 
@@ -199,7 +236,7 @@ def opened(m, **kw):
 
 
 def texts_of(frame): return [t for t, _ in frame[0]]
-def rows_of(texts): return [t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if BARH <= r[1] < 240 and ((r[0] == 62 and (r[1] - BARH) % O["IP_TALL_H"] == 4) or (r[0] in (8, 10) and (r[1] - BARH) % ROWH in (0, 4)))]
+def rows_of(texts): return [t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if BARH <= r[1] < 240 and ((r[0] in (O['IP_TALL_H'] + 8, O['IP_TEXT_X']) and (r[1] - BARH) % O["IP_TALL_H"] == 4) or (r[0] in (O['IP_TEXT_X'], 10) and r[1] in TEXT_YS))]
 
 
 def pc_hash(name):   # patch/pcmodel.c pc_hash: FNV-1a over the lower-cased bytes (a show's key)
@@ -207,7 +244,7 @@ def pc_hash(name):   # patch/pcmodel.c pc_hash: FNV-1a over the lower-cased byte
 
 
 def pc_rows(texts):   # the episode rows: their text is indented for the dot
-    return [t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if BARH <= r[1] < 240 and r[0] == 8 + 16 and (r[1] - BARH) % ROWH == 0]
+    return [t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if BARH <= r[1] < 240 and r[0] == O['IP_TEXT_X'] + 16 and r[1] in TEXT_YS]
 
 
 def music(m):
@@ -238,7 +275,7 @@ def angle_tests(ctx):
     turn = lambda a, b: struct.unpack('<i', struct.pack('<I', m.call(PSYMS['ip_turn'], a0=a, a1=b)))[0]
     expect((turn(100, 200), turn(200, 100), turn(5700, 60), turn(60, 5700), turn(0, 2879), turn(0, 2881)) == (100, -100, 120, -120, 2879, -2879),
            'ip_turn takes the shorter way round, across 12 o\'clock too')
-    expect(O['IP_STEP'] == 240 and STEP_DEG == 15.0, 'one wheel step is 15 degrees, 24 to a turn (the real wheel is about 15-20)')
+    expect(O['IP_STEP'] == 320 and STEP_DEG == 20.0, 'one wheel step is 20 degrees, 18 to a turn')
 
 
 def asset_tests(ctx):
@@ -256,7 +293,8 @@ def asset_tests(ctx):
            'the wheel\'s touch view: 220 x 220 at (50, 250), below the screen, inside the window (480)')
     expect((img.x, img.y, img.w, img.h) == (0, 0, 220, 220) and img.get('sensitive') == 'false' and img.get('image') == 'ipod_wheel' and img.get('draw_type') == 'default',
            'its picture is an insensitive image child (decorative overlays never take a touch)')
-    expect(BARH + ROWS * ROWH <= O['IP_SCREEN_H'] < BARH + (ROWS + 1) * ROWH and ROWS == 7 and ROWH == 30 and BARH == 24 and BARH + O['IP_TALL_ROWS'] * O['IP_TALL_H'] == O['IP_SCREEN_H'], 'a 24 px title bar, seven 30 px text rows (no partial row) or four 54 px cover rows fill the 240 px screen')
+    expect(ROWS == 9 and BARH == 20 and row_y(ROWS) == O['IP_SCREEN_H'] and [row_h(i) for i in range(ROWS)] == [24, 24, 25, 24, 25, 24, 25, 24, 25] and all(row_y(i, O['IP_TALL_ROWS']) == BARH + i * O['IP_TALL_H'] for i in range(O['IP_TALL_ROWS'])) and BARH + O['IP_TALL_ROWS'] * O['IP_TALL_H'] == O['IP_SCREEN_H'],
+           'a 20 px title bar, then nine text rows (24 / 25 px, the last one ending exactly at 240) or four cover rows share the rest of the 240 px screen')
     expect(WY + WD <= 480 and WX + WD <= 320 and WY >= 240, 'the wheel is inside the lower 240 px')
     expect(mod_icons.IPOD_WHEEL_D == WD and mod_icons.IPOD_HUB_R == HUB == 45 and RING == WD // 2, 'the wheel picture\'s numbers are offsets.inc\'s: a 220 px ring, a 90 px centre button')
     head = open(os.path.join(mod_icons.PNG, 'ipod_podcasts.png'), 'rb').read(26)   # IHDR: width, height, bit depth, colour type (2 = RGB: no alpha channel)
@@ -264,10 +302,10 @@ def asset_tests(ctx):
            'the Podcasts pane picture is the pane\'s 160 x 240, opaque RGB')
     # the style labels: hidden, insensitive, in the colour of what they sit on, the sizes of the mock
     want = {'label_ip_row': (18, '#000000'), 'label_ip_sel': (18, '#FFFFFF'), 'label_ip_title': (16, '#000000'),
-            'label_ip_small': (16, '#666666'), 'label_ip_subsel': (16, '#FFFFFF'), 'label_ip_np1': (18, '#000000'), 'label_ip_np2': (16, '#666666'), 'label_ip_time': (15, '#000000'),
-            'label_ip_val': (16, '#0C62D2'), 'label_ip_np3': (14, '#666666')}
+            'label_ip_small': (16, '#666666'), 'label_ip_subsel': (16, '#FFFFFF'), 'label_ip_np1': (18, '#000000'), 'label_ip_np2': (16, '#3C3C3C'), 'label_ip_time': (16, '#000000'),
+            'label_ip_val': (16, '#0C62D2'), 'label_ip_np3': (14, '#3C3C3C'), 'label_ip_shuf': (14, '#0C62D2')}
     expect(all(by[n].get('visible') == 'false' and by[n].get('sensitive') == 'false' and by[n].get('style:normal:font_size') == str(px)
-               and by[n].get('style:normal:text_color') == col for n, (px, col) in want.items()), 'ten hidden, insensitive style labels: the sizes (rows 18, title 16, subtitles and values 16, Now Playing 18 / 16 / 14, times 15) and colours')
+               and by[n].get('style:normal:text_color') == col for n, (px, col) in want.items()), 'hidden, insensitive style labels: the sizes (rows 18, title 16, subtitles and values 16, Now Playing 20 / 17 / 15, times 16) and colours')
     expect({n: by[n].get('style:normal:text_align_h') for n in ('label_ip_title', 'label_ip_time', 'label_ip_row')} == {'label_ip_title': 'left', 'label_ip_time': 'right', 'label_ip_row': 'left'},
            'the title is left aligned (as the iPod\'s bar), the remaining time right aligned')
     expect(by['label_title'].get('tr_text') is None and by['label_title'].get('text') == 'Pod' and by['label_title'].get('visible') == 'false', 'label_title is the hidden brand text "iPod"')
@@ -363,13 +401,13 @@ def paint_tests(ctx):
     names = [t for t, _ in texts]
     expect('Pod' in names, f'the title bar: Pod ({names})')
     rows = rows_of(texts)
-    expect(rows == [m.tr(k) for k in MAIN_KEYS], f'the eight main menu rows in the iPod order, in the language of the player ({rows})')
+    expect(rows == [m.tr(k) for k in MAIN_KEYS], f'the main menu rows in the iPod order, in the language of the player ({rows})')
     ys = sorted(r[1] for t, r in texts if t in rows)
-    expect(ys == [BARH + i * ROWH for i in range(len(MAIN_KEYS))], 'on a 27 px pitch from the title bar')
+    expect(ys == [row_y(i) for i in range(len(MAIN_KEYS))], 'on the shared row pitch from the title bar')
     expect(all(r[2] == O['IP_SPLIT_X'] - O['IP_TEXT_X'] - 22 for t, r in texts if t in rows), 'in the list\'s width: the left pane of the split screen')
     expect(any(f[0] == 0xfff8dd9a and f[2] == BARH and f[3] == O['IP_SPLIT_X'] for f in fills), 'the selected row starts with its highlight')
     grad = [f for f in fills if f[2] >= BARH and f[3] == O['IP_SPLIT_X'] and f[4] == 1]
-    expect(len(grad) == ROWH and grad[0][0] == 0xfff8dd9a and grad[-1][0] == 0xff814f15 and [g[2] for g in grad] == list(range(BARH, BARH + ROWH)),
+    expect(len(grad) == row_h(0) and grad[0][0] == 0xfff8dd9a and grad[-1][0] == 0xff814f15 and [g[2] for g in grad] == list(range(BARH, row_y(1))),
            'a multi-stop blue gradient with highlight and bottom rule')
     expect(not [b for b in blits if b[2] == PANE], 'the cover pane is plain until the timer has chosen and decoded covers (paint decodes nothing)')
     expect(not any(f[1] == O['IP_SPLIT_X'] and f[3] <= 2 and f[4] == 1 for f in fills) and O['IP_PANE_X'] == O['IP_SPLIT_X'] and O['IP_PANE_W'] == 320 - O['IP_SPLIT_X'], 'no rule between the white menu and the cover pane: the pane starts flush at x 160')
@@ -416,7 +454,7 @@ def paint_tests(ctx):
     expect(not in_box(m.paint()[1]), 'nothing played: no glyph')
     # chevrons: as the iPod, only the selected row has one (white, on the selection)
     chev = [f for f in m.paint()[1] if f[3] == 2 and f[4] == 1 and BARH <= f[2] < 240 and f[1] < O['IP_SPLIT_X']]
-    expect(len(chev) == 9 and all(f[0] == 0xffffffff and BARH <= f[2] < BARH + ROWH for f in chev), f'one chevron, on the selected row ({len(chev)} fills)')
+    expect(len(chev) == 9 and all(f[0] == 0xffffffff and BARH <= f[2] < row_y(1) for f in chev), f'one chevron, on the selected row ({len(chev)} fills)')
     # another language
     m.set_language('ru_RU')
     t2 = rows_of(m.paint()[0])
@@ -429,12 +467,12 @@ def wheel_tests(ctx):
     m.open(); m.timers = []
     def selected():
         texts, fills, _ = m.paint()
-        ys = [f[2] for f in fills if f[4] == 1 and f[3] == (O['IP_SPLIT_X'] if not m.in_list else 320) and f[2] >= BARH]
+        ys = [f[2] for f in fills if f[4] == 1 and f[3] == (O['IP_SPLIT_X'] if not m.in_list else 320) and f[2] >= BARH and f[0] & 0xffffff == 0xf8dd9a]   # the selection's top line
         return min(ys) if ys else None
     m.in_list = False
-    def row():
+    def row(n=ROWS):
         y = selected()
-        return None if y is None else (y - BARH) // ROWH
+        return None if y is None else row_of(y, n)
     expect(row() == 0, 'the first row is selected')
     # a drag of 60 degrees turns three steps, on every start angle
     for start in (0, 37, 90, 181, 270, 333):
@@ -451,16 +489,16 @@ def wheel_tests(ctx):
     m.turn(100, 100 - STEP_DEG * 5 - 5)
     expect(row() == 0, 'the cursor stops at the first row (no wrap, as the iPod)')
     m.turn(200, 200 + STEP_DEG * 30)
-    expect(row() == 5, 'and at the last root row')
+    expect(row() == 5, 'and at the last root row (Now Playing)')
     # a small turn is no step, a turn at the edge of the dead zone / outside
     m = machine(); m.open(); m.timers = []; m.in_list = False
     m.turn(30, 30 + 12, r=80)
     expect(row() == 0, 'a 12 degree wobble is no step')
     m.turn(30, 30 + 200, r=10)
     expect(row() == 0, 'a finger inside the dead zone (a touch that began on the centre button) turns nothing')
-    m.turn(30, 30 + 54 + 1, r=HUB + 5)
+    m.turn(30, 30 + STEP_DEG * 3 + 1, r=HUB + 5)
     expect(row() == 3, 'a finger just outside the centre button turns the wheel')
-    m.turn(30, 30 + 54 + 1, r=RING - 3)
+    m.turn(30, 30 + STEP_DEG * 3 + 1, r=RING - 3)
     expect(row() == 5, 'and one at the rim stays at the last row')
     # a drag that starts on the centre button turns nothing
     m = machine(); m.open(); m.timers = []; m.in_list = False
@@ -471,21 +509,21 @@ def wheel_tests(ctx):
     m = machine(songs=[f'Song {i:02d}' for i in range(30)]); m.open(); m.timers = []
     music(m)
     m.in_list = False
-    m.turn(0, STEP_DEG * 3 + 5)   # Songs (row 3)
-    m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 4 + 5)   # Songs (row 4)
+    m.tap(CX, CY); settle(m)
     m.in_list = True
     texts, fills, _ = m.paint()
     expect(rows_of(texts)[:2] == ['Song 00', 'Song 01'] and 'Songs' in [t for t, _ in texts], 'Songs: the library list, the title Songs')
     m.turn(0, STEP_DEG * 12 + 5)
     texts, fills, _ = m.paint()
     rows = rows_of(texts)
-    expect(row() == 6 and rows[0] == 'Song 06' and rows[-1] == 'Song 12' and len(rows) == 7, f'twelve steps down: seven plain 30 px rows, the cursor on the last ({rows[0]}..{rows[-1]}, row {row()})')
+    expect(row(SONGS_N) == 4 and rows[0] == 'Song 08' and rows[-1] == 'Song 12' and len(rows) == 5, f'twelve steps down: five two-line rows, the cursor on the last ({rows[0]}..{rows[-1]}, row {row(SONGS_N)})')
     m.turn(0, -(STEP_DEG * 4 + 5))
     rows = rows_of(m.paint()[0])
-    expect(row() == 2 and rows[0] == 'Song 06', 'four back: the window stays while the cursor is inside it')
+    expect(row(SONGS_N) == 0 and rows[0] == 'Song 08', 'four back: the window stays while the cursor is inside it')
     m.turn(0, -(STEP_DEG * 8 + 5))
     rows = rows_of(m.paint()[0])
-    expect(row() == 0 and rows[0] == 'Song 00' or (rows[0] == 'Song 00' and row() == 0), f'past the top of the window: it scrolls up with the cursor ({rows[0]}, {row()})')
+    expect(row(SONGS_N) == 0 and rows[0] == 'Song 00', f'past the top of the window: it scrolls up with the cursor ({rows[0]}, {row(SONGS_N)})')
 
 
 def tap_tests(ctx):
@@ -544,10 +582,10 @@ def nav_tests(ctx):
     def step_to(n):
         m.turn(0, STEP_DEG * n + 5)
     def front():
-        texts, fills, _ = m.paint()
+        settle(m); texts, fills, _ = m.paint()
         return rows_of(texts), [t for t, r in texts if r[0] != 10 or r[1] < BARH]
     # Albums
-    step_to(1); centre()
+    step_to(3); centre()
     expect(('loadLocalClassList', O['CLASS_ALBUMS']) in m.calls, 'Albums: the stock album query')
     rows, other = front()
     expect(rows == ['Kind of Blue', 'Homogenic'] and 'Albums' in other, f'the albums as rows, the title Albums ({rows}, {other})')
@@ -572,25 +610,28 @@ def nav_tests(ctx):
     m.status = 2; m.pt = (107, 305)
     t = m.song('Blue in Green', artist='Miles Davis', album='Kind of Blue', rid=1)
     m.play([m.album_tracks['Kind of Blue'][0], t, m.album_tracks['Kind of Blue'][2]], 1)
+    m.clock += O['IP_NP_PEND_MS']   # (another record than the one started: shown once the started one's wait is over, np_pending_tests)
     m.call(PSYMS['ip_tick'], a0=0, count=40000000)
     texts, fills, blits = m.paint()
     tx = [t_ for t_, _ in texts]
-    expect(['Blue in Green', 'Miles Davis', 'Kind of Blue', '2 / 3', '01:47', '-03:18', 'Now Playing'] == [x for x in tx if x in ('Blue in Green', 'Miles Davis', 'Kind of Blue', '2 / 3', '01:47', '-03:18', 'Now Playing')],
+    expect(['Blue in Green', 'Miles Davis', 'Kind of Blue', '2 / 3', '1:47', '-3:18', 'Now Playing'] == [x for x in tx if x in ('Blue in Green', 'Miles Davis', 'Kind of Blue', '2 / 3', '1:47', '-3:18', 'Now Playing')],
            f'Now Playing: title, artist, album, "2 / 3", elapsed and remaining, the title bar ({tx})')
     TX, TW, BY, BH = O['IP_NP_TRACK_X'], O['IP_NP_TRACK_W'], O['IP_NP_BAR_Y'], O['IP_NP_BAR_H']
     fw = TW * 107 // 305
     bar = [f for f in fills if f[1] == TX and f[3] == fw and BY <= f[2] < BY + BH and f[4] == 1]
     expect(len(bar) == BH, f'the progress fill is a {BH} px bar, 107 of 305 s of the 204 px track ({len(bar)} rows of {fw} px)')
-    expect(any(f[1:5] == (TX + fw, BY + BH // 2, TW - fw, 1) for f in fills) and any(f[1:5] == (TX + fw, BY, TW - fw, 1) and f[0] == 0xffc6c6c6 for f in fills),
-           'the white track (edge rows in the outline colour) carries on after the fill')
-    COVER, REFL = (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_ART'], O['IP_ART']), (O['IP_NP_ART_X'], O['IP_NP_ART_Y'] + O['IP_ART'], O['IP_ART'], O['IP_NP_REFLECT'])
-    cov = [b for b in blits if b[2] == COVER]
-    expect(len(cov) == 1 and cov[0][1] == (0, 0, O['IP_ART'], O['IP_ART']) and len([b for b in blits if b[2] == REFL]) == 1 and [b for b in blits if b[2] == REFL][0][1] == (0, 0, O['IP_ART'], O['IP_NP_REFLECT']),
-           'the cover is one straight 1:1 copy of its square (every row the source row, unshifted: no tilt, no seam) and the reflection under it one copy of its bitmap')
+    expect(any(f[1:5] == (TX + fw, BY + BH // 2, TW - fw, 1) for f in fills) and any(f[1:5] == (TX + fw, BY, TW - fw, 1) and f[0] == 0xffe1e1e1 for f in fills),
+           'the sunken grey track (no outline) carries on after the fill')
+    PIC = (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_NP_ART_W'], O['IP_NP_ART_W'] + O['IP_NP_REFLECT'])
+    cov = [b for b in blits if b[2][:2] == PIC[:2]]
+    expect(len(cov) == 1 and cov[0][2] == PIC and cov[0][1] == (0, 0) + PIC[2:],
+           'the turned cover and its reflection are one straight 1:1 copy of the picture made with the cover (no scaling in paint)')
     refl = [f for f in fills if f[2] >= BY + BH and f[1] == TX and f[3] == fw and f[4] == 1]
-    expect(len(refl) == O['IP_NP_BAR_REFLECT'] and refl[0][0] != refl[-1][0], 'a short reflection of the bar fades out under it')
+    expect(len(refl) == O['IP_NP_BAR_REFLECT'] - 1 and refl[0][2] == BY + BH + 1 and refl[0][0] != refl[-1][0], 'a short reflection of the bar fades out under it, one clear row below the bar')
     rect = {t_: r for t_, r in texts}
-    expect(rect['01:47'][0] == 8 and rect['-03:18'][0] + rect['-03:18'][2] - 2 == 312 and rect['01:47'][1] == rect['-03:18'][1], 'zero padded elapsed and remaining in the 50 px side columns, on one line')
+    GAP = O['IP_NP_TIME_GAP']
+    expect(rect['1:47'][0] + rect['1:47'][2] - 2 == TX - GAP and rect['-3:18'][0] == TX + TW + GAP and rect['1:47'][1] == rect['-3:18'][1] == BY - 1,
+           'm:ss elapsed and remaining hug the track\'s ends, on one line')
     # MENU: back to the tracks (the album queried again), again to the albums, again to the main menu
     x, y = m.polar(0, 85); m.tap(x, y)
     expect(('loadAlbumdetailList', O['CLASS_ALBUMS'], 'Kind of Blue') in m.calls, 'MENU from Now Playing: the tracks, read again from the stock queries')
@@ -651,18 +692,18 @@ def nav_tests(ctx):
     expect(m.played is not None and [m.read_cstr(m.word(r + O['REC_TITLE'])) for r in m.played[0]] == ['Homogenic 0', 'Homogenic 1', 'Homogenic 2'], 'it plays that album')
     m.tap(*m.polar(0, 85)); m.tap(*m.polar(0, 85))
     sel = [f for f in m.paint()[1] if f[3] == 320 and f[4] == 1 and f[2] >= BARH]
-    expect(rows_of(m.paint()[0]) == ['Miles Davis', 'Bjork'] and min(f[2] for f in sel) == BARH + ROWH, 'MENU from there returns to Artists with the cursor where it was (on Bjork)')
+    expect(rows_of(m.paint()[0]) == ['Miles Davis', 'Bjork'] and min(f[2] for f in sel) == row_y(1), 'MENU from there returns to Artists with the cursor where it was (on Bjork)')
     # Songs
     m = machine(songs=['So What', 'Freddie']); m.open(); m.timers = []
     music(m)
-    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
     m.turn(0, 23); m.tap(CX, CY)
     expect(m.played and m.played[1] == 1 and ('start_player', 1, O['CLASS_ALL_SONGS'], O['PLAY_MODE']) in m.calls, f'Songs: a track plays with the library class ({m.calls[-4:]})')
     # Playlists: the id in classinfo[1], class 0xff13
     m = machine(playlists=['Road', 'Gym']); m.open(); m.timers = []
     music(m)
     m.playlist_songs = {7: [m.song('R1', rid=601, path='/mnt/mmc/m/1.flac'), m.song('R2', rid=602, path='/mnt/mmc/m/1.flac', name='2.flac')], 8: [m.song('G1', rid=603)]}
-    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY); calls = list(m.calls)
+    m.turn(0, STEP_DEG + 5); m.tap(CX, CY); calls = list(m.calls)
     rows = rows_of(m.paint()[0])
     expect(('loadLocalClassList', O['CLASS_PLAYLISTS']) in calls and rows == ['Road', 'Gym'], f'Playlists: the playlist headers ({rows})')
     m.turn(0, 23); m.tap(CX, CY)
@@ -673,17 +714,19 @@ def nav_tests(ctx):
     expect(m.word(CLASSINFO + 4) == 8 and ('start_player', 0, O['CLASS_PLAYLIST_SONGS'], O['PLAY_MODE']) in m.calls, 'a playlist track: the id is put back before the play, class 0xff13')
     # Cover Flow, Shuffle Songs and Settings stay on the page: test/pod/ipod_cf.py, shuffle_tests, settings_tests
     m = machine(); m.open(); m.timers = []
-    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
     expect(texts_of(m.paint())[0] == 'Not Playing' or 'Not Playing' in texts_of(m.paint()), 'Now Playing with nothing queued: "Not Playing"')
     m.tap(CX, CY)
-    expect(m.cmds == [('playpause',)], 'the centre button on Now Playing plays / pauses')
+    expect(m.cmds == [], f'the centre button on Now Playing with nothing to scrub does nothing ({m.cmds})')
+    x, y = m.polar(180, 85); m.tap(x, y)
+    expect(m.cmds == [('playpause',)], 'the wheel\'s bottom sector plays / pauses, as on the iPod')
 
 
 def stale_tests(ctx):
     expect = ctx.expect
     m = machine(albums=[('Kind of Blue', 'Miles Davis')], songs=['So What']); m.open(); m.timers = []
     music(m)
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     rows = rows_of(m.paint()[0])
     assert rows == ['Kind of Blue']
     m.setword(SHOWLIST, m.new_deque(m.class_lists[O['CLASS_ALL_SONGS']]))   # another page queried: the stock list is not ours any more
@@ -706,11 +749,11 @@ def stale_tests(ctx):
     # an empty list: the message
     m = machine(); m.open(); m.timers = []
     music(m)
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     expect(m.tr('No albums') in [t for t, _ in m.paint()[0]], 'an empty albums list says so')
     m.tap(CX, CY)
     expect(not m.cmds and 'start_player' not in m.names() and 'loadAlbumdetailList' not in m.names(), 'and a tap on it does nothing')
-    for steps, key in ((2, 'No artists'), (3, 'No songs'), (4, 'No playlists')):
+    for steps, key in ((2, 'No artists'), (4, 'No songs'), (1, 'No playlists')):
         m = machine(); m.open(); m.timers = []
         music(m)
         m.turn(0, steps * STEP_DEG + 5); m.tap(CX, CY)
@@ -719,7 +762,7 @@ def stale_tests(ctx):
     m = machine(albums=[('Kind of Blue', 'Miles Davis')]); m.open(); m.timers = []
     music(m)
     m.present.discard('/mnt/mmc/m/Kind of Blue-0.flac')
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY); m.tap(CX, CY); m.calls = []; m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY); m.tap(CX, CY); m.calls = []; m.tap(CX, CY)
     expect('start_player' not in m.names() and any(c[0] == 'toast' for c in m.calls), 'a track whose file is gone: the stock message box, nothing started')
 
 
@@ -728,10 +771,10 @@ def playing_indicator_tests(ctx):
     m = machine(songs=['First', 'Second']); m.open(); m.timers = []
     m.play([m.class_lists[O['CLASS_ALL_SONGS']][1]], 0)
     music(m)
-    m.turn(0, 3 * STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, 4 * STEP_DEG + 5); m.tap(CX, CY)
     m.images['ipod_playing'] = (28, 28, bytes((255, 255, 255, 255)) * 784)
     S = O['IP_PLAY_PX']
-    spot = lambda row: (320 - O['IP_TEXT_X'] - S, BARH + row * ROWH + (ROWH - S) // 2, S, S)
+    spot = lambda row: (320 - O['IP_TEXT_X'] - S, row_y(row, SONGS_N) + (row_h(row, SONGS_N) - S) // 2, S, S)   # Music > Songs' rows
     _, fills, blits = m.paint()
     mark = [b for b in blits if b[2] == spot(1)]
     expect(len(mark) == 1 and mark[0][1] == (0, 0, S, S), 'an unselected playing track has the speaker (the 14 px volume-2 image), right aligned in its row')
@@ -748,24 +791,77 @@ def music_menu_tests(ctx):
     expect = ctx.expect
     m = machine(); m.open(); m.timers = []
     texts, _, _ = m.paint()
-    expect([t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if r[0] == 8 and BARH <= r[1] < 240] ==
+    expect([t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if r[0] == O['IP_TEXT_X'] and BARH <= r[1] < 240] ==
            [m.tr(k) for k in MAIN_KEYS], 'root shortcuts use the narrower margin')
     m.tap(CX, CY)
-    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in ('Cover Flow', 'Albums', 'Artists', 'Songs', 'Playlists', 'Shuffle Songs')], 'Music contains the library entries')
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MUSIC_KEYS], 'Music contains the library entries in the iPod classic order')
+
+def genre_composer_tests(ctx):
+    expect = ctx.expect
+    title = lambda: [t for t, r in m.paint()[0] if r[1] < BARH and r[0] == O['IP_TEXT_X']]
+    m = machine(); m.open(); m.timers = []
+    m.class_lists[O['CLASS_GENRES']] = [m.record(title=g, album='', artist='', path='', rid=600 + i) for i, g in enumerate(['Jazz', 'Rock'])]
+    m.class_lists[O['CLASS_COMPOSERS']] = [m.record(title=c, album='', artist='', path='', rid=700 + i) for i, c in enumerate(['Bach', 'Satie'])]
+    m.genre_songs[('Rock', 0)] = [m.song('Riff', rid=801, path='/mnt/mmc/m/riff.flac', name='riff.flac')]
+    m.present.add('/mnt/mmc/m/riff.flac')
+    m.artist_albums['Bach'] = [m.record(album='Suites', artist='Bach', path='/mnt/mmc/m/s.flac', title='Suites', rid=900), m.record(album='Partitas', artist='Bach', path='/mnt/mmc/m/p.flac', title='Partitas', rid=901)]
+    music(m); m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+    expect(title() == [m.tr('Genres')] and rows_of(m.paint()[0]) == ['Jazz', 'Rock'], f'Music > Genres: the genre names ({rows_of(m.paint()[0])})')
+    m.turn(0, STEP_DEG + 5); m.calls = []; m.tap(CX, CY)
+    loaded = ('loadLocalClassList', O['CLASS_GENRE_SONGS']) in m.calls
+    expect(title() == ['Rock'] and loaded and rows_of(m.paint()[0]) == ['Riff'], f'a genre opens its songs under its name ({title()}, {rows_of(m.paint()[0])})')
+    m.calls = []; m.tap(CX, CY)
+    expect(('start_player', 0, O['CLASS_GENRE_SONGS'], O['PLAY_MODE']) in m.calls, 'a genre song plays with the genre class')
+    m = machine(); m.open(); m.timers = []
+    music(m); m.turn(0, STEP_DEG * 6 + 5); m.tap(CX, CY)
+    expect(title() == [m.tr('Composers')] and rows_of(m.paint()[0]) == [m.tr('No songs')], 'Music > Composers: the title, and the empty message (stock No songs) in an empty library')
+    m = machine(); m.open(); m.timers = []
+    m.class_lists[O['CLASS_COMPOSERS']] = [m.record(title='Bach', album='', artist='', path='', rid=700)]
+    m.artist_albums['Bach'] = [m.record(album='Suites', artist='Bach', path='/mnt/mmc/m/s.flac', title='Suites', rid=900), m.record(album='Partitas', artist='Bach', path='/mnt/mmc/m/p.flac', title='Partitas', rid=901)]
+    music(m); m.turn(0, STEP_DEG * 6 + 5); m.tap(CX, CY)
+    expect(rows_of(m.paint()[0]) == ['Bach'], 'composers: the names')
+    m.calls = []; m.tap(CX, CY)
+    la = [c for c in m.calls if c[0] == 'loadAlbumList']
+    expect(la and la[0][1] == O['CLASS_COMPOSERS'] and title() == ['Bach'] and rows_of(m.paint()[0])[:1] == [m.tr('local_allsong')], f"a composer opens the composers' album list, All Songs first ({la}, {rows_of(m.paint()[0])})")
+    m.turn(0, STEP_DEG + 5); m.calls = []; m.tap(CX, CY)
+    expect(('loadAlbumdetailList', O['CLASS_COMPOSER_ALBUMS']) in [c[:2] for c in m.calls], 'an album of the composer lists its songs by the composer scope')
+    # the iPod's genre rows: no cover, the name and "N artists, N albums" under it (counted by the genre query's groups, the shown list untouched)
+    m = machine(); m.open(); m.timers = []
+    m.class_lists[O['CLASS_GENRES']] = [m.record(title=g, album='', artist='', path='', rid=600 + i) for i, g in enumerate(["It's", 'Rock'])] + [m.record(title='Unknown Genre', album='', artist='', path='', rid=-1 & 0xffffffff)]
+    m.genre_songs[('Rock', 0)] = [m.song('A', artist='Ann', album='One', rid=811), m.song('B', artist='Bob', album='one', rid=812), m.song('C', artist='ann', album='Two', rid=813)]
+    m.genre_songs[("It's", 0)] = [m.song('D', artist='Dee', album='Three', rid=814)]
+    music(m); m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+    before = rows_of(m.paint()[0])
+    for _ in range(8): tick(m)
+    texts, _, blits = m.paint()
+    subs = [t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if r[1] >= BARH and t not in ("It's", 'Rock', 'Unknown Genre')]
+    qs = [q for q in m.queries if 'group by' in q and 'style' in q]
+    expect(before == ["It's", 'Rock', 'Unknown Genre'] and not blits and all(r[0] == O['IP_TEXT_X'] for t, r in texts if t in ("It's", 'Rock')), f'the genre rows: no cover, the name at the text inset ({before})')
+    expect(subs == ['1 Artist, 1 Album', '2 Artists, 2 Albums', '0 Artists, 0 Albums'], f'the small line counts the genre\'s artists and albums ({subs})')
+    expect("select * from songtable where style like 'It''s' group by songer COLLATE NOCASE" in qs and "select * from songtable where ifnull(style,'')='' group by album COLLATE NOCASE" in qs, f'the stock genre condition, quotes doubled; Unknown Genre: no tag ({qs})')
+    expect(rows_of(m.paint()[0]) == before, 'and the genre list is still the one shown')
 
 
 def root_shortcut_tests(ctx):
     expect = ctx.expect
     m = machine(songs=['First']); m.present.add('/mnt/mmc/m/0.flac'); m.open(); m.timers = []
-    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'root has the six shortcuts')
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'root has the six rows: Music, Cover Flow, Podcasts, Settings, Shuffle Songs, Now Playing')
     m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
-    expect('Cover Flow' in texts_of(m.paint()), 'root Cover Flow opens its own level')
+    expect(('loadLocalClassList', O['CLASS_ALBUMS']) in m.calls, 'the main menu Cover Flow row opens its own level (the albums query)')
     m.tap(*m.polar(0, 85))
-    expect(rows_of(m.paint()[0])[1] == m.tr('Cover Flow'), 'MENU returns to root after Cover Flow')
-    m.turn(0, STEP_DEG * 2 + 5); m.tap(CX, CY)
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'MENU returns to the main menu')
+    m.turn(0, -(STEP_DEG + 5))
+    music(m)
+    m.calls = []; m.tap(CX, CY)
+    expect(('loadLocalClassList', O['CLASS_ALBUMS']) in m.calls, 'Music > Cover Flow opens its own level (the albums query)')
+    m.tap(*m.polar(0, 85))
+    expect(rows_of(m.paint()[0])[0] == m.tr('Cover Flow'), 'MENU returns to Music after Cover Flow')
+    m.tap(*m.polar(0, 85))
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'and MENU again to the main menu')
+    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
     expect(m.played is not None and len(m.played[0]) == 1 and m.read_cstr(m.word(m.played[0][0] + O['REC_TITLE'])) == 'First' and m.mode == 2 and 'Now Playing' in texts_of(m.paint()), 'root Shuffle Songs starts the library queue')
     m.tap(*m.polar(0, 85))
-    expect(rows_of(m.paint()[0])[3] == m.tr('Shuffle Songs'), 'MENU returns to the root shuffle shortcut')
+    expect(rows_of(m.paint()[0])[4] == m.tr('Shuffle Songs'), 'MENU returns to the root shuffle shortcut')
 
 
 def now_row_tests(ctx):
@@ -775,8 +871,8 @@ def now_row_tests(ctx):
     expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS if k != 'Now Playing'], 'nothing plays: no Now Playing row')
     expect(m.tr('Radio') not in rows_of(m.paint()[0]), 'the main menu has no Radio row')
     m = machine(songs=['First']); m.status = 2; m.open(); m.timers = []
-    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'playing: the Now Playing row is there')
-    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in MAIN_KEYS], 'playing: the Now Playing row is there, last')
+    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
     expect('Now Playing' in texts_of(m.paint()) and rows_of(m.paint()[0]) != [m.tr(k) for k in MAIN_KEYS], 'the row pushes the Pod\'s own Now Playing screen')
 
 
@@ -787,28 +883,45 @@ def menu_padding_tests(ctx):
         if step: m.turn(0, STEP_DEG * step + 5)
         if step: m.tap(CX, CY)
         texts = m.paint()[0]
-        rows = [r for t, r in texts if BARH <= r[1] < 240 and r[0] in (8, 10, 62)]
-        expected = 62 if step in (1, 4) else 8
+        rows = [r for t, r in texts if BARH <= r[1] < 240 and r[0] in (O['IP_TEXT_X'], 10, O['IP_TALL_H'] + 8)]
+        expected = O['IP_TALL_H'] + 8 if step == 3 else O['IP_TEXT_X']
         expect(rows and all(r[0] == expected for r in rows), f'level {step} aligns its text after the shared leading cover inset')
-    m = machine(); m.open(); m.timers = []; m.turn(0, STEP_DEG * 6 + 5); m.tap(CX, CY)
-    expect(all(r[0] == 8 for t, r in m.paint()[0] if t in ('Shuffle', 'Repeat')), 'Settings labels use the shared inset')
-    m = machine(); m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
-    expect(any(t == m.tr('No albums') and r[0] == 8 for t, r in m.paint()[0]), 'empty messages use the shared inset')
+    m = machine(); m.open(); m.timers = []; m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    expect(all(r[0] == O['IP_TEXT_X'] for t, r in m.paint()[0] if t in ('Shuffle', 'Repeat')), 'Settings labels use the shared inset')
+    m = machine(); m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    expect(any(t == m.tr('No albums') and r[0] == O['IP_TEXT_X'] for t, r in m.paint()[0]), 'empty messages use the shared inset')
 
 
 def rich_rows_tests(ctx):
     expect = ctx.expect
-    m = machine(songs=[f'Song {i:02d}' for i in range(8)]); m.open(); m.timers = []; music(m)
-    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    m = machine(songs=[f'Song {i:02d}' for i in range(12)]); m.open(); m.timers = []; music(m)
+    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
     texts, fills, blits = m.paint()
-    expect([t for t, r in sorted(texts, key=lambda tr: tr[1][1]) if t.startswith('Song ')] == [f'Song {i:02d}' for i in range(7)] and all(r[0] == O['IP_TEXT_X'] for t, r in texts if t.startswith('Song ')),
-           f'Music > Songs is a plain list: seven 30 px text rows, no cover, no subtitle ({[(t, r) for t, r in texts if t.startswith("Song ")]})')
-    expect(not any(t == 'Artist · Album' for t, r in texts) and not blits, 'no artist line and no cover is drawn')
-    work = [x for _ in range(6) for x in tick(m) if x[0] in ('cc_build_open', 'loadLocalClassList') or x[:3] == ('bitmap_create_ex', 54, 54)]
+    songs = [(t, r[:2]) for t, r in sorted(texts, key=lambda tr: tr[1][1]) if t.startswith('Song ')]
+    subs = [r[:2] for t, r in sorted(texts, key=lambda tr: tr[1][1]) if t == 'Artist']
+    expect([t for t, _ in songs] == [f'Song {i:02d}' for i in range(SONGS_N)] and [r for _, r in songs] == [(O['IP_TEXT_X'], row_y(i, SONGS_N) + 2) for i in range(SONGS_N)],
+           f'Music > Songs: five two-line rows, no cover ({songs})')
+    expect(subs == [(O['IP_TEXT_X'], row_y(i, SONGS_N) + O['IP_SONG_SUB_Y']) for i in range(SONGS_N)] and not blits, f'each row has the artist under the title, and no cover is drawn ({subs})')
+    work = [x for _ in range(6) for x in tick(m) if x[0] in ('cc_build_open', 'loadLocalClassList') or x[:3] == ('bitmap_create_ex', O['IP_TALL_H'], O['IP_TALL_H'])]
     expect(not work, f'and the page timer does no cover work for a song list ({work})')
-    m.turn(0, STEP_DEG * 7 + 5)
+    m.turn(0, STEP_DEG * 9 + 5)
     texts, fills, _ = m.paint()
-    expect('Song 07' in [t for t, r in texts] and 'Song 00' not in [t for t, r in texts], 'scrolling keeps the cursor visible in a seven-row window')
+    expect('Song 09' in [t for t, r in texts] and 'Song 00' not in [t for t, r in texts], 'scrolling keeps the cursor visible in a nine-row window')
+    cover_row_style_tests(ctx)
+
+
+def cover_row_style_tests(ctx):
+    expect = ctx.expect
+    m = machine(albums=[('Kind of Blue', 'Miles'), ('音楽', 'Artist'), ('Third', 'A'), ('Fourth', 'B')]); m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    texts, fills, _ = m.paint()
+    sty = {t: s for (t, r), s in zip(texts, m.text_styles)}
+    expect(sty.get('Kind of Blue') == 'label_ip_sel' and sty.get('Third') == 'label_ip_row' and sty.get('音楽') == 'label_ip_row', f'every album title is in the regular style, Latin or not, so a list never mixes weights ({sty})')
+    expect(sty.get('Miles') == 'label_ip_subsel' and sty.get('A') == 'label_ip_small', 'the artist line stays regular')
+    sel = 0   # the first row is selected
+    seps = {f[2] for f in fills if f[0] == 0xffdddddd and f[1] == O['IP_TALL_H'] and f[4] == 1 and f[3] == 320 - O['IP_TALL_H']}
+    last = O['IP_SCREEN_H'] - 1
+    want = {BARH + (i + 1) * O['IP_TALL_H'] - 1 for i in range(O['IP_TALL_ROWS']) if i != sel and BARH + (i + 1) * O['IP_TALL_H'] <= O['IP_SCREEN_H'] - 1}
+    expect(seps == want and last not in seps, f'a rule line under each unselected row from x IP_ROW_ART to the edge, none under the selected row or at the screen bottom ({sorted(seps)} vs {sorted(want)})')
 
 
 def row_art_tests(ctx):
@@ -816,59 +929,94 @@ def row_art_tests(ctx):
     m = machine(albums=[('Album', 'Artist')]); key = album_key('Artist', 'Album'); path = art_file(key)
     m.present.add(path); m.files[path] = 4096
     m.images['file://' + path] = (48, 48, bytes((50, 100, 150, 255)) * (48 * 48))
-    m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
-    m.calls = []; tick(m); tick(m)
-    expect(any(c[0] == 'widget_load_image' and c[1] == 'file://' + path for c in m.calls), 'a visible album cover decodes on the page timer')
+    m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    calls = tick(m) + tick(m)   # the rows' placeholder, then the row with its cover
+    expect(any(c[0] == 'widget_load_image' and c[1] == 'file://' + path for c in calls), 'a visible album cover decodes on the page timer')
     m.calls = []; _, _, blits = m.paint()
-    expect(any(b[2] == (0, BARH, 54, 54) for b in blits), 'the cached cover is drawn in its row')
+    expect(row_px(m, blits) == bytes((50, 100, 150, 255)), 'the cached cover is drawn in its row')
     expect(not any(c[0] in ('widget_load_image', 'bitmap_create_ex', 'loadLocalClassList') for c in m.calls), 'paint performs no decode, allocation or query')
 
+    albums = [(f'Album {i}', 'Artist') for i in range(14)]
+    m = machine(albums=albums)
+    for i in range(14):
+        f = art_file(album_key('Artist', f'Album {i}'))
+        m.present.add(f); m.files[f] = 4096
+        m.images['file://' + f] = (48, 48, bytes((10 * i, 100, 150, 255)) * (48 * 48))
+    m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+    for _ in range(20): tick(m)
+    loads = lambda cs: [c[1] for c in cs if c[0] == 'widget_load_image' and str(c[1]).startswith('file://')]
+    seen = []
+    for _ in range(4): m.turn(0, STEP_DEG + 5)
+    for _ in range(30): tick(m)
+    first = m.sel()[0][0][0]
+    for _ in range(8):   # until the list scrolls one row
+        m.turn(0, STEP_DEG + 5); seen += loads(tick(m))
+        if m.sel()[0][0][0] != first: break
+    for _ in range(30): seen += loads(tick(m))
+    expect(len(seen) == 1, f'one row further down decodes exactly one new cover, the rest are cached ({len(seen)} loads)')
+    seen = []
+    for _ in range(3): m.turn(0, STEP_DEG + 5)   # scroll down past the four visible rows
+    for _ in range(3): seen += loads(tick(m))
+    for _ in range(20): seen += loads(tick(m))
+    expect(len(seen) == len(set(seen)), f'scrolling down decodes no cover twice ({len(seen)} loads)')
+    seen = []
+    for _ in range(3): m.turn(0, -STEP_DEG - 5)  # back up: every row is cached
+    for _ in range(20): seen += loads(tick(m))
+    expect(not seen, f'scrolling back over decoded rows reuses their slots ({len(seen)} loads)')
 
-def playlist_art_tests(ctx):
+
+def playlist_rows_tests(ctx):
     expect = ctx.expect
-    quadrants = {2: (0, 1, 1, 0), 3: (0, 1, 2, 0), 4: (0, 1, 2, 3)}
-    colours = [(40, 70, 100, 255), (90, 110, 130, 255), (140, 160, 180, 255), (190, 210, 230, 255)]
-    for count, sources in quadrants.items():
-        m = machine(playlists=['Mix'])
-        m.playlist_songs = {7: [m.song(f'Song {i}', album=f'Album {i}', rid=600 + i) for i in range(count)]}
-        for i in range(count):
-            path = art_file(album_key('Artist', f'Album {i}'))
-            m.present.add(path); m.files[path] = 4096
-            m.images['file://' + path] = (24, 24, bytes(colours[i]) * 24 * 24)
-        m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
-        for _ in range(8): tick(m)
-        _, _, blits = m.paint()
-        cover = next(b[0] for b in blits if b[2] == (0, BARH, 54, 54))
-        pixels = m.bitmaps[cover][0]
-        actual = [bytes(m.u.mem_read(pixels + (y * 54 + x) * 4, 4)) for x, y in ((10, 10), (40, 10), (10, 40), (40, 40))]
-        expect(actual == [bytes(colours[i]) for i in sources], f'a {count}-album playlist fills all four mosaic quadrants')
+    m = machine(playlists=['Road', 'Gym'])
+    m.playlist_songs = {7: [m.song(f'R{i}', album=f'Album {i}', rid=600 + i) for i in range(3)], 8: [m.song('G1', rid=610)]}
+    m.open(); m.timers = []; music(m); m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    texts, _, blits = m.paint()
+    expect(not blits and all(r[0] == O['IP_TEXT_X'] for t, r in texts if t in ('Road', 'Gym')), f'the iPod\'s playlist rows: no cover, the name at the text inset ({texts})')
+    expect(m.tr('Playlists') not in [t for t, r in texts if r[1] >= BARH], 'no "Playlists" subtitle')
+    work = [x for _ in range(8) for x in tick(m) if x[:3] == ('bitmap_create_ex', O['IP_TALL_H'], O['IP_TALL_H']) or x[0] == 'cc_build_open']
+    texts, fills, blits = m.paint()
+    subs = [(t, r[0], r[1]) for t, r in sorted(texts, key=lambda tr: tr[1][1]) if r[1] >= BARH and t not in ('Road', 'Gym')]
+    expect([t for t, x, y in subs] == ['3 songs', '1 song'] and all(x == O['IP_TEXT_X'] for t, x, y in subs), f'the small line is the song count, under the name ({subs})')
+    expect(not work and not blits, f'and nothing is decoded for a playlist row ({work})')
+    expect(any(f[1] == 0 and f[3] == 320 and f[4] == 1 and f[2] == BARH + 2 * O['IP_TALL_H'] - 1 for f in fills), 'the hairline runs from the left edge under an unselected row')
 
 
 def now_material_tests(ctx):
     expect = ctx.expect
     m = machine(songs=['Song']); m.open(); m.timers = []
-    A, R = O['IP_ART'], O['IP_NP_REFLECT']
-    src = m.alloc(A * A * 4); dst = m.alloc(A * R * 4)
+    A, R, W, HR = O['IP_ART'], O['IP_NP_REFLECT'], O['IP_NP_ART_W'], O['IP_NP_ART_HR']
+    src = m.alloc(A * A * 4); dst = m.alloc(W * (W + R) * 4)
     for y in range(A):
         for x in range(A): m.setword(src + 4 * (y * A + x), 0xff000000 | x | y << 8)
-    m.call(PSYMS['ip_reflect'], a0=src, a1=dst, count=40000000)
-    pixel = lambda x, y: m.word(dst + 4 * (y * A + x))
+    m.call(PSYMS['ip_tilt'], a0=src, a1=dst, count=80000000)
+    pixel = lambda x, y: m.word(dst + 4 * (y * W + x))
+    white = lambda x, y: pixel(x, y) & 0xffffff == 0xffffff
+    col = lambda x: [y for y in range(W + R) if (pixel(x, y) >> 16 & 255) != 255]   # the source's blue is 0: any blue under 255 is cover or reflection
+    cover = lambda x: [y for y in range(W + R) if pixel(x, y) >> 16 & 255 == 0]      # fully covered rows only
+    near, far = cover(0), cover(W - 1)
+    expect(near[0] <= 1 and near[-1] >= W - 2 and abs(far[0] - (W - HR) // 2) <= 1 and abs(far[-1] - (W + HR) // 2) <= 1,
+           f'the near edge is {W} px tall from the top, the far edge {HR} px centred on the same line ({near[0]}..{near[-1]}, {far[0]}..{far[-1]})')
+    expect(all(pixel(x, y) >> 24 == 255 for x in (0, 60, W - 1) for y in range(W + R)) and white(W - 1, 0) and white(W - 1, W + R - 1),
+           'an opaque picture on the screen colour around the turned cover')
+    expect(pixel(0, 60) & 255 <= 1 and pixel(W - 1, 60) & 255 >= A - 2 and pixel(0, W - 3) >> 8 & 255 >= A - 4 and pixel(0, 1) >> 8 & 255 <= 2,
+           'the whole cover is shown: its left column at the near edge, its right one at the far edge, top to bottom')
+    xs = [pixel(x, 60) & 255 for x in range(W)]
+    expect(xs == sorted(xs) and xs[W // 2] < A // 2 - 4, f'the source columns run left to right, the far half narrower (perspective: the middle column is source {xs[W // 2]})')
     mix = lambda c, a: 255 + int((c - 255) * a / 255)
-    a0 = R * 77 // R
-    expect(pixel(0, 0) & 255 == mix(0, a0) and pixel(100, 0) & 255 == mix(100, a0) and pixel(0, 0) >> 8 & 255 == mix(A - 1, a0) and pixel(0, 0) >> 24 == 255,
-           'the reflection starts as the cover\'s last row, mirrored, 30 % opaque on white')
-    expect(pixel(0, 5) >> 8 & 255 == mix(A - 6, (R - 5) * 77 // R), 'row d is the cover\'s row A - 1 - d')
-    rows = [pixel(0, y) & 255 for y in range(R)]
-    expect(rows == sorted(rows) and rows[-1] > 245 and len(rows) == 20, f'the reflection fades out to nearly white in 20 rows ({rows[-3:]})')
+    refl = [pixel(0, y) for y in range(W, W + R)]
+    expect(abs((refl[0] >> 8 & 255) - mix(A - 1, 77)) <= 3 and all(r >> 16 & 255 > 0 for r in refl), 'the reflection starts as the cover\'s last row, mirrored, 30 % opaque on white')
+    rows = [r & 255 for r in refl]
+    expect(rows == sorted(rows) and rows[-1] > 245, f'the reflection fades out to nearly white in {R} rows ({rows[-3:]})')
+    expect(len(col(W - 1)) < len(col(0)), 'the reflection is shorter at the far edge')
     m.play([m.class_lists[O['CLASS_ALL_SONGS']][0]], 0)
-    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
     m.call(PSYMS['ip_tick'], a0=0, count=40000000)
     m.mode = 2; m.calls = []
     m.call(PSYMS['ip_tick'], a0=0, count=40000000)
     expect('widget_invalidate_force' in m.names(), 'a mode change invalidates Now Playing on the existing timer')
     # the mode marks: the built white glyph images, decoded once into page bitmaps (coverage mixed from white to the mark's colour), drawn at the top right
     MARK = (O['IP_MODE_X'], O['IP_MODE_Y'], O['IP_MODE_PX'], O['IP_MODE_PX'])
-    expect(MARK[0] + MARK[2] == 312 and MARK[1] == 28, 'the mark is right aligned at x 312, top y 28')
+    expect(MARK[0] + MARK[2] == 313 and MARK[1] == 26, 'the mark is right aligned at x 313, top y 26')
     cover = {'ipod_mode_shuffle': 255, 'ipod_mode_repeat': 128, 'ipod_mode_repeat1': 64}
     for name, v in cover.items(): m.images[name] = (32, 32, bytes((v, v, v, 255)) * 1024)
     def mark(mode):
@@ -886,24 +1034,31 @@ def now_material_tests(ctx):
     m.images.pop('ipod_mode_shuffle'); m.mode = 0
     long =m.song('A very long title that must be clipped consistently')
     m.play([long], 0); m.call(PSYMS['ip_tick'], a0=0, count=40000000)
-    titles = [(t, r) for t, r in m.paint()[0] if r[1] == 62]
+    titles = [(t, r) for t, r in m.paint()[0] if r[1] == O['IP_NP_TITLE_Y']]
     expect(len(titles) == 1 and titles[0][0].endswith('…'), 'the bold title is drawn once and clipped')
+    face = lambda: tuple(m.props.get((m.widgets['label_ip_np1'], f'style:{st}:font_name')) for st in ('normal', 'disable', 'focused'))
+    expect(face() == ('lyrics',) * 3, 'a Latin title is in the bold face (lyrics.ttf, ly_title_face)')
+    m.play([m.song('晴天')], 0); m.call(PSYMS['ip_tick'], a0=0, count=40000000); m.paint()
+    expect(face() == ('default',) * 3, 'a CJK title is in the default font (the bold face has no CJK)')
+    m.props[(m.widgets['label_ip_np1'], 'style:normal:font_name')] = 'mark'
+    m.paint(); m.paint()
+    expect(face()[0] == 'mark', 'repaints of the same title restyle nothing')
     before = len([c for c in m.calls if c[0] == 'bitmap_create_ex'])
     m.paint(); m.paint()
     expect(len([c for c in m.calls if c[0] == 'bitmap_create_ex']) == before, 'painting allocates no cover bitmap')
     n = machine(songs=['Song']); n.fail_projection = True; n.open(); n.timers = []
-    n.play([n.class_lists[O['CLASS_ALL_SONGS']][0]], 0); n.turn(0, STEP_DEG * 4 + 5); n.tap(CX, CY)
-    n.call(PSYMS['ip_tick'], a0=0, count=40000000)
+    n.play([n.class_lists[O['CLASS_ALL_SONGS']][0]], 0); n.turn(0, STEP_DEG * 5 + 5); n.tap(CX, CY)
+    tick(n, 500); tick(n, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])
     blits = n.paint()[2]
-    COVER = (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_ART'], O['IP_ART'])
-    expect(any(b[2] == COVER for b in blits) and not any(b[2][1] == COVER[1] + COVER[3] for b in blits), 'a reflection that cannot be allocated: the cover alone, no crash')
+    COVER = (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_NP_ART_W'], O['IP_NP_ART_W'])
+    expect([b[2] for b in blits if b[2][:2] == COVER[:2]] == [COVER], 'a picture that cannot be allocated: the cover flat at the near edge\'s size, no crash')
 
 
 def classic_material_tests(ctx):
     expect = ctx.expect
     m = machine(); m.open(); m.timers = []
     fills = m.paint()[1]
-    selected = [f for f in fills if f[1] == 0 and f[3] == O['IP_SPLIT_X'] and BARH <= f[2] < BARH + ROWH]
+    selected = [f for f in fills if f[1] == 0 and f[3] == O['IP_SPLIT_X'] and BARH <= f[2] < row_y(1)]
     expect(selected and selected[0][0] == 0xfff8dd9a and selected[-1][0] == 0xff814f15, 'selection has a highlight and dark bottom rule')
     header = [f for f in fills if f[1] == 0 and f[3] == O['IP_SPLIT_X'] and f[2] < BARH - 1]
     expect(len({f[0] for f in header}) >= 4, 'split header has the silver bevel stops')
@@ -915,7 +1070,7 @@ def split_menu_tests(ctx):
     for label in ('root', 'Music', 'Settings'):
         if label == 'Music': music(m)
         if label == 'Settings':
-            m.tap(*m.polar(0, 85)); m.turn(0, 6 * STEP_DEG + 5); m.tap(CX, CY)
+            m.tap(*m.polar(0, 85)); m.turn(0, 3 * STEP_DEG + 5); m.tap(CX, CY)
         texts, fills, _ = m.paint()
         expect(any(f[1] == 0 and f[3] == 160 and f[2] == 0 for f in fills), f'{label}: header stays in the left half')
         expect(all(r[0] + r[2] <= 160 for t, r in texts if r[1] < BARH), f'{label}: title and status stay in the left half')
@@ -950,7 +1105,7 @@ def i18n_tests(ctx):
             vw = max(w(pod_i18n.tr(loc, x), 16, False) for x in v)
             if w(pod_i18n.tr(loc, k), 18) > O['IP_SPLIT_X'] - 2 * O['IP_TEXT_X'] - min(72, vw) - 12 or vw > 72: over.append((loc, 'row ' + k, w(pod_i18n.tr(loc, k), 18), vw))
     over = sorted(set(over))
-    expect(over == [('ge_DE', 'row Repeat', 92, 46), ('po_PL', 'row Repeat', 74, 68), ('ru_RU', 'Shuffle Songs', 146), ('ru_RU', 'row Appearance', 98, 57), ('ru_RU', 'row Shuffle', 97, 42), ('sp_ES', 'Shuffle Songs', 153), ('sp_ES', 'row Repeat', 52, 81), ('sp_ES', 'row Shuffle', 66, 81), ('uk_UK', 'Shuffle Songs', 131)], f'at 18 px (Inter Medium) these labels ellipsize (the 130 px menu box, or the room a Settings value leaves; the rest of the 13 languages fit): {over}')
+    expect(over == [('ge_DE', 'row Repeat', 92, 46), ('po_PL', 'row Repeat', 74, 68), ('ru_RU', 'Shuffle Songs', 146), ('ru_RU', 'row Appearance', 98, 57), ('ru_RU', 'row Shuffle', 97, 42), ('sp_ES', 'Shuffle Songs', 153), ('sp_ES', 'row Repeat', 52, 81), ('sp_ES', 'row Shuffle', 66, 81)], f'at 18 px (Inter Medium) these labels ellipsize (the 130 px menu box, or the room a Settings value leaves; the rest of the 13 languages fit): {over}')
     spanish = pod_i18n.tr('sp_ES', 'Shuffle Songs')
     while StbText(font, 18).layout(spanish)[1] > O['IP_SPLIT_X'] - O['IP_TEXT_X'] - 22:
         spanish = spanish[:-2] + '…' if spanish.endswith('…') else spanish[:-1] + '…'
@@ -972,7 +1127,7 @@ class Drag:
 
 
 def feel_tests(ctx):
-    """Reversal hysteresis, the chord dead zone, the 15 degree step with carry, the tiers on long lists, the hard stop at the ends (docs/modules/ipod.md "The wheel")."""
+    """Reversal hysteresis, the chord dead zone, the 20 degree step with carry, the tiers on long lists, the hard stop at the ends (docs/modules/ipod.md "The wheel")."""
     expect = ctx.expect
 
     def menu():
@@ -982,52 +1137,52 @@ def feel_tests(ctx):
     def menu_row(m):
         m.clock += 1000
         ys = [f[2] for f in m.paint()[1] if f[4] == 1 and f[3] == O['IP_SPLIT_X'] and BARH <= f[2] < 240]
-        return (min(ys) - BARH) // ROWH if ys else None
+        return row_of(min(ys)) if ys else None
 
     def songs(n):
         m = machine(songs=[f'Song {i:03d}' for i in range(n)]); m.open(); m.timers = []
         music(m)
-        m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
+        m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
         return m
 
     def song_sel(m):
         m.clock += 1000
         texts, fills, _ = m.paint()
-        ys = [f[2] for f in fills if f[4] == 1 and f[3] == 320 and f[2] >= BARH]
-        return int(rows_of(texts)[0][5:]) + (min(ys) - BARH) // ROWH
+        ys = [f[2] for f in fills if f[4] == 1 and f[3] == 320 and f[2] >= BARH and f[0] & 0xffffff == 0xf8dd9a]   # the selection's top line
+        return int(rows_of(texts)[0][5:]) + row_of(min(ys), SONGS_N)
 
-    # the step: 15 degrees, the leftover carries
+    # the step: 20 degrees, the leftover carries
     m = menu()
     d = Drag(m, 0)
-    for _ in range(14): d.go(1, 100)
+    for _ in range(19): d.go(1, 100)
     d.up()
-    expect(menu_row(m) == 0, 'a 14 degree turn is no step')
+    expect(menu_row(m) == 0, 'a 19 degree turn is no step')
     m = menu(); d = Drag(m, 0)
-    for _ in range(16): d.go(1, 100)
+    for _ in range(21): d.go(1, 100)
     d.up()
-    expect(menu_row(m) == 1, 'a 16 degree turn is one step')
+    expect(menu_row(m) == 1, 'a 21 degree turn is one step')
     m = menu(); d = Drag(m, 0)
-    d.go(20, 100); r1 = menu_row(m); d.go(10, 100); d.up()
-    expect(r1 == 1 and menu_row(m) == 2, f'20 degrees then 10: the leftover 5 carries into the second step ({r1}, {menu_row(m)})')
+    d.go(25, 100); r1 = menu_row(m); d.go(17, 100); d.up()
+    expect(r1 == 1 and menu_row(m) == 2, f'25 degrees then 17: the leftover 5 carries into the second step ({r1}, {menu_row(m)})')
 
     # reversal hysteresis: 8 degrees of reverse travel are swallowed, then the accumulator starts again at 0
     m = menu(); d = Drag(m, 0)
-    for _ in range(8): d.go(2, 100)
-    expect(menu_row(m) == 1, 'forward 16 degrees: row 1')
+    for _ in range(11): d.go(2, 100)
+    expect(menu_row(m) == 1, 'forward 22 degrees: row 1')
     for _ in range(11): d.go(-2, 100)
     expect(menu_row(m) == 1, '22 degrees back: 8 swallowed, 14 counted: still row 1')
-    for _ in range(2): d.go(-2, 100)
-    expect(menu_row(m) == 0, '26 degrees back: 8 swallowed, 18 counted: one step up')
+    for _ in range(4): d.go(-2, 100)
+    expect(menu_row(m) == 0, '30 degrees back: 8 swallowed, 22 counted: one step up')
     m = menu(); d = Drag(m, 0)
-    for _ in range(8): d.go(2, 100)
+    for _ in range(11): d.go(2, 100)
     for _ in range(5):
         for _ in range(3): d.go(-2, 100)
         for _ in range(3): d.go(2, 100)
     expect(menu_row(m) == 1, 'a 6 degree jitter at the turnaround, five times over, steps nothing')
     for _ in range(6): d.go(2, 100)
-    expect(menu_row(m) == 1, 'and the jitter took no forward travel either: 12 more degrees is still row 1 (1 + 12 < 15)')
-    for _ in range(2): d.go(2, 100)
-    expect(menu_row(m) == 2, 'and 16 more is the next step')
+    expect(menu_row(m) == 1, 'and the jitter took no forward travel either: 12 more degrees is still row 1 (2 + 12 < 20)')
+    for _ in range(4): d.go(2, 100)
+    expect(menu_row(m) == 2, 'and 8 more is the next step')
 
     # the chord dead zone
     def chord(y, x0=-60, x1=60):
@@ -1043,10 +1198,10 @@ def feel_tests(ctx):
     m = menu(); m.ptr('down', CX - 60, CY - 10, 1000); m.ptr('move', CX + 60, CY - 10, 1100)
     x, y = 60, -10
     a = math.degrees(math.atan2(x, -y)); r = math.hypot(x, y)
-    for i in range(1, 5):
+    for i in range(1, 6):
         px, py = r * math.sin(math.radians(a + 5 * i)), -r * math.cos(math.radians(a + 5 * i))
         m.ptr('move', CX + round(px), CY + round(py), 1100 + 100 * i)
-    expect(menu_row(m) == 1, 'after the rejected chord the same touch goes on from the new point: 20 degrees, one step')
+    expect(menu_row(m) == 1, 'after the rejected chord the same touch goes on from the new point: 25 degrees, one step')
     m = menu(); m.ptr('down', CX - 30, CY, 1000); m.ptr('move', CX + 30, CY + 4, 1100)
     expect(menu_row(m) == 0, 'a drag that begins on the centre button still does nothing')
 
@@ -1055,8 +1210,8 @@ def feel_tests(ctx):
           == [1, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 34, 34], 'rows a step: 1 for 16 rows or fewer, else the tiers 1, 2, 3, 5, 8, 13, 21, 34 (the last holds)')
     m = songs(3000); d = Drag(m, 0)
     for _ in range(30): d.go(6, 16)
-    expect(song_sel(m) == 12, f'a fast turn (375 deg/s): the first half second is one row per 15 degrees (row {song_sel(m)} = 12)')
-    prev, deltas = 12, []
+    expect(song_sel(m) == 9, f'a fast turn (375 deg/s): the first half second is one row per 20 degrees (row {song_sel(m)} = 9)')
+    prev, deltas = 9, []
     for _ in range(300):
         d.go(6, 16); s = song_sel(m); deltas.append(s - prev); prev = s
         if s >= 2999: break
@@ -1114,7 +1269,7 @@ def feel_tests(ctx):
     expect(menu_row(m) == 5, 'the last row')
     m.calls = []; d = Drag(m, 0); d.go(20, 100); d.go(20, 100)
     ys2 = [f[2] for f in m.paint()[1] if f[4] == 1 and f[3] == O['IP_SPLIT_X'] and BARH <= f[2] < 240]
-    expect(menu_row(m) == 5 and min(ys2) == BARH + 5 * ROWH, f'turning on past the end: the last row stays selected ({min(ys2)})')
+    expect(menu_row(m) == 5 and min(ys2) == row_y(5), f'turning on past the end: the last row stays selected ({min(ys2)})')
     expect('timer_remove' not in m.names() and 'timer_add' not in m.names(), 'a stop at the end touches no timer')
 
 
@@ -1131,6 +1286,11 @@ def with_covers(n_albums=10, n_art=8, ramp=False, worker=False):
         m.urls['file://' + path] = i
     m.open(); m.timers = []
     return m
+
+
+def settle(m):
+    """Past a level slide and the title bar's drop after it (a page of its own opened or closed from a split menu)."""
+    return [x for _ in range(3) for x in tick(m, 300)]
 
 
 def tick(m, ms=None):
@@ -1310,8 +1470,9 @@ def pane_tests(ctx):
     expect(not later, 'and nothing else is decoded for 12 s: the playing cover stays')
     reds = []
     for _ in range(160):
-        tick(m); reds.append(row(m, mix_frame(m), 120 * PANE[2] + 80, 1)[0] & 255)
-    expect(len(set(reds)) > 5 and reds.index(max(reds)) not in (0, len(reds) - 1), 'its pan sweeps back and forth')
+        c = tick(m); reds.append(row(m, mix_frame(m), 120 * PANE[2] + 80, 1)[0] & 255)
+        cur = ([x[2] for x in c if x[0] == 'timer_modify'] or [cur])[-1]
+    expect(len(set(reds)) == 1 and cur == O['IP_TICK_MS'], f'once faded in it stays still, no pan, at the slow pace ({sorted(set(reds))}, {cur} ms)')
     m.play([m.song('U', artist='Artist 5', album='Album 5')], 0)
     expect(5 in [x for _ in range(4) for x in pane_loads(tick(m), m)], 'the next track from another album: that album\'s cover')
     m.play([m.song('V', artist='Nobody', album='Uncached')], 0)
@@ -1321,12 +1482,13 @@ def pane_tests(ctx):
     m = with_covers()
     m.call(PSYMS['ip_first'], a0=0, count=40000000)
     tick(m); tick(m)
-    m.tap(CX, CY); m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.tap(CX, CY); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     expect(('timer_modify', 0x777, O['IPCF_FRAME_MS']) in m.calls, 'a list opens: the existing timer briefly accelerates to load its visible covers')
     c = tick(m)
-    expect(not [x for x in c if x[0] in ('widget_load_image', 'timer_modify')], 'on a list the tick decodes no cover and the interval stays')
-    m.tap(*m.polar(0, 85))
-    expect(('timer_modify', 0x777, FAST) in m.calls, f'MENU to Music resumes the pane at {FAST} ms')
+    expect(not [x for x in c if x[0] == 'timer_modify' or x[0] == 'widget_load_image' and x[1] != 'ipod_placeholder'],
+           f'on a list the tick decodes no pane cover (only the rows\' placeholder, once) and the interval stays ({c})')
+    m.tap(*m.polar(0, 85)); got = list(m.calls) + settle(m)
+    expect(('timer_modify', 0x777, FAST) in got, f'MENU to Music resumes the pane at {FAST} ms once its title bar has dropped in')
     m.tap(*m.polar(0, 85))
     expect(('loadLocalClassList', O['CLASS_ALBUMS']) in tick(m), 'and a new random cover is chosen (the album query runs again)')
     m.top_main = 0
@@ -1378,8 +1540,7 @@ def shuffle_tests(ctx):
         m = machine(songs=songs); m.seed = seed; m.clock = 7 * seed
         for i in range(10): m.present.add(f'/mnt/mmc/m/{i}.flac')
         m.open(); m.timers = []
-        music(m)
-        m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+        m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)   # the main menu's Shuffle Songs row
         return m
     firsts = []
     for seed in (11, 12, 13, 14):
@@ -1392,23 +1553,22 @@ def shuffle_tests(ctx):
         expect(pl and len(pl[0]) == 10 and pl[1] == sp[0][1] and 0 <= pl[1] < 10, f'the whole library is the queue, the first song a random one ({pl and pl[1]})')
         expect(('mclSetPlayMode', 2) in m.calls and m.mode == 2 and ('write_int_config', 2, 'PLAYSET', 'PLAYMODE') in m.calls, 'stock Shuffle (mode 2) is set the way the Play settings page does')
         expect('navigator_to_with_context' not in m.names() and 'shuffle_play' not in m.names(), 'no stock page opens')
+        tick(m, 500); tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])   # the slide, then the title bar drops in
         texts = texts_of(m.paint())
         expect('Now Playing' in texts, 'the iPod\'s own Now Playing is in front')
         if seed == 11:
             x, y = m.polar(0, 85); m.tap(x, y)
             front = rows_of(m.paint()[0])
-            expect(front == [m.tr(k) for k in MUSIC_KEYS], f'MENU from Now Playing returns to Music ({front[:2]})')
+            expect(front == [m.tr(k) for k in MAIN_KEYS], f'MENU from Now Playing returns to the main menu, where Shuffle Songs was ({front[:2]})')
     expect(len(set(firsts)) >= 2, f'the first song differs with the random seed ({firsts})')
     # an empty library: the message, nothing played, the mode untouched
     m = machine(); m.open(); m.timers = []; m.mode = 1
-    music(m)
-    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
     expect(any(c[0] == 'toast' for c in m.calls) and 'start_player' not in m.names() and m.mode == 1 and 'mclSetPlayMode' not in m.names(), 'no songs: the stock message box, nothing started, the mode kept')
     # the first file is gone: nothing started, the mode kept
     m = machine(songs=songs); m.open(); m.timers = []; m.mode = 3
-    music(m)
     m.present.discard('/mnt/mmc/m/1.flac')
-    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
     expect(m.mode == 3 and ('start_player' not in m.names() or m.played[0][m.played[1]] is not None), 'a missing file starts nothing and keeps the mode')
 
 
@@ -1421,7 +1581,7 @@ def settings_tests(ctx):
     def chevrons(m):
         return [f for f in m.paint()[1] if f[3] == 2 and f[4] == 1 and f[1] >= 300 and BARH <= f[2] < 240 and f[0] == 0xffffffff]
     m = machine(); m.open(); m.timers = []
-    m.turn(0, STEP_DEG * 6 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     texts, fills, _ = m.paint()
     expect(not m.opened and 'loadLocalClassList' not in m.names(), 'Settings is a level of the iPod page now: no stock page opens, no query runs')
     expect(rows_of(texts) == [m.tr(k) for k in SET_KEYS] and m.tr('cdrippersettings') in [t for t, _ in texts], f'Shuffle and Repeat under Settings ({rows_of(texts)})')
@@ -1465,7 +1625,7 @@ def appearance_tests(ctx):
     for data in (b'', b'2', b'1junk', b'11', b'1\nextra'):
         m.fs[path] = data; m.call(PSYMS['ip_theme_load'])
         expect(m.call(PSYMS['ip_theme_dark']) == 0, f'invalid setting {data!r} defaults to Light')
-    m.turn(0, 6 * STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, 3 * STEP_DEG + 5); m.tap(CX, CY)
     m.turn(0, 2 * STEP_DEG + 5); m.tap(CX, CY)
     expect(m.fs.get(path) == b'1\n' and m.call(PSYMS['ip_theme_dark']) == 1, 'Appearance saves Dark atomically')
     expect(m.props[(m.widgets['ipod_wheel_img'], 'image')] == 'ipod_wheel_dark', 'the existing insensitive wheel image switches to Dark')
@@ -1491,8 +1651,10 @@ def transition_tests(ctx):
     expect(0 in m.origins and 160 in m.origins, 'outgoing model and incoming page start at their own horizontal origins')
     m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000)
     m.origins = []; m.paint(animated=True)
-    expect(80 in m.origins and (0xffffffff - 79) in m.origins, 'midpoint slides the two menu pages in opposite directions')
-    expect((0xffffffff - 79, 0, 79) in m.clip_frames and (80, 80, 159) in m.clip_frames, 'each moving menu is clipped to its own bounds as well as the display viewport')
+    expect(40 in m.origins and (0xffffffff - 119) in m.origins, f'half the time in, the two menu pages are three quarters of the way, in opposite directions (eased out, as the iPod) ({sorted(set(m.origins))})')
+    bar = [(t, ox) for (t, r_), ox in zip(m.texts, m.text_ox) if r_[1] == 1]
+    expect(bar and bar[-1] == (m.tr('Music'), 0), f'the title bar stays put over the slide, already titled Music ({bar})')
+    expect((0xffffffff - 119, 0, 39) in m.clip_frames and (40, 40, 159) in m.clip_frames, 'each moving menu is clipped to its own bounds as well as the display viewport')
     expect(tuple(m.word(m.canvas + o) for o in (0, 4, 16, 20, 24, 28)) == before, 'painting restores canvas origin and clipping exactly')
     expect(not any(c[0] in ('calloc', 'bitmap_create_ex', 'widget_load_image', 'loadLocalClassList') for c in m.calls), 'animated paint performs no allocation, decode or library query')
     m.clock += 141; m.call(PSYMS['ip_tick'], count=40000000)
@@ -1501,13 +1663,46 @@ def transition_tests(ctx):
     expect(m.call(PSYMS['ip_render_active']) == 1, 'MENU animates an internal pop')
     m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000)
     m.clip_frames = []; m.paint(animated=True)
-    expect((80, 80, 159) in m.clip_frames and (0xffffffff - 79, 0, 79) in m.clip_frames, 'pop backgrounds cannot erase the outgoing half of the screen')
+    expect((120, 120, 159) in m.clip_frames and (0xffffffff - 39, 0, 119) in m.clip_frames, 'pop backgrounds cannot erase the outgoing half of the screen')
     m.fire(EVT_BG, WIN)
     expect(m.call(PSYMS['ip_render_active']) == 0, 'backgrounding cancels the slide')
     m.fire(EVT_FG, WIN); m.paint(animated=True); m.tap(CX, CY); m.tap(*m.polar(0, 85))
     expect(m.call(PSYMS['ip_render_active']) == 0, 'fast repeated navigation settles instead of stacking animations')
     m.fire(EVT_DESTROY, WIN)
     expect(not m.bitmaps, 'destroy frees image snapshots and page bitmaps')
+    # the soft text gamma (patch/textgamma.c tg_soften) while the Pod is in front: each change empties the glyph cache once
+    m = machine(); m.fm = 0x24000000
+    shrinks = lambda: sum(1 for c in m.calls if c[0] == 'font_manager_shrink_cache')
+    m.open(); m.timers = []; n_open = shrinks()
+    m.calls = []; m.fire(EVT_BG, WIN); n_bg = shrinks(); m.calls = []; m.fire(EVT_FG, WIN); n_fg = shrinks()
+    m.calls = []; m.fire(EVT_FG, WIN); n_fg2 = shrinks(); m.calls = []; m.fire(EVT_DESTROY, WIN); n_end = shrinks()
+    expect((n_open, n_bg, n_fg, n_fg2, n_end) == (1, 1, 1, 0, 1), f'the Pod softens the text gamma on open and foreground, restores it on background and destroy ({(n_open, n_bg, n_fg, n_fg2, n_end)})')
+    # a slow query (Music > Songs on a big library): the slide's 300 ms count from when the list is loaded, not from the press, so it is still seen
+    m = machine(songs=['A', 'B']); m.open(); m.timers = []; m.paint(animated=True)
+    music(m); m.paint(animated=True); m.turn(0, STEP_DEG * 4 + 5); m.paint(animated=True)
+    m.load_ms = 400; m.tap(CX, CY); m.load_ms = 0
+    m.call(PSYMS['ip_tick'], count=40000000); active = m.call(PSYMS['ip_render_active'])
+    expect(active == 1, 'Music > Songs still slides after a 400 ms query')
+    m.clock += 75; m.call(PSYMS['ip_tick'], count=40000000); m.origins = []; m.paint(animated=True)
+    expect(m.call(PSYMS['ip_render_active']) == 1 and 240 in m.origins, f'and a quarter in 75 ms later, at a steady speed as on the iPod (no ease-in) ({sorted(set(m.origins))[:6]})')
+    m.clock += 75; m.call(PSYMS['ip_tick'], count=40000000); m.origins = []; m.paint(animated=True)
+    expect(m.call(PSYMS['ip_render_active']) == 1 and 160 in m.origins, f'and half way at 150 ms ({sorted(set(m.origins))[:6]})')
+    # a page of its own from a split menu: it slides in whole without its title bar, which then drops in; between full pages the bar slides with the page
+    m = machine(albums=[('Kind of Blue', 'Miles Davis')]); m.open(); m.timers = []; m.paint(animated=True)
+    m.tap(CX, CY); settle(m); m.paint(animated=True)   # Music
+    m.turn(0, STEP_DEG * 3 + 5); m.paint(animated=True); m.tap(CX, CY)   # Albums
+    def bar(): return [(t, ox) for (t, r_), ox in zip(m.texts, m.text_ox) if r_[1] == 1]
+    m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000); m.paint(animated=True)
+    expect(m.call(PSYMS['ip_render_width']) == O['IP_W'] and any(t == m.tr('Albums') and ox > 0 for t, ox in bar()), f'Music > Albums: the page slides in whole, its title bar with it ({bar()})')
+    settle(m); m.paint(animated=True)
+    expect((m.tr('Albums'), 0) in bar(), f'and rests in place ({bar()})')
+    m.tap(CX, CY); m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000); m.paint(animated=True)
+    expect(len({ox for _, ox in bar()}) == 2 and 0 not in {ox for _, ox in bar()}, f'Albums > an album: both bars slide with their pages ({bar()})')
+    settle(m); m.paint(animated=True); m.tap(*m.polar(0, 85)); settle(m); m.paint(animated=True); m.tap(*m.polar(0, 85))
+    m.clock += 70; m.call(PSYMS['ip_tick'], count=40000000); m.paint(animated=True)
+    expect(any(t == m.tr('Music') and ox < 0 for t, ox in bar()), f'MENU back to Music: its title bar comes back in with the menu half, drawn by the list\'s edge ({bar()})')
+    tick(m, 500); m.paint(animated=True)
+    expect((m.tr('Music'), 0) in bar(), f'and rests in place, no drop after ({bar()})')
 
 
 def pane_sharp_tests(ctx):
@@ -1568,7 +1763,7 @@ def pane_sharp_tests(ctx):
     # leaving the pane cancels the worker (never joined while inside its job) and removes the file
     m = prepare()
     run_to_extraction(m)
-    m.tap(CX, CY); m.turn(0, STEP_DEG + 5); m.calls = []; m.tap(CX, CY)   # Music > Albums: not a split page
+    m.tap(CX, CY); m.turn(0, STEP_DEG * 3 + 5); m.calls = []; m.tap(CX, CY)   # Music > Albums: not a split page
     c = tick(m)
     expect(orphaned(m, c) and not [p for p in m.present if p.startswith('/tmp/m1plus-pane')], 'a level without the pane: the extraction is cancelled (not joined) and its file removed')
     m = prepare(); run_to_extraction(m); m.calls = []
@@ -1613,6 +1808,12 @@ def pane_sharp_tests(ctx):
     expect(seen.count('file:///tmp/coverpic.jpg') == 1, f'after IP_PANE_SHARP_MS it is ({O["IP_PANE_SHARP_MS"]} ms)')
 
 
+def row_px(m, blits, row=0, x=10, y=10):
+    """The pixel at x, y of the cover drawn in cover row `row` (the row's own bitmap or the shared placeholder), or None when none is drawn."""
+    t = O['IP_TALL_H']; b = next((b for b in blits if b[2] == (0, BARH + row * t, t, t)), None)
+    return bytes(m.u.mem_read(m.bitmaps[b[0]][0] + (y * t + x) * 4, 4)) if b else None
+
+
 def orphaned(m, c=()):
     """The worker is cancelled and orphaned (busy, no join); once it has exited the next call reaps it."""
     ok = ('pthread_join',) not in list(m.calls) + list(c) and build_state(m)['orphan'] == 1 and m.call(PSYMS['cc_build_busy']) == 1
@@ -1623,19 +1824,20 @@ def orphaned(m, c=()):
 def fresh_art_tests(ctx):
     expect = ctx.expect
     m = machine(albums=[('Fresh', 'Artist')]); m.open(); m.timers = []; music(m)
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     for _ in range(3): tick(m)
+    expect(row_px(m, m.paint()[2]) == bytes((0x40, 0x40, 0x40, 255)), 'an album with no cached cover yet shows the placeholder, not a grey block')
     expect(m.call(PSYMS['cc_build_busy']) == 1 and m.call(PSYMS['cc_build_total']) == 1, 'fresh cache starts the shared extractor from the visible album record')
     key = album_key('Artist', 'Fresh'); path = art_file(key)
     m.present.add(path); m.files[path] = 4096
     m.images['file://' + path] = (48, 48, bytes((10, 100, 200, 255)) * 48 * 48)
     for _ in range(3): tick(m)
     _, _, blits = m.paint()
-    expect(any(b[2] == (0, BARH, 54, 54) for b in blits), 'a newly extracted cover replaces the visible placeholder')
+    expect(row_px(m, blits) == bytes((10, 100, 200, 255)), 'a newly extracted cover replaces the visible placeholder')
     m.fire(EVT_BG, WIN)
     expect(orphaned(m), 'background cancels this page own extraction job (reaped once it exits)')
     m = machine(albums=[('No card', 'Artist')]); m.card_mounted = False; m.open(); m.timers = []; music(m)
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
     for _ in range(4): tick(m)
     expect(m.call(PSYMS['cc_build_busy']) == 0, 'no extraction job is started without a mounted card')
 
@@ -1647,36 +1849,50 @@ def reference_nav_tests(ctx):
     m = machine(); m.status = 0; m.open(); m.timers = []
     expect(rows_of(m.paint()[0]) == [m.tr(k) for k in keys], f'nothing plays: the main menu has no Now Playing row ({rows_of(m.paint()[0])})')
     m.turn(0, STEP_DEG * 9)
-    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in keys] and len([f for f in m.paint()[1] if f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] >= BARH + 4 * ROWH]) == ROWH,
-           'five rows: the cursor stops on Settings')
-    m.tap(CX, CY); texts = m.paint(animated=False)[0]
-    expect(rows_of(texts) == [m.tr(k) for k in SET_KEYS], 'and Settings opens from the sixth row')
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in keys] and len([f for f in m.paint()[1] if f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] >= row_y(4)]) == row_h(4),
+           'five rows: the cursor stops on Shuffle Songs, the last')
     m = machine(); m.status = 0; m.open(); m.timers = []
-    m.turn(0, STEP_DEG * 9)
+    m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY); texts = m.paint(animated=False)[0]
+    expect(rows_of(texts) == [m.tr(k) for k in SET_KEYS], 'and Settings opens from the third row')
+    m = machine(); m.status = 0; m.open(); m.timers = []
+    m.turn(0, STEP_DEG * 3 + 5)
     m.status = 2
     for _ in range(5): m.call(PSYMS['ip_tick'], a0=0, count=40000000)
     texts, fills, _ = m.paint()
-    expect(rows_of(texts) == [m.tr(k) for k in MAIN_KEYS] and any(f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] == BARH + 5 * ROWH for f in fills),
-           'playback starts: Now Playing appears and the cursor stays on Settings')
+    expect(rows_of(texts) == [m.tr(k) for k in MAIN_KEYS] and any(f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] == row_y(3) for f in fills),
+           'playback starts: Now Playing appears as the last row and the cursor stays on Settings')
     m.status = 0
     for _ in range(5): m.call(PSYMS['ip_tick'], a0=0, count=40000000)
-    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in keys] and any(f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] == BARH + 4 * ROWH for f in m.paint()[1]), 'and goes with it, the cursor still on Settings')
+    expect(rows_of(m.paint()[0]) == [m.tr(k) for k in keys] and any(f[3] == O['IP_SPLIT_X'] and f[4] == 1 and f[2] == row_y(3) for f in m.paint()[1]), 'and goes with it, the cursor still on Settings')
     # a fullscreen page opens with the split: the menu half slides left, the artwork pane right, uncovering the page that stays still
     m = machine(songs=['Song']); m.open(); m.timers = []; m.paint(animated=True)
     m.play([m.class_lists[O['CLASS_ALL_SONGS']][0]], 0)
-    m.turn(0, STEP_DEG * 4 + 5); m.origins = []; m.clip_frames = []; m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 5 + 5); m.origins = []; m.clip_frames = []; m.tap(CX, CY)
     expect(m.call(PSYMS['ip_render_active']) == 1 and m.call(PSYMS['ip_render_split']) == 1 and m.call(PSYMS['ip_render_direction']) == 1, 'Now Playing from the main menu starts a split slide')
     m.origins = []; m.paint(animated=True)
     expect(set(m.origins) == {0}, f'the first frame draws everything at its place ({sorted(set(m.origins))})')
-    m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000)
+    m.clock += 100; m.call(PSYMS['ip_tick'], count=40000000)
     m.origins = []; m.clip_frames = []; m.paint(animated=True)
     ox = sorted({o if o < 1 << 31 else o - (1 << 32) for o in m.origins})
     expect(ox == [-80, 0, 80] or ox == [-79, 0, 79] or ox == [-80, 0, 79], f'midway: the page still, the menu half 80 px left, the pane 80 px right ({ox})')
     frames = {(o if o < 1 << 31 else o - (1 << 32), a, b) for o, a, b in m.clip_frames}
     expect(any(o < 0 and a == 0 and 88 <= b <= 90 for o, a, b in frames) and any(o > 0 and 238 <= a <= 241 and b >= 319 for o, a, b in frames),
            f'the halves are clipped to what is left of them ({sorted(frames)})')
+    m.paint(animated=True)
+    expect(not [r_ for t, r_ in m.texts if t == 'Now Playing' and r_[1] == 1], 'Now Playing opening: no title bar while the halves slide away (the menu\'s Now Playing row is still on its half)')
     m.clock += 141; m.call(PSYMS['ip_tick'], count=40000000)
-    expect(m.call(PSYMS['ip_render_active']) == 0 and 'Now Playing' in texts_of(m.paint()), 'the slide ends on Now Playing, 280 ms after it began')
+    def title_oy():
+        m.paint(animated=True)
+        base = [oy for (t, _), oy in zip(m.texts, m.text_oy) if t == 'Song']
+        return [oy - base[0] for (t, r_), oy in zip(m.texts, m.text_oy) if t == 'Now Playing' and r_[1] == 1] if base else None
+    expect(m.call(PSYMS['ip_render_active']) == 0 and title_oy() == [-O['IP_BAR_H']], f'the slide ends on Now Playing, 280 ms after it began; the title bar starts just above the screen ({title_oy()})')
+    m.clock += O['IP_BAR_WAIT_MS'] - 10; m.call(PSYMS['ip_tick'], count=40000000)
+    expect(title_oy() == [-O['IP_BAR_H']], f'the bar waits IP_BAR_WAIT_MS above the screen, as on the iPod ({title_oy()})')
+    m.clock += 10 + O['IP_BAR_DROP_MS'] // 2; m.call(PSYMS['ip_tick'], count=40000000)
+    mid = title_oy()
+    expect(mid and -O['IP_BAR_H'] < mid[0] < 0, f'halfway the bar has dropped part of the way ({mid})')
+    m.clock += O['IP_BAR_DROP_MS'] // 2; m.call(PSYMS['ip_tick'], count=40000000)
+    expect(title_oy() == [0], f'after IP_BAR_DROP_MS the bar is in place ({title_oy()})')
     # and back: MENU slides the halves in over the page
     m.tap(*m.polar(0, 85))
     expect(m.call(PSYMS['ip_render_active']) == 1 and m.call(PSYMS['ip_render_split']) == 1 and m.call(PSYMS['ip_render_direction']) == 0xffffffff, 'MENU from Now Playing starts the split slide back')
@@ -1690,7 +1906,7 @@ def reference_nav_tests(ctx):
     # Music -> a list does not split (full width)
     m = machine(albums=[("Album", "Artist")]); m.open(); m.timers = []; music(m); m.paint()
     m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
-    expect(m.call(PSYMS["ip_render_split"]) == 0 and m.call(PSYMS["ip_render_active"]) == 1 and m.call(PSYMS["ip_render_width"]) == 320, "a list from Music slides the whole width, no split")
+    expect(m.call(PSYMS["ip_render_split"]) == 0 and m.call(PSYMS["ip_render_cover"]) == 1 and m.call(PSYMS["ip_render_active"]) == 1 and m.call(PSYMS["ip_render_width"]) == 320, "a list from Music comes in over the pane (the cover slide), no split")
     # a long press of MENU goes to the main menu with the slide of the last level; a tap is one level; at the main menu it does nothing
     m = machine(albums=[('Album', 'Artist')], songs=['Song']); m.open(); m.timers = []; m.paint(animated=True)
     music(m); m.paint(animated=True); m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY); m.paint(animated=True)
@@ -1718,9 +1934,10 @@ def shadow_slide_tests(ctx):
     expect = ctx.expect
     SW = O['IP_SHADOW_W']
     sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
-    def parts(m):
+    SK = SW // 2   # the split shadow fades with the slide: half its columns at half way
+    def parts(m, w=SW):
         texts, fills, blits = m.paint(animated=True)
-        edge = [sx(m.img_ox[i]) for i, b in enumerate(blits) if b[2] == (PANE[0], 0, SW, PANE[3])]
+        edge = [sx(m.img_ox[i]) for i, b in enumerate(blits) if b[2] == (PANE[0], 0, w, PANE[3])]
         pane = [sx(m.img_ox[i]) for i, b in enumerate(blits) if b[2] == PANE]
         return edge, pane
     m = machine(songs=['Song']); m.open(); m.timers = []; m.paint(animated=True)
@@ -1731,17 +1948,37 @@ def shadow_slide_tests(ctx):
     m.paint()
     m.play([m.class_lists[O['CLASS_ALL_SONGS']][0]], 0)
     m.tap(*m.polar(0, 85)); m.paint()                       # back to the main menu
-    m.turn(0, STEP_DEG * 4 + 5); m.paint(); m.tap(CX, CY)   # Now Playing: the split open
-    m.paint(animated=True); m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000)
-    edge, pane = parts(m)
+    m.turn(0, STEP_DEG * 5 + 5); m.paint(); m.tap(CX, CY)   # Now Playing: the split open
+    m.paint(animated=True); m.clock += 100; m.call(PSYMS['ip_tick'], count=40000000)
+    edge, pane = parts(m, SW - SK)
     expect(len(edge) == 1 and edge[0] < 0 and pane and all(o > 0 for o in pane), f'split open: the shadow goes with the menu half (left, {edge}), the pane goes right ({pane})')
     m.paint()
     expect(parts(m)[0] == [] and 'Now Playing' in texts_of(m.paint()), 'on the fullscreen page there is no shadow')
-    m.tap(*m.polar(0, 85)); m.paint(animated=True); m.clock += 140; m.call(PSYMS['ip_tick'], count=40000000)
-    edge, pane = parts(m)
+    m.tap(*m.polar(0, 85))
+    expect(not [b for b in m.paint(animated=True)[2] if b[2][0] == PANE[0] and b[2][2] <= SW], 'split close: no shadow as the halves start in (it fades in, so no seam)')
+    m.clock += 100; m.call(PSYMS['ip_tick'], count=40000000)
+    edge, pane = parts(m, SW - SK)
     expect(edge == [-80] and 80 in pane, f'split close: the shadow comes in with the menu half, once; the pane comes in from the right ({edge}, {pane})')
     m.paint()
     expect(parts(m)[0] == [0], 'and rests at the pane\'s edge again')
+    # Music > a full-width list: the list comes in over the still pane and its left edge pushes the menu half (and its shadow) out on the left
+    m = machine(albums=[('Album', 'Artist')], songs=['Song']); m.open(); m.timers = []; m.paint(animated=True)
+    m.tap(CX, CY); m.paint(); m.clock += 400; m.call(PSYMS['ip_tick'], count=40000000); m.paint()   # Main -> Music, settled
+    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    expect(m.call(PSYMS['ip_render_cover']) == 1, 'Music > a list starts the cover slide')
+    m.clock += 100; m.call(PSYMS['ip_tick'], count=40000000)
+    edge, pane = parts(m)
+    expect(set(edge) == {0} and all(o == 0 for o in pane), f'early: the list has not reached the menu, which stays, the pane too ({edge}, {pane})')
+    white = [f for f in m.fill_clip if f[0] == 0 and f[1] == O['IP_W'] and f[2] <= O['IP_SPLIT_X'] + 5 <= f[3]]
+    expect(not white, f'the menu half\'s full-width white fill stays left of the pane: the shadow is not drawn over white ({white})')
+    m.clock += 120; m.call(PSYMS['ip_tick'], count=40000000)
+    edge, pane = parts(m)
+    expect(len(set(edge)) == 1 and edge[0] < 0 and all(o == 0 for o in pane), f'late: the list pushes the menu half out on the left, the pane stays ({edge}, {pane})')
+    m.clock += 300; m.call(PSYMS['ip_tick'], count=40000000); m.paint()
+    m.tap(*m.polar(0, 85)); m.paint(animated=True); m.clock += 220; m.call(PSYMS['ip_tick'], count=40000000)
+    expect(m.call(PSYMS['ip_render_cover']) == 1 and m.call(PSYMS['ip_render_direction']) == 0xffffffff, 'MENU back to Music runs the cover slide backwards')
+    edge, pane = parts(m)
+    expect(set(edge) == {0} and all(o == 0 for o in pane), f'late in the close the menu is home and the list is past it ({edge}, {pane})')
 
 
 def now_steady_tests(ctx):
@@ -1751,7 +1988,8 @@ def now_steady_tests(ctx):
     m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
     songs = m.class_lists[O['CLASS_ALL_SONGS']]
     m.status = 2; m.pt = (107, 305); m.play([songs[0], songs[1]], 0)
-    m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)
+    tick(m, 500); tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])   # the slide, then the title bar drops in: the page's idle interval
     def looks(n): [m.call(PSYMS["ip_tick"], a0=0, count=40000000) for _ in range(n)]   # on this level every tick looks (500 ms)
     def shown():
         texts, fills, blits = m.paint()
@@ -1760,28 +1998,205 @@ def now_steady_tests(ctx):
         return names, len(bar), blits
     looks(1)
     names, bar, _ = shown()
-    expect('Alpha' in names and '01:47' in names and '-03:18' in names and bar == BH, f'playing: the track, both times and the {BH} px bar ({names}, {bar})')
+    expect('Alpha' in names and '1:47' in names and '-3:18' in names and bar == BH, f'playing: the track, both times and the {BH} px bar ({names}, {bar})')
     for pt, what in ((None, 'no time (the call fails)'), ((0, 0), 'length 0')):
         m.pt = pt; looks(1)
         names, bar, _ = shown()
-        expect('Alpha' in names and '01:47' in names and '-03:18' in names and bar == BH, f'{what}: the bar and both times stay, at the last valid place ({names}, {bar})')
+        expect('Alpha' in names and '1:47' in names and '-3:18' in names and bar == BH, f'{what}: the bar and both times stay, at the last valid place ({names}, {bar})')
     m.pt = None; m.play([songs[0], songs[1]], 1); looks(1)
     names, bar, _ = shown()
-    expect('Beta' in names and '00:00' in names and '-05:05' in names and bar == BH, f'a new track with no time yet: an empty bar, 00:00 and the last length, never blank ({names}, {bar})')
+    expect('Beta' in names and '0:00' in names and '-5:05' in names and bar == BH, f'a new track with no time yet: an empty bar, 00:00 and the last length, never blank ({names}, {bar})')
     m.pt = (3, 200); looks(1)
     names, bar, _ = shown()
-    expect('00:03' in names and '-03:17' in names and bar == BH, 'then its own time')
+    expect('0:03' in names and '-3:17' in names and bar == BH, 'then its own time')
     m.calls = []; m.play([], 0); looks(1)
     names, bar, blits = shown()
-    expect('Beta' in names and '00:03' in names and bar == BH and 'Not Playing' not in names and not any(c[0] == 'widget_load_image' and c[1] == 'ipod_placeholder' for c in m.calls),
+    expect('Beta' in names and '0:03' in names and bar == BH and 'Not Playing' not in names and not any(c[0] == 'widget_load_image' and c[1] == 'ipod_placeholder' for c in m.calls),
            f'no current track for a moment: the last track\'s text and bar stay and the cover is not swapped for the disc ({names})')
-    expect(any(b[2] == (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_ART'], O['IP_ART']) for b in blits), 'the cover is still drawn')
+    expect(any(b[2] == (O['IP_NP_ART_X'], O['IP_NP_ART_Y'], O['IP_NP_ART_W'], O['IP_NP_ART_W'] + O['IP_NP_REFLECT']) for b in blits), 'the cover is still drawn')
     looks(3)
     names, bar, _ = shown()
     expect('Not Playing' in names and 'Beta' not in names, 'and Not Playing once the player really has none')
     before = len([c for c in m.calls if c[0] == 'bitmap_create_ex'])
     shown(); shown()
     expect(len([c for c in m.calls if c[0] == 'bitmap_create_ex']) == before, 'painting allocates nothing')
+
+
+def np_pending_tests(ctx):
+    """A song tapped in a list: Now Playing slides in with that song, though the player still reports the last one (start_player takes a moment), then follows the player."""
+    expect = ctx.expect
+    TY = O['IP_NP_TITLE_Y']
+    def titles():
+        return [t for t, r in m.paint()[0] if r[1] == TY]
+    m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
+    songs = m.class_lists[O['CLASS_ALL_SONGS']]
+    m.status = 2; m.pt = (107, 305); m.play([songs[0], songs[1]], 0)
+    music(m); m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)   # Songs
+    m.turn(0, 23); m.tap(CX, CY)   # Beta; the harness's player stays on Alpha
+    expect(m.played and m.played[1] == 1, 'Beta is started')
+    tick(m, 100)
+    mid = titles()
+    expect(mid == ['Beta'], f'mid-slide Now Playing already names the tapped song ({mid})')
+    tick(m, 500); tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])
+    expect(titles() == ['Beta'], f'and once in ({titles()})')
+    m.play(m.played[0], 1); tick(m, 500)
+    expect(titles() == ['Beta'], 'the player catching up changes nothing')
+    m.play([songs[0], songs[1]], 0); tick(m, 500)
+    expect(titles() == ['Alpha'], 'then Now Playing follows the player again')
+    # a player that never reaches the tapped song: after IP_NP_PEND_MS Now Playing shows what it plays
+    m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
+    songs = m.class_lists[O['CLASS_ALL_SONGS']]
+    m.status = 2; m.pt = (107, 305); m.play([songs[0], songs[1]], 0)
+    music(m); m.turn(0, STEP_DEG * 4 + 5); m.tap(CX, CY)
+    m.turn(0, 23); m.tap(CX, CY)
+    tick(m, 500); tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])
+    expect(titles() == ['Beta'], 'pending: the tapped song')
+    for _ in range(O['IP_NP_PEND_MS'] // 500 + 2): tick(m, 500)
+    expect(titles() == ['Alpha'], f'the player never got there: its own track after the wait ({titles()})')
+
+
+def scan_tests(ctx):
+    """Hold-to-scan on Now Playing: a held previous / next sector moves a virtual target (1 s a 100 ms tick, 3 s after 2 s), a direct mclSetSeek every 300 ms while the target moves, a last one on release."""
+    expect = ctx.expect
+    def now(status=2, pt=(100, 300)):
+        m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
+        songs = m.class_lists[O['CLASS_ALL_SONGS']]
+        m.status = status; m.pt = pt; m.play([songs[0], songs[1]], 0)
+        m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)   # the Now Playing row
+        tick(m, 500)   # the first look: the page knows the track
+        tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])   # the title bar has dropped in
+        m.cmds, m.seeks, m.sets, m.calls = [], [], [], []
+        return m
+    def times(m):
+        names = [t for t, _ in m.paint()[0]]
+        return [n for n in names if len(n) >= 4 and n[-3] == ':' and n.lstrip('-')[:1].isdigit()]
+    def hold(m, deg, ticks, r=85, up=True):
+        x, y = m.polar(deg, r); m.clock = 1000
+        m.ptr('down', x, y, 1000)
+        for _ in range(ticks): tick(m)
+        if up: m.ptr('up', x, y, m.clock)
+        return x, y
+    # a tap still skips; a hold of 4 ticks (400 ms) released is a tap
+    m = now(); hold(m, 90, 4)
+    expect(m.cmds and m.cmds[0][0] == 'next' and not m.sets, f'released before 500 ms: next, no seek ({m.cmds}, {m.sets})')
+    m = now(); hold(m, 270, 4)
+    expect(m.cmds and m.cmds[0][0] == 'prev' and not m.sets, 'and previous on the left')
+    # the hold: enters at 500 ms, 1 s a tick, shows the target, a direct seek every 300 ms (CUE start added), the release sends the last one and does not skip
+    m = now(); m.cue = 0; x, y = hold(m, 90, 5, up=False)
+    expect(times(m) == ['1:41', '-3:19'], f'scanning: the first tick moved the target 1 s ({times(m)})')
+    expect(not m.sets, 'no seek before 300 ms of scanning')
+    for _ in range(2): tick(m)
+    expect(not m.sets, f'still none after 200 ms ({m.sets})')
+    tick(m)
+    expect(m.sets == [104], f'300 ms of scanning: the first direct seek, to the target ({m.sets})')
+    for _ in range(16): tick(m)
+    expect(times(m) == ['2:00', '-3:00'], f'20 ticks of 1 s (2 s of scanning): 10x ({times(m)})')
+    expect(m.sets == [104, 107, 110, 113, 116, 119] and not m.cmds and not m.seeks, f'a seek every 300 ms, no skip, no seek_time ({m.sets}, {m.cmds}, {m.seeks})')
+    stamps = [c[2] for c in m.calls if c[0] == 'mclSetSeek']
+    expect(all(b - a == 300 for a, b in zip(stamps, stamps[1:])), f'300 ms apart ({stamps})')
+    tick(m)
+    expect(times(m) == ['2:03', '-2:57'], f'then 3 s a tick: 30x ({times(m)})')
+    m.pt = (150, 300)   # the player keeps playing meanwhile: the bar shows the target
+    expect(times(m) == ['2:03', '-2:57'], 'the track look does not overwrite the target')
+    m.seek_moves = False   # the player is slow to arrive
+    n = len(m.sets)
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets[n:] == [123] and not m.cmds and not m.seeks, f'release: one last seek to the target, no skip, no seek_time ({m.sets}, {m.cmds}, {m.seeks})')
+    expect(('playpause_quick_click',) not in m.calls and m.status == 2, 'the status stays playing')
+    m.pt = (100, 300)   # the player has not reached it yet: the target stays
+    tick(m, 500)
+    expect(times(m) == ['2:03', '-2:57'] and m.status == 2, f'the target stays until the player\'s time catches up ({times(m)})')
+    m.pt = (124, 300); tick(m, 500)
+    expect(times(m) == ['2:04', '-2:56'], f'then the player\'s time ({times(m)})')
+    m.pt = (50, 300); tick(m, 3000)
+    expect(times(m) == ['0:50', '-4:10'], 'and a target never reached lets go after 3 s')
+    # the scan's target is its own: the player's time moving under it (a lag, a jump) does not change it
+    m = now(); m.seek_moves = False; x, y = hold(m, 90, 5 + 4, up=False)
+    m.pt = (500 - 300, 300)
+    tick(m)
+    expect(times(m) == ['1:46', '-3:14'], f'the target is never re-derived from the reported time ({times(m)})')
+    # released with the target unchanged since the last seek: no extra seek
+    m = now(); x, y = hold(m, 90, 5 + 3, up=False)   # the seek went at the third tick, the target of it is the target now
+    expect(m.sets == [104], f'one seek so far ({m.sets})')
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets == [104], f'release with the target unchanged since the last seek: no seek ({m.sets})')
+    # a release after the target moved past the last seek: a final one
+    m = now(); x, y = hold(m, 90, 5 + 4, up=False)
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets == [104, 105], f'release after the target moved on: one final seek ({m.sets})')
+    # the CUE start is added: the target is CUE-relative
+    m = now(); m.cue = 600; m.setword(m.class_lists[O['CLASS_ALL_SONGS']][0] + O['REC_CUE_START'], 600)
+    x, y = hold(m, 90, 5 + 3, up=True)
+    expect(m.sets == [704], f'a CUE track: the seek is target + CUE start ({m.sets})')
+    # rewind, clamped at 0
+    m = now(pt=(5, 300)); x, y = hold(m, 270, 5 + 10, up=False)
+    expect(times(m) == ['0:00', '-5:00'], f'rewind clamps at 0 ({times(m)})')
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets[-1] == 0 and not m.cmds and not m.seeks, f'rewind seeks to 0, no previous ({m.sets}, {m.cmds})')
+    m = now(pt=(100, 300)); hold(m, 270, 5 + 3, up=True)
+    expect(m.sets == [96], f'rewind goes back 1 s a tick ({m.sets})')
+    # fast forward clamps at length - 1
+    m = now(pt=(290, 300)); x, y = hold(m, 90, 5 + 30, up=False)
+    expect(times(m) == ['4:59', '-0:01'], f'forward clamps at length - 1 ({times(m)})')
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets[-1] == 299 and m.sets.count(299) == 1 and max(m.sets) == 299, f'and seeks there, once ({m.sets})')
+    # a hold released with no tick seen (500 ms by the event times): still no tap, no seek
+    m = now(); x, y = m.polar(90, 85); m.clock = 1000; m.ptr('down', x, y, 1000); m.ptr('up', x, y, 1700)
+    expect(not m.cmds and not m.sets, 'a long touch the timer had not seen: no tap and no seek')
+    # turning cancels the scan: no further seek, no skip (a seek already sent stays sent)
+    m = now(); m.seek_moves = False; x, y = hold(m, 90, 8, up=False)
+    expect(m.sets == [104], f'one seek sent before the turn ({m.sets})')
+    cx, cy = m.polar(90 + 40, 85)
+    m.ptr('move', cx, cy, m.clock + 20); m.ptr('up', cx, cy, m.clock + 40)
+    tick(m, O['IP_VOL_SHOW_MS'] + 600)   # (the turn set the volume: its bar first)
+    expect(m.sets == [104] and not m.cmds and not m.seeks and times(m) == ['1:40', '-3:20'], f'a turn during the hold cancels: no more seeks, no skip, the real position ({m.sets}, {m.cmds}, {times(m)})')
+    # an abort cancels
+    m = now(); x, y = hold(m, 90, 7, up=False)
+    m.ptr('abort', x, y, m.clock)
+    tick(m, 1000)
+    expect(not m.sets and not m.cmds and times(m) == ['1:40', '-3:20'], f'an abort cancels: no seek ({m.sets})')
+    m.ptr('up', x, y, m.clock + 5)
+    expect(not m.sets and not m.cmds, 'and the up after it is nothing')
+    # paused: seeks without resuming, nothing pauses it again
+    m = now(status=3); x, y = hold(m, 90, 8, up=False)
+    expect(times(m) == ['1:44', '-3:16'] and m.sets == [104], f'paused: the scan works the same, seeking ({times(m)}, {m.sets})')
+    tick(m)
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets == [104, 105] and m.status == 3, f'paused: the final seek, still paused ({m.sets}, {m.status})')
+    expect(not m.seeks and not [c for c in m.calls if c[0] == 'playpause_quick_click'] and not m.cmds, f'paused: no seek_time, no resume, no re-pause ({m.calls}, {m.cmds})')
+    # no player link: -1 cancels the scan quietly
+    m = now(); m.set_ret = -1; x, y = hold(m, 90, 8, up=False)
+    expect(not m.sets and times(m) == ['1:40', '-3:20'], f'mclSetSeek -1: the scan is over, the bar shows the player ({times(m)})')
+    n = len([c for c in m.calls if c[0] == 'mclSetSeek'])
+    for _ in range(10): tick(m)
+    expect(len([c for c in m.calls if c[0] == 'mclSetSeek']) == n, 'and it does not try again')
+    m.ptr('up', x, y, m.clock)
+    expect(not m.cmds and not m.seeks, f'the release after it: no tap, no seek_time ({m.cmds}, {m.seeks})')
+    # -1 on the release's seek: no held target
+    m = now(); x, y = hold(m, 90, 5 + 1, up=False); m.set_ret = -1
+    m.ptr('up', x, y, m.clock)
+    expect(not m.sets and not m.cmds and times(m) == ['1:40', '-3:20'], f'-1 on the release: the real position stays ({m.sets}, {m.cmds}, {times(m)})')
+    # nothing to scan: stopped, no track, no length, Radio, DLNA
+    for what, setup in (('stopped', lambda m: setattr(m, 'status', 1)), ('no length', lambda m: setattr(m, 'pt', (0, 0))), ('no time', lambda m: setattr(m, 'pt', None)),
+                        ('Radio', lambda m: setattr(m, 'radio', 1)), ('no track', lambda m: m.play([], 0))):
+        m = now(); setup(m)
+        hold(m, 90, 8)
+        expect(not m.sets and not m.seeks and not m.cmds and 'playpause_quick_click' not in m.names(), f'{what}: a hold does nothing, no tap either ({m.sets}, {m.cmds})')
+        expect(times(m) in ([], ['1:40', '-3:20']) or what in ('no length', 'no time', 'no track'), f'{what}: nothing scanned on the bar')
+    m = now(); m.setword(pod.DATA['DMR_SERVERFLAG'][0], 1); hold(m, 90, 8)
+    expect(not m.sets and not m.seeks and not m.cmds, 'DLNA: a hold does nothing')
+    # the player stops mid-scan: no seek is sent to a stopped player
+    m = now(); x, y = hold(m, 90, 6, up=False); m.status = 1
+    for _ in range(5): tick(m)
+    m.ptr('up', x, y, m.clock)
+    expect(not m.sets and not m.seeks, f'stopped mid-scan: no seek ({m.sets})')
+    # other levels: a hold of next is still a tap on release
+    m = machine(songs=['Alpha']); m.open(); m.timers = []
+    hold(m, 90, 8)
+    expect(m.cmds and m.cmds[0][0] == 'next' and not m.sets, f'the main menu: a held next is a tap on release ({m.cmds}, {m.sets})')
+    # the other sectors on Now Playing do not scan
+    m = now(); hold(m, 180, 8)
+    expect(m.cmds == [('playpause',)] and not m.sets, f'a held play / pause sector is a tap ({m.cmds}, {m.sets})')
 
 
 class PCIM(IM):
@@ -1858,7 +2273,7 @@ def podcasts_tests(ctx):
     def go(m):
         m.turn(0, STEP_DEG * 2 + 5); m.tap(CX, CY)
     m = card()
-    go(m)
+    go(m); settle(m)
     texts = m.paint()[0]
     expect(rows_of(texts) == ['Beta', 'Alpha'] and 'Podcasts' in texts_of((texts,)), f'Podcasts: the shows with an episode file, newest first, the title bar ({rows_of(texts)})')
     m.tap(CX, CY)
@@ -1866,10 +2281,10 @@ def podcasts_tests(ctx):
     expect(pc_rows(texts[0]) == ['b1'] and 'Beta' in texts_of(texts), f'a show: its episodes, the show as the title ({rows_of(texts[0])})')
     # the episodes of Alpha, newest first, with the dot on both (nothing played)
     x, y = m.polar(0, 85); m.tap(x, y)
-    m.turn(0, STEP_DEG + 5); m.tap(CX, CY)
+    m.turn(0, STEP_DEG * 2 + 5); m.tap(CX, CY)
     texts = m.paint()
     expect(pc_rows(texts[0]) == ['a2', 'a1'], f'Alpha: newest first ({rows_of(texts[0])})')
-    dots = [f for f in texts[1] if 6 <= f[1] <= 9 and f[3] <= 8 and f[4] == 1 and f[2] >= BARH and f[2] < BARH + 2 * ROWH]
+    dots = [f for f in texts[1] if 6 <= f[1] <= 9 and f[3] <= 8 and f[4] == 1 and f[2] >= BARH and f[2] < row_y(2)]
     expect(len(dots) == 16, f'both unplayed episodes have the dot, 8 rows each ({len(dots)} fills)')
     m.turn(0, STEP_DEG + 5)
     m.calls = []
@@ -1904,20 +2319,40 @@ def podcasts_tests(ctx):
 
 
 def podcasts_pane_tests(ctx):
-    """The main menu's Podcasts row: Podcasts is row 2 and opens its level, Music has no Podcasts row, the row shows its picture in the pane (No Podcasts under it when no show has an episode), the cover pane is back off the row."""
+    """The main menu's Podcasts row: Podcasts is row 1 and opens its level, Music has no Podcasts row, the row shows its picture in the pane (No Podcasts under it when no show has an episode), the cover pane is back off the row."""
     expect = ctx.expect
     root = '/mnt/mmc/Podcasts'
     def card(episode):
         m = PCIM(); m.class_lists[O['CLASS_ALL_SONGS']] = []
         if episode: m.put(f'{root}/Alpha/a1.mp3', b'x', mtime=1000)
+        m.images['ipod_podcasts'] = (PANE[2], PANE[3], bytes((200, 60, 20, 255)) * (PANE[2] * PANE[3]))   # a flat picture: the fade's mix is measurable
         m.open(); m.timers = []
         return m
-    def pc_blits(m): return [b for b in m.paint()[2] if b[2] == PANE and b[1] == (0, 0, PANE[2], PANE[3])]
+    def pc_blits(m):   # the picture's blits: its bitmap_t is inside the page's state (ip.pc_img); the covers' pane-sized frame is a heap bitmap
+        return [b for b in m.paint()[2] if b[2] == PANE and b[1] == (0, 0, PANE[2], PANE[3]) and PSYMS['ip'] <= b[0] < PSYMS['ip'] + 0x4000]
+    def pane_px(m, x=80, y=120):   # the RGB of the pane's one full-pane blit (the covers' frame or the picture) at (x, y)
+        b = [b for b in m.paint()[2] if b[2] == PANE and b[1] == (0, 0, PANE[2], PANE[3])]
+        bmp = b[-1][0]
+        q = m.u.mem_read(m.word(bmp + 0x14) + y * m.word(bmp) * 4 + x * 4, 3)
+        return tuple(q)
+    def fade(m, n=8):   # the fade's ticks (IP_FADE_TICK_MS each)
+        for _ in range(n): tick(m, 50)
     m = card(False)
-    expect(rows_of(m.paint()[0])[2] == m.tr('Podcasts') and m.tr('Podcasts') not in [m.tr(k) for k in MUSIC_KEYS], 'the main menu has Podcasts at row 2, Music has no Podcasts row')
+    expect(rows_of(m.paint()[0])[2] == m.tr('Podcasts') and m.tr('Podcasts') not in [m.tr(k) for k in MUSIC_KEYS], 'the main menu has Podcasts at row 1, Music has no Podcasts row')
     expect(not pc_blits(m) and not [t for t, _ in m.paint()[0] if t == m.tr('No Podcasts')], 'on the Music row: the cover pane, no picture, no No Podcasts')
     m.turn(0, STEP_DEG * 2 + 5)
     expect(m.loads.count('ipod_podcasts') == 1, f'moving to Podcasts loads its picture once ({m.loads})')
+    expect(not pc_blits(m), 'right after the wheel step the covers stay (a fast turn past Podcasts does not flash its picture)')
+    tick(m, O['IP_PC_PANE_MS'] - 50)
+    expect(not pc_blits(m), 'the picture still waits before IP_PC_PANE_MS')
+    covers = pane_px(m)
+    tick(m, 50); tick(m, 50)
+    mid = pane_px(m)
+    expect(not pc_blits(m) and not [t for t, _ in m.paint()[0] if t == m.tr('No Podcasts')], 'the wait is over: the picture fades in over the covers (the frame, no picture blit or No Podcasts yet)')
+    fade(m)
+    pic = pane_px(m)
+    expect(mid != covers and mid != pic and all(min(a, c) - 1 <= b <= max(a, c) + 1 for a, b, c in zip(covers, mid, pic)),
+           f'mid-fade the pane is a mix of the covers and the picture ({covers} {mid} {pic})')
     texts = m.paint()[0]
     expect(len(pc_blits(m)) == 1 and [r for t, r in texts if t == m.tr('No Podcasts')] != [], 'the picture is drawn in the pane and, with no episode, No Podcasts')
     r = [r for t, r in texts if t == m.tr('No Podcasts')][0]
@@ -1926,11 +2361,18 @@ def podcasts_pane_tests(ctx):
     expect(not [x for x in c if x[0] == 'loadLocalClassList' or x[:3] == ('bitmap_create_ex', O['IP_PANE_ART'], O['IP_PANE_ART'])] and m.loads.count('ipod_podcasts') == 1, 'the pane timer does no cover work and the picture is not loaded again')
     m.tap(CX, CY)
     expect(rows_of(m.paint()[0]) == [m.tr('No downloaded episodes')], 'selecting Podcasts opens the Podcasts level')
-    m.tap(*m.polar(0, 85)); m.turn(0, -(STEP_DEG * 2 + 5))
+    m.tap(*m.polar(0, 85))
+    expect(len(pc_blits(m)) == 1, 'MENU back to the main menu on the Podcasts row: the picture at once')
+    m.turn(0, -(STEP_DEG * 2 + 5))
+    tick(m, 50)
+    expect(not pc_blits(m) and pane_px(m) != pic, 'off the row the picture fades out at once (no wait)')
+    fade(m)
     texts = m.paint()[0]
     expect(not pc_blits(m) and not [t for t, _ in texts if t == m.tr('No Podcasts')], 'back on the Music row: the cover pane is back, no picture, no No Podcasts')
+    m.turn(0, STEP_DEG * 4 + 5); tick(m, O['IP_PC_PANE_MS'])
+    expect(not pc_blits(m), 'a turn straight past Podcasts never shows its picture')
     m = card(True)
-    m.turn(0, STEP_DEG * 2 + 5)
+    m.turn(0, STEP_DEG * 2 + 5); tick(m, O['IP_PC_PANE_MS']); fade(m)
     expect(len(pc_blits(m)) == 1 and not [t for t, _ in m.paint()[0] if t == m.tr('No Podcasts')], 'with an episode on the card the picture shows and No Podcasts does not')
 
 
@@ -1985,7 +2427,7 @@ def unknown_album_tests(ctx):
     def pod_rows(m):
         m.open(); m.timers = []
         music(m)
-        m.turn(0, STEP_DEG * 1 + 5); m.tap(CX, CY)
+        m.turn(0, STEP_DEG * 3 + 5); m.tap(CX, CY)
         texts, _, _ = m.paint()
         return rows_of(texts)
 
@@ -2010,4 +2452,196 @@ def unknown_album_tests(ctx):
     expect(pod_rows(m) == ['Kind of Blue', 'Homogenic', 'Unknown Album'], 'a failed query keeps the row')
 
 
-SECTIONS = [angle_tests, asset_tests, menu_tests, open_tests, paint_tests, wheel_tests, feel_tests, tap_tests, nav_tests, stale_tests, playing_indicator_tests, music_menu_tests, root_shortcut_tests, now_row_tests, menu_padding_tests, rich_rows_tests, row_art_tests, playlist_art_tests, now_material_tests, classic_material_tests, split_menu_tests, pane_tests, server_cover_tests, shuffle_tests, settings_tests, i18n_tests, appearance_tests, transition_tests, fresh_art_tests, pane_sharp_tests, reference_nav_tests, shadow_slide_tests, now_steady_tests, podcasts_tests, podcasts_pane_tests, unknown_album_tests]
+def np_wheel_tests(ctx):
+    """The Now Playing wheel as the iPod classic's: a turn sets the volume through stock's own volume dialog steps (each batch then stock's stop, the Pod window the context) and shows a
+    volume bar with speakers instead of the times for IP_VOL_SHOW_MS; Line Out does nothing. The centre puts up the scrubber: a turn moves the target IP_SCRUB_S a step, only the knob
+    while the finger is on the wheel; its release seeks once (mclSetSeek); the centre again or IP_SCRUB_IDLE_MS idle puts the progress bar back; nothing to scrub, the centre does nothing; play / pause is the bottom sector."""
+    expect = ctx.expect
+    VOL, LINEOUT = pod.DATA['G_VOLUME'][0], pod.DATA['LINEOUT_FLAG'][0]
+    TX, TW, BY, BH, K = O['IP_NP_TRACK_X'], O['IP_NP_TRACK_W'], O['IP_NP_BAR_Y'], O['IP_NP_BAR_H'], O['IP_NP_KNOB']
+    def now(status=2, pt=(100, 300)):
+        m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
+        songs = m.class_lists[O['CLASS_ALL_SONGS']]
+        m.status = status; m.pt = pt; m.play([songs[0], songs[1]], 0)
+        m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)   # the Now Playing row
+        tick(m, 500)
+        tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])   # the title bar has dropped in
+        m.cmds, m.seeks, m.sets, m.calls, m.vol = [], [], [], [], []
+        return m
+    def times(m):
+        return [n for n, _ in m.paint()[0] if len(n) >= 4 and n[-3] == ':' and n.lstrip('-')[:1].isdigit()]
+    def fill_w(m):
+        f = [f for f in m.paint()[1] if f[1] == TX and f[2] == BY + BH // 2 and f[4] == 1 and f[3] < TW]
+        return f[0][3] if f else 0
+    # volume up 3 steps: stock's +1 twice a step, then its stop, on the Pod window
+    m = now()
+    m.turn(0, STEP_DEG * 3 + 5)
+    adds = [w for k, w in m.vol if k == 'add']
+    expect(len(adds) == 3 * O['IP_VOL_STEPS'] and m.word(VOL) == 40 + 3 * O['IP_VOL_STEPS'] and [k for k, _ in m.vol].count('stop') == 3 and m.vol[-1][0] == 'stop' and len({w for _, w in m.vol}) == 1 and m.vol[0][1],
+           f'a turn: the stock volume steps, {O["IP_VOL_STEPS"]} a wheel step, each followed by its stop, one window ({m.vol}, {m.word(VOL)})')
+    SL = O['IP_SCRUB_SLIDE_MS']
+    expect(times(m) == ['1:40', '-3:20'], f'the volume bar starts at the right edge: the progress bar still in place ({times(m)})')
+    m.clock += SL // 2
+    fills = m.paint()[1]
+    sx = lambda f: (f[1] ^ 0x80000000) - 0x80000000
+    vol = [sx(f) for f in fills if f[2] == BY + BH // 2 and f[4] == 1 and f[3] == TW * m.word(VOL) // 100]
+    expect(len(times(m)) == 2 and vol and TX < vol[0] < O['IP_W'], f'halfway: the volume bar comes in from the right, the progress bar goes left ({times(m)}, {vol})')
+    tick(m, SL)
+    expect(times(m) == [] and fill_w(m) == TW * m.word(VOL) // 100, f'the volume bar instead of the times, filled to the volume ({times(m)}, {fill_w(m)})')
+    expect(not m.cmds and not m.sets, 'no play / pause, no seek')
+    tick(m, O['IP_VOL_SHOW_MS'] + 100)
+    m.clock += SL // 2
+    vol = [sx(f) for f in m.paint()[1] if f[2] == BY + BH // 2 and f[4] == 1 and f[3] == TW * m.word(VOL) // 100]
+    expect(vol and TX < vol[0] < O['IP_W'], f'after IP_VOL_SHOW_MS the volume bar goes right, the progress bar comes back from the left ({vol})')
+    tick(m, SL)
+    expect(times(m) == ['1:40', '-3:20'] and fill_w(m) != TW * m.word(VOL) // 100, f'then the progress bar and the times again ({times(m)})')
+    m.vol = []; m.turn(0, -(STEP_DEG * 2 + 5))
+    expect([k for k, _ in m.vol].count('dec') == 2 * O['IP_VOL_STEPS'] and m.word(VOL) == 40 + O['IP_VOL_STEPS'], f'backwards: down ({m.vol})')
+    # Line Out keeps its level
+    m = now(); m.u.mem_write(LINEOUT, b'\x01'); m.turn(0, STEP_DEG * 3 + 5)
+    expect(m.vol == [] and m.word(VOL) == 40 and times(m) == ['1:40', '-3:20'], f'Line Out: no step, no volume bar ({m.vol})')
+    # the scrubber
+    SL = O['IP_SCRUB_SLIDE_MS']
+    m = now(); m.clock = 5000; m.tap(CX, CY)
+    m.clock += SL // 2
+    fills = m.paint()[1]
+    tips = [f[1] for f in fills if f[2:5] == (BY + BH // 2 - K, 1, 1)]
+    expect(len(times(m)) == 4 and fill_w(m) == 0 and tips and TX + TW * 100 // 300 < tips[0] < O['IP_W'],
+           f'the centre: halfway the progress bar has gone left and the scrubber comes in from the right ({times(m)}, {tips})')
+    expect(any((f[1] ^ 0x80000000) - 0x80000000 < TX and f[3] == TW * 100 // 300 and f[2] == BY + BH // 2 for f in fills), 'the progress bar, still filled, on its way out to the left (x signed)')
+    tick(m, SL)
+    expect(not m.cmds and times(m) == ['1:40', '-3:20'], f'the centre: no play / pause, the scrubber is up ({m.cmds})')
+    fills = m.paint()[1]
+    expect(any(f[1:5] == (TX + TW * 100 // 300, BY + BH // 2 - K, 1, 1) for f in fills), 'a diamond knob at the position, its tip K rows above the middle of the bar')
+    kx = TX + TW * 100 // 300
+    mid = [f[0] & 0xffffff for f in fills if f[1:5] == (kx - K + 1, BY + BH // 2, 2 * K - 1, 1)]
+    expect(mid == [0xeb893d], f'the knob is the bar\'s blue, row for row ({[hex(c) for c in mid]})')
+    refl = [f for f in fills if f[2] == BY + BH + 1 and f[1] <= kx <= f[1] + f[3] - 1 and f[3] < TW]
+    expect(refl and refl[-1][0] & 0xffffff != mid[0] if mid else False, f'and a faded reflection under the bar ({refl})')
+    expect(fill_w(m) == 0 and not any(f[1] == TX and f[2] == BY + BH // 2 and 0 < f[3] < TW for f in fills), 'the scrubber\'s track is empty, no fill')
+    m.clock = 6000
+    x, y = m.polar(0, 80); m.ptr('down', x, y, m.clock)
+    for i in range(1, 12): x, y = m.polar((STEP_DEG * 3 + 5) * i / 11, 80); m.ptr('move', x, y, m.clock); tick(m, 150)
+    expect(times(m) == ['1:46', '-3:14'] and m.vol == [], f'a turn moves the target {O["IP_SCRUB_S"]} s a step, no volume ({times(m)}, {m.vol})')
+    expect(not m.sets, f'while the finger is on the wheel only the knob moves: no seek ({m.sets})')
+    m.ptr('up', x, y, m.clock)
+    expect(m.sets == [106], f'the release: one seek to the target ({m.sets})')
+    m.clock += 50; m.tap(CX, CY)
+    expect(m.sets == [106] and not m.cmds, f'the centre again: nothing more to seek, no play / pause ({m.sets}, {m.cmds})')
+    m.clock += SL // 2
+    tips = [f[1] for f in m.paint()[1] if f[2:5] == (BY + BH // 2 - K, 1, 1)]
+    expect(len(times(m)) == 2 and tips and (tips[0] ^ 0x80000000) - 0x80000000 < TX + TW * 106 // 300, f'halfway: the scrubber goes left, the shuffle slider comes in from the right ({tips})')
+    tick(m, SL)
+    names = [n for n, _ in m.paint()[0]]
+    expect(times(m) == [] and all(m.tr(k) in names for k in ('Off', 'Songs', 'Albums')), f'then the shuffle slider: Off, Songs, Albums ({names})')
+    def chosen(m):
+        m.paint()
+        return [t for (t, _), st in zip(m.texts, m.text_styles) if st == 'label_ip_shuf']
+    expect(chosen(m) == [m.tr('Off')], f'Off chosen, in the selection blue ({chosen(m)})')
+    def boxes(m):
+        m.paint()
+        return {t: r for (t, r), st in zip(m.texts, m.text_styles) if t in (m.tr('Off'), m.tr('Songs'), m.tr('Albums'))}, \
+            {st for (t, _), st in zip(m.texts, m.text_styles) if t in (m.tr('Off'), m.tr('Songs'), m.tr('Albums'))}
+    def thumb(m):   # the thumb's top face row (one row under the rail's top, 2 px in from its left, a third of the rail less 4 wide): its left edge
+        return [((f[1] ^ 0x80000000) - 0x80000000) - 1 for f in m.paint()[1] if f[3] == O['IP_SHUF_W'] // 3 - 4 and f[2] == BY + BH // 2 - O['IP_SHUF_H'] // 2 + 1]
+    SX, SLOT = O['IP_SHUF_X'], O['IP_SHUF_W'] // 3
+    before, styles = boxes(m)
+    expect(styles <= {'label_ip_shuf', 'label_ip_np3'}, f'the names in left-aligned styles only, so a choice cannot shift them ({styles})')
+    expect(thumb(m) == [SX + 1], f'the thumb over Off ({thumb(m)})')
+    m.vol = []; m.turn(0, STEP_DEG + 5)
+    m.clock += O['IP_SHUF_THUMB_MS'] // 2
+    mid = thumb(m)
+    expect(mid and SX + 1 < mid[0] < SX + SLOT + 1, f'halfway the thumb glides between Off and Songs ({mid})')
+    tick(m, O['IP_SHUF_THUMB_MS'])
+    expect(thumb(m) == [SX + SLOT + 1], f'then rests over Songs ({thumb(m)})')
+    after, _ = boxes(m)
+    expect(after == before, f'the names keep their boxes when the choice changes ({before}, {after})')
+    expect(chosen(m) == [m.tr('Songs')] and m.vol == [], f'a turn forward: shuffle Songs, no volume ({chosen(m)}, {m.vol})')
+    m.turn(0, STEP_DEG + 5)
+    expect(chosen(m) == [m.tr('Albums')], f'again: Albums ({chosen(m)})')
+    m.turn(0, STEP_DEG + 5)
+    expect(chosen(m) == [m.tr('Albums')], 'the last choice stays')
+    m.turn(0, -(STEP_DEG * 2 + 5))
+    expect(chosen(m) == [m.tr('Off')], f'and back: Off ({chosen(m)})')
+    m.clock |= 1; m.clock += 1; m.tap(CX, CY)   # an even clock: the slide's start (now | 1) is a millisecond ahead
+    names = [n for n, _ in m.paint()[0]]
+    expect(m.tr('Albums') in names, f'the centre again: the slide starts with the shuffle slider still in place ({names})')
+    m.clock += SL // 2
+    names = [n for n, _ in m.paint()[0]]
+    expect(len(times(m)) == 2 and m.tr('Albums') in names, f'halfway: the slider goes left, the progress bar comes in from the right ({times(m)}, {names})')
+    tick(m, SL)
+    expect(times(m) == ['1:46', '-3:14'] and m.tr('Albums') not in [n for n, _ in m.paint()[0]], f'the centre again, no lyrics file: the progress bar ({times(m)})')
+    m.vol = []; m.turn(0, STEP_DEG + 5)
+    expect(len(m.vol) == O['IP_VOL_STEPS'] + 1, 'and the wheel is the volume again')
+    # the scrubber's idle end
+    m = now(); m.seek_moves = False; m.tap(CX, CY); m.turn(0, -(STEP_DEG * 2 + 5))
+    tick(m, O['IP_SCRUB_IDLE_MS'] + 100)
+    m.clock += SL // 2
+    tips = [(f[1] ^ 0x80000000) - 0x80000000 for f in m.paint()[1] if f[2:5] == (BY + BH // 2 - K, 1, 1)]
+    expect(len(times(m)) == 4 and tips and tips[0] < TX + TW * 96 // 300 - O['IP_W'] // 4, f'idle: halfway the scrubber goes left, the progress bar comes in from the right like every view change ({tips})')
+    tick(m, SL)
+    expect(m.sets and m.sets[-1] == 96 and times(m) == ['1:36', '-3:24'], f'idle: the last seek, the target held on the bar ({m.sets}, {times(m)})')
+    m.vol = []; m.turn(0, STEP_DEG + 5)
+    expect(m.vol, 'then a turn is the volume')
+    # nothing to scrub (stopped): the centre does nothing, the turn is still the volume
+    m = now(); m.status = 1; m.turn(0, STEP_DEG + 5)
+    expect(not m.cmds and not m.sets and len(m.vol) == O['IP_VOL_STEPS'] + 1, f'stopped: the turn is the volume ({m.cmds}, {m.sets}, {m.vol})')
+    m.tap(CX, CY); tick(m, SL)
+    expect(not m.cmds and not m.sets and m.tr('Albums') in [n for n, _ in m.paint()[0]], f'and the centre skips the scrubber: the shuffle slider ({m.cmds}, {m.sets})')
+    # the bottom sector plays / pauses
+    m = now(); x, y = m.polar(180, 85); m.tap(x, y)
+    expect(m.cmds == [('playpause',)], 'the bottom sector: play / pause')
+
+
+def np_lyrics_tests(ctx):
+    """The lyrics view (Now Playing's centre after the scrubber and the shuffle slider, the iPod's plain text): the track's .lrc without its time tags and tag lines, blank
+    lines kept single, long lines wrapped at a space; the title bar names the song; a small cover, the album and the artist above the lines; the wheel scrolls the whole
+    page a line a step with a scroll bar at the right edge; the centre again goes back to the progress bar; no .lrc, no lyrics view."""
+    expect = ctx.expect
+    SL, LINE, LX = O['IP_SCRUB_SLIDE_MS'], O['IP_LY_LINE'], O['IP_LY_X']
+    def now(lrc=None):
+        m = machine(songs=['Alpha', 'Beta']); m.open(); m.timers = []
+        if lrc is not None:
+            m.files['/mnt/mmc/m/0.lrc'] = len(lrc); m.contents = {'/mnt/mmc/m/0.lrc': lrc}
+        songs = m.class_lists[O['CLASS_ALL_SONGS']]
+        m.status = 2; m.pt = (100, 300); m.play([songs[0], songs[1]], 0)
+        m.turn(0, STEP_DEG * 5 + 5); m.tap(CX, CY)   # the Now Playing row
+        tick(m, 500)
+        tick(m, O['IP_BAR_WAIT_MS'] + O['IP_BAR_DROP_MS'])   # the title bar has dropped in
+        for _ in range(3): m.tap(CX, CY); tick(m, SL + 50)   # the scrubber, the shuffle slider, the lyrics
+        return m
+    lrc = ('\ufeff[ar:Someone]\r\n[ti:Alpha]\r\n[00:01.00]First line\r\n[00:02.50][00:40.00] Second line\r\n[00:03.00]\r\n\r\n[00:04.00]Third line\r\n'
+           '[00:05.00]' + ' '.join(['word%02d' % i for i in range(16)]) + '\r\n').encode()
+    m = now(lrc)
+    texts = m.paint()[0]
+    rows = [(t, r) for t, r in texts if r[0] == LX]
+    names = [t for t, _ in texts]
+    expect([t for t, _ in rows][:3] == ['First line', 'Second line', 'Third line'], f'the lines without their time tags, the tag lines dropped ({names})')
+    expect(not any('[' in t for t in names), 'no tag shown')
+    y = {t: r[1] for t, r in rows}
+    expect(y['Second line'] - y['First line'] == LINE and y['Third line'] - y['Second line'] == 2 * LINE, f'a line a row, two blank lines one gap ({y})')
+    wrapped = [t for t, _ in rows][3:]
+    expect(len(wrapped) > 1 and ' '.join(w.strip() for w in wrapped) == ' '.join(['word%02d' % i for i in range(16)]), f'a long line wrapped at spaces ({wrapped})')
+    expect('Alpha' in names and m.tr('Now Playing') not in names, 'the title bar names the song')
+    expect(not [n for n in names if len(n) >= 4 and n[-3] == ':' and n.lstrip('-')[:1].isdigit()], 'no progress bar or times')
+    # the wheel scrolls the whole page a line a step (a long file)
+    m = now(''.join('[00:%02d.00]Line %02d\n' % (i, i) for i in range(40)).encode())
+    y0 = {t: r[1] for t, r in m.paint()[0]}
+    fills = m.paint()[1]
+    bar = [f for f in fills if f[1] == O['IP_W'] - O['IP_LY_SB_W'] - 2 and f[3] == O['IP_LY_SB_W']]
+    expect(len(bar) == 2, f'a scroll bar at the right edge: track and thumb ({bar})')
+    m.turn(0, STEP_DEG * 3 + 5)
+    y1 = {t: r[1] for t, r in m.paint()[0]}
+    expect(y1.get('Line 05') == y0['Line 05'] - 3 * LINE and m.vol == [], f'three steps: three lines up, no volume ({y0.get("Line 05")}, {y1.get("Line 05")})')
+    m.turn(0, -(STEP_DEG * 9 + 5))
+    expect({t: r[1] for t, r in m.paint()[0]}.get('Line 05') == y0['Line 05'], 'back: not past the top')
+    m.tap(CX, CY); tick(m, SL + 50)
+    names = [t for t, _ in m.paint()[0]]
+    expect('1:40' in names and m.tr('Now Playing') in names, f'the centre again: the progress bar, the title Now Playing ({names})')
+    # tags only: no lyrics view
+    m = now(b'[ar:Someone]\n[ti:Alpha]\n')
+    names = [t for t, _ in m.paint()[0]]
+    expect('1:40' in names, f'a .lrc with no text: the centre goes from the shuffle slider back to the progress bar ({names})')
+
+
+SECTIONS = [angle_tests, asset_tests, menu_tests, open_tests, paint_tests, wheel_tests, feel_tests, tap_tests, nav_tests, stale_tests, playing_indicator_tests, music_menu_tests, genre_composer_tests, root_shortcut_tests, now_row_tests, menu_padding_tests, rich_rows_tests, row_art_tests, playlist_rows_tests, now_material_tests, classic_material_tests, split_menu_tests, pane_tests, server_cover_tests, shuffle_tests, settings_tests, i18n_tests, appearance_tests, transition_tests, fresh_art_tests, pane_sharp_tests, reference_nav_tests, shadow_slide_tests, now_steady_tests, np_pending_tests, scan_tests, np_wheel_tests, np_lyrics_tests, podcasts_tests, podcasts_pane_tests, unknown_album_tests]

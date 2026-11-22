@@ -59,11 +59,16 @@ static const int cf_sin[25] = {0,     4286,  8554,  12785, 16962, 21066, 25080, 
                                36410, 39896, 43211, 46341, 49273, 51993, 54491, 56756, 58777,
                                60547, 62058, 63303, 64277, 64975, 65396, 65536};
 
+#define CF_GO_FADE 64 /* coverflow_morph: the first quarter fades the side covers, the rest moves the centre cover */
+#define CF_GO_SLIDE 160 /* coverflow_morph back: in the last 5/8 the side covers slide in from the edges, easing out */
+#define CF_GO_SLIDE_FROM (7 * CF_ONE / 2) /* from this many albums further out (past the shelf's fade) */
+#define CF_TURN_IN_NEAR 150 /* coverflow_turn_in: the near edge starts this % of its height, close to the eye */
+
 /* cfg_t (a shelf's geometry) is in coverflow.h. */
-const cfg_t cf_portrait = {CF_VIEW_W, CF_VIEW_H, CF_CX,      CF_TOP, ART_SIZE, CF_EYE, CF_X1, CF_XS,
-                           CF_Z1,     CF_ZS,     CF_REFLECT, 0,      CF_TURN,  0,      0};
-const cfg_t cf_land = {CFL_W, CFL_H, CFL_CX,     CFL_TOP, ART_SIZE, CF_EYE, CFL_X1, CFL_XS,
-                       CF_Z1, CF_ZS, CF_REFLECT, 1,       CF_TURN,  0,      0};
+const cfg_t cf_portrait = {CF_VIEW_W,  CF_VIEW_H, CF_CX,   CF_TOP, ART_SIZE, CF_EYE, CF_X1, CF_XS, CF_Z1, CF_ZS,
+                           CF_REFLECT, 0,         CF_TURN, 0,      0,        0,      0,     0,     0};
+const cfg_t cf_land = {CFL_W,      CFL_H, CFL_CX,  CFL_TOP, ART_SIZE, CF_EYE, CFL_X1, CFL_XS, CF_Z1, CF_ZS,
+                       CF_REFLECT, 1,     CF_TURN, 0,       0,        0,      0,      0,      0};
 
 /* A right-hand cover t (16.16, >= 0) from the visual position: centre xc and depth zc (1/16 px),
  * rotation c, s (16.16) and brightness (of 256). Left covers mirror it. */
@@ -72,19 +77,18 @@ typedef struct {
 } pose_t;
 
 static void pose(const cfg_t *g, int t, pose_t *p) {
-    int a = (t < CF_ONE ? t : CF_ONE) * g->turn, i = a >> 16, f = a >> 4 & 4095;
-    p->c = cf_cos[i] + (i < g->turn ? (cf_cos[i + 1] - cf_cos[i]) * f >> 12 : 0);
-    p->s = cf_sin[i] + (i < g->turn ? (cf_sin[i + 1] - cf_sin[i]) * f >> 12 : 0);
+    int x1 = g->x1, a = (t < CF_ONE ? t : CF_ONE) * g->turn, i, f;
+    a -= a * g->fold >> 8; /* folded, the covers turn back towards facing front */
     if (t < CF_ONE) {
         /* xc = A t + B t^2: x1 at t = 1, arriving at the stack's xs slope, and quick at
          * first, so the covers turning in and out mid-step keep clear of each other. */
         int sq = (int)((unsigned)t * (unsigned)t >> 16);
-        p->xc = (16 * (2 * g->x1 - g->xs) * t + 16 * (g->xs - g->x1) * sq) >> 16;
+        p->xc = (16 * (2 * x1 - g->xs) * t + 16 * (g->xs - x1) * sq) >> 16;
         p->zc = 16 * g->z1 * t >> 16;
         p->bright = 256 - ((256 - CF_BRIGHT1) * t >> 16);
     } else {
         int e = t - CF_ONE;
-        p->xc = 16 * g->x1 + (16 * g->xs * e >> 16);
+        p->xc = 16 * x1 + (16 * g->xs * e >> 16);
         p->zc = 16 * g->z1 + (16 * g->zs * e >> 16);
         p->bright = e < CF_ONE       ? CF_BRIGHT1 - ((CF_BRIGHT1 - CF_BRIGHT2) * e >> 16)
                     : e < 2 * CF_ONE ? CF_BRIGHT2 * (2 * CF_ONE - e) >> 16
@@ -94,6 +98,14 @@ static void pose(const cfg_t *g, int t, pose_t *p) {
         p->bright = t < 3 * CF_ONE       ? 256 - (int)((256 - g->tail) * (unsigned)t / (3 * CF_ONE))
                     : t < 7 * CF_ONE / 2 ? g->tail * (7 * CF_ONE - 2 * t) >> 16
                                          : 0;
+    if (g->fold > 0) { /* folded: a flat deck, every cover g->spread apart at depth g->deck, the centre no different */
+        int xf = 16 * g->spread * (t >> 4) >> 12;
+        p->xc += (xf - p->xc) * g->fold >> 8;
+        p->zc += (16 * g->deck - p->zc) * g->fold >> 8;
+    }
+    i = a >> 16, f = a >> 4 & 4095;
+    p->c = cf_cos[i] + (i < g->turn ? (cf_cos[i + 1] - cf_cos[i]) * f >> 12 : 0);
+    p->s = cf_sin[i] + (i < g->turn ? (cf_sin[i + 1] - cf_sin[i]) * f >> 12 : 0);
 }
 
 /* Screen x (1/16 px right of the centre line) of the cover point u (1/16 px from its middle). */
@@ -209,14 +221,15 @@ static void column(shelf_t *f, int col, const unsigned *tex, int h, int bright) 
     }
 }
 
-/* The cover t (16.16, signed) turns from the visual position, under what is drawn. */
-static void draw_cover(shelf_t *f, int t, const unsigned *tex) {
+/* The cover t (16.16, signed) turns from the visual position, under what is drawn. dim (0 .. 256) scales brightness. */
+static void draw_cover(shelf_t *f, int t, const unsigned *tex, int dim) {
     pose_t p;
-    int side = t < 0 ? -1 : 1, a, b, lo, hi, v;
+    int side = t < 0 ? -1 : 1, a, b, lo, hi, v, bright;
     const cfg_t *g = f->g;
     int half = 8 * g->art;
     pose(g, t * side, &p);
-    if (p.bright <= 0 || !tex) return;
+    bright = p.bright * dim >> 8;
+    if (bright <= 0 || !tex) return;
     a = project(g, &p, -half), b = project(g, &p, half);
     lo = (16 * g->cx + (a < b ? a : b)) >> 4, hi = (16 * g->cx + (a < b ? b : a)) >> 4;
     for (v = lo; v <= hi; ++v) { /* v: the column as if the cover were on the right */
@@ -225,13 +238,29 @@ static void draw_cover(shelf_t *f, int t, const unsigned *tex) {
         k = (u + half) * ART_SIZE / (16 * g->art); /* the texture column under that point */
         if (k < 0) k = 0;
         if (k >= ART_SIZE) k = ART_SIZE - 1;
-        column(f, col, tex + (side > 0 ? k : ART_SIZE - 1 - k), h, p.bright);
+        column(f, col, tex + (side > 0 ? k : ART_SIZE - 1 - k), h, bright);
     }
 }
 
 /* The ring slot of the k-th nearest pair's nearer (i 0) or farther (i 1) cover at frac: the side
  * the position is moving away from is farther. */
 static int slot(int frac, int k, int i) { return (i == 0) == (frac < 0) ? CF_REACH - k : CF_REACH + k; }
+
+static void finish_bg(const cfg_t *g, unsigned *d, int pitch) {
+    int x, y, pw = g->rot ? g->h : g->w, ph = g->rot ? g->w : g->h;
+    for (y = 0; y < ph; ++y) { /* over black, or over g->bg: what the covers do not cover of each pixel */
+        unsigned *p = d + y * pitch;
+        x = pw;
+        if (g->bg) do {
+                unsigned a = *p >> 24, have = a + (a >> 7);
+                *p = ((*p & 0xffffffu) + shade(g->bg, 256 - have)) | 0xff000000u;
+                ++p;
+            } while (--x);
+        else
+            do *p++ |= 0xff000000u;
+            while (--x);
+    }
+}
 
 /* The shelf at frac (16.16, -CF_ONE/2 to under CF_ONE/2) past its centre cover: ring[j] is the
  * texture of the cover j - CF_REACH from the centre, or 0 to leave it out. Nearest first; nearer
@@ -247,23 +276,234 @@ void coverflow_render(const cfg_t *g, unsigned *d, int pitch, int frac, const un
     f.cs = g->rot ? pitch : 1, f.rs = g->rot ? -1 : pitch;
     for (x = 0; x < g->w; ++x) f.solid_top[x] = f.solid_bottom[x] = 0;
     for (y = 0; y < ph; ++y) memset(d + y * pitch, 0, pw * 4);
-    for (k = 0; k <= CF_REACH; ++k)
-        for (i = 0; i < (k ? 2 : 1); ++i) {
-            int j = slot(frac, k, i);
-            draw_cover(&f, (j - CF_REACH) * CF_ONE - frac, ring[j]);
+    if (g->fold >= 192 && g->dir) /* the deck: the covers coming in (g->dir's side) lie over the ones before them */
+        for (k = 0; k < CF_RING; ++k) {
+            int j = g->dir > 0 ? CF_RING - 1 - k : k;
+            draw_cover(&f, (j - CF_REACH) * CF_ONE - frac, ring[j], 256);
         }
-    for (y = 0; y < ph; ++y) { /* over black, or over g->bg: what the covers do not cover of each pixel */
-        unsigned *p = d + y * pitch;
-        x = pw;
-        if (g->bg) do {
-                unsigned a = *p >> 24, have = a + (a >> 7);
-                *p = ((*p & 0xffffffu) + shade(g->bg, 256 - have)) | 0xff000000u;
-                ++p;
-            } while (--x);
-        else
-            do *p++ |= 0xff000000u;
-            while (--x);
+    else
+        for (k = 0; k <= CF_REACH; ++k)
+            for (i = 0; i < (k ? 2 : 1); ++i) {
+                int j = slot(frac, k, i);
+                draw_cover(&f, (j - CF_REACH) * CF_ONE - frac, ring[j], 256);
+            }
+    finish_bg(g, d, pitch);
+}
+
+/* One cover as ip_tilt draws Now Playing's (patch/ipod.c): its edges at columns l and r, h0 and h1 px tall, centred on
+ * row cy, every column's height linear in x and its texture column the perspective one, its reflection reflect px under
+ * a cover of the shelf's art size. */
+static void tilted(shelf_t *f, cfg_t *fg, const unsigned *tex, int l, int r, int h0, int h1, int cy, int reflect) {
+    int x, k;
+    fg->top = cy - fg->art / 2; /* column() centres on top + art / 2 */
+    fg->reflect = reflect;
+    if (!tex || r <= l) return;
+    for (x = l < 0 ? 0 : l; x < r && x < fg->w; ++x) {
+        int t = ((2 * (x - l) + 1) << 11) / (r - l);
+        int q = (int)(((unsigned)t * (unsigned)h1 << 12) / (unsigned)(h0 * 4096 - (h0 - h1) * t));
+        k = q * ART_SIZE >> 12;
+        column(f, x, tex + (k < ART_SIZE ? k : ART_SIZE - 1), (h0 << 8) - (((h0 - h1) << 8) * t >> 12), 256);
     }
+}
+
+/* The centre cover going to Now Playing's turned cover (patch/ipod.c ip_tilt), u 0 (the shelf at rest) .. 256:
+ * until CF_GO_FADE the side covers fade out where they are, then the centre cover's near (left) and far edges
+ * travel (smoothstep) to columns xl and xr, hl and hr px tall, centred on row cy (logical frame rows), its texture
+ * columns in perspective and its reflection shortening to reflect. At u 0 it is the shelf's own frame at frac 0.
+ * back (the way back, u falling): instead of fading in, the side covers slide in from both edges in the last
+ * CF_GO_SLIDE, as a shelf, each from CF_GO_SLIDE_FROM albums further out, easing out. */
+void coverflow_morph(const cfg_t *g, unsigned *d, int pitch, int u, const unsigned *const ring[CF_RING], int xl, int xr,
+                     int hl, int hr, int cy, int reflect, int back) {
+    shelf_t f;
+    cfg_t fg = *g;
+    int x, y, k, i, m, cy0 = g->top + g->art / 2, dim, off = 0;
+    f.g = &fg;
+    f.d = d;
+    f.cs = 1, f.rs = pitch;
+    for (x = 0; x < g->w; ++x) f.solid_top[x] = f.solid_bottom[x] = 0;
+    for (y = 0; y < g->h; ++y) memset(d + y * pitch, 0, g->w * 4);
+    u = u < 0 ? 0 : u > 256 ? 256 : u;
+    dim = u < CF_GO_FADE ? 256 - u * 256 / CF_GO_FADE : 0;
+    if (back) {
+        int s = u < CF_GO_SLIDE ? u * 256 / CF_GO_SLIDE : 256;
+        dim = s < 256 ? 256 : 0,
+        off = (int)((long long)CF_GO_SLIDE_FROM * (s * s) >> 16); /* quick in, slowing to rest */
+    }
+    m = u <= CF_GO_FADE ? 0 : (u - CF_GO_FADE) * 256 / (256 - CF_GO_FADE);
+    m = m * m * (768 - 2 * m) >> 16; /* smoothstep 0 .. 256 */
+    fg.fold = 0;
+    tilted(&f, &fg, ring[CF_REACH], g->cx - g->art / 2 + ((xl - (g->cx - g->art / 2)) * m >> 8),
+           g->cx + g->art / 2 + ((xr - (g->cx + g->art / 2)) * m >> 8), g->art + ((hl - g->art) * m >> 8),
+           g->art + ((hr - g->art) * m >> 8), cy0 + ((cy - cy0) * m >> 8),
+           g->reflect + ((reflect * g->art / (hl > 0 ? hl : 1) - g->reflect) * m >> 8));
+    f.g = g; /* the side covers stay on the shelf, fading (or sliding in) */
+    for (k = 1; dim && k <= CF_REACH; ++k)
+        for (i = 0; i < 2; ++i) {
+            int j = i ? CF_REACH + k : CF_REACH - k;
+            draw_cover(&f, (j - CF_REACH) * CF_ONE + (i ? off : -off), ring[j], dim);
+        }
+    finish_bg(g, d, pitch);
+}
+
+/* The second half of the card's flip when a track plays from it: the album's cover turns in from edge-on (at column
+ * xs, its near edge CF_TURN_IN_NEAR % of hl) to Now Playing's turned cover (as coverflow_morph's end), u 0 .. 256,
+ * while the side covers left behind the card fade out (the first half). */
+void coverflow_turn_in(const cfg_t *g, unsigned *d, int pitch, int u, const unsigned *const ring[CF_RING], int xs,
+                       int xl, int xr, int hl, int hr, int cy, int reflect) {
+    shelf_t f;
+    cfg_t fg = *g;
+    int x, y, m, k, i, dim;
+    f.g = &fg;
+    f.d = d;
+    f.cs = 1, f.rs = pitch;
+    for (x = 0; x < g->w; ++x) f.solid_top[x] = f.solid_bottom[x] = 0;
+    for (y = 0; y < g->h; ++y) memset(d + y * pitch, 0, g->w * 4);
+    u = u < 0 ? 0 : u > 256 ? 256 : u;
+    m = 256 - u, m = 256 - (m * m >> 8); /* ease out: quick from edge-on, settling into place */
+    fg.fold = 0;
+    tilted(&f, &fg, ring[CF_REACH], xs + ((xl - xs) * m >> 8), xs + ((xr - xs) * m >> 8),
+           hl * CF_TURN_IN_NEAR / 100 + ((hl - hl * CF_TURN_IN_NEAR / 100) * m >> 8), hr, cy,
+           reflect * g->art / (hl > 0 ? hl : 1));
+    dim = u < 128 ? 256 - u * 2 : 0; /* the side covers left behind the card fade out as it turns in */
+    f.g = g;
+    for (k = 1; dim && k <= CF_REACH; ++k)
+        for (i = 0; i < 2; ++i) {
+            int j = i ? CF_REACH + k : CF_REACH - k;
+            draw_cover(&f, (j - CF_REACH) * CF_ONE, ring[j], dim);
+        }
+    finish_bg(g, d, pitch);
+}
+
+/* Sky-blue gloss header colour at row ry of card_hdr (r | g << 8 | b << 16, matching the iPod classic Cover Flow card). */
+static unsigned card_hdr_col(int ry, int card_hdr) {
+    int h = card_hdr > 2 ? card_hdr - 2 : 1, t = ry > 0 ? ry - 1 : 0;
+    int r = 0x5a + (0x96 - 0x5a) * t / h;
+    int g = 0xae + (0xd1 - 0xae) * t / h;
+    int b = 0xe4 + (0xf6 - 0xe4) * t / h;
+    if (ry <= 1) return 0xe8bb74u;
+    return (unsigned)(r | g << 8 | b << 16);
+}
+
+/* One column of the flipped back tracklist card: the card's own picture (face: card_w x card_h, the settled card's pixels with its text)
+ * or, with no face, a sketch of it (sky-blue glossy header, white track area and blue selection bar). */
+static void card_column(shelf_t *f, int col, int cy, int h, int rx, int card_w, int card_h, int card_hdr, int card_rows,
+                        int sel_row, int bright, const unsigned *face) {
+    const cfg_t *g = f->g;
+    unsigned *d, *px;
+    int top, bottom, step, y, end, last, first, final, v, pitch = f->rs, s0, s1;
+    int border_x = rx == 0 || rx == card_w - 1, list_h = card_h - card_hdr - 1;
+    if (h < 16) return;
+    d = f->d + col * f->cs;
+    top = 256 * cy - h / 2, bottom = top + h, step = (card_h << 20) / (h >> 4);
+    y = top >> 8, end = (bottom + 255) >> 8, last = end < g->h ? end : g->h;
+    first = y, final = end - 1;
+    v = (((y << 8) + 128 - top) >> 4) * step >> 4;
+    if (y < 0) v -= y * step, y = 0;
+    for (px = d + y * pitch; y < last; ++y, v += step, px += pitch) {
+        int ry = v < 0 ? 0 : v >> 16 >= card_h ? card_h - 1 : v >> 16;
+        unsigned cov = 256, c;
+        if (y == first || y == final) {
+            int from = y << 8 > top ? y << 8 : top, to = (y + 1) << 8 < bottom ? (y + 1) << 8 : bottom;
+            cov = (unsigned)(to - from);
+        }
+        if (face)
+            c = face[ry * card_w + rx] & 0xffffffu;
+        else if (ry == 0 || (border_x && ry <= card_hdr))
+            c = 0xb8976bu;
+        else if (border_x)
+            c = 0xd4cec8u;
+        else if (ry == card_hdr)
+            c = 0xbc9252u;
+        else if (ry < card_hdr)
+            c = ry >= 9 && ry <= 14 && rx >= 10 && rx < card_w * 3 / 5 ? 0xf8f8f8u
+                : ry >= 25 && ry <= 28 && rx >= 10 && rx < card_w / 2  ? 0xf4ece2u
+                                                                       : card_hdr_col(ry, card_hdr);
+        else {
+            int rel = ry - card_hdr - 1;
+            int ri = list_h > 0 && card_rows > 0 ? rel * card_rows / list_h : 0;
+            if (ri == sel_row) {
+                int r0 = ri * list_h / card_rows, r1 = (ri + 1) * list_h / card_rows;
+                c = rel == r0 ? 0xf8dd9au : rel == r1 - 1 ? 0x814f15u : 0xdc972cu;
+            } else
+                c = 0xffffffu;
+        }
+        put(px, shade(c, (unsigned)bright), cov);
+    }
+    s0 = (top + 255) >> 8, s1 = bottom >> 8;
+    s0 = s0 < 0 ? 0 : s0, s1 = s1 > g->h ? g->h : s1;
+    if (s1 > s0) f->solid_top[col] = (short)s0, f->solid_bottom[col] = (short)s1;
+}
+
+void coverflow_flip(const cfg_t *g, unsigned *d, int pitch, int u, const unsigned *const ring[CF_RING], int card_y,
+                    int card_w, int card_h, int card_hdr, int card_rows, int sel_row, int axis, int spin,
+                    const unsigned *face) {
+    shelf_t f;
+    cfg_t fg = *g;
+    int x, y, w, h, cy0, cy1, cy, ang, ai, af, c, s, bright, eye, half_w, a, b, lo, hi, col, k, i;
+    pose_t p;
+    f.g = &fg;
+    f.d = d;
+    f.cs = 1, f.rs = pitch;
+    for (x = 0; x < g->w; ++x) f.solid_top[x] = f.solid_bottom[x] = 0;
+    for (y = 0; y < g->h; ++y) memset(d + y * pitch, 0, g->w * 4);
+    if (u < 1) u = 1;
+    if (u > 256) u = 256;
+    if (u < 256) {
+        w = g->art + ((card_w - g->art) * u >> 8);
+        h = (g->art + ((card_h - g->art) * u >> 8)) & ~1;
+        cy0 = g->top + g->art / 2, cy1 = card_y + card_h / 2;
+        cy = cy0 + ((cy1 - cy0) * u >> 8);
+        ang = (u < 128 ? u : 256 - u) * 24 << 9; /* 0 .. 24 (90 deg) in 16.16 */
+        ai = ang >> 16, af = ang >> 4 & 4095;
+        if (ai >= 24)
+            c = 0, s = CF_ONE;
+        else {
+            c = cf_cos[ai] + ((cf_cos[ai + 1] - cf_cos[ai]) * af >> 12);
+            s = cf_sin[ai] + ((cf_sin[ai + 1] - cf_sin[ai]) * af >> 12);
+        }
+        if (u >= 128) s = -s; /* keep turning the same way past 90 degrees */
+        s *= spin;
+        bright = 216 + (40 * c >> 16);
+        if (c > 256) {
+            int abs_s = s < 0 ? -s : s;
+            int z_flip = 16 * (((w * abs_s) >> 16) / 3); /* slight Z pull-back mid-spin so corners stay inside */
+            p.xc = 0, p.zc = z_flip, p.c = c, p.s = s, p.bright = bright;
+            eye = 16 * g->eye, half_w = 8 * w;
+            a = project(g, &p, -half_w), b = project(g, &p, half_w);
+            lo = (16 * axis + (a < b ? a : b)) >> 4, hi = (16 * axis + (a < b ? b : a)) >> 4;
+            if (lo < 0) lo = 0;
+            if (hi >= g->w) hi = g->w - 1;
+            fg.top = cy - h / 2, fg.art = h;
+            fg.reflect = u < 96 ? g->reflect * (96 - u) / 96 : 0;
+            for (col = lo; col <= hi; ++col) {
+                int dx = (2 * col + 1 - 2 * axis) * 8, den = (eye * c + dx * s) >> 16, upt, ph_col;
+                if (den <= 0) continue;
+                upt = (dx * (eye + z_flip)) / den;
+                if (upt < -half_w || upt >= half_w) continue;
+                ph_col = h * 256 * eye / (eye + z_flip - (upt * s >> 16));
+                if (u < 128) {
+                    int tc = (upt + half_w) * ART_SIZE / (16 * w);
+                    if (tc < 0) tc = 0;
+                    if (tc >= ART_SIZE) tc = ART_SIZE - 1;
+                    if (ring[CF_REACH]) column(&f, col, ring[CF_REACH] + tc, ph_col, bright);
+                } else {
+                    int rx = (upt + half_w) * card_w / (16 * w);
+                    if (rx < 0) rx = 0;
+                    if (rx >= card_w) rx = card_w - 1;
+                    card_column(&f, col, cy, ph_col, rx, card_w, card_h, card_hdr, card_rows, sel_row, bright, face);
+                }
+            }
+        }
+    }
+    /* Side covers stay where they are behind the floating card. */
+    fg = *g;
+    fg.fold = 0;
+    for (k = 1; k <= CF_REACH; ++k)
+        for (i = 0; i < 2; ++i) {
+            int j = i ? CF_REACH + k : CF_REACH - k;
+            draw_cover(&f, (j - CF_REACH) * CF_ONE, ring[j], 256);
+        }
+    finish_bg(g, d, pitch);
 }
 
 #ifndef CF_HOST

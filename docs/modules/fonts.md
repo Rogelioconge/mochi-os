@@ -81,8 +81,8 @@ than Apple's bold lyric text, and at 30 px 16 keeps `Be what you want to be` in 
   the style per line: a line whose code points are all in `lyrics.ttf` takes the bold style, any
   other line (CJK, kana, Hangul, symbols) the default font's. [lyrics](lyrics.md).
 - `mod_font.lyric_face` builds it with `default.ttf`'s unitsPerEm and vertical metrics, so a font
-  size is the same number of pixels and the baseline matches. Only the two lyric label styles of
-  Now Playing name it.
+  size is the same number of pixels and the baseline matches. The two lyric label styles of Now
+  Playing name it; `ly_title_face` sets it on the Vinyl, VU and Pod Now Playing titles.
 - A font that cannot be loaded falls back to the default font, so a missing file shows the default,
   not nothing.
 
@@ -98,9 +98,13 @@ candidate in `preview_aa.py`). The 256-byte table `TEXT_GAMMA_LUT` is written in
   A glyph-cache hit returns stock's copy untouched, because its mask was mapped when it was
   rasterised. A miss lets stock rasterise and cache the glyph, then maps the bitmap in place, so
   no glyph is mapped twice. Installing empties the glyph cache and repaints.
+- The Pod (`patch/ipod.c`) draws dark text on white, where 1.45 reads heavy and blocky: while it is
+  in front (open, foreground) `tg_soften(1)` maps new masks through `TEXT_GAMMA_SOFT_LUT`
+  (**G = 1.15**, `SOFT_GAMMA`); its background and destroy call `tg_soften(0)`. The cache key has no
+  gamma, so each change empties the glyph cache.
 - Mono fonts, fonts that are not stb fonts, a foreign get_glyph slot and the kill switch leave
   stock. No hook and no per-paint work.
-- `lyrics.ttf` is covered too: `ly_start` applies it on each Now Playing open, and `ly_title_face` (the Vinyl and VU titles) on each Latin title. The first open loads
+- `lyrics.ttf` is covered too: `ly_start` applies it on each Now Playing open, and `ly_title_face` (the Vinyl, VU and Pod Now Playing titles) on each Latin title. The first open loads
   the file earlier than stock would and repaints once. A language or theme change recreates the font
   with the stock slot until the next open.
 

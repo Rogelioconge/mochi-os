@@ -117,12 +117,13 @@ DAILY = ['dm_disc', 'dm_disc_down'] + DPAGE   # the Daily Mix card's play disc a
 DM_DISC_PX, DM_PLAY_GLYPH = 48, 22     # patch/offsets.inc DM_DISC, tools/pod_dailymix.py DM_PLAY_GLYPH
 # The iPod page's click wheel (patch/ipod.c, docs/modules/ipod.md): light/dark 220 px images, a ring with a 90 px centre button and the four labels drawn in; the corners are transparent
 # (the window's colour shows). IP_WHEEL_D / IP_HUB_R in patch/offsets.inc are these numbers (test/pod/ipod.py checks them).
-IPOD = ['ipod_wheel', 'ipod_wheel_dark', 'ipod_mode_shuffle', 'ipod_mode_repeat', 'ipod_mode_repeat1', 'ipod_playing', 'ipod_placeholder', 'ipod_podcasts']
+IPOD = ['ipod_wheel', 'ipod_wheel_dark', 'ipod_mode_shuffle', 'ipod_mode_repeat', 'ipod_mode_repeat1', 'ipod_playing', 'ipod_placeholder', 'ipod_podcasts', 'ipod_shuffle_big']
 IPOD_WHEEL_D, IPOD_HUB_R = 220, 45
 IPOD_PC_PANE, IPOD_PC_GLYPH_Y = (160, 240), 104   # patch/offsets.inc IP_PANE_W x IP_PANE_H, IP_PC_GLYPH_Y: the main menu's Podcasts pane (patch/ipod.c ip_paint_pane)
 IPOD_PLACEHOLDER = os.path.join(ROOT, 'assets', 'icons', 'ipod-placeholder-256.png')   # the user-supplied iTunes Cover Flow placeholder (1200 px), scaled once to 256 px with a good filter; the Pod's one cover for anything without art
 IPOD_MODE_SRC = 32    # the Now Playing mode marks are drawn at 2 x (IP_MODE_PX = 16) and reduced by the payload (patch/offsets.inc)
 IP_PLAY_SRC = 14
+IPOD_SHUF_ICON = 24   # patch/offsets.inc IP_SHUF_ICON: the shuffle slider's own mark, drawn at its size (ipod_shuffle_big)
 DAILY = DAILY + IPOD
 # The Tape page (patch/tape.c, docs/modules/tape.md): the More dialog's row icon and the page's four pictures (tools/tape_art.py draws them; the page is landscape, the pictures are turned for the portrait panel).
 import tape_art
@@ -1129,17 +1130,43 @@ def album_images():
     f['dp_added_down'] = on_disc(tick, AH_DISC_PX, AH_SHUF_DISC_DOWN)
     f['ipod_wheel'] = ipod_wheel()
     f['ipod_wheel_dark'] = ipod_wheel(dark=True)
-    for n, g in (('ipod_mode_shuffle', 'shuffle'), ('ipod_mode_repeat', 'repeat'), ('ipod_mode_repeat1', 'repeat-1')):   # patch/ipod.c ip_mode_bitmap: a heavy white glyph at 32 px, 16 px after the box filter
+    for n, g in (('ipod_mode_repeat', 'repeat'), ('ipod_mode_repeat1', 'repeat-1')):   # patch/ipod.c ip_mode_bitmap: a heavy white glyph at 32 px, 16 px after the box filter
         f[n] = glyph_fit(g, IPOD_MODE_SRC, IPOD_MODE_SRC, WHITE, 2, 4.0)
+    f['ipod_mode_shuffle'] = ipod_shuffle_big(IPOD_MODE_SRC)   # the same mark as the shuffle slider's, so the two match
     from PIL import Image
     f['ipod_playing'] = glyph_fit('volume-2', 2 * IP_PLAY_SRC, 2 * IP_PLAY_SRC, WHITE, 2, 4.0)   # patch/ipod.c: the playing track's speaker, a heavy white glyph at 28 px, 14 px after the box filter
     f['ipod_placeholder'] = Image.open(IPOD_PLACEHOLDER).convert('RGB')   # the Pod's cover for anything without art (docs/modules/ipod.md)
     f['ipod_podcasts'] = ipod_podcasts_pane()
+    f['ipod_shuffle_big'] = ipod_shuffle_big()
     import tape_art
     f.update(tape_art.images())
     f.update(vinyl_art.images())
     f.update(vu_art.images())
     return f
+
+def ipod_shuffle_big(n=IPOD_SHUF_ICON):
+    """The Pod's shuffle mark, n px (the slider's at IPOD_SHUF_ICON, the top-right mode mark at IPOD_MODE_SRC): the shuffle slider's mark (patch/ipod.c ip_shuf_strip, the iPod nano's): two heavy strands crossing in an S from the left edge, each ending in a filled arrowhead
+    at the right, the one going up cut where the other crosses it. White on transparent (the payload tints it), drawn at 4 x and box-reduced to IPOD_SHUF_ICON px."""
+    from PIL import Image, ImageDraw
+    k = 4 * n / 24   # the drawing's units are 1/24 of the mark
+    S = n * 4; im = Image.new('RGBA', (S, S), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+    sw, top, bot, x0, xa, xb, tip = 2.8 * k, 6.5 * k, 17.5 * k, 1.0 * k, 5.5 * k, 15.5 * k, 23.0 * k
+    head_l, head_h = 5.6 * k, 8.0 * k
+    def strand(y_from, y_to, rgba, w):
+        pts = [(x0, y_from), (xa, y_from)]
+        for i in range(1, 33):   # the S: a cubic with level ends from (xa, y_from) to (xb, y_to)
+            t = i / 32; c = (1 - t) ** 3, 3 * t * (1 - t) ** 2, 3 * t * t * (1 - t), t ** 3
+            xs = (xa, xa + (xb - xa) * 0.55, xb - (xb - xa) * 0.55, xb); pts.append((sum(a * b for a, b in zip(c, xs)), y_from + (y_to - y_from) * (c[2] + c[3])))
+        pts.append((tip - head_l + 1, y_to))
+        d.line(pts, fill=rgba, width=int(w), joint='curve')
+        for x, y in (pts[0],):
+            d.rectangle((x, y - w / 2, x + w / 2, y + w / 2), fill=rgba)   # a square left end
+        d.polygon([(tip, y_to), (tip - head_l, y_to - head_h / 2), (tip - head_l, y_to + head_h / 2)], fill=rgba)
+    white, clear = (255, 255, 255, 255), (0, 0, 0, 0)
+    strand(bot, top, white, sw)          # the one going up, drawn first
+    strand(top, bot, clear, sw + 2.6 * k)   # cut where the other crosses it
+    strand(top, bot, white, sw)
+    return im.resize((n, n), Image.BOX)
 
 def ipod_podcasts_pane():
     """The main menu's Podcasts pane (the iPod 6G's): a vertical blue-grey gradient in ipod-player's info pane colours (A7C1D6 to 3E4D5C), and the classic white podcast glyph (a head in three broadcast arcs open at the

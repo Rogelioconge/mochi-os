@@ -120,13 +120,13 @@
 /* The iPod page's Cover Flow screen (patch/ipod_cf.c, docs/modules/ipod-coverflow.md): the same depth renderer with numbers tuned to a photo of an iPod classic, for the 320 x 240 screen under the title bar:
  * a 320 x IPCF_FRAME_H frame on white (IPCF_BG; r | g << 8 | b << 16) drawn at y IPCF_FRAME_Y (= IP_BAR_H), the centre cover IPCF_ART px at IPCF_TOP, seen from IPCF_EYE, the first side cover IPCF_X1 out and IPCF_Z1 back, the rest IPCF_XS / IPCF_ZS
  * apart; IPCF_REFLECT px of reflection; the covers dim lightly to IPCF_TAIL of 256 three out, then fade out by 3.5 (seven covers show). The two caption lines start at IPCF_CAP_Y, IPCF_CAP_H high each. The
- * slide eases to the target album: each IPCF_FRAME_MS tick covers dt / (dt + IPCF_TAU_MS) of what is left, ends within IPCF_DONE (1/64 album), and never starts more than
- * IPCF_NEAR albums away (a long jump lands near the target at once, so the covers that show are the ones being decoded). */
-#define IPCF_FRAME_Y 24
-#define IPCF_FRAME_H 192
+ * slide is a critically damped spring of time constant IPCF_TAU_MS (starting smoothly from rest, held to IPCF_VMAX = 12 albums/s, settling within IPCF_DONE and IPCF_VSTOP), and is never more than IPCF_NEAR albums from the target.
+ * Pressing the centre button flips the centre cover 180 degrees in place (IPCF_FLIP_MS) into the album's tracklist card (IPCF_CARD_*). */
+#define IPCF_FRAME_Y 20
+#define IPCF_FRAME_H 220
 #define IPCF_BG 0xffffff
 #define IPCF_ART 128
-#define IPCF_TOP 18
+#define IPCF_TOP 22
 #define IPCF_EYE 272
 #define IPCF_X1 84
 #define IPCF_XS 34
@@ -138,9 +138,32 @@
 #define IPCF_CAP_Y 192
 #define IPCF_CAP_H 22
 #define IPCF_FRAME_MS 33
-#define IPCF_TAU_MS 70
-#define IPCF_DONE 1024
-#define IPCF_NEAR 4
+#define IPCF_STALL_MS 66 /* a longer gap between Cover Flow's animation ticks is a stall, not taken out of the animation */
+#define IPCF_TAU_MS 85 /* critically damped spring time constant: smooth, slightly slower iPod spring */
+#define IPCF_DONE 512 /* 1/128 album */
+#define IPCF_VSTOP 16384 /* ~0.24 albums/s: spring settles when both gap and speed are near zero */
+#define IPCF_NEAR 8 /* far jump clamp: smooth glide across 8 albums before skipping ahead */
+#define IPCF_VMAX 805306 /* 12 albums/s (~0.40 covers per 33 ms frame) */
+#define IPCF_RUSH_TAU_MS 45 /* the finger left the wheel: the spring's time constant until the slide rests */
+#define IPCF_RUSH_VMAX 2415919 /* and its speed cap, 36 albums/s */
+#define IPCF_MAX_TIER 3 /* Cover Flow wheel acceleration cap: tiers 1, 2, 3, 5 albums/step */
+#define IPCF_SPD_MS 130 /* the fold follows the slide's speed smoothed with this time constant (a single step stays under IPCF_FOLD_V0) */
+#define IPCF_FOLD_V0 872417 /* 13 albums/s (vel units): at or under it the shelf is open (a steady turn, held to IPCF_VMAX, stays turned) */
+#define IPCF_FOLD_V1 1610613 /* 24 albums/s: at or over it the shelf is a flat deck (only the release rush gets there) */
+#define IPCF_SPREAD 40 /* px between covers at full fold, the centre spaced the same: a flat deck showing a strip of each */
+#define IPCF_DECK_Z 70 /* px the folded deck lies back (the covers about 80 % of the centre cover's size) */
+#define IPCF_GO_MS 640 /* the play key: the side covers fade (first quarter), then the centre cover goes to Now Playing's turned cover */
+#define IPCF_GO_HOLD_MS 280 /* and stays there alone this long before Now Playing's text comes (the iPod: the cover first, then the rest) */
+#define IPCF_GO_CARD_MS 280 /* (the iPod video: ~270 ms) */ /* a track played from the card: the card turns away (first half), the album's cover turns in to Now Playing's place */
+#define IPCF_TURN_IN_X 80 /* the column the cover turns in from, edge-on */
+#define IPCF_GO_BACK_MS 380 /* MENU from that Now Playing: the cover comes back to the shelf */
+#define IPCF_FLIP_MS 300 /* 3D Y-axis flip between the centre cover and the floating tracklist card, eased out (the iPod video: ~270-300 ms, fast start) */
+#define IPCF_CARD_X 30 /* floating tracklist card over the visible Cover Flow side covers */
+#define IPCF_CARD_Y 26
+#define IPCF_CARD_W 260 /* about 81 % of the screen, as the iPod video's card */
+#define IPCF_CARD_H 214
+#define IPCF_CARD_HDR 44 /* blue glossy album + artist header band inside the card */
+#define IPCF_CARD_ROWS 7 /* visible track rows inside the floating card */
 #define DRAG_PX 108        /* finger travel per album */
 #define TAP_SLOP 12        /* px either way: a release within this of the down point (and no drag) is a tap */
 #define DRAG_START 5       /* px along the carousel, and no more across, start a drag (counted from there); tune on the device */
@@ -1201,11 +1224,15 @@
  * below (a IP_WHEEL_D image at IP_WHEEL_X, IP_WHEEL_Y; the touch circle is IP_RING_R, the centre button IP_HUB_R). Colours are r | g << 8 | b << 16 words. */
 #define IP_W 320
 #define IP_SCREEN_H 240
-#define IP_BAR_H 24
-#define IP_ROW_H 30               /* a text row: 18 px bold text */
-#define IP_ROWS 7                 /* 24 + 7 x 30 = 234 of the 240 px: no partial row */
-#define IP_TALL_H 54              /* a cover row (Albums, Songs, Playlists): a 52 px cover, 18 px bold title over a 16 px subtitle */
-#define IP_TALL_ROWS 4            /* 24 + 4 x 54 = 240 */
+#define IP_BAR_H 20
+#define IP_ROW_H 30               /* a cover row title box and the bar title box height (text rows are 24 / 25 px, see IP_ROWS) */
+#define IP_ROWS 9                 /* the text rows share the 220 px under the title bar: row i's top is IP_BAR_H + i x 220 / 9 (ip_row_y), 24 / 25 px each, 17 px text, no spare strip */
+#define IP_TALL_H 55              /* a cover row (Albums, Songs, Playlists): its cover fills it, 18 px bold title over a 16 px subtitle */
+#define IP_ROW_SLOTS 12           /* the cover rows' bitmap pool: the 4 visible rows and the rows just beyond them */
+#define IP_ROW_AHEAD 3            /* rows prefetched beyond the visible ones, each way */
+#define IP_SONG_ROWS 5            /* Music > Songs: 5 rows of 44 px under the title bar, the bold title (its 30 px box 2 px down) over the artist (IP_SONG_SUB_Y down), a hairline under each */
+#define IP_SONG_SUB_Y 25
+#define IP_TALL_ROWS 4            /* 20 + 4 x 55 = 240: the four rows share the screen under the title bar (the iPod's), no spare strip */
 #define IP_SPLIT_X 160            /* split menu and cover pane */
 #define IP_WHEEL_X 50
 #define IP_WHEEL_Y 250
@@ -1213,37 +1240,82 @@
 #define IP_RING_R 110
 #define IP_HUB_R 45
 #define IP_DEAD_R 11              /* a move whose chord passes closer than this to the centre (10% of IP_RING_R) turns nothing: the angle jumps there */
-#define IP_STEP 240               /* one wheel step = 15 degrees (24 a turn), in sixteenths of a degree: THE tuning constant of the feel */
+#define IP_STEP 320               /* one wheel step = 20 degrees (18 a turn), in sixteenths of a degree: THE tuning constant of the feel */
 #define IP_REVERSE 128            /* after the drag flips direction, this much reverse travel (8 degrees) is swallowed before stepping resumes */
 #define IP_LONG 16                /* a list of more rows than this accelerates; this many or fewer always move one row a step */
 #define IP_VMAX 6400              /* the instantaneous angular speed is clamped here before smoothing: 400 degrees a second, in sixteenths */
 #define IP_SMOOTH_NUM 3           /* angular speed smoothing: v += (min(instant, IP_VMAX) - v) * 3 / 20 (0.15) */
 #define IP_SMOOTH_DEN 20
-#define IP_FAST 2880              /* smoothed speed above which the tiers climb: 180 degrees a second, in sixteenths */
+#define IP_FAST 3840              /* smoothed speed above which the tiers climb: 240 degrees a second, in sixteenths */
 #define IP_PAUSE_MS 250           /* a gap this long between two moves resets the speed and the tier */
 #define IP_TIER_MS 500            /* held above IP_FAST this long climbs one tier */
 #define IP_TAP_PX 12              /* a touch that travels less than this and turns no step is a tap */
 #define IP_LONG_MS 500            /* MENU held this long pops to the main menu (the reference's long press) */
+#define IP_SCAN_SLOW_TICKS 20     /* hold-to-scan on Now Playing: the first 20 timer ticks (2 s) of a scan move the target 1 s a tick (10x) ... */
+#define IP_SCAN_SLOW_S 1
+#define IP_SCAN_FAST_S 3          /* ... then 3 s a tick (30x) */
+#define IP_SCAN_SEEK_MS 300       /* while scanning, the player is sought (mclSetSeek) this often when the target moved */
+#define IP_SCAN_HOLD_MS 3000      /* after the last seek the target stays on the bar until the player's time reaches it, at most this long */
 #define IP_ART 150                /* the Now Playing screen's picture */
 #define IP_TICK_MS 500
 #define IP_FIRST_MS 50
 #define IP_DEPTH 7
-#define IP_TEXT_X 8
+#define IP_TEXT_X 6
 #define IP_SEL_TOP 0xf7b15fu      /* the classic blue selection: #5FB1F7 to #0C62D2, top to bottom (as r | g << 8 | b << 16) */
 #define IP_SEL_BOT 0xd2620cu
 #define IP_NP_ART_X 10
-#define IP_NP_ART_Y 30
-#define IP_NP_REFLECT 20          /* rows of the cover's reflection under it (30 % fading to 0): cover y 30 .. 180, reflection to 200, the bar from 208 */
+#define IP_NP_ART_Y 35
+#define IP_NP_ART_W 135           /* the cover turned as on the iPod classic: 135 px wide, the near (left) edge 135 px tall at y 35 .. 169, the far (right) edge 116 px at y 44 .. 159 */
+#define IP_NP_ART_HR 116
+#define IP_NP_REFLECT 36          /* rows of the cover's reflection under its near edge (30 % fading to 0, shorter towards the far edge): to y 205, just over the bar from 206 (the user's nano photo: it fades out right above the bar, about 40 px under the far edge) */
 #define IP_MODE_PX 16             /* the play mode mark (shuffle, repeat, repeat one): a 16 px image, right edge at x 312, top y 28 (the reference's 13 pt heavy SF symbols) */
 #define IP_PLAY_PX 14             /* the playing track speaker (Lucide volume-2) in a plain song list: right aligned at IP_W - IP_TEXT_X, centred in its row */
-#define IP_MODE_X 296
-#define IP_MODE_Y 28
-#define IP_NP_TEXT_X 176
-#define IP_NP_BAR_Y 208
-#define IP_NP_BAR_H 14            /* the progress track: 14 px, x 58 .. 262 between 50 px time columns (8 px apart), with a short reflection (IP_NP_BAR_REFLECT) under it */
+#define IP_MODE_X 297             /* Now Playing's placement follows Apple's iPod classic screenshot (user guide, 320 x 240): the mark's ink 3 px under the title bar, right edge x 311 */
+#define IP_MODE_Y 26
+#define IP_NP_TEXT_X 157
+#define IP_NP_TITLE_Y 55          /* text boxes: cap tops at y 60 (title), 80 (artist), 98 (album), 134 (the queue place, under the rating row left empty) */
+#define IP_NP_ARTIST_Y 75
+#define IP_NP_ALBUM_Y 93
+#define IP_NP_PLACE_Y 130
+#define IP_NP_BAR_Y 206
+#define IP_NP_BAR_H 14            /* the progress track: y 206 .. 219, x 58 .. 262; the times 11 px out from its ends (IP_NP_TIME_GAP), a reflection under it (IP_NP_BAR_REFLECT) */
+#define IP_NP_TIME_GAP 11
 #define IP_NP_TRACK_X 58
 #define IP_NP_TRACK_W 204
-#define IP_NP_BAR_REFLECT 6
+#define IP_NP_BAR_REFLECT 9      /* one clear row, then 8 mirrored rows from 22 % fading out */
+#define IP_NP_KNOB 7              /* the scrubber's diamond: 7 rows each side of the bar's middle (15 tall, 1 px past the bar each way) */
+#define IP_SPK_W 7                /* the volume bar's speaker glyph without its waves */
+#define IP_VOL_STEPS 2            /* Now Playing: a wheel step (20 degrees) is 2 volume steps, the 0 .. 100 range in about two turns */
+#define IP_VOL_SHOW_MS 2000       /* the volume bar stays this long after the last turn, then the progress bar is back */
+#define IP_SCRUB_S 2              /* the scrubber: a wheel step moves the target 2 s, times the wheel's speed tier */
+#define IP_SCRUB_SLIDE_MS 250     /* a Now Playing view (scrubber, shuffle slider, lyrics) slides in from the right (an idle end: the progress bar from the left) in this long, eased */
+#define IP_SHUF_ICON 24           /* the shuffle slider (Now Playing's centre): the shuffle mark this size where the elapsed time was, right edge IP_NP_TIME_GAP before the track */
+#define IP_SHUF_TEXT_UP 2         /* its names' boxes this much above the times' box (the caps were 2 px below the control's middle) */
+#define IP_SHUF_H 24              /* the rail over the track (the user's nano photos): its height, centred on the bar's middle */
+#define IP_SHUF_X 82              /* the rail's left and width (the user's nano photo: about x 82 .. 245, narrower than the track); its names 14 px */
+#define IP_SHUF_W 162
+#define IP_SHUF_THUMB_MS 150      /* the thumb's glide to a new choice */
+#define IP_NP_PEND_MS 3000 /* a song tapped in a list: Now Playing shows it, not the player's last track, until the player reports it or this long */
+#define IP_BAR_WAIT_MS 250        /* a full-screen page opened (Now Playing, Cover Flow): its title bar waits this long after the split (the iPod video: ~270 ms) */
+#define IP_BAR_DROP_MS 100        /* ... then drops in this fast (the video: 2-3 frames); closing one, the menu's bar drops at once */
+/* The lyrics view (Now Playing's centre, the iPod's plain text): a small cover under the title bar, the album and the bold artist beside it, then the lines, the whole page scrolling. */
+#define IP_LY_ART 56
+#define IP_LY_ART_X 5
+#define IP_LY_ART_Y 30            /* IP_BAR_H + 10 */
+#define IP_LY_TEXT_X 75           /* the album and artist: 14 px right of the cover */
+#define IP_LY_ALBUM_DY 6          /* their boxes' tops below the cover's */
+#define IP_LY_ARTIST_DY 26
+#define IP_LY_GAP 14              /* the cover's bottom to the first line's box */
+#define IP_LY_X 5
+#define IP_LY_W 292               /* the lines wrap to this (the scroll bar to their right) */
+#define IP_LY_LINE 18             /* 15 px text (the queue place's style), tight as the iPod's */
+#define IP_LY_SB_W 3              /* the scroll bar at the right edge */
+#define IP_LY_BUF 8192            /* the .lrc read: at most this less 1 bytes */
+#define IP_LY_SRC 400             /* lines kept */
+#define IP_LY_ROWS 600            /* wrapped rows kept */
+#define IP_LY_WIDE 200            /* characters of a line wrapped (the rest of a longer line is dropped) */
+#define IP_LY_PATH 300            /* the .lrc path */
+#define IP_SCRUB_IDLE_MS 3000     /* the scrubber goes (its last seek sent) after this long without a turn, as on the iPod */
 /* The split pages' cover pane (patch/ipod.c, docs/modules/ipod.md "The cover pane"): the pane starts flush at IP_SPLIT_X (no rule between the white menu and the cover), under the title bar.
  * Covers are scaled once to IP_PANE_ART (the pane's height zoomed 110%) and copied 1:1 into it: a linear pan across the zoom's margin
  * (IP_PANE_R px), in whole pixels, so nothing is resampled while it moves; the next cover cross-fades in every IP_PANE_HOLD_MS. */
@@ -1263,6 +1335,8 @@
 #define IP_PANE_FADE_MS 1500      /* the cross-fade, ease in and out */
 #define IP_PANE_NEXT_MS 3000      /* the next cover is decoded this long after the last fade began (a tick of its own, well before the next fade) */
 #define IP_PANE_SHARP_MS 4000     /* the playing album's full-resolution file is trusted this long after a track change even when demo was not seen making it (a stale file of the last track is never shown) */
+#define IP_PC_PANE_MS 250         /* the main menu's Podcasts picture replaces the covers only once a wheel step has rested on that row this long (a fast turn past it shows no flash) */
+#define IP_PC_FADE_MS 250         /* ... then it cross-fades in over the covers in this time (smoothstep), and out the same way off the row */
 #define IP_FADE_TICK_MS 50        /* the timer's interval during a cross-fade (each frame is one pass over the 160 x 240 pane with two interpolations and a mix) */
 #define IP_PAN_MS 40              /* ... and while the cover pans: a steady 25 frames a second, each a sub-pixel step (IP_DRIFT_MS stays the pace of the other fast jobs) */
 #define IP_DRIFT_MAX_MS 250       /* a step is capped at this, so a stalled loop never jumps */

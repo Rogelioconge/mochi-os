@@ -92,3 +92,18 @@ def run(ctx):
     expect(slot(m) == STB and ('font_manager_shrink_cache', FM, 0) in m.calls, 'the kill switch at the next apply: stock slot, cache emptied')
     m = font_machine(); apply(m); apply(m)
     expect(slot(m) == TG and not any(c[0] == 'font_manager_shrink_cache' for c in m.calls), 'an apply on the installed wrapper changes nothing')
+
+    # 8. The Pod's soft table (tg_soften, patch/ipod.c while the Pod is in front): stock.h's is lut(SOFT_GAMMA); a change empties the cache and new masks take it; a repeat is a no-op.
+    soft = textgamma.lut(textgamma.SOFT_GAMMA)
+    table = [int(v) for v in re.search(r'#define TEXT_GAMMA_SOFT_LUT \{([^}]*)\}', stock_h).group(1).split(',')]
+    expect(table == soft and all(s <= u for s, u in zip(soft, lut)) and soft[128] < lut[128], 'stock.h TEXT_GAMMA_SOFT_LUT is lut(SOFT_GAMMA): lighter than the usual table')
+    m = font_machine(); apply(m); m.calls = []
+    m.call(PSYMS['tg_soften'], a0=1)
+    expect(m.calls.count(('font_manager_shrink_cache', FM, 0)) == 1, 'tg_soften(1) empties the glyph cache')
+    rc, pix, _ = draw(m, 0x42)
+    expect(rc == 0 and pix == bytes(soft[v] for v in m.glyph_raw[(0x42, 18)]), 'a glyph rasterized while soft is mapped through the soft table')
+    m.calls = []; m.call(PSYMS['tg_soften'], a0=1)
+    expect(not m.calls, 'a second tg_soften(1) changes nothing')
+    m.call(PSYMS['tg_soften'], a0=0); emptied = ('font_manager_shrink_cache', FM, 0) in m.calls
+    rc, pix, _ = draw(m, 0x43)
+    expect(emptied and pix == bytes(lut[v] for v in m.glyph_raw[(0x43, 18)]), 'tg_soften(0) empties the cache again and new glyphs take the usual table')

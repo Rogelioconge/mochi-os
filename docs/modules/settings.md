@@ -187,7 +187,7 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 | `playback-mono` | Playback Settings > Mono Audio | `1` on; missing/other off ([stereo](stereo.md)) |
 | `playback-crossfeed` | Playback Settings > Crossfeed | `0` Off .. `3` High; missing/other off (the user's level; the player reads `playback-stereo`, the effective record, which is derived and not listed) |
 | `playback-next-album` | Continue Playing | `1` Next Albums; missing/other Off (the default); `2` reserved for Auto Mix ([nextalbum](nextalbum.md)) |
-| `playback-shuffle` | Shuffle (the payload's flag; stock's mode is never 2) | `1` on; missing/other off ([shuffle](shuffle.md)) |
+| `playback-shuffle` | Shuffle (the payload's flag; stock's mode is never 2) | `1` songs, `2` albums; missing/other off ([shuffle](shuffle.md)) |
 | `playlists-sort` | Playlists order | `a` Name Z-A; missing/other Name A-Z ([playlists](playlists.md)) |
 | `playlists-view` | Playlists view | `0` list; missing/other grid |
 | `pod-appearance` | Pod Appearance | `1` Dark; missing/other Light |

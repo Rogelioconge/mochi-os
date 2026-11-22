@@ -7,7 +7,6 @@
 struct ip_theme_palette {
     unsigned bg, fg, sub, np_text, body, pane, rule;
     unsigned header[4], header_rule;
-    unsigned progress_well, progress_edge;
     unsigned battery_edge, battery_empty[3], mode;
 };
 

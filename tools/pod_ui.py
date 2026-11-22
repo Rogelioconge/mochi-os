@@ -1596,11 +1596,11 @@ def build_dailymix_page(page):
 
 # The iPod page (patch/ipod.c, docs/modules/ipod.md; the numbers are patch/offsets.inc IP_*): a fullscreen window (the lock screen's `fullscreen = true`, so the stock status bar is not drawn and
 # the window is 320 x 480) in the wheel's body colour. ipod_screen (320 x 240) is painted by the payload in its own EVT_AFTER_PAINT and takes no touch (insensitive); ipod_wheel
-# (220 x 220, the touch target: the payload does the circle's hit test and grabs the touch) holds the wheel picture as an insensitive image child. Ten hidden, insensitive labels
+# (220 x 220, the touch target: the payload does the circle's hit test and grabs the touch) holds the wheel picture as an insensitive image child. Twelve hidden, insensitive labels
 # only carry the text styles. label_title (hidden) is the page's title for the i18n and asset tests.
-IP_STYLES = (('label_ip_row', 18, '#000000', 'left'), ('label_ip_sel', 18, INK_RGB, 'left'), ('label_ip_title', 16, '#000000', 'left'),
-             ('label_ip_small', 16, '#666666', 'left'), ('label_ip_subsel', 16, INK_RGB, 'left'), ('label_ip_np1', 18, '#000000', 'left'), ('label_ip_np2', 16, '#666666', 'left'), ('label_ip_time', 15, '#000000', 'right'),
-             ('label_ip_val', 16, '#0C62D2', 'left'), ('label_ip_np3', 14, '#666666', 'left'))
+IP_STYLES = (('label_ip_row', 18, '#000000', 'left'), ('label_ip_sel', 18, INK_RGB, 'left'), ('label_ip_selb', 18, INK_RGB, 'left'), ('label_ip_title', 16, '#000000', 'left'),
+             ('label_ip_small', 16, '#666666', 'left'), ('label_ip_subsel', 16, INK_RGB, 'left'), ('label_ip_np1', 18, '#000000', 'left'), ('label_ip_np2', 16, '#3C3C3C', 'left'), ('label_ip_time', 16, '#000000', 'right'),
+             ('label_ip_val', 16, '#0C62D2', 'left'), ('label_ip_np3', 14, '#3C3C3C', 'left'), ('label_ip_shuf', 14, '#0C62D2', 'left'))
 
 
 def build_ipod_page(page):
@@ -1616,7 +1616,9 @@ def build_ipod_page(page):
     light = hidden(Widget('view', 0, 0, 10, 10, [('name', 'ip_styles_light')])); styled(light, ('normal',), 'bg_color', INK_RGB)
     blue = hidden(Widget('view', 0, 0, 10, 10, [('name', 'ip_styles_blue')])); styled(blue, ('normal',), 'bg_color', '#0C62D2')
     for lab in style_labels(IP_STYLES):
-        (blue if lab.name in ('label_ip_sel', 'label_ip_subsel') else light).children.append(lab)
+        if lab.name == 'label_ip_selb':   # the bold face (ly_font; the payload uses it for the Cover Flow card's Latin album title only)
+            for st in ('normal', 'disable', 'focused'): styled(lab, (st,), 'font_name', 'lyrics')
+        (blue if lab.name in ('label_ip_sel', 'label_ip_selb', 'label_ip_subsel') else light).children.append(lab)
     blue.children.append(hidden(Widget('label', 36, 14, 200, 22, [('name', 'label_title'), ('style', 'navbar_label_white'), pod_i18n.text_prop(page.title)])))
     root.children += [light, blue]
     return root

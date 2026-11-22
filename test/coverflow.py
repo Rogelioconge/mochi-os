@@ -38,6 +38,9 @@ def build(tmp):
     lib.coverflow_render.restype = None
     lib.coverflow_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint), ctypes.c_int, ctypes.c_int,
                                      ctypes.POINTER(ctypes.c_void_p)]
+    lib.coverflow_flip.restype = None
+    lib.coverflow_flip.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint), ctypes.c_int, ctypes.c_int,
+                                   ctypes.POINTER(ctypes.c_void_p)] + [ctypes.c_int] * 8 + [ctypes.c_void_p]   # face: NULL sketches the card
     lib.portrait = ctypes.addressof(ctypes.c_int.in_dll(lib, 'cf_portrait'))   # the shelves' geometry (cfg_t)
     lib.land = ctypes.addressof(ctypes.c_int.in_dll(lib, 'cf_land'))
     lib.cc_fnv.restype = ctypes.c_uint
@@ -84,7 +87,7 @@ def render(lib, frac, texs, cfg=None, pw=W, ph=H):
 
 class CFG(ctypes.Structure):
     """patch/coverflow.c cfg_t."""
-    _fields_ = [(n, ctypes.c_int) for n in ('w', 'h', 'cx', 'top', 'art', 'eye', 'x1', 'xs', 'z1', 'zs', 'reflect', 'rot', 'turn', 'tail', 'bg')]
+    _fields_ = [(n, ctypes.c_int) for n in ('w', 'h', 'cx', 'top', 'art', 'eye', 'x1', 'xs', 'z1', 'zs', 'reflect', 'rot', 'turn', 'tail', 'bg', 'fold', 'spread', 'deck', 'dir')]
 
 
 def land_cfg(lib, rot=1):
@@ -597,6 +600,44 @@ def main():
                                    (1023, 1023, 1), (300, 200, 3))] ==
                [(1024, 1024), (512, 512), (750, 750), (513, 50), (1024, 1024), (750, 500), (1024, 25), (513, 513), (1000, 751), (500, 500), (1023, 1023), (300, 200)],
                'stock decodes up to 1024 x 1024 in colour whole, else at 1/2 (to 2048), 1/4 (to 4096), 1/8, sides rounded up; a gray JPEG always takes the scaled path')
+
+        # 15. Fold continuity across t = 0 and 3D album flip (iPod Cover Flow shelf).
+        ip_cfg = CFG(320, C['IPCF_FRAME_H'], 160, C['IPCF_TOP'], C['IPCF_ART'], C['IPCF_EYE'], C['IPCF_X1'],
+                     C['IPCF_XS'], C['IPCF_Z1'], C['IPCF_ZS'], C['IPCF_REFLECT'], 0, C['IPCF_TURN'],
+                     C['IPCF_TAIL'], C['IPCF_BG'], 256, C['IPCF_SPREAD'], C['IPCF_DECK_Z'], 0)
+        f_pos = render(lib, 64, texs, ip_cfg, 320, C['IPCF_FRAME_H'])
+        f_neg = render(lib, -64, texs, ip_cfg, 320, C['IPCF_FRAME_H'])
+        f_n = len(range(0, 320 * C['IPCF_FRAME_H'], 7))
+        f_diff = sum(max(abs((f_pos[i] >> s & 255) - (f_neg[i] >> s & 255)) for s in (0, 8, 16))
+                     for i in range(0, 320 * C['IPCF_FRAME_H'], 7)) / f_n
+        expect(f_diff < 5, f'folded shelf is continuous across t = 0 (mean |delta| {f_diff:.2f})')
+        # the deck: flat covers facing front, the side coming in on top (gliding on, the later covers; going back, the earlier)
+        ip_cfg.dir = 1
+        f_r = render(lib, 0, texs, ip_cfg, 320, C['IPCF_FRAME_H'])
+        ip_cfg.dir = -1
+        f_l = render(lib, 0, texs, ip_cfg, 320, C['IPCF_FRAME_H'])
+        expect(list(f_r) != list(f_l), 'the folded deck stacks by the way it goes: the covers coming in lie on top')
+        ip_cfg.dir = 0
+        # 3D flip: front half rotates the cover while fading side covers; back half rotates the card with blue selection bar
+        ring_p = (ctypes.c_void_p * RING)(*[ctypes.cast(t, ctypes.c_void_p) for t in texs])
+        flip_cfg = CFG(320, C['IPCF_FRAME_H'], 160, C['IPCF_TOP'], C['IPCF_ART'], C['IPCF_EYE'], C['IPCF_X1'],
+                       C['IPCF_XS'], C['IPCF_Z1'], C['IPCF_ZS'], C['IPCF_REFLECT'], 0, C['IPCF_TURN'],
+                       C['IPCF_TAIL'], C['IPCF_BG'], 0, C['IPCF_SPREAD'], C['IPCF_DECK_Z'], 0)
+        fl_f = (ctypes.c_uint * (320 * C['IPCF_FRAME_H']))()
+        fl_b = (ctypes.c_uint * (320 * C['IPCF_FRAME_H']))()
+        cy_f = C['IPCF_CARD_Y'] - C['IPCF_FRAME_Y']
+        lib.coverflow_flip(ctypes.byref(flip_cfg), fl_f, 320, 64, ring_p, cy_f, C['IPCF_CARD_W'],
+                           C['IPCF_CARD_H'], C['IPCF_CARD_HDR'], C['IPCF_CARD_ROWS'], 0, 160, 1, None)
+        lib.coverflow_flip(ctypes.byref(flip_cfg), fl_b, 320, 192, ring_p, cy_f, C['IPCF_CARD_W'],
+                           C['IPCF_CARD_H'], C['IPCF_CARD_HDR'], C['IPCF_CARD_ROWS'], 0, 160, 1, None)
+        expect(all(fl_f[i] >> 24 == 255 and fl_b[i] >> 24 == 255 for i in range(0, 320 * C['IPCF_FRAME_H'], 11)),
+               'both halves of the 3D flip frame are opaque')
+        # back half has the blue selection strip on row 0 AND side covers still visible near both screen edges
+        has_blue = any(((fl_b[y * 320 + 160] >> 16) & 255) > (fl_b[y * 320 + 160] & 255) + 80
+                       for y in range(cy_f + C['IPCF_CARD_HDR'], cy_f + C['IPCF_CARD_H']))
+        mid_y = C['IPCF_TOP'] + C['IPCF_ART'] // 2
+        sides_vis = (fl_b[mid_y * 320 + 12] & 0xffffff) != 0xffffff and (fl_b[mid_y * 320 + 308] & 0xffffff) != 0xffffff
+        expect(has_blue and sides_vis, 'the flipped floating card shows the blue selection strip over visible side covers')
 
         if a.captures:
             os.makedirs(a.captures, exist_ok=True)

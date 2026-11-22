@@ -86,7 +86,7 @@ extern int stock_loadplaylist_trampoline(void *queue, int pos, int cls); /* the 
 
 static struct {
     unsigned char loaded; /* the flag file has been read */
-    unsigned char on; /* the flag */
+    unsigned char on; /* the flag: 0 off, SHUFFLE_KIND_SONGS or SHUFFLE_KIND_ALBUMS */
     unsigned char keep; /* pod_set_repeat is changing the stock mode: the flag stays */
     unsigned char
         fresh; /* set_mode / set_in_order for a queue about to load: the flag changes without reordering the current queue */
@@ -96,20 +96,28 @@ static struct {
     unsigned n; /* the queue's size when orig was made: a different size means the queue changed and orig is stale */
 } sh __attribute__((section(".scratch")));
 
+enum {
+    SHUFFLE_KIND_SONGS = 1,
+    SHUFFLE_KIND_ALBUMS = 2
+}; /* the flag file: "1" songs (also every file written before kinds), "2" albums */
+
 static void *play_queue(void) { return *(void **)PLAY_QUEUE; }
 
 static int flag(void) {
     if (!sh.loaded) {
-        sh.on = !home_off() && set_read(SHUFFLE_FILE, '0') == '1';
+        int c = home_off() ? '0' : set_read(SHUFFLE_FILE, '0');
+        sh.on = c == '1' ? SHUFFLE_KIND_SONGS : c == '2' ? SHUFFLE_KIND_ALBUMS : 0;
         sh.loaded = 1;
     }
     return sh.on;
 }
 
-static void flag_save(int on) {
+static void flag_save(int on) { /* on: the kind, 0 off */
     sh.on = (unsigned char)on, sh.loaded = 1;
     home_write_atomic(SHUFFLE_FILE, SHUFFLE_TMP,
-                      on ? "1\n" : "0\n"); /* a failed save leaves the flag for this session */
+                      on == SHUFFLE_KIND_ALBUMS ? "2\n"
+                      : on                      ? "1\n"
+                                                : "0\n"); /* a failed save leaves the flag for this session */
 }
 
 static void drop_order(void) { /* with the payload lock held */
@@ -137,7 +145,8 @@ static void flag_only(int on) {
 /* The mode the player is shown to be in (the call sites of tools/pod.py MODE_SITES): 2 while the flag is on. */
 int sh_display_mode(void) { return flag() ? MODE_SHUFFLE : mclGetPlayMode(); }
 int pod_play_mode(void) { return sh_display_mode(); }
-int pod_shuffle_on(void) { return flag(); }
+int pod_shuffle_on(void) { return flag() != 0; }
+int pod_shuffle_kind(void) { return flag(); }
 
 /* A random permutation of p[0..m): Fisher-Yates with the payload's generator (the groups' ranks use the same loop). */
 static void permute(unsigned *p, unsigned m) {
@@ -173,12 +182,28 @@ static int apply_perm(void *q, unsigned lo, unsigned m, const unsigned *p) {
     return 1;
 }
 
-/* A queue just loaded (n songs): the song at pos first, the rest shuffled. The permutation is the original order. 0 on a failed allocation. */
-static int shuffle_load(void *q, unsigned n, unsigned pos) {
+static int album_shuffle(void *q, unsigned n, unsigned lo, void *head, unsigned *orig);
+static void row_swap(void *q, unsigned i, unsigned j);
+
+/* A queue just loaded (n songs): the song at pos first, the rest shuffled (kind songs) or its album's rest in album order, then the other albums in random order
+ * (kind albums). The permutation is the original order. 0 on a failed allocation. */
+static int shuffle_load(void *q, unsigned n, unsigned pos, int kind) {
     unsigned *p = calloc(n, sizeof *p), i;
     if (!p) return 0;
     for (i = 0; i < n; ++i) p[i] = i;
     p[0] = pos, p[pos] = 0;
+    if (kind == SHUFFLE_KIND_ALBUMS) {
+        if (pos) row_swap(q, 0, pos);
+        if (!album_shuffle(q, n, 1, deque_at(q, 0), p)) {
+            if (pos) row_swap(q, 0, pos);
+            free(p);
+            return 0;
+        }
+        drop_order();
+        sh.orig = p, sh.n = n;
+        mclSetPlayPos(0);
+        return 1;
+    }
     permute(p + 1, n - 1);
     if (!apply_perm(q, 0, n, p)) {
         free(p);
@@ -191,7 +216,7 @@ static int shuffle_load(void *q, unsigned n, unsigned pos) {
 }
 
 /* The playing queue (n songs): the songs after the playing one shuffled in place, orig keeping where each came from. 0 on a failed allocation. */
-static int shuffle_tail(void *q, unsigned n, int pos) {
+static int shuffle_tail(void *q, unsigned n, int pos, int kind) {
     unsigned lo = pos >= 0 && (unsigned)pos < n ? (unsigned)pos + 1 : 0, m = n - lo, i;
     unsigned *orig;
     if (m < 2) return 1;
@@ -200,6 +225,15 @@ static int shuffle_tail(void *q, unsigned n, int pos) {
         sizeof *orig); /* the one allocation (and apply_perm's bitmap): orig is the identity, its tail the permutation */
     if (!orig) return 0;
     for (i = 0; i < n; ++i) orig[i] = i;
+    if (kind == SHUFFLE_KIND_ALBUMS) {
+        if (!album_shuffle(q, n, lo, lo ? deque_at(q, lo - 1) : (void *)0, orig)) {
+            free(orig);
+            return 0;
+        }
+        drop_order();
+        sh.orig = orig, sh.n = n;
+        return 1;
+    }
     permute(orig + lo, m);
     if (!apply_perm(q, lo, m, orig + lo)) {
         free(orig);
@@ -262,7 +296,8 @@ static void cancel_preload(void) {
     mclSetGaplessMode(old);
 }
 
-/* The flag on or off, with the reorder: 1 done, 0 more songs than SHUFFLE_MAX (the flag stays off), -1 out of memory (the same). Off always succeeds. */
+/* The flag to a kind (0 off), with the reorder: 1 done, 0 more songs than SHUFFLE_MAX (the flag stays off), -1 out of memory (the same). Off always succeeds.
+ * From one kind to the other the original order is restored first and the queue shuffled again; a refusal then leaves the queue restored and the flag off. */
 static int flag_set(int on) {
     void *q;
     unsigned n;
@@ -271,10 +306,12 @@ static int flag_set(int on) {
     q = play_queue();
     n = q ? deque_size(q) : 0;
     if (on) {
+        if (sh.on && q) restore_order(q, n, mclGetPlayPos());
         if (n > SHUFFLE_MAX)
             r = 0;
-        else if (n > 1 && !shuffle_tail(q, n, mclGetPlayPos()))
+        else if (n > 1 && !shuffle_tail(q, n, mclGetPlayPos(), on))
             r = -1;
+        if (r <= 0 && sh.on) flag_save(0);
     } else if (q && sh.orig)
         restore_order(q, n, mclGetPlayPos());
     else
@@ -384,7 +421,7 @@ int sh_set_mode(int mode) {
     }
     was = flag();
     if (mode == MODE_SHUFFLE && was && !first) return 1;
-    want = mode == MODE_SHUFFLE ? 1 : (sh.keep || first) ? was : 0;
+    want = mode == MODE_SHUFFLE ? (was ? was : SHUFFLE_KIND_SONGS) : (sh.keep || first) ? was : 0;
     r = stock_setmode_trampoline(mode == MODE_SHUFFLE ? MODE_ORDER : mode);
     if (want != was) { /* a failed shuffle leaves the flag off: the request becomes List play */
         if (sh.fresh)
@@ -411,7 +448,8 @@ int sh_load_playlist(void *queue, int pos, int cls) {
     if (!home_off() && flag()) {
         q = play_queue();
         n = q ? deque_size(q) : 0;
-        if (n > 1 && (n > SHUFFLE_MAX || !shuffle_load(q, n, pos >= 0 && (unsigned)pos < n ? (unsigned)pos : 0)))
+        if (n > 1 &&
+            (n > SHUFFLE_MAX || !shuffle_load(q, n, pos >= 0 && (unsigned)pos < n ? (unsigned)pos : 0, flag())))
             flag_save(0);
     }
     sh_leave();
@@ -461,9 +499,10 @@ static void set_mode(int mode, int fresh) {
     sh.fresh = 0;
 }
 
-/* Shuffle on or off from a button of ours (the Queue page): the repeat mode stays. 1 done; 0 refused with the stock message box. */
-int pod_set_shuffle(int on) {
+/* Shuffle to a kind (0 off, 1 songs, 2 albums) from a button of ours (the Queue page): the repeat mode stays. 1 done; 0 refused with the stock message box. */
+int pod_set_shuffle_kind(int on) {
     int r;
+    if (on < 0 || on > SHUFFLE_KIND_ALBUMS) return 0;
     if (flag() == on) return 1;
     if (home_off()) return 0;
     r = flag_set(on);
@@ -474,6 +513,8 @@ int pod_set_shuffle(int on) {
     announce(mclGetPlayMode());
     return 1;
 }
+
+int pod_set_shuffle(int on) { return pod_set_shuffle_kind(on ? SHUFFLE_KIND_SONGS : 0); }
 
 /* Repeat from the Queue page: off (0), all (3) or one (1), the shuffle flag kept. */
 void pod_set_repeat(int mode) {
@@ -584,6 +625,58 @@ static int play_cmp(const entry *a, const entry *b) {
     d = strcmp(str(ra, REC_PATH), str(rb, REC_PATH));
     if (!d) d = I(ra, REC_CUE_START) - I(rb, REC_CUE_START);
     return d ? d : by_index(a, b);
+}
+
+/* Slots lo .. n of the queue q regrouped by album (the key of Shuffle Albums): the albums in random order, each in album order (play_cmp); with a head (the
+ * song just before lo, playing) its own album's songs come first. orig is the permutation kept so far (orig[slot] = the original position); the new order is
+ * composed into it. 0 on a failed allocation, with the queue and orig untouched. */
+static int album_shuffle(void *q, unsigned n, unsigned lo, void *head, unsigned *orig) {
+    unsigned m = n - lo, groups = 0, hg = ~0u, i, j, t;
+    entry *v;
+    unsigned *rank, *p;
+    if (m < 2) return 1;
+    v = calloc(m, sizeof *v);
+    p = calloc(m, sizeof *p);
+    if (!v || !p) {
+        free(v);
+        free(p);
+        return 0;
+    }
+    by_folder = 0;
+    for (i = 0; i < m; ++i) v[i].rec = deque_at(q, lo + i), v[i].idx = lo + i;
+    sort(v, m, group_cmp);
+    for (i = 0; i < m; ++i) {
+        if (i && key_cmp(&v[i - 1], &v[i])) ++groups;
+        v[i].group = groups;
+        if (head && hg == ~0u && !nocase(str(v[i].rec, REC_ALBUM), str(head, REC_ALBUM))) hg = groups;
+    }
+    ++groups;
+    rank = calloc(groups, sizeof *rank);
+    if (!rank) {
+        free(v);
+        free(p);
+        return 0;
+    }
+    for (i = 0; i < groups; ++i) rank[i] = i;
+    permute(rank, groups);
+    if (hg != ~0u) { /* the playing song's album takes rank 0 */
+        for (j = 0; rank[j]; ++j) {
+        }
+        t = rank[hg], rank[hg] = 0, rank[j] = t;
+    }
+    for (i = 0; i < m; ++i) v[i].group = rank[v[i].group];
+    free(rank);
+    sort(v, m, play_cmp);
+    for (i = 0; i < m; ++i) p[i] = v[i].idx;
+    free(v);
+    if (!apply_perm(q, lo, m, p)) {
+        free(p);
+        return 0;
+    }
+    for (i = 0; i < m; ++i) p[i] = orig[p[i]];
+    memcpy(orig + lo, p, m * sizeof *p);
+    free(p);
+    return 1;
 }
 
 /* Reorder queue (n songs) into albums or folders in random order, each in its own order. 0 when

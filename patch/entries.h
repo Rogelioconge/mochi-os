@@ -113,7 +113,19 @@ unsigned ip_fit(void *canvas, unsigned *s, int maxw); /* the wide string cut wit
 
 /* patch/ipod_cf.c */
 int ipcf_open(void *win), ipcf_up(void), ipcf_busy(void), ipcf_tick(void *list, unsigned count);
-void ipcf_close(void), ipcf_goto(int sel), ipcf_paint(void *canvas, void *list, unsigned count, void *style);
+int ipcf_start(void *list, unsigned count);
+int ipcf_flipping(void), ipcf_flip_tick(void), ipcf_going(void), ipcf_gone(void), ipcf_go_tick(void);
+void ipcf_go_open(void *list, unsigned count, int sel), ipcf_go_close(int quiet), ipcf_rush(void),
+    ipcf_go_card(int row), ipcf_paint_go(void *canvas, void *list, unsigned count, void *style);
+void ipcf_close(void), ipcf_goto(int sel), ipcf_flip_open(void *list, unsigned count, int sel),
+    ipcf_flip_close(int row);
+void ipcf_flip_settle(void);
+void ipcf_paint(void *canvas, void *list, unsigned count, void *style), ipcf_paint_flip(void *canvas, int sel_row),
+    ipcf_paint_bg(void *canvas);
+const char *ipcf_album(void), *ipcf_artist(void);
+unsigned *ipcf_face(void);
+int ipcf_face_ok(void);
+void ipcf_face_done(int ok);
 
 /* patch/lockscreen.c */
 int lkwp_open(void); /* the Lock Screen's Wallpaper picker, our page; -1 when it did not open */

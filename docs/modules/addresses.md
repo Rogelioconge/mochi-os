@@ -242,6 +242,7 @@ jump tables `0x74b7b0` (`0xf003..0xf00b`) and `0x74b7d4` (`0xff01..0xff14`); any
 |---|---|---|
 | `seek_time(sec)` | `0x4e0544` | q2-pod's `player_seek_time` |
 | `reset_poweroptions_timer(standby, auto_off, screen)` | `0x4d7874` | a non-zero argument restarts that countdown; the download page timer calls `(1, 1, 0)` |
+| `mclSetSeek(sec)` | `0x5d26dc` | sends `{mcl-seek\%d}` (absolute s, CUE start included); no wait, no resume; -1 when hciplayer is not connected |
 | `mclSetPlaySpeed(mode)` | `0x5d281c` | `{mcl-playspeed\%d}` string `0x756510` |
 | `playspeed_mode` (data) | `0xa05acc` | 0..3 = 1x, 1.25x, 1.5x, 2x |
 | `get_id3info` | `0x4dfd58` | fills `playsong_id3info` from `toolsGetMusicInfo` `0x5ec6a8`; tag-copy hook site `0x4dff4c` |

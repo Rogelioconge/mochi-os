@@ -13,6 +13,7 @@ SAME_AS_ENGLISH |= {'Crossfeed'}    # the audio term, written the same in the La
 SAME_AS_ENGLISH |= {'Standby'}    # German and Italian write Standby as English does (the Battery History page's Since Last Charge card)
 SAME_AS_ENGLISH |= {'AutoEq'}    # the brand name (the Presets page's section header)
 SAME_AS_ENGLISH |= {'%d minute', '%d minutes'}    # French writes minute(s) as English does
+SAME_AS_ENGLISH |= {'%d Album'}    # the Pod genre row's count: German writes Album as English does
 SAME_AS_ENGLISH |= {'Podcasts', ', %d', 'Normal', 'Chrome', 'Metal', 'Graphite', '5 s', '10 s'}    # Podcasts in French and German
 SAME_AS_ENGLISH |= {'%d MB', '%d.%d GB', '%d GB'}
 SAME_AS_ENGLISH |= {'Filter', 'Pause'}    # German writes Filter as English does; French and German write Pause the same

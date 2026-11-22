@@ -17,9 +17,21 @@ with `access`, then `navigator_to_with_context("playing_page", ...)` starts it.
 
 Stock's mode 2 draws one index from a pool of unplayed songs at each advance. The queue keeps library
 order, the Queue page cannot show what plays next, and gapless cannot see the next song. So the flag
-(`/mnt/data/m1plus/playback-shuffle`, `1` on, anything else off; [settings](settings.md)) reorders the
+(`/mnt/data/m1plus/playback-shuffle`: `1` songs, `2` albums, anything else off; [settings](settings.md)) reorders the
 queue itself and stock plays it in order. The Queue page shows the real order and gapless works as
 for any list. Shuffle and Repeat are independent: Shuffle plus Repeat all is allowed.
+
+- **Kinds.** `pod_shuffle_kind()` is 0 off, 1 songs, 2 albums; `pod_set_shuffle_kind(kind)` sets it
+  (0 when refused, as `pod_set_shuffle`, which keeps meaning off / songs). `pod_play_mode()` shows
+  Shuffle for both. `sh.on` holds the kind. A request for stock mode 2 keeps the kind already on.
+- **Albums** (`album_shuffle`, the grouping of Shuffle Albums: album NOCASE, `play_cmp` order inside):
+  the songs after the playing one (all of a loaded queue after the first) are regrouped, the albums
+  in random order, each in album order. The playing song's album comes first, with all its
+  remaining songs in album order (also those that sort before the playing track). The permutation
+  is composed into `sh.orig`, so Shuffle off restores the original order the same way. It allocates
+  an index (16 bytes a song), the new order, the ranks and the apply bitmap, freed on return.
+- **Switching kind while on** restores the original order, then shuffles by the new kind. A refusal
+  after the restore leaves the queue restored and the flag off.
 
 - **Turning on** (`flag_set(1)`): the songs after the playing one are shuffled in place
   (Fisher-Yates, xorshift32). The playing song and the ones before it stay. `apply_perm` moves whole
@@ -36,7 +48,8 @@ for any list. Shuffle and Repeat are independent: Shuffle plus Repeat all is all
   small new one.
 - **A queue loaded while it is on** (song tap, Play, the stock folder browser, boot resume):
   `sh_load_playlist` lets stock load the queue, moves the song at the load index to slot 0 and
-  shuffles the rest (`shuffle_load`, under the lock). Every loader goes through it, including
+  shuffles the rest (`shuffle_load`, under the lock; with albums the tapped song's album follows
+  in album order, then the other albums). Every loader goes through it, including
   `refresh_playqueue`. After a reboot the order is not saved: the resumed song plays first and the
   rest is reshuffled. Explicit Play buttons and album page track taps call `pod_set_in_order` first, which turns the flag off.
 - **Shuffle Songs** draws a random first song (started on the drawn row itself when the queue has the

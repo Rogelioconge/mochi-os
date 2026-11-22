@@ -147,9 +147,22 @@ The playing song shows saved lyrics at once.
 Open **Extras → Pod** for a virtual iPod.
 
 - Slide around the wheel to browse and tap its centre to select.
+- The main menu follows the iPod classic: Music, Cover Flow, Podcasts, Settings, Shuffle Songs, and
+  Now Playing while something plays. Music holds Cover Flow, Playlists, Artists, Albums, Songs,
+  Genres and Composers.
+- In **Cover Flow**, turn the wheel to slide through the albums. Tap the centre to flip the album
+  over and see its songs; tap a song to play it, or tap MENU to flip back. Press the bottom button
+  on an album to play it from the first song.
 - Tap MENU to go back. Hold it to return to the Pod's main menu, then tap it to close Pod.
-- Use the bottom button to pause or resume and the side buttons to skip tracks. The wheel does not
-  seek or change volume on the Pod's Now Playing screen.
+- Use the bottom button to pause or resume and the side buttons to skip tracks. On the Pod's Now
+  Playing screen, hold a side button to rewind or fast-forward; let go to play from there.
+- On Now Playing, turn the wheel to change the volume; the bar shows the level for 2 seconds.
+- On Now Playing, tap the centre to step through more screens, then back to the progress bar:
+  - **Scrubber:** turn the wheel to move through the song; the song jumps there when you lift your finger.
+  - **Shuffle:** turn the wheel to choose Off, Songs or Albums. Albums plays each album in order,
+    the albums in random order.
+  - **Lyrics:** shown when the song has a `.lrc` file beside it. Turn the wheel to scroll.
+  The scrubber and shuffle screens go back to the progress bar after 3 seconds without a turn.
 
 ## Podcasts
 

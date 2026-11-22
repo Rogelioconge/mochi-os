@@ -118,7 +118,7 @@
     "/mnt/data/m1plus/home-daily-mix" /* the Daily Mix card: "0" = off, anything else or missing = on (Settings > Home Screen) */
 #define DAILY_SET_TMP "/mnt/data/m1plus/home-daily-mix.tmp"
 #define SHUFFLE_FILE \
-    "/mnt/data/m1plus/playback-shuffle" /* Shuffle (patch/shuffle.c): "1" = on, anything else or missing = off; stock's play mode is never 2 */
+    "/mnt/data/m1plus/playback-shuffle" /* Shuffle (patch/shuffle.c): "1" = songs, "2" = albums, anything else or missing = off; stock's play mode is never 2 */
 #define SHUFFLE_TMP "/mnt/data/m1plus/playback-shuffle.tmp"
 #define REBUILD_FILE \
     "/mnt/data/m1plus/covers-rebuild" /* exists while a Settings > Library > Rebuild Covers is requested; Home's cover build (patch/homecover.c) does it and removes it when done */
@@ -290,6 +290,9 @@ extern int pod_confirm_code(
 extern int pod_play_mode(
     void); /* patch/shuffle.c: the play mode as shown (2 while Shuffle is on, whatever stock's mode is), else stock's */
 extern int pod_shuffle_on(void); /* the Shuffle flag */
+extern int pod_shuffle_kind(void); /* patch/shuffle.c: 0 off, 1 songs, 2 albums */
+extern int pod_set_shuffle_kind(
+    int kind); /* patch/shuffle.c: Shuffle to a kind (0 off, 1 songs, 2 albums); 0 refused, as pod_set_shuffle */
 extern int
 pod_set_shuffle(int on); /* Shuffle on / off, the repeat mode kept; 0 refused (the stock message box was shown) */
 extern void pod_set_mode_for_queue(

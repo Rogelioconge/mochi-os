@@ -450,6 +450,10 @@ IPOD_PINS = (   # (address, stock word, what it proves)
     (0x4eeacc, 0x8e220000, 'loadAlbumdetailList: lw v0, (s1): the record id'),
     (0x663840, 0x3c1c003a, 'timer_modify prologue'), (0x663844, 0x279c0690, 'timer_modify prologue'), (0x663848, 0x0399e021, 'timer_modify prologue'),
     (0x66389c, 0xae110040, 'timer_modify: sw s1, 0x40(s0): the timer\'s duration'),
+    (0x5d26dc, 0x3c1c0043, 'mclSetSeek prologue'), (0x5d26e0, 0x279c17f4, 'mclSetSeek prologue'), (0x5d26e4, 0x0399e021, 'mclSetSeek prologue'),
+    (0x5d2704, 0x9042ab8a, 'mclSetSeek: lbu v0, -0x5476(v0): the hciplayer connected flag (0: returns -1)'),
+    (0x5d2724, 0x24a564e8, 'mclSetSeek: addiu a1, a1, 0x64e8: the "{mcl-seek\\%d}" format @0x7564e8'),
+    (0x5d2768, 0x0320f809, 'mclSetSeek: jalr send'),
 )
 WIFIHUB_SITE = 0x4b1460   # the Wi-Fi row of the All System Settings hub: its jalr navigator_to("systemset/wifi_page") becomes jal wifi_hub_open (patch/wifipage.c, docs/modules/payload.md hook 21)
 BTHUB_SITE = 0x4b1428   # the Bluetooth row of the All System Settings hub: its jalr navigator_to("systemset/bluetooth_page") becomes jal bt_hub_open (patch/btpage.c, docs/modules/payload.md hook 32)

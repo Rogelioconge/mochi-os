@@ -780,4 +780,88 @@ def shuffle_page_tests(expect, menu, spi, page):
     expect(all(f'pod_row{i // 2}' in h for i, h in enumerate(hits)), f'a tap on each row (and on its icon) reaches that row ({hits})')
 
 
-SECTIONS = [shuffle_tests, apple_tests]
+def mixed_machine(pos=3, n=12, flag=None):
+    """apple_machine with the queue interleaved over three albums: song i is Album (i % 3) track (i // 3 + 1); flag: the flag file's text."""
+    m = HookedMachine()
+    if flag: m.fs[FLAG_FILE] = flag
+    recs = [song(m, f'/mnt/mmc/q/{i:02d}.flac', f'Album {i % 3}', i // 3 + 1) for i in range(n)]
+    m.play(recs, pos)
+    m.call(PSYMS['sh_set_mode'], a0=0, count=900000000)
+    m.calls = []
+    return m
+
+
+def kind_tests(ctx):
+    """Shuffle by album: the kind, its order, the switch, the load and the saved file."""
+    expect = ctx.expect
+    alb = lambda m: [field(m, r, O['REC_ALBUM']) for r in queue_of(m)]
+    trk = lambda m: [m.word(r + O['REC_TRACK']) for r in queue_of(m)]
+    kind = lambda m: m.call(PSYMS['pod_shuffle_kind'], count=100000)
+    setk = lambda m, k: m.call(PSYMS['pod_set_shuffle_kind'], a0=k, count=900000000)
+
+    def grouped(m, lo):   # the slots from lo: each album one run, in track order
+        a, t = alb(m)[lo:], trk(m)[lo:]
+        runs = [x for i, x in enumerate(a) if not i or a[i - 1] != x]
+        return len(runs) == len(set(runs)) and all(t[i - 1] < t[i] for i in range(1, len(a)) if a[i - 1] == a[i])
+
+    # 46. Albums on: the songs after the playing one, grouped; the playing song's album continues first; every string keeps one owner.
+    for clock in (1, 90, 4099, 77777):
+        m = mixed_machine(); m.clock = clock; before, owned = order(m), strings(m); a0 = alb(m)[3]
+        expect(setk(m, 2) == 1 and kind(m) == 2 and m.fs.get(FLAG_FILE) == b'2\n', f'clock {clock}: albums on, the kind is saved as 2')
+        got = order(m)
+        expect(got[:4] == before[:4] and sorted(got[4:]) == sorted(before[4:]) and m.play_pos == 3, f'clock {clock}: the playing song and the ones before it stay')
+        expect(grouped(m, 4) and alb(m)[4:6] == [a0] * 2 and trk(m)[4:6] == [3, 4], f'clock {clock}: the tail is one run per album in track order, the current album first ({alb(m)[4:]}, {trk(m)[4:]})')
+        expect(strings(m) == owned and len(set(strings(m))) == len(owned), f'clock {clock}: every record keeps its strings')
+    seen = set()
+    for clock in range(1, 40):
+        m = mixed_machine(pos=0); m.clock = clock * 7919; setk(m, 2); seen.add(tuple(dict.fromkeys(alb(m)[1:])))
+    expect(len(seen) >= 2, f'the order of the other albums varies ({seen})')
+
+    # 47. Off restores the original order, the playing song kept; the mode shown stays Shuffle.
+    m = mixed_machine(); before = order(m); setk(m, 2)
+    expect(m.call(PSYMS['pod_play_mode'], count=100000) == O['MODE_SHUFFLE'], 'albums: the mode shown is Shuffle')
+    m.play_pos = 8; playing = order(m)[8]
+    setk(m, 0)
+    expect(kind(m) == 0 and order(m) == before and order(m)[m.play_pos] == playing and m.fs.get(FLAG_FILE) == b'0\n', 'albums off: the original order, the playing song kept, saved off')
+
+    # 48. Songs <-> albums while on: the original order first, then the new kind.
+    m = mixed_machine(); before = order(m); owned = strings(m)
+    setk(m, 1); expect(kind(m) == 1 and m.fs.get(FLAG_FILE) == b'1\n', 'songs on')
+    setk(m, 2)
+    expect(kind(m) == 2 and m.fs.get(FLAG_FILE) == b'2\n' and grouped(m, m.play_pos + 1) and sorted(order(m)) == sorted(before), 'songs -> albums: regrouped')
+    setk(m, 1)
+    expect(kind(m) == 1 and sorted(order(m)[4:]) == sorted(before[4:]), 'albums -> songs')
+    setk(m, 0)
+    expect(order(m) == before and strings(m) == owned, 'off after the switches: the very first order is back')
+    m = mixed_machine(); setk(m, 2); expect(m.call(PSYMS['pod_set_shuffle'], a0=1, count=900000000) == 1 and kind(m) == 1, 'pod_set_shuffle(1) means songs')
+    m = mixed_machine(); setk(m, 2); r2 = setk(m, 2); expect(r2 == 1 and not m.calls, 'the same kind again does nothing')
+    m = mixed_machine(); expect(setk(m, 3) == 0 and kind(m) == 0, 'an unknown kind is refused')
+
+    # 49. A queue loaded while albums is on: the tapped song, the rest of its album in album order, then the other albums, each in album order.
+    mk = lambda m: [song(m, f'/mnt/mmc/q/{i:02d}.flac', f'Album {i % 3}', i // 3 + 1) for i in range(12)]
+    for clock in (1, 90, 4099):
+        m = mixed_machine(pos=0, n=2, flag=b'2\n'); m.clock = clock
+        recs = mk(m); h = m.new_deque(recs); paths = [field(m, r, O['REC_PATH']) for r in recs]
+        load(m, h, 5)   # song 05: Album 2, track 2
+        got = order(m)
+        expect(got[0] == paths[5] and m.play_pos == 0 and sorted(got) == sorted(paths), f'clock {clock}: the tapped song first and playing')
+        expect(alb(m)[:4] == ['Album 2'] * 4 and trk(m)[:4] == [2, 1, 3, 4] and grouped(m, 1), f'clock {clock}: its album continues in album order, then one run per album ({alb(m)}, {trk(m)})')
+        m.play_pos = 6; playing = got[6]; setk(m, 0)
+        expect(order(m) == paths and order(m)[m.play_pos] == playing, f'clock {clock}: off restores the loaded order')
+    m = mixed_machine(pos=0, n=2, flag=b'2\n'); m.calloc_fail = True
+    recs = mk(m); h = m.new_deque(recs); paths = [field(m, r, O['REC_PATH']) for r in recs]; load(m, h, 5)
+    expect(kind(m) == 0 and order(m) == paths and m.play_pos == 5, 'no memory at an albums load: the queue as stock loaded it, the flag off')
+
+    # 50. The kind is read back from the file; an old "1" is songs; a request for Shuffle keeps the kind.
+    for text, want in ((b'2\n', 2), (b'1\n', 1), (b'0\n', 0), (b'x\n', 0)):
+        m = mixed_machine(flag=text)
+        expect(kind(m) == want and m.call(PSYMS['pod_shuffle_on'], count=100000) == (want != 0), f'flag file {text!r}: kind {want}')
+    m = mixed_machine(flag=b'2\n'); hook(m, O['MODE_SHUFFLE'])
+    expect(kind(m) == 2, 'a request for mode 2 while albums is on leaves the kind')
+    m = mixed_machine(); hook(m, O['MODE_SHUFFLE'])
+    expect(kind(m) == 1, 'a request for mode 2 turns songs on')
+    m = mixed_machine(); m.calloc_fail = True; setk(m, 2); toasted = ('toast', 'Not enough memory', O['MSGINFO_KIND'], O['MSGINFO_MS']) in m.calls
+    expect(kind(m) == 0 and toasted, 'no memory: albums refused')
+
+
+SECTIONS = [shuffle_tests, apple_tests, kind_tests]

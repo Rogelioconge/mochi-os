@@ -15,7 +15,9 @@
 #include "home.h"
 #include "textgamma.h"
 
-static const unsigned char tg_lut[256] = TEXT_GAMMA_LUT;
+static const unsigned char tg_lut[256] = TEXT_GAMMA_LUT, tg_soft_lut[256] = TEXT_GAMMA_SOFT_LUT;
+static int tg_soft
+    __attribute__((section(".scratch"))); /* the Pod is in front: masks rasterized now take the soft table */
 
 static unsigned tg_u16(const unsigned char *p) { return (unsigned)p[0] | (unsigned)p[1] << 8; }
 
@@ -29,7 +31,7 @@ int tg_get_glyph(unsigned char *f, unsigned ch, unsigned size, unsigned char *ou
     data = (unsigned char *)(unsigned long)(tg_u16(out + GLYPH_DATA) | tg_u16(out + GLYPH_DATA + 2) << 16);
     if (!data) return rc;
     n = tg_u16(out + GLYPH_W) * tg_u16(out + GLYPH_H);
-    for (i = 0; i < n; i++) data[i] = tg_lut[data[i]];
+    for (i = 0; i < n; i++) data[i] = (tg_soft ? tg_soft_lut : tg_lut)[data[i]];
     return rc;
 }
 
@@ -52,4 +54,15 @@ void tg_apply(void *fm, unsigned char *f) {
     font_manager_shrink_cache(fm, 0); /* the cached glyphs are the old (un)mapped masks */
     wm = window_manager();
     if (wm) widget_invalidate_force(wm, (void *)0);
+}
+
+/* The Pod's screen is dark text on white, where G 1.45 makes the text heavy: while it is in front (on: its open and foreground; off: its background
+ * and destroy), masks are mapped through TEXT_GAMMA_SOFT_LUT. The cache key has no gamma, so every change empties the glyph cache (the fonts' masks
+ * are rasterized again as they are drawn). With the kill switch the wrapper is not installed and the table is never read. */
+void tg_soften(int on) {
+    void *fm = font_manager();
+    on = on != 0;
+    if (on == tg_soft) return;
+    tg_soft = on;
+    if (fm) font_manager_shrink_cache(fm, 0);
 }

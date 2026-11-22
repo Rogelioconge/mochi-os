@@ -7,6 +7,7 @@ and tools/preview/preview_aa.py draws its sheet with it, so the preview and the 
 """
 
 GAMMA = 1.45
+SOFT_GAMMA = 1.15   # the Pod's screen (dark text on white, patch/ipod.c tg_soften): 1.45 made it heavy and blocky there, 0.85 too thin
 
 
 def lut(gamma=GAMMA):

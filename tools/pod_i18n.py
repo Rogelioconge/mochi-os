@@ -583,6 +583,15 @@ TEXT = dict([
        '%d canción', '%d brano', '%d เพลง', 'Utwory: %d', 'Песен: %d', 'Пісень: %d'),
     _t('%d songs', '%d 首歌曲', '%d 首歌曲', '%d 曲', '%d곡', '%d titres', '%d Titel',
        '%d canciones', '%d brani', '%d เพลง', 'Utwory: %d', 'Песен: %d', 'Пісень: %d'),
+    # the grey line of a Pod genre row, "3 Artists, 5 Albums" (patch/ipod.c; pl, ru, uk the label form)
+    _t('%d Artist', '%d 位艺人', '%d 位藝人', '%d 人のアーティスト', '아티스트 %d명', '%d artiste', '%d Künstler',
+       '%d artista', '%d artista', '%d ศิลปิน', 'Wykonawcy: %d', 'Исполнители: %d', 'Виконавці: %d'),
+    _t('%d Artists', '%d 位艺人', '%d 位藝人', '%d 人のアーティスト', '아티스트 %d명', '%d artistes', '%d Künstler',
+       '%d artistas', '%d artisti', '%d ศิลปิน', 'Wykonawcy: %d', 'Исполнители: %d', 'Виконавці: %d'),
+    _t('%d Album', '%d 张专辑', '%d 張專輯', '%d 枚のアルバム', '앨범 %d장', '%d album', '%d Album',
+       '%d álbum', '%d album', '%d อัลบั้ม', 'Albumy: %d', 'Альбомы: %d', 'Альбоми: %d'),
+    _t('%d Albums', '%d 张专辑', '%d 張專輯', '%d 枚のアルバム', '앨범 %d장', '%d albums', '%d Alben',
+       '%d álbumes', '%d album', '%d อัลบั้ม', 'Albumy: %d', 'Альбомы: %d', 'Альбоми: %d'),
     # the grey line of a Most Played row, "12 plays · Artist" (patch/songs.c sg_prep; pl, ru, uk the label form)
     _t('%d play', '播放 %d 次', '播放 %d 次', '%d 回再生', '%d회 재생', '%d lecture', '%d Wiedergabe',
        '%d reproducción', '%d riproduzione', 'เล่น %d ครั้ง', 'Odtworzenia: %d', 'Прослушано: %d', 'Прослухано: %d'),

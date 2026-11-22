@@ -411,6 +411,7 @@ FUNCTIONS.update({
     'prev_quick_click':        ('int', 'void *, int', 0x4cccb0),
     'loadAlbumdetailList':     ('int', 'int, void *', 0x4eea98),
     'timer_modify':            ('int', 'unsigned, unsigned', 0x663840),
+    'mclSetSeek':              ('int', 'int', 0x5d26dc),      # (absolute seconds, the CUE start included): sprintf "{mcl-seek\\%d}" + send on the hciplayer socket; -1 when the link byte (0xa10000 - 0x5476) is 0
 })
 # Podcasts (patch/pcmodel.c, docs/modules/podcasts.md): the stock seek and the stock speed.
 # seek_time(sec) is the key path's seek commit (the Now Playing slider and the hardware keys call it; q2-pod's player_seek_time): it reads mclGetPlayStatus (1 = stopped: nothing
@@ -1115,6 +1116,8 @@ def gen_stock_h(out, demo_path):
     h.append(f'#define glyph_cache_lookup ((int (*)(void *, unsigned, unsigned, void *))0x{GLYPH_CACHE_LOOKUP:x}u)')   # static in demo (TEXTGAMMA_PINS): 0 on a hit, the glyph_t copied to a3
     h.append(f'/* text coverage gamma G = {textgamma.GAMMA} (tools/textgamma.py) */')
     h.append('#define TEXT_GAMMA_LUT {' + ', '.join(str(v) for v in textgamma.lut()) + '}')   # patch/textgamma.c
+    h.append(f'/* the Pod\'s dark-on-white screen: G = {textgamma.SOFT_GAMMA} */')
+    h.append('#define TEXT_GAMMA_SOFT_LUT {' + ', '.join(str(v) for v in textgamma.lut(textgamma.SOFT_GAMMA)) + '}')   # patch/textgamma.c tg_soften
     h.append('#define PCREGION_CODES {' + ','.join(json.dumps(c) for c in pcregion.CODES) + '}')   # patch/pcregion.c: the Podcast Region picker's storefronts (tools/pcregion.py)
     h.append('#define PCREGION_NAMES {' + ','.join(json.dumps(n) for n in pcregion.NAMES) + '}')
     h.append('#define PCREGION_ZONES {' + ','.join(json.dumps(c) for c in pcregion.ZONE_TABLE) + '}')   # the storefront of each time zone index ("" = none)
