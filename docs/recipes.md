@@ -34,7 +34,7 @@ only the module doc of the feature you are changing. Symbols are given instead o
 
 ## Switch row (a persisted on/off setting)
 
-Precedent: Settings > Now Playing > Track Position (`git show 2ef3283a`).
+Precedent: Settings > Now Playing > Track Position (`git show 288f43b`).
 
 1. `tools/pod_pages.py`: new `ACT_<X> = <next free id>`, the next unused number above the
    current maximum, with a comment saying where it is used. Add it to `SWITCH_ACTIONS`, and add a
