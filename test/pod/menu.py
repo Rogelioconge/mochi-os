@@ -646,12 +646,13 @@ def settings_tests(ctx):
 
 
 def assplit_tests(ctx, on_row, genres=False):
-    """Settings > Library > Split Artists and Split Genres (docs/modules/settings.md, artists.md "Split index" and "Split Genres"): the Library row (a value, On or Off) opens the page; its switch and ten
-    separator switches write /mnt/data/m1plus/library-artist-split (library-genre-split) atomically ("m<mask>" on, "o<mask>" off, the mask kept); the separators dim while it is off; a failed save
+    """Settings > Library > Split Artists and Split Genres (docs/modules/settings.md, artists.md "Split index" and "Split Genres"): the Library row (a value, On or Off) opens the page; its switch and its
+    separator switches (ten for Artists, the five punctuation ones for Genres: a mask bit outside them is dropped) write /mnt/data/m1plus/library-artist-split (library-genre-split) atomically ("m<mask>" on, "o<mask>" off, the mask kept); the separators dim while it is off; a failed save
     changes nothing. Artists default to semicolon, slash, ampersand and feat. (0x17), Genres to the semicolon alone (1)."""
     expect, P = ctx.expect, pod_pages
-    NAME, FNAME, PG, PGI, ACT_PG, ACT_SW, SEPS, MASK, DEF, NOTE, FIRST = (('Split Genres', 'library-genre-split', P.GSPLIT_PAGE, P.GSPLIT_PAGE_INDEX, P.ACT_GSPAGE, P.ACT_GSPLIT, P.GSSEP_ACTIONS, 'gs_mask', 1, P.GSPLIT_NOTE, 199)
-                                                                          if genres else ('Split Artists', 'library-artist-split', P.ASPLIT_PAGE, P.ASPLIT_PAGE_INDEX, P.ACT_ASPAGE, P.ACT_ASPLIT, P.ASSEP_ACTIONS, 'as_mask', 0x17, P.ASPLIT_NOTE, 174))
+    NAME, FNAME, PG, PGI, ACT_PG, ACT_SW, SEPS, MASK, DEF, NOTE, FIRST, BITS = (('Split Genres', 'library-genre-split', P.GSPLIT_PAGE, P.GSPLIT_PAGE_INDEX, P.ACT_GSPAGE, P.ACT_GSPLIT, P.GSSEP_ACTIONS, 'gs_mask', 1, P.GSPLIT_NOTE, 199, (0, 1, 2, 3, 7))
+                                                                                if genres else ('Split Artists', 'library-artist-split', P.ASPLIT_PAGE, P.ASPLIT_PAGE_INDEX, P.ACT_ASPAGE, P.ACT_ASPLIT, P.ASSEP_ACTIONS, 'as_mask', 0x17, P.ASPLIT_NOTE, 174, tuple(range(10))))
+    LABELS, ALL = [(';', '/', '&', ',', 'feat.', 'vs.', 'x', '+', 'with', 'and')[k] for k in BITS], sum(1 << k for k in BITS)   # (Genres: the five punctuation separators, mask 0x8f)
     FILE = '/mnt/data/m1plus/' + FNAME
     L, S = P.LIBRARY_PAGE, PG
     rows_l = PSYMS[f'pod_rows_{P.LIBRARY_PAGE_INDEX}']
@@ -660,9 +661,9 @@ def assplit_tests(ctx, on_row, genres=False):
     sep_i = [i for i, r in enumerate(S.rows) if r.action in SEPS]
     layout = [type(x).__name__ + (':' + x.label if isinstance(x, P.Row) else '') for x in S.layout]
     expect((L.rows[l_i].label, L.rows[l_i].arg, P.row_kind(L.rows[l_i])) == (NAME, PGI, 'value') and P.VALUE_INIT[ACT_PG] == 'Off' and P.PAGES[PGI] is S
-           and layout == [f'Row:{NAME}', 'Hdr', *[f'Row:{x}' for x in P.ASSEP_LABELS], 'Note'] and [S.rows[i].label for i in sep_i] == [';', '/', '&', ',', 'feat.', 'vs.', 'x', '+', 'with', 'and']
-           and all(P.row_kind(S.rows[i]) == 'switch' for i in [sw_i] + sep_i) and FNAME in P.SETTING_FILES and len(set(SEPS)) == 10,
-           f'Library > {NAME} is a value row opening a page of the switch, a Separators header, ten separator switches in bit order and a note; the file is among the Settings Files')
+           and layout == [f'Row:{NAME}', 'Hdr', *[f'Row:{x}' for x in LABELS], 'Note'] and [S.rows[i].label for i in sep_i] == LABELS
+           and all(P.row_kind(S.rows[i]) == 'switch' for i in [sw_i] + sep_i) and FNAME in P.SETTING_FILES and len(set(SEPS)) == len(BITS),
+           f'Library > {NAME} is a value row opening a page of the switch, a Separators header, its separator switches ({" ".join(LABELS)}) in bit order and a note; the file is among the Settings Files')
 
     def open_page(saved=None, lib=False):
         m = Machine()
@@ -682,10 +683,10 @@ def assplit_tests(ctx, on_row, genres=False):
         return ('widget_set_sensitive', m.widgets[f'pod_row{i}'], 1) in c[-2:] and [x for x in c if x[0] == 'widget_set_opacity'][-1][2] == 255
 
     d = SEPS
-    for saved, on, mask in ((None, 0, DEF), (b'0\n', 0, DEF), (b'1\n', 1, DEF), (b'm5\n', 1, 5), (b'o5\n', 0, 5), (b'm0\n', 1, 0), (b'm9999999\n', 1, 0x3ff & 9999999), (b'x', 0, DEF)):
+    for saved, on, mask in ((None, 0, DEF), (b'0\n', 0, DEF), (b'1\n', 1, DEF), (b'm5\n', 1, 5), (b'o5\n', 0, 5), (b'm0\n', 1, 0), (b'm9999999\n', 1, ALL & 9999999), (b'm1023\n', 1, ALL), (b'x', 0, DEF)):
         m = open_page(saved)
         got = [img(m, i) for i in sep_i]
-        expect(img(m, sw_i) == ['sset_on' if on else 'sset_off'] and got == [['sset_on' if mask >> k & 1 else 'sset_off'] for k in range(10)] and all((dimmed if not on else live)(m, i) for i in sep_i),
+        expect(img(m, sw_i) == ['sset_on' if on else 'sset_off'] and got == [['sset_on' if mask >> k & 1 else 'sset_off'] for k in BITS] and all((dimmed if not on else live)(m, i) for i in sep_i),
                f'saved {saved!r}: the switch is {"on" if on else "off"}, the separators show mask {mask:#x} and are {"live" if on else "dimmed"}')
         expect(m.call(PSYMS[MASK], count=2000000) == (mask if on else 0), f'saved {saved!r}: {MASK} is {mask if on else 0:#x}')
     m = open_page()
@@ -706,7 +707,7 @@ def assplit_tests(ctx, on_row, genres=False):
     kept = img(m, sep_i[1]) == []
     m.click(f'pod_row{sw_i}')
     expect(kept and m.fs.get(FILE) == b'm5\n' and FILE + '.tmp' not in m.fs and m.call(PSYMS[MASK], count=2000000) == 5 and img(m, sw_i) == [], 'a failed save changes neither the file nor the switches')
-    expect(d == tuple(range(FIRST, FIRST + 10)) and all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in (NAME, 'Separators', NOTE) for loc in pod_i18n.LOCALES), 'the page texts are translated in every language')
+    expect(d == tuple(FIRST + k for k in BITS) and all(pod_i18n.TEXT[k][pod_i18n.table_for(loc)] for k in (NAME, 'Separators', NOTE) for loc in pod_i18n.LOCALES), 'the page texts are translated in every language')
 
 
 def mainmenu_section(ctx):
@@ -1214,8 +1215,8 @@ def azswitch_row_tests(ctx, on_row, rows_s):
         FILE = '/mnt/data/m1plus/' + name
         r_i = next(i for i, r in enumerate(A.rows) if r.action == act)
         layout = [type(x).__name__ + (':' + x.label if isinstance(x, P.Row) else '') for x in A.layout]
-        expect(A.rows[r_i].label == label and act in P.SWITCH_ACTIONS and P.row_kind(A.rows[r_i]) == 'switch' and name in P.SETTING_FILES and layout[7:11] == ['Hdr', 'Row:Index Rail', 'Row:Section Headers', 'Note'],
-               f'{label}: a switch row in the List Navigation card (header and note) under the Artists and Genres cards of the Library page, its file {name} among the Settings Files ({layout[7:11]})')
+        expect(A.rows[r_i].label == label and act in P.SWITCH_ACTIONS and P.row_kind(A.rows[r_i]) == 'switch' and name in P.SETTING_FILES and layout[3:10] == ['Hdr', 'Row:Split Artists', 'Row:Split Genres', 'Hdr', 'Row:Index Rail', 'Row:Section Headers', 'Note'] and A.layout[3].text == 'Tags',
+               f'{label}: a switch row in the List Navigation card (header and note) under the Tags card (both splits in one card) of the Library page, its file {name} among the Settings Files ({layout[3:10]})')
 
         def open_page(saved=None):
             m = Machine()

@@ -128,9 +128,12 @@ Turn on **Settings → Library → Split Genres** to list a song whose genre tag
 such as `Rock; Pop`, under each name on the Genres page. A genre opens the songs of every tag that
 names it.
 
-- Choose separators on the same settings page. Only `;` is on by default, so `R&B`, `Rock/Pop` and
-  `Folk, World, & Country` stay whole; turn on `/`, `&` or `,` if your tags use them.
-- Add names that must never split, one per line, to `genre-exceptions.txt` at the card root; blank
+- Choose separators on the same settings page: `;`, `/`, `&`, `,` and `+`. Only `;` is on by
+  default, so `Rock/Pop` and `Jazz, Blues` stay whole; turn on the others if your tags use them.
+- Common genres that contain a separator, such as `R&B`, `Drum & Bass`, `Rock & Roll`,
+  `Stage & Screen`, `Singer/Songwriter` and `Folk, World, & Country`, are never split. Names
+  that join two genres, such as `Hip-Hop/Rap` or `Pop/Rock`, split once `/` is on.
+- Add more names that must never split, one per line, to `genre-exceptions.txt` at the card root; blank
   lines and `#` comments are ignored. Names are matched ignoring upper and lower case.
 - Reopen an already open Genres page to see a change. Genres on albums and in Search are not
   split. After a restart, Memory Playback resumes the same track in the whole library, not the

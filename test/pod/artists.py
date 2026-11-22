@@ -2709,11 +2709,20 @@ def gsplit_tests(ctx):
     m = gsplit_machine(b'm3\n', exceptions=b'# mine\n  Rock/Pop \r\n\n')
     names = split_names(m)
     expect('Rock/Pop' in names and 'Pop/Rock' not in names, f'the card file keeps Rock/Pop whole, an unlisted Pop/Rock splits ({names})')
-    m = gsplit_machine(b'm4\n')   # ampersand
-    expect('R&B' not in split_names(m) and 'R' in split_names(m), f'm4: the ampersand splits R&B (no built-in genre exceptions) ({split_names(m)})')
-    m = gsplit_machine(b'm4\n', exceptions=b'R&B\n', artist_exceptions=b'Folk, World, & Country\n')
+    BI = ('r&b', 'Folk, World, & Country', 'Hip-Hop/Rap; Singer/Songwriter', 'R&B/Soul', 'Soul & Funk', 'Drum & Bass, Jungle', 'Simon & Garfunkel', 'Mine & Yours', 'Jazz+Funk')
+    m = gsplit_machine(b'm143\n', tags=BI)   # every separator on: the built-in genres stay whole wherever they stand, and only their own bytes are protected
     names = split_names(m)
-    expect('R&B' in names and 'Folk, World, & Country' not in names, f'genre-exceptions.txt keeps R&B whole; artist-exceptions.txt is not read for genres ({names})')
+    expect(names == ['Drum & Bass', 'Folk, World, & Country', 'Funk', 'Garfunkel', 'Hip-Hop', 'Jazz', 'Jungle', 'Mine', 'r&b', 'Rap', 'Simon', 'Singer/Songwriter', 'Soul', 'Yours'],
+           f'm143: the built-in genre exceptions stay whole (R&B/Soul gives R&B and Soul, merged with r&b); names joining two genres (Hip-Hop/Rap, Jazz+Funk) and the artist exceptions split ({names})')
+    m = gsplit_machine(b'm143\n', tags=('Rhythm & Blues', 'Rock & Roll', 'Folk, World & Country', 'Stage & Screen', 'Brass & Military', 'Brass & Woodwinds', 'Devotional & Spiritual', 'Fitness & Workout', 'Praise & Worship',
+                                        'Slowed & Reverb', 'Melodic House & Techno'))
+    expect(len(split_names(m)) == 11 and not any(n in split_names(m) for n in ('Rock', 'Roll', 'Folk', 'Stage', 'Brass', 'Techno')), f'm143: every other built-in name is one row ({split_names(m)})')
+    m = gsplit_machine(b'm143\n', tags=BI, exceptions=b'Mine & Yours\n', artist_exceptions=b'Soul & Funk\n')
+    names = split_names(m)
+    expect('Mine & Yours' in names and 'Drum & Bass' in names and 'Soul & Funk' not in names, f'genre-exceptions.txt adds to the built-in names; artist-exceptions.txt is not read for genres ({names})')
+    WORDS = ['Drum and Bass', 'Rock feat. Pop', 'A x B', 'C with D', 'E vs. F']
+    m = gsplit_machine(b'm880\n', tags=WORDS)   # the word separators' bits (0x370) are not a genre's: the mask reads 0, the stock rows
+    expect(split_names(m) == WORDS and m.call(PSYMS['gs_mask'], count=2000000) == 0, f'm880: a genre never splits on feat., vs., x, with or and ({split_names(m)})')
     m = gsplit_machine(exceptions=b'ambient;electronic\n')
     expect('ambient;electronic' in split_names(m) and 'ambient' not in split_names(m), 'a whole tag listed on the card stays one row')
     # the rows are the page's own: no stock list is kept, and a tap opens our Songs page on the split name; a window that will not open does nothing (the stock query on a split name finds nothing)

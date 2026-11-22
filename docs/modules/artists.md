@@ -298,11 +298,26 @@ reads the stock `loadLocalClassList(0xf006)` and a genre's songs are the stock `
 
 The setting is `/mnt/data/m1plus/library-genre-split` (`GS_FILE`, Settings > Library > Split Genres,
 [settings](settings.md)), in the format of the artist one (`1`, `m<decimal>`, `o<decimal>`; the mask
-bits are the splitter's `M1_SPLIT_*`). **The default mask (`1`, `GS_DEFAULT`) is the semicolon
-alone**: a genre field is not an artist field, so `R&B`, `Folk, World, & Country` and `Rock/Pop`
-stay whole until the user turns `&`, `,` or `/` on. The card file `/mnt/mmc/genre-exceptions.txt`
-(`GS_EXCEPTIONS`) has the artist file's rule (one name per line, `#` lines and blanks skipped, 64
-names, 4096 bytes); the built-in artist exceptions (`AC/DC`, ...) are not used.
+bits are the splitter's `M1_SPLIT_*`). A genre splits only on the punctuation separators `;` `/`
+`&` `,` `+` (`GS_ALL`, bits 0-3 and 7): the splitter's words (`feat.`, `vs.`, `x`, `with`, `and`)
+join artists, and `and` would cut `Drum and Bass`, so any other bit of a saved mask is dropped.
+**The default mask (`1`, `GS_DEFAULT`) is the semicolon alone**: a genre field is not an artist
+field, so `Rock/Pop` and `Jazz, Blues` stay whole until the user turns `/` or `,` on.
+
+Names never split, whatever the mask (an exception protects only its own bytes, so `R&B/Soul` still
+gives `R&B` and `Soul` with the slash on):
+
+- **Built in** (`gs_builtin`): `R&B`, `Rhythm & Blues`, `Rock & Roll`, `Drum & Bass`,
+  `Folk, World, & Country` (also without the second comma), `Stage & Screen`, `Brass & Military`,
+  `Brass & Woodwinds`, `Devotional & Spiritual`, `Fitness & Workout`, `Praise & Worship`,
+  `Slowed & Reverb`, `Melodic House & Techno`, `Singer/Songwriter`. Each is a name in a published
+  genre list (ID3v1 / Winamp, Discogs, Apple Music, MusicBrainz, AllMusic, Beatport; the table's
+  comment names which) with a part that is not a genre by itself. A name joining two genres of
+  the same list (`Pop/Rock`, `Hip-Hop/Rap`, `Funk / Soul`, `Jazz+Funk`) is not in it: the mask
+  decides. The built-in artist exceptions (`AC/DC`, ...) are not used. The card file can only add
+  to the built-in names; a possible improvement is letting it take one out.
+- **The card file** `/mnt/mmc/genre-exceptions.txt` (`GS_EXCEPTIONS`), added to them, with the
+  artist file's rule (one name per line, `#` lines and blanks skipped, 64 names, 4096 bytes).
 
 - **Rows** (`gs_rows`): the stock genre list is read and taken (`lib_take_list`); each tag
   (`REC_TITLE`) is split (at most 8 names) and names merge ASCII case-insensitively in a hash table,

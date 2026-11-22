@@ -977,6 +977,7 @@ TEXT = dict([
        'Utwór z tagiem A & B lub A feat. B pojawia się pod każdą nazwą w Wykonawcach. Nazwy z artist-exceptions.txt na karcie nigdy nie są dzielone.',
        'Трек с тегом A & B или A feat. B появляется под каждым именем в Исполнителях. Имена из artist-exceptions.txt на карте не разделяются.',
        "Трек із тегом A & B або A feat. B з'являється під кожним іменем у Виконавцях. Імена з artist-exceptions.txt на картці не розділяються."),
+    _t('Tags', '标签', '標籤', 'タグ', '태그', 'Tags', 'Tags', 'Etiquetas', 'Tag', 'แท็ก', 'Tagi', 'Теги', 'Теги'),
     _t('Split Genres', '拆分风格', '拆分風格', 'ジャンルを分割', '장르 분리', 'Séparer genres', 'Genres trennen',
        'Separar', 'Dividi generi', 'แยกประเภท', 'Dziel gatunki', 'Делить жанры', 'Ділити жанри'),
     _t('A track tagged Rock; Pop appears under each name in Genres. Names in genre-exceptions.txt on the card are never split.',

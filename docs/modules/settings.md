@@ -96,8 +96,8 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
 - **Library.**
   - Update Library (our page, a link row: [libupdate](libupdate.md)), then **Rebuild Covers** and **Rebuild Artist Photos**
     ([Rebuild rows](#rebuild-rows)).
-  - **Artists:** a value row **Split Artists** (On / Off) opening its page (below).
-  - **Genres:** a value row **Split Genres** (On / Off) opening its page (below).
+  - **Tags:** one card of two value rows, **Split Artists** and **Split Genres** (On / Off), each opening
+    its page (below).
   - **List Navigation:** **Index Rail** and **Section Headers** switches, note "Songs, Artists, Albums and
     Radio lists" ([songs](songs.md), [artists](artists.md)).
   - **Cover Flow:** Landscape and **Volume Buttons** (`coverflow_volkeys`; two-line note "In Cover Flow,
@@ -120,9 +120,9 @@ page is a `Page(layout=[Row, Hdr, Note, GAP ...])` in `tools/pod_pages.py` of ki
   stores the mask even when off, so the separators survive off / on; turning the last separator off while on
   leaves the switch on and splits nothing. Artists, Search and Now Playing read the setting when they open,
   so an already open Artists page keeps its rows. Rules: [artists](artists.md).
-- **Library > Split Genres** (`m1plus_genresplit`, last in `PAGE_ORDER`, ACT 196..): the same page for the
-  Genres list: the **Split Genres** switch (ACT 197, off by default), **Separators** and ten switch rows
-  (ACT 198 + k; **default on for `;` alone**), and the note "A track tagged Rock; Pop appears under each
+- **Library > Split Genres** (`m1plus_genresplit`, last in `PAGE_ORDER`, ACT 197..): the same page for the
+  Genres list: the **Split Genres** switch (ACT 198, off by default), **Separators** and five switch rows
+  `;` `/` `&` `,` `+` (ACT 199 + k for bit k: 0-3 and 7; **default on for `;` alone**), and the note "A track tagged Rock; Pop appears under each
   name in Genres. Names in genre-exceptions.txt on the card are never split." Dimming, saving and the
   mask kept when off are as for Split Artists. Rules: [artists](artists.md#split-genres).
 - **Library > Scrobbling** and its ListenBrainz and Last.fm pages: [scrobble](scrobble.md#settings).

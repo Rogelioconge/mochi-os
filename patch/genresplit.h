@@ -15,15 +15,16 @@
     "/mnt/mmc/genre-exceptions.txt" /* the card's own never-split names, one a line (blank lines and lines starting with # skipped) */
 #define GS_MARK 0x47535031 /* REC_CLASS of a row gs_rows made ("GSP1"): stock rows leave it 0 */
 
-#define GS_SEPS 10 /* the separators the settings page lists: M1_SPLIT_* bits 0 .. 9 */
-#define GS_ALL ((1u << GS_SEPS) - 1)
+/* The separators a genre field may be split on, and the settings page lists: the punctuation ones. The splitter's words (feat., vs., x, with, and) join artists, never genres, and "and" would
+ * cut "Drum and Bass" and "Rock and Roll", so the setting has no bit for them. */
+#define GS_ALL (M1_SPLIT_SEMICOLON | M1_SPLIT_SLASH | M1_SPLIT_AMPERSAND | M1_SPLIT_COMMA | M1_SPLIT_PLUS)
 /* The default mask is semicolon alone: a genre field is not an artist field. "R&B" and "Folk, World, & Country" are single genres, so & and , are off until the user asks for them, and a slash
  * is off because "Rock/Pop" and "Pop/Rock" are single names in the wild. */
 #define GS_DEFAULT M1_SPLIT_SEMICOLON
 
 /* The separators the setting asks for (M1_SPLIT_* bits), 0 when it is off. */
 unsigned gs_mask(void);
-/* Settings > Library > Split Genres: the switch (1 on), its toggle, separator k's state and its toggle (the new state, -1: not saved, unchanged). */
+/* Settings > Library > Split Genres: the switch (1 on), its toggle, separator k's state (M1_SPLIT_* bit k, one of GS_ALL) and its toggle (the new state, -1: not saved, unchanged). */
 int gs_setting(void);
 int gs_toggle(void);
 int gs_sep(int k);

@@ -200,16 +200,12 @@ enum {
     ACT_SWAPKEYS = 196, /* Buttons & Power: Swap Prev / Next, a switch (patch/keyspower.c) */
     ACT_GSPAGE = 197, /* Settings > Library > Split Genres: a value row (On or Off) opening the Split Genres page */
     ACT_GSPLIT = 198, /* Split Genres page: the switch, off by default (patch/genresplit.c gs_toggle) */
-    ACT_GSSEP0 = 199, /* ... and the separator switches, one per M1_SPLIT_* bit (gs_sep_toggle) */
+    ACT_GSSEP0 =
+        199, /* ... and the separator switches, 199 + the M1_SPLIT_* bit of each separator a genre splits on (GS_ALL; gs_sep_toggle) */
     ACT_GSSEP1 = 200,
     ACT_GSSEP2 = 201,
     ACT_GSSEP3 = 202,
-    ACT_GSSEP4 = 203,
-    ACT_GSSEP5 = 204,
-    ACT_GSSEP6 = 205,
     ACT_GSSEP7 = 206,
-    ACT_GSSEP8 = 207,
-    ACT_GSSEP9 = 208,
     ACT_PDLABELS = 209, /* Settings > Appearance: Control Labels, a switch (patch/pulldown.c) */
     ACT_CRRUN = 210, /* Settings > Developer > Tools > Card Script: Run Now (patch/cardrun.c) */
     ACT_CRLOG = 212, /* ... View Log: the log page (patch/relnotes.c cardlog_open) */
@@ -796,12 +792,7 @@ GS_SEP_FN(0)
 GS_SEP_FN(1)
 GS_SEP_FN(2)
 GS_SEP_FN(3)
-GS_SEP_FN(4)
-GS_SEP_FN(5)
-GS_SEP_FN(6)
 GS_SEP_FN(7)
-GS_SEP_FN(8)
-GS_SEP_FN(9)
 static int sw_always(void) { return 1; } /* Keyboards > English: always on, and its row takes no tap */
 
 static const struct pod_switch {
@@ -852,12 +843,7 @@ static const struct pod_switch {
     {ACT_GSSEP1, sw_gs1, sw_gs1_t},
     {ACT_GSSEP2, sw_gs2, sw_gs2_t},
     {ACT_GSSEP3, sw_gs3, sw_gs3_t},
-    {ACT_GSSEP4, sw_gs4, sw_gs4_t},
-    {ACT_GSSEP5, sw_gs5, sw_gs5_t},
-    {ACT_GSSEP6, sw_gs6, sw_gs6_t},
     {ACT_GSSEP7, sw_gs7, sw_gs7_t},
-    {ACT_GSSEP8, sw_gs8, sw_gs8_t},
-    {ACT_GSSEP9, sw_gs9, sw_gs9_t},
     {ACT_LBAUTO, scrobble_auto_setting, scrobble_auto_toggle},
     {ACT_GAPLESS, ps_gapless, ps_gapless_toggle},
     {ACT_XFADEAUTO, xfade_auto, xfade_auto_toggle},
@@ -1196,7 +1182,7 @@ static void page_refresh(void *win, const struct pod_page *page) {
             lab = widget_lookup(win, name, 1);
             if (lab) widget_set_text_utf8(lab, cardrun_pid() ? TR("Stop") : TR("Run Now"));
         }
-        if (row->action >= ACT_GSSEP0 && row->action <= ACT_GSSEP9) { /* Split Genres: the same */
+        if (row->action >= ACT_GSSEP0 && row->action <= ACT_GSSEP7) { /* Split Genres: the same */
             void *item = widget_lookup(win, row->name, 1);
             int on = gs_setting();
             if (item) widget_set_opacity(item, on ? 255 : KB_EN_DIM), widget_set_sensitive(item, on);

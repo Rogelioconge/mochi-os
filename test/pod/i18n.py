@@ -50,6 +50,7 @@ SAME_AS_ENGLISH |= {'NetEase'}    # the service's name outside Chinese (Find Art
 SAME_AS_ENGLISH |= {'D2P', 'DOP', 'ReplayGain', 'Variable'}    # Playback Settings: the DSD output modes and the ReplayGain name read the same in every language that does not write them in its script
 SAME_AS_ENGLISH |= {'Stereo', 'USB & Digital'}    # Volume & Sound's Stereo header (German, Italian, Polish) and Output's USB & Digital (German)
 SAME_AS_ENGLISH |= {'Photos'}    # the Cache page's Artist Photos count: Photos in French
+SAME_AS_ENGLISH |= {'Tags'}    # the Library page's header over the two splits: Tags in French and German
 SAME_AS_ENGLISH |= {'Codec', 'Bitrate', 'Source'}    # Station Info: Codec in French, German and Italian, Bitrate in German and Italian, Source in French
 
 SAME_AS_ENGLISH |= {'LDAC HQ', 'LDAC Standard'}    # the Audio Codec picker's LDAC choices: LDAC HQ in nine tables, LDAC Standard in French, German, Italian and Polish

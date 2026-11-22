@@ -148,8 +148,10 @@ for _k in range(len(ASSEP_LABELS)): globals()[f'ACT_ASSEP{_k}'] = 174 + _k   # A
 ASSEP_ACTIONS = tuple(174 + _k for _k in range(len(ASSEP_LABELS)))
 ACT_GSPAGE = 197      # value row (Settings > Library): Split Genres, On or Off as the switch on its page; opens the Split Genres page (arg = its page index; patch/genresplit.c gs_setting)
 ACT_GSPLIT = 198      # switch row (Split Genres page): Split Genres, off by default (patch/genresplit.c gs_toggle, /mnt/data/m1plus/library-genre-split)
-for _k in range(len(ASSEP_LABELS)): globals()[f'ACT_GSSEP{_k}'] = 199 + _k   # ACT_GSSEP0 .. ACT_GSSEP9: switch rows (Split Genres page, Separators): separator bit k, no glyph (patch/genresplit.c gs_sep_toggle)
-GSSEP_ACTIONS = tuple(199 + _k for _k in range(len(ASSEP_LABELS)))
+GSSEP_BITS = (0, 1, 2, 3, 7)   # the separators a genre splits on: the punctuation ones (patch/genresplit.h GS_ALL); the words (feat., vs., x, with, and) join artists, not genres
+GSSEP_LABELS = tuple(ASSEP_LABELS[_k] for _k in GSSEP_BITS)
+for _k in GSSEP_BITS: globals()[f'ACT_GSSEP{_k}'] = 199 + _k   # ACT_GSSEP0 .. 3 and 7: switch rows (Split Genres page, Separators): separator bit k, no glyph (patch/genresplit.c gs_sep_toggle)
+GSSEP_ACTIONS = tuple(199 + _k for _k in GSSEP_BITS)
 ACT_RGBROW = 143      # value row (LED Light, a card of its own under the choices, shown only while Dynamic is chosen): Theme, the Dynamic lamp's theme name; opens the Theme page (arg = its page index; patch/tracklamp.c tl_theme)
 ACT_RGBTHEME = 140    # picker row (Theme, opened by the LED Light page's Theme row): choose the theme (arg = 0 .. 5, patch/tracklamp.h TL_REFERENCE ..; patch/tracklamp.c tl_theme_set)
 ACT_ROTATE = 153      # switch row (Settings > Display): Screen Rotation, stock's two choices of systemset/screenrotate_page as one switch (the word rotate_mode, 0 = 0 degrees, 1 = 180 degrees, saved as [SYSSET] ROTATEMODE, then tk_set_lcd_orientation; patch/display.c disp_rotate_toggle)
@@ -960,9 +962,8 @@ LIBRARY_PAGE = Page('m1plus_library', 'm1plus_library_page', 'Library', layout=[
     Row('Update Library', ACT_PAGE, LIBUPDATE_PAGE_INDEX),
     Row('Rebuild Covers', ACT_REBUILD),
     Row('Rebuild Artist Photos', ACT_AREBUILD),
-    Hdr('Artists'),
+    Hdr('Tags'),   # one card for both splits
     Row('Split Artists', ACT_ASPAGE, ASPLIT_PAGE_INDEX),   # On or Off; opens the Split Artists page
-    Hdr('Genres'),
     Row('Split Genres', ACT_GSPAGE, GSPLIT_PAGE_INDEX),   # On or Off; opens the Split Genres page
     Hdr('List Navigation'),
     Row('Index Rail', ACT_AZRAIL),
@@ -1468,12 +1469,12 @@ ASPLIT_PAGE = Page('m1plus_artistsplit', 'm1plus_artistsplit_page', 'Split Artis
     Note(ASPLIT_NOTE, lines=4),
 ])
 
-# Settings > Library > Split Genres (patch/genresplit.c, docs/modules/artists.md "Split Genres"): the same page as Split Artists for the Genres list; the default separator is the semicolon alone.
+# Settings > Library > Split Genres (patch/genresplit.c, docs/modules/artists.md "Split Genres"): the same page as Split Artists for the Genres list, with the five punctuation separators (GSSEP_BITS); the default separator is the semicolon alone.
 GSPLIT_NOTE = 'A track tagged Rock; Pop appears under each name in Genres. Names in genre-exceptions.txt on the card are never split.'
 GSPLIT_PAGE = Page('m1plus_genresplit', 'm1plus_genresplit_page', 'Split Genres', layout=[
     Row('Split Genres', ACT_GSPLIT),
     Hdr('Separators'),
-] + [Row(lab, GSSEP_ACTIONS[k]) for k, lab in enumerate(ASSEP_LABELS)] + [
+] + [Row(lab, GSSEP_ACTIONS[k]) for k, lab in enumerate(GSSEP_LABELS)] + [
     Note(GSPLIT_NOTE, lines=4),
 ])
 

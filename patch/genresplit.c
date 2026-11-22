@@ -84,19 +84,45 @@ int gs_sep(int k) {
     int on;
     unsigned v;
     gs_parse(&on, &v);
-    return k >= 0 && k < GS_SEPS && (v >> k & 1);
+    return k >= 0 && k < 32 && (v & GS_ALL) >> k & 1;
 }
 
 int gs_sep_toggle(int k) {
     int on;
     unsigned v;
-    if (k < 0 || k >= GS_SEPS) return -1;
+    if (k < 0 || k >= 32 || !(GS_ALL >> k & 1)) return -1;
     gs_parse(&on, &v);
     v ^= 1u << k;
     return gs_save(on, v) < 0 ? -1 : (int)(v >> k & 1);
 }
 
-/* The splitter's options: the setting's mask and the card's exceptions file. The built-in artist exceptions (AC/DC, Simon & Garfunkel) are left out: they protect names, and a genre is not a name. */
+/* Genres that hold a separator and are one genre whatever the mask. Every name is from a published genre list, read 2026-11-22, and is there because a part of it is not a genre by itself
+ * ("Stage", "Singer", "Drum"); a name that joins two genres of the same list (Pop/Rock, Hip-Hop/Rap, Funk / Soul, Jazz+Funk) is left to the mask. An exception only protects its own bytes, so
+ * "R&B/Soul" and "Contemporary R&B; Soul" still give their names.
+ *   ID3v1 / Winamp (mutagen _constants.py GENRES): R&B, Rock & Roll, Drum & Bass
+ *   Discogs genres (Database Guidelines 9; the style guide drops the second comma): Folk, World, & Country, Stage & Screen, Brass & Military
+ *   Apple Music (the iTunes genres service, id 34): Singer/Songwriter, Brass & Woodwinds, Devotional & Spiritual, Fitness & Workout, Praise & Worship (and R&B, Rock & Roll)
+ *   MusicBrainz genres: rhythm & blues (as "british rhythm & blues"), slowed & reverb (and r&b, praise & worship)
+ *   AllMusic genres: Stage & Screen, R&B.  Beatport genres: Melodic House & Techno (and Drum & Bass, R&B) */
+static const char *const gs_builtin[] = {"R&B",
+                                         "Rhythm & Blues",
+                                         "Rock & Roll",
+                                         "Drum & Bass",
+                                         "Folk, World, & Country",
+                                         "Folk, World & Country",
+                                         "Stage & Screen",
+                                         "Brass & Military",
+                                         "Brass & Woodwinds",
+                                         "Devotional & Spiritual",
+                                         "Fitness & Workout",
+                                         "Praise & Worship",
+                                         "Slowed & Reverb",
+                                         "Melodic House & Techno",
+                                         "Singer/Songwriter",
+                                         0};
+#define GS_BUILTIN (sizeof gs_builtin / sizeof *gs_builtin - 1)
+
+/* The splitter's options: the setting's mask and the built-in genre exceptions plus the card's file. The built-in artist exceptions (AC/DC, Simon & Garfunkel) are left out: they are artists. */
 typedef struct {
     m1_split_opts o;
     char *buf;
@@ -111,14 +137,16 @@ static void gs_opts_free(gs_opts_t *a) {
 
 /* 1 with the options filled (the caller gs_opts_free's them), 0 when the setting is off. */
 static int gs_opts(gs_opts_t *a) {
-    unsigned ne = 0, n = 0, i;
+    unsigned ne, n = 0, i;
     memset(a, 0, sizeof *a);
     a->o.mask = gs_mask();
     if (!a->o.mask) return 0;
-    a->ex = calloc(GS_EXC_MAX + 1, sizeof *a->ex);
-    if (!a->ex) return 1; /* no memory for the file's names: split on the mask alone */
+    a->o.except = gs_builtin;
+    a->ex = calloc(GS_BUILTIN + GS_EXC_MAX + 1, sizeof *a->ex);
+    if (!a->ex) return 1; /* the built-in names alone */
+    for (ne = 0; ne < GS_BUILTIN; ++ne) a->ex[ne] = gs_builtin[ne];
     a->buf = m1_read_file(GS_EXCEPTIONS, GS_EXC_BYTES, &n);
-    for (i = 0; a->buf && i < n && ne < GS_EXC_MAX;) {
+    for (i = 0; a->buf && i < n && ne < GS_BUILTIN + GS_EXC_MAX;) {
         unsigned s = i, e;
         while (i < n && a->buf[i] != '\n') ++i;
         e = i;
