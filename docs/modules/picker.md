@@ -1,8 +1,9 @@
 # Add to Playlist picker
 
 **Sources:** `patch/picker.c`, `patch/picker.h` (the add and the copies), `patch/playlists.c` (pick mode),
-`patch/songops.c` (`so_add`), `PICKER_PINS` in `tools/pod.py`.
-Our own picker replaces the stock one. Add on the Songs page and the album page (`so_add`) opens it;
+`patch/songops.c` (`so_add`), `patch/playmore.c` (`pm_on_addpl`), `PICKER_PINS` in `tools/pod.py`.
+Our own picker replaces the stock one. Add on the Songs page and the album page (`so_add`) opens it,
+and so does Add to playlist on Now Playing's More sheet (`picker_open_rec`, [More menu](playmore.md));
 the stock `playlist_page` in picker mode is only the fallback.
 
 ## Choice: a page, not a sheet
@@ -36,6 +37,9 @@ order. The prologue of `batch_add_file` and the handler's class, call and 5th-ar
 the add needs. So `picker_open` copies the list (`cc_copy_list`: the page's `count` rows must be the stock list's, else -1) and the marks (the page's bitset)
 when it opens; `picker_add` fills the stock selection vector from the copy of the marks (`so_selection`, as the stock-picker path did) and passes the copy to
 `batch_add_file`. The call writes the new ids into the copy's records (stock writes them into the shown list's); the caller reads its list again anyway.
+
+**One record.** `picker_open_rec(class, rec)` is the picker for a record that is in no shown list (the playing row of the queue): the list is a one-row copy
+of it (`so_row_deque`) with its one mark, and `*pdeq_showlist` is not read. Everything after the open is the same.
 
 **The browsing record.** Those queries also set the browsing class, `classinfo[0..1]` and the navigation title. The picker saves them at open and puts them back
 after every query it runs (`picker_restore`: after each playlist scan, the playlist list, the creating query) and when the page is gone (`picker_release`, from

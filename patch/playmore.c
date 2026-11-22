@@ -47,6 +47,7 @@
 #include "artsplit.h"
 #include "artists.h"
 #include "lyrics.h"
+#include "picker.h"
 
 #define PM_ROWS \
     17 /* listitem0..6, then pod_more, pod_back, pod_tape, pod_vinyl, pod_goep, pod_art, pod_sleep, pod_mode, pod_lyr, pod_vu */
@@ -577,10 +578,24 @@ static int pm_on_delete(void *ctx, void *e) {
     return RET_STOP;
 }
 
-/* Add to playlist (listitem2) is stock's (0x4798f0); for a Subsonic stream it does not run (the row is dimmed and insensitive; this is the second look). */
+/* Add to playlist (listitem2) is stock's handler (0x4798f0) done here with our picker (patch/picker.c: the page the track rows' Add to Playlist opens) in place of stock's playlist_page. Stock's:
+ * player_addplayList() (-5 with no track or a stopped player: a message, the sheet stays; else it fills the tags a folder-played row lacks and puts the playing row in the selection vector), the
+ * sheet closed, then playlist_page with PICKER_PLAYING, whose row handler adds the queue's selected row. Ours opens the picker on a copy of the playing row (the queue can move on under it; the
+ * add is the track that played at the tap), and stock's never runs (RET_STOP). Stock's runs untouched for its own -5 and for its own stream lists (Tidal, DLNA: the play types the Queue page leaves
+ * to stock), and its page is opened as it opens it where our picker cannot open. For a Subsonic stream neither runs (the row is dimmed and insensitive; this is the second look). */
 static int pm_on_addpl(void *ctx, void *e) {
+    void *rec;
+    int type;
     (void)e;
-    return pm.dlg && ctx == pm.dlg && pm_stream_now() ? RET_STOP : RET_OK;
+    if (!pm.dlg || ctx != pm.dlg) return RET_OK;
+    if (pm_stream_now()) return RET_STOP;
+    type = mclGetPlayType();
+    if (type == QP_STREAM_A || type == QP_STREAM_B || type == QP_STREAM_C || type == QP_STREAM_D) return RET_OK;
+    if (player_addplayList() < 0 || !(rec = cc_playing())) return RET_OK;
+    window_close(ctx); /* (pm is gone from here on: the sheet closed) */
+    if (picker_open_rec(CLASS_ALL_SONGS, rec) < 0)
+        navigator_to_with_context("playlist_page", (const void *)(long)PICKER_PLAYING);
+    return RET_STOP;
 }
 
 static void pm_start(void *dlg) {

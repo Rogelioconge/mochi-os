@@ -44,12 +44,11 @@ void picker_release(void) {
     memset(&pk, 0, sizeof pk);
 }
 
-int picker_open(int cls, unsigned count, const unsigned char *sel) {
-    void *list = *(void **)PDEQ_SHOWLIST;
+/* The picker over `list`, a copy that is the picker's from here (0 where it could not be made): count rows, the marks in sel. */
+static int pk_open(int cls, void *list, unsigned count, const unsigned char *sel) {
     unsigned bytes = (count + 7) / 8;
-    if (pk.on || !count || !list || deque_size(list) != count) return -1;
     pk.on = 1; /* from here picker_release undoes what is made */
-    pk.list = cc_copy_list(list);
+    pk.list = list;
     pk.sel = calloc(bytes, 1);
     if (!pk.list || !pk.sel || deque_size(pk.list) != count) {
         picker_release();
@@ -65,6 +64,18 @@ int picker_open(int cls, unsigned count, const unsigned char *sel) {
         return -1;
     }
     return 1;
+}
+
+int picker_open(int cls, unsigned count, const unsigned char *sel) {
+    void *list = *(void **)PDEQ_SHOWLIST;
+    if (pk.on || !count || !list || deque_size(list) != count) return -1;
+    return pk_open(cls, cc_copy_list(list), count, sel);
+}
+
+int picker_open_rec(int cls, void *rec) {
+    static const unsigned char one = 1;
+    if (pk.on || !rec) return -1;
+    return pk_open(cls, so_row_deque(rec), 1, &one);
 }
 
 /* The stock row handler's sequence: the selection into the stock vector, batch_add_file (duplicates skipped by checkPlayListExist; the rows of the copy get the new

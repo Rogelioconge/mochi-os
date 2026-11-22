@@ -1047,6 +1047,7 @@
 #define SG_FOOT_TEXT_H 20
 #define SG_FOOT_PX 15           /* the album page's footer's size, in the secondary grey #AAAAAA */
 #define PICKER_ADD 0x10000     /* the stock playlist picker's context is PICKER_ADD | the class listed (the stock Add button @0x52817c: lui 1, or g_class_type) */
+#define PICKER_PLAYING 0x2f001 /* Now Playing's Add to playlist opens the stock picker with this (@0x479954: lui 2, ori 0xf001): the tapped playlist gets the selected row of the play queue */
 #define CONFIRM_KIND_DELETE 3
 #define CONFIRM_DELETE_LIBRARY 0xa
 #define CONFIRM_DELETE_FILE 0x14

@@ -69,6 +69,9 @@ class PM(pulldown.SM):
         self.handlers[PSYMS['podcasts_go']] = 'podcasts_go'
         self.art_ret = 0                # what onlineart_open returns (patch/onlineart.c, trapped here: test/pod/onlineartpage.py runs it)
         self.handlers[PSYMS['onlineart_open']] = 'onlineart_open'
+        self.pk_ret, self.pk_calls = 1, []   # what picker_open_rec returns (patch/picker.c, trapped here: test/pod/picker.py runs it) and its calls: (class, the record)
+        self.handlers[PSYMS['picker_open_rec']] = 'picker_open_rec'
+        self.addpl_ret = 1              # what stock's player_addplayList answers (-5: no track, or the player stopped)
         self.sbtrack = {}               # server track REC_ID -> track id (sba_rec_track, patch/sbapi.c: tested in sbapi.py); a record in it is a server track (streamed or downloaded)
         self.handlers[PSYMS['sba_rec_track']] = 'sba_rec_track'
         self.cf_ret = 0                 # what coverflow_artist returns (patch/coverflow.c, trapped here: test/pod/coverflow.py and artists.py run it)
@@ -222,6 +225,10 @@ class PM(pulldown.SM):
             u.reg_write(UC_MIPS_REG_V0, self.cstr(self.sbtrack.get(rid, ''))); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         if name == 'onlineart_open':
             self.calls.append(('onlineart_open',)); u.reg_write(UC_MIPS_REG_V0, self.art_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'picker_open_rec':
+            self.pk_calls.append((a0, a1)); self.calls.append(('picker_open_rec', a0, a1)); u.reg_write(UC_MIPS_REG_V0, self.pk_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
+        if name == 'player_addplayList':   # stock's: the playing row's missing tags filled, the row put in the selection vector
+            self.calls.append(('player_addplayList',)); u.reg_write(UC_MIPS_REG_V0, self.addpl_ret & 0xffffffff); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         if name == 'widget_set_tr_text' and self.read_cstr(a1) in self.tr_fail:
             self.calls.append(('widget_set_tr_text', a0, self.read_cstr(a1))); u.reg_write(UC_MIPS_REG_V0, 1); u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA)); return
         if name == 'widget_on':
@@ -1222,14 +1229,32 @@ def run(ctx):
     expect(r[3] == [] and r[4] == ['msg_delsongfailed'], f'playback ended under the question: nothing is deleted ({r})')
     r = delete(answer=O['CONFIRM_YES'], queue=[('/mnt/mmc/' + 'd' * 800 + '.flac', 4)])
     expect(r == (STOP, [], None, [], ['msg_delsongfailed'], 0, 1), f'a path longer than the copy (PM_DEL_PATH, 768 bytes) cannot be told apart after the answer: no question, the failure message ({r})')
-    # the other rows: Add to playlist closes the sheet itself in stock (window_close at 0x47994c, then playlist_page); Speed / A-B open no dialog; none of them gets a handler of ours
+    # the other rows: Speed / A-B open no dialog and get no handler of ours. Add to playlist is stock's handler (0x4798f0: player_addplayList, window_close, playlist_page 0x2f001) done by ours with our picker
     m = PM(); alib(m)
     expect(m.handlers_of(m.rows[AB], CLICK) == [(STOCK_CLICK[ROWS[AB]], m.dialog)], 'A-B repeat keeps the stock handler alone')
     expect(m.handlers_of(m.rows[ADD], CLICK) == [(STOCK_CLICK['listitem2'], m.dialog), (PSYMS['pm_on_addpl'], m.dialog)],
-           'Add to playlist: the stock handler first in the list (it closes the sheet itself), ours bound after it, so ours runs before it')
-    fn, c = m.bound[(m.rows[ADD], CLICK)]
-    ret = m.call(fn, a0=c, a1=0, count=200000); m.sync()
-    expect(ret == 0 and ('window_close', m.dialog) not in m.calls and m.live(ADD), f'Add to playlist on a card track: ours returns RET_OK and does nothing, stock\'s handler runs ({ret})')
+           'Add to playlist: the stock handler first in the list, ours bound after it, so ours runs before it')
+    def addpl(pk=1, addpl=1, pos=0, ptype=None):
+        m = PM(); alib(m); m.pk_ret, m.addpl_ret = pk, addpl
+        if ptype is not None: m.play_type = ptype
+        rec = m.deques[m.word(pod.DATA['PLAY_QUEUE'][0])][0]
+        m.play_pos = pos; fn, c = m.bound[(m.rows[ADD], CLICK)]
+        m.calls = []; ret = m.call(fn, a0=c, a1=0, count=200000)
+        return m, rec, ret, [x[0] for x in m.calls if x[0] in ('player_addplayList', 'window_close', 'picker_open_rec', 'navigator_to_with_context')]
+    for ptype in (None, 1):   # a library queue, and folder playback (play type 1: stock fills that row's tags)
+        m, rec, ret, names = addpl(ptype=ptype)
+        expect(ret == STOP and names == ['player_addplayList', 'window_close', 'picker_open_rec'] and ('window_close', m.dialog) in m.calls and m.pk_calls == [(O['CLASS_ALL_SONGS'], rec)],
+               f'Add to playlist on a card track (play type {ptype}): stock\'s player_addplayList, the sheet closed, then our picker on the playing row with class 0xf001; stock\'s handler does not run ({ret}, {names})')
+    m, rec, ret, names = addpl(pk=-1)
+    expect(ret == STOP and names == ['player_addplayList', 'window_close', 'picker_open_rec', 'navigator_to_with_context'] and ('navigator_to_with_context', 'playlist_page', O['PICKER_PLAYING']) in m.calls and O['PICKER_PLAYING'] == 0x2f001,
+           f'our picker cannot open: the stock picker as stock\'s handler opens it (playlist_page, 0x2f001), after the sheet closed ({ret}, {names})')
+    m, rec, ret, names = addpl(addpl=-5)
+    expect(ret == 0 and names == ['player_addplayList'], f'player_addplayList refuses (-5): nothing is closed or opened, stock\'s handler runs and says its message ({ret}, {names})')
+    m, rec, ret, names = addpl(pos=-1)
+    expect(ret == 0 and names == ['player_addplayList'], f'no playing row: nothing is closed or opened, stock\'s handler runs ({ret}, {names})')
+    for t in (2, 3, 0xf0, 0xf1):
+        m, rec, ret, names = addpl(ptype=t)
+        expect(ret == 0 and names == [], f'a stream list of stock\'s (play type {t:#x}): stock\'s handler alone ({ret}, {names})')
 
     # -- 7e. A Subsonic stream is no file: Add to playlist and Delete are dimmed, insensitive and their stock handlers do not run; a downloaded track keeps both ------
     def opac(m, i): return [c[2] for c in m.calls if c[0] == 'widget_set_opacity' and c[1] == m.rows[i]]
@@ -1249,7 +1274,7 @@ def run(ctx):
     live1 = m.live(ADD) and opac(m, ADD)[-1] == 255; m.click_more()
     expect(live1 and m.live(DELETE) and opac(m, DELETE)[-1] == 255, 'a downloaded Subsonic track is a file: both rows are live at full opacity')
     ret = m.call(PSYMS['pm_on_addpl'], a0=m.dialog, a1=0, count=200000); m.calls = []; m.confirm_answer = 0x14; ret2 = m.call(PSYMS['pm_on_delete'], a0=m.dialog, a1=0, count=2000000)
-    expect(ret == 0 and ret2 == O['RET_STOP'] and ('delete_playqueue_file', 1, 0) in m.calls, f'Add to playlist lets stock\'s run, and Delete deletes the download after its question ({ret}, {ret2})')
+    expect(ret == O['RET_STOP'] and len(m.pk_calls) == 1 and ret2 == O['RET_STOP'] and ('delete_playqueue_file', 1, 0) in m.calls, f'Add to playlist opens the picker, and Delete deletes the download after its question ({ret}, {ret2})')
     # the track changes under an open sheet: the guards follow the track that plays at the tap, not the one the sheet opened on
     STREAM, FILE = 'http://nd.example:4533/rest/stream.view?id=t6&t=tok&s=salt', '/mnt/mmc/Subsonic/Artist/Album/01 Song.flac'
     for row, name, page2 in ((ADD, 'pm_on_addpl', False), (DELETE, 'pm_on_delete', True)):
@@ -1265,8 +1290,8 @@ def run(ctx):
                f'and the row is dimmed and insensitive from then on, the page unchanged ({opac(m, row)})')
         m.play_pos = 0; m.click_more() if not page2 else m.click_back(); m.click_back() if not page2 else m.click_more()
         live = m.live(row); m.calls = []; ret = m.call(fn, a0=c, a1=0, count=2000000)
-        expect(live and (ret == 0 if row == ADD else ret == O['RET_STOP'] and [x for x in m.calls if x[0] == 'confirm']),
-               f'back on the downloaded song: the row is live again once the page is laid out, and {name} goes on (stock\'s Add to playlist runs; Delete asks) ({ret})')
+        expect(live and ret == O['RET_STOP'] and [x for x in m.calls if x[0] == ('picker_open_rec' if row == ADD else 'confirm')],
+               f'back on the downloaded song: the row is live again once the page is laid out, and {name} goes on (Add to playlist opens the picker; Delete asks) ({ret})')
     # without the queue map (sba_queue_note builds the queue even when the map's allocation fails): an address in a library queue is a stream all the same
     m = PM(); m.play([m.record(path=STREAM, rid=-6)], 0); m.open()
     off1 = not m.live(ADD) and opac(m, ADD)[-1] == 100; m.click_more()

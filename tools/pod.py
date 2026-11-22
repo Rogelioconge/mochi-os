@@ -394,6 +394,7 @@ FUNCTIONS.update({
     # is told apart from a stream by mclGetPlayType and the network state, @0x479ff4..0x47a028)
     'start_playqueue':         ('int', 'int', 0x4e47d0),
     'mclGetPlayType':          ('int', 'void', 0x5d3658),
+    'player_addplayList':      ('int', 'void', 0x4efdcc),   # Now Playing's Add to playlist (patch/playmore.c pm_on_addpl), as stock's handler 0x4798f0 calls it first: -5 with no track / stopped, else the playing row's missing tags filled and the row selected
     'delete_playqueue_file':   ('int', 'int', 0x4e48d8),   # Now Playing's Delete (patch/playmore.c pm_on_delete): the playing row out of the queue and the library, the file too for 1
     'add_playrecord':          ('int', 'void', 0x4efb08),   # stock's play-history writer (recentplay / oftenplay), called through patch/sbsrc.c sbs_play_record (PLAYREC_SITE)
     # Now Playing's mode button picture (@0x539888): widget_lookup(window, "btn_playmode"), then the style of mclGetPlayMode()'s mode (btn_imgorder / cycle1 / random / cycle). Stock runs it from the page init and

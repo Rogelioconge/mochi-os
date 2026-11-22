@@ -219,3 +219,30 @@ def run(ctx):
     expect([x[0] for x, s in zip(texts, styles) if s == 'label_grid_title'][:3] == ['Focus', 'Late Night', 'Road Trip'] and first_bound,
            'the Playlists page below is as it was: its grid, its tiles')
     expect(record_ok(m), 'and the caller\'s record is back')
+
+    # 7. One record that is in no shown list (Now Playing's Add to playlist, patch/playmore.c pm_on_addpl): a one-row copy, marked; *pdeq_showlist is not read
+    m = caller(PL)
+    rec = m.record(title='Playing', path='/mnt/mmc/p/1.flac', rid=900)
+    m.setword(SHOWLIST, 0); m.calls = []
+    r = m.call(PSYMS['picker_open_rec'], a0=CLS, a1=rec, count=60000000)
+    expect(r == 1 and ('window_open', 'm1plus_playlists') in m.calls and not [c for c in m.calls if c[0] == 'navigator_to_with_context'],
+           'picker_open_rec opens our Playlists page (1) with no stock list at all')
+    r2 = m.call(PSYMS['picker_open_rec'], a0=CLS, a1=rec, count=60000000)
+    expect(r2 == 0xffffffff, 'but not twice')
+    PL.settle(m)
+    calls = PL.tap(m, 100, PL.TOP + 3 * ROW + 20)
+    add = [c for c in calls if c[0] == 'batch_add_file']
+    expect(len(add) == 1 and add[0][1:3] == (CLS, O['CLASS_PLAYLISTS']) and add[0][5] == 2 and add[0][6] == [0] and m.deques[add[0][3]] == [rec]
+           and [c for c in calls if c[0] == 'select_recordinit'] == [('select_recordinit', 1)] and ('toast', 'msg_addplaylistsuccess', 1, 2000) in calls and ('window_close', m.window) in calls,
+           f'a tap on Late Night: batch_add_file({CLS:#x}, 0xf00b, the one-row list, the stock vector, 2) with row 0 selected, the message, the page closes ({add})')
+    destroy(m)
+    expect(record_ok(m), 'the page gone: the browsing record is as it was')
+    r = m.call(PSYMS['picker_open_rec'], a0=CLS, a1=0, count=60000000)
+    expect(r == 0xffffffff and not [c for c in m.calls[-3:] if c[0] == 'window_open'], 'no record: -1')
+    m = caller(PL, {'m1plus_playlists': 0})
+    r = m.call(PSYMS['picker_open_rec'], a0=CLS, a1=m.record(rid=901), count=60000000)
+    expect(r == 0xffffffff and record_ok(m), 'a window that does not open: -1, nothing left behind')
+    m.windows.clear()
+    r, calls = open_picker(m)
+    expect(r == 1, 'and a picker opens afterwards')
+    destroy(m)

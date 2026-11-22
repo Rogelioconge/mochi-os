@@ -97,7 +97,7 @@ hciplayer (`$gp` `0xb16750`, payload `0xe10000`): equalizer `af_info` `0x893808`
 | `stSongInfo + 0x54` | | the Initial byte (`*` digit, `A`..`Z`, `#`) |
 | play queue deque | `*0xa0394c` | `PLAY_QUEUE`; `mclGetPlayType` `0x5d3658` |
 | `songerinfoflag` | `0xa04737` | set by Look up artist; cleared by `album_page`'s window handler `0x522c64` |
-| More sheet handlers | `0x4795cc` (Look up album), `0x4793ac` (Look up artist) | binder `0x478b44`; `patch/playmore.c` replaces the album one |
+| More sheet handlers | `0x4795cc` (Look up album), `0x4793ac` (Look up artist), `0x4798f0` (Add to playlist: `player_addplayList` `0x4efdcc`, then `playlist_page` `0x2f001`) | binder `0x478b44`; `patch/playmore.c` replaces the album one |
 
 Pins by page: `LYRICS_PINS` (`scroll_lrc` `0x751c3c`, `lrc_time` `0x751c80`, the online timer
 `0x537fec` and the lyric deque `*0xa062e8`), `IDLE_PINS`, `TAPE_PINS`, `PLAYLIST_PINS`

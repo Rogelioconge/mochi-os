@@ -7,8 +7,8 @@ The sheet Now Playing's "..." button opens is the stock `dialog/playmore_dialog`
 Stock rows: A-B repeat (0), Playback speed (1, badges and `label1_msg`), Add to playlist (2), Online
 search (3), Look up album (4), Look up artist (5), Delete song (6). M1+ Music turns it into an iOS
 style bottom sheet with three pages (first, More, Display Mode) by one hook on the dialog's init.
-Stock rows keep their own handlers; the payload moves rows, replaces two behaviours (Look up album
-and Look up artist) and adds rows.
+Stock rows keep their own handlers; the payload moves rows, replaces behaviours (Look up album,
+Look up artist, Add to playlist, Delete) and adds rows.
 
 ## What the user sees
 
@@ -143,6 +143,13 @@ hairline. The dialog gets `highlight`. New row glyphs: `pod_ic_tape`, `pod_ic_vi
   file. Stock's own stream types (2, 3, `0xf0`, `0xf1`) keep stock's rows. A downloaded Subsonic
   track is a file and keeps both rows. Checked at layout and again at
   the tap (`pm_stream_now`).
+- **Add to playlist opens our picker.** `pm_on_addpl` redoes stock's handler (`0x4798f0`) and stops
+  it. Stock's `player_addplayList` runs first (it fills the tags a folder-played row lacks; -5
+  with no track or a stopped player leaves stock's handler to say its message). Then the sheet
+  closes and `picker_open_rec(0xf001, the playing row)` opens the [picker](picker.md) the track
+  rows' Add to Playlist opens. The picker holds a copy of the row, so the add is the track that
+  played at the tap. Where the picker cannot open, stock's page opens as stock opens it
+  (`playlist_page`, `PICKER_PLAYING` `0x2f001`). Stock's own stream lists keep stock's handler.
 - **Delete asks first, about one track.** `pm_on_delete` redoes stock's handler (`msg_delsong`
   confirm; answer `0xa` deletes from the queue, `0x14` the file too) with two differences. The
   sheet closes before the confirm opens (the glass confirm is translucent). The track is checked

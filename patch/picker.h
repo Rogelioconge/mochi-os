@@ -11,6 +11,10 @@
  * classinfo[0..1] and the navigation title the picker's stock queries change are put back when it closes. */
 int picker_open(int cls, unsigned count, const unsigned char *sel);
 
+/* The picker for one record that is in no shown list (Now Playing's Add to playlist: the playing row of the queue): the list is a one-row copy of rec, marked.
+ * 1: open; -1: not opened. *pdeq_showlist is not read; the browsing record is put back as for picker_open. */
+int picker_open_rec(int cls, void *rec);
+
 /* picker_add's argument for the Favourites row (a playlist id is never negative). */
 #define PICKER_FAVOURITES (-1)
 

@@ -1041,6 +1041,12 @@ PLAYMORE_PINS = (   # (address, stock word, what it proves)
     (0x479260, 0x24020003, 'Delete: the confirm is kind 3'), (0x47929c, 0x2403000a, 'Delete: the answer 0xa'), (0x4792a8, 0x24030014, 'Delete: the answer 0x14'),
     (0x4792b0, 0x24040001, 'Delete: delete_playqueue_file(1) for 0x14 (the delay slot of its branch)'), (0x4792d8, 0x0320f809, 'Delete: jalr delete_playqueue_file'),
     (0x4e48d8, 0x3c1c0052, 'delete_playqueue_file prologue'), (0x4e49b0, 0x0320f809, 'delete_playqueue_file: jalr toolsClearDeqItem (the playing row leaves the queue)'),
+    # stock's Add to playlist handler 0x4798f0, which patch/playmore.c pm_on_addpl does over (and stops) with our picker: the call, its refusal and the stock picker's context
+    (0x4efdcc, 0x3c1c0051, 'player_addplayList prologue'), (0x4efdd0, 0x279c4104, 'player_addplayList prologue'), (0x4efdd4, 0x0399e021, 'player_addplayList prologue'),
+    (0x4f0020, 0x0411a8e3, 'player_addplayList: bal select_recordinit(the queue\'s size)'), (0x4f0030, 0x0411a900, 'player_addplayList: bal set_selectindex(the play position)'),
+    (0x479910, 0x0320f809, 'Add to playlist: jalr player_addplayList'), (0x479918, 0x2403fffb, 'Add to playlist: -5 is the message, the sheet stays'),
+    (0x479954, 0x3c050002, 'Add to playlist: the context is 0x2f001 (lui 2)'), (0x47995c, 0x34a5f001, 'Add to playlist: the context is 0x2f001 (ori 0xf001)'),
+    (0x479968, 0x0320f809, 'Add to playlist: jalr navigator_to_with_context("playlist_page", 0x2f001)'),
     (0x479d10, 0x24060082, 'init: widget_move(dialog, 0, 130): the sheet is pinned at y 130'),
     (0x4d1238, 0x24a59f78, 'dispatcher: "dialog/playmore_dialog" string'),
     (0x4d1244, 0x8f99b5d4, 'dispatcher: loads dialog_playmore_dialog_init from the GOT'),
