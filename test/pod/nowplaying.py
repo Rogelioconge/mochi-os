@@ -42,6 +42,9 @@ class NowMachine(Machine):
         for n in ('sba_rec_track', 'sba_rec_size', 'sba_url'): self.handlers[PSYMS[n]] = n
         self.sbfav, self.sbgen = {}, 0   # server track REC_ID -> starred (lib_nd.row on a queue record, patch/sbsrc.c, tested in sbsrc.py); sba_gen
         for n in ('nd_row', 'ls_favorite', 'sba_gen'): self.handlers[PSYMS[n]] = n
+        self.sv_refuse = 0        # how many of the next turns of the slide view (its "value" set) are refused: the page stays
+        self.speed_ok, self.speed_saved = 1, 0   # pc_speed_set's answer, the mode it last saved (pc_speed_apply puts it in playspeed_mode)
+        for n in ('pc_speed_set', 'pc_speed_apply', 'pod_toast'): self.handlers[PSYMS[n]] = n
         self.info = None          # mclGetInfo's record: dict(rate, bits, fmt) (the info page's badge: patch/tape.c tape_badge); None: the player has no stream
         self.handlers[pod.FUNCTIONS['mclGetInfo'][2]] = 'mclGetInfo'
         self.px = {}              # label handle -> its font size (widget_measure_text)
@@ -117,6 +120,21 @@ class NowMachine(Machine):
             ret = self.status
         elif name == 'value_set_uint32':
             self.setword(a0, 7); self.setword(a0 + 8, a1); ret = a0
+        elif name == 'pc_speed_set':   # (key, mode): the show's or the book's speed saved, 0 when the card refuses (patch/pcmodel.c, tested in podcasts.py)
+            self.calls.append(('pc_speed_set', a0 != 0, a1)); ret = self.speed_ok
+            if ret: self.speed_saved = a1
+        elif name == 'pc_speed_apply':   # the saved speed into playspeed_mode (and the player)
+            self.calls.append(('pc_speed_apply', a0 != 0)); self.setword(pod.DATA['PLAYSPEED_MODE'][0], self.speed_saved); ret = 0
+        elif name == 'pod_toast':
+            self.calls.append(('pod_toast', self.read_cstr(a0))); ret = 0
+        elif name in ('save_stop_player', 'save_start_player'):
+            self.calls.append((name, a0) if name == 'save_start_player' else (name,)); ret = 0
+        elif name == 'widget_use_style' and a0 == self.widgets.get('btn_playmode'):   # the widget keeps the name, as AWTK's does (np_mode_sync compares it); recorded by the harness below
+            self.setword(a0 + O['WIDGET_STYLE'], self.cstr(self.read_cstr(a1)))
+        elif name == 'widget_set_prop_int' and self.sv_refuse and a0 == self.widgets.get('slide_view') and self.read_cstr(a1) == 'value':   # a slide view that is animating keeps its page
+            self.sv_refuse -= 1; self.calls.append(('widget_set_prop_int', a0, 'value', a2)); ret = 0
+        elif name == 'seek_time':   # the stock seek: the player is at the target when it returns
+            self.calls.append(('seek_time', a0 - (1 << 32) if a0 >= 1 << 31 else a0)); self.pt = (a0, self.pt[1], self.pt[2]); ret = 1
         elif name == 'get_playtimeandlength':
             pos, ln, r = self.pt
             self.setword(a0, pos); self.setword(a1, ln); self.calls.append(('get_playtimeandlength',)); ret = r
@@ -1490,6 +1508,14 @@ def run(ctx):
     want = {'btn_imgfav_style': 'np_fav', 'btn_imgunfav_style': 'np_unfav', 'btn_imgsave_style': 'np_save', 'btn_imgunsave_style': 'np_unsave'}
     expect(all(len(by.get(n, {})) == 5 and all(i == want[n] for st, i in by[n].items()) for n in want),
            f'the favourite button\'s four styles (star filled / outline, bookmark filled / outline) have their glyph in every state ({by})')
+    sp = {}
+    for s in th.items:
+        if s.widget == 'button' and s.style.startswith('btn_imgspeed'): sp.setdefault(s.style, {})[s.state] = s.get('icon')
+    expect(sp == {f'btn_imgspeed{i}_style': {st: f'np_speed{i}' for st in ('normal', 'pressed', 'over', 'disable', 'focused')} for i in range(O['PC_SPEEDS'])} and mn.SPEED_STYLES == O['PC_SPEEDS']
+           and all(asset_image(f'np_speed{i}').size == (52, 30) and asset_image(f'np_speed{i}').getchannel('A').getbbox() is not None for i in range(O['PC_SPEEDS'])),
+           f'the speed button\'s styles, one per speed, have their 52 x 30 text image in every state ({sp})')
+    expect(asset_image('np_playlist').size == asset_image('np_playlist_down').size == asset_image('np_playqueue').size and asset_image('np_playlist').tobytes() != asset_image('np_playqueue').tobytes(),
+           'the plain list glyph of an episode\'s queue button is the size of the music queue glyph')
     sv, uv = asset_image('np_save'), asset_image('np_unsave')
     bb = lambda im: im.getchannel('A').point(lambda v: 255 if v > 200 else 0).getbbox()
     expect(sv.size == uv.size == asset_image('np_fav').size == (44, 44) and bb(sv) is not None and bb(uv) is not None and sv.getpixel((22, 22))[:3] == mod_icons.NP_FG
@@ -1636,22 +1662,122 @@ def run(ctx):
     expect(not art_paint(m) and m.styles[-1][2] == O['NP_NEUTRAL'], 'a book with no cover at all: as before, no art of ours, the neutral tone')
     m = bk_machine(0, path='/mnt/mmc/a/1.flac')
     expect(not [c for c in m.calls if c[0] == 'bk_art_cover'] and not art_paint(m), 'a track that is not a part: the book is never asked, nothing drawn')
-    # the play mode button is hidden while an audiobook part plays (a book plays in order); only a button the payload hid is shown again
-    def mode_machine(path):
-        mm = NowMachine(); btn = mm.widget('btn_playmode'); mm.page(); mm.src(0)
+    # the play mode button is the speed button while an episode or an audiobook part plays: it wears the page theme's btn_imgspeed<playspeed_mode>_style, a tap saves and applies the next
+    # speed and restarts a playing or paused player at its place (stock's Multiple Speed sequence), and RET_STOP keeps stock's play mode handler away; music is stock's
+    PSM, EPM, MUS = pod.DATA['PLAYSPEED_MODE'][0], '/mnt/mmc/Podcasts/Show/e1.mp3', '/mnt/mmc/a/1.flac'
+    def mode_machine(path, speed=0, status=2):
+        mm = NowMachine(); btn = mm.widget('btn_playmode'); mm.page(); mm.src(0); mm.setword(PSM, speed); mm.speed_saved = speed; mm.status = mm.save_status = status   # the show's saved speed: pc_note applies it when the track starts
         mm.jpeg('/tmp/coverpic.jpg', data=b'stock cover' * 40, pix=bytes([200, 40, 40, 255]) * 16, size=(4, 4))
         mm.play([mm.record(album='Book One', artist='N', path=path, rid=3)], 0); mm.init()
         return mm, btn
-    def mode_shows(mm, btn): return [c for c in mm.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive') and c[1] == btn]
-    mm, btn = mode_machine(BK)
-    expect(mm.props.get((btn, 'visible')) == 0 and mm.props.get((btn, 'sensitive')) == 0, 'an audiobook part: the play mode button is hidden and takes no tap')
-    mm.calls = []; mm.tick(); mm.tick()
-    expect(not mode_shows(mm, btn), f'later ticks of the part: nothing more is done to the button ({mode_shows(mm, btn)})')
-    mm.play([mm.record(album='Local', artist='A', path='/mnt/mmc/a/1.flac', rid=1)], 0); mm.tick()
-    expect(mm.props.get((btn, 'visible')) == 1 and mm.props.get((btn, 'sensitive')) == 1, 'music after the book: the button shows again and takes taps')
-    for what, path in (('music', '/mnt/mmc/a/1.flac'), ('an episode', '/mnt/mmc/Podcasts/Show/e1.mp3')):
-        mm, btn = mode_machine(path); mm.tick()
-        expect(not mode_shows(mm, btn), f'{what}: the play mode button is stock\'s, never touched ({mode_shows(mm, btn)})')
+    def mode_styles(mm, btn): return [c[2] for c in mm.calls if c[0] == 'widget_use_style' and c[1] == btn]
+    def mode_tap(mm):
+        mm.calls = []; r = mm.call(PSYMS['np_on_mode'], a0=0, a1=0)
+        return r, [c for c in mm.calls if c[0] in ('pc_speed_set', 'pc_speed_apply', 'save_stop_player', 'save_start_player', 'pod_toast')]
+    for what, path in (('an episode', EPM), ('a book part', BK)):
+        for speed in range(O['PC_SPEEDS']):
+            mm, btn = mode_machine(path, speed)
+            expect(mode_styles(mm, btn) == [f'btn_imgspeed{speed}_style'] and not [c for c in mm.calls if c[0] in ('widget_set_visible', 'widget_set_sensitive') and c[1] == btn],
+                   f'{what} at speed {speed}: the button wears that speed\'s style and stays shown ({mode_styles(mm, btn)})')
+        binds = [c[1:] for c in mm.calls if c[0] == 'widget_on' and c[1] == btn]
+        expect(binds == [(btn, O['EVT_CLICK'], PSYMS['np_on_mode'], 0)], f'{what}: one click handler on the button, after stock\'s ({binds})')
+        mm.calls = []; mm.tick(); mm.tick()
+        expect(not mode_styles(mm, btn), f'{what}: later ticks set no style again')
+        mm.setword(btn + O['WIDGET_STYLE'], mm.cstr('btn_imgrandom_style')); mm.calls = []; mm.tick()
+        expect(mode_styles(mm, btn) == ['btn_imgspeed3_style'], f'{what}: a play mode style stock put on the button is the speed again at the next tick')
+        r, did = mode_tap(mm)
+        expect(r == O['RET_STOP'] and did == [('pc_speed_set', True, 0), ('pc_speed_apply', True), ('save_stop_player',), ('save_start_player', 0)] and mode_styles(mm, btn) == ['btn_imgspeed0_style'],
+               f'{what}, a tap at 2x while playing: 1x saved and applied, the player restarted playing, the style follows at once, RET_STOP ({r}, {did})')
+    mm, btn = mode_machine(EPM, 0, status=3)
+    r, did = mode_tap(mm)
+    expect(r == O['RET_STOP'] and did[1:] == [('pc_speed_apply', True), ('save_stop_player',), ('save_start_player', 1)] and did[0] == ('pc_speed_set', True, 1), f'a tap while paused: the player is restarted paused ({did})')
+    mm, btn = mode_machine(EPM, 1, status=1)
+    r, did = mode_tap(mm)
+    expect(r == O['RET_STOP'] and did == [('pc_speed_set', True, 2), ('pc_speed_apply', True)] and mode_styles(mm, btn) == ['btn_imgspeed2_style'], f'a tap while stopped: saved and applied, no restart ({did})')
+    mm, btn = mode_machine(EPM, 1); mm.speed_ok = 0
+    r, did = mode_tap(mm)
+    expect(r == O['RET_STOP'] and did == [('pc_speed_set', True, 2), ('pod_toast', 'Storage unavailable')] and not mode_styles(mm, btn) and mm.word(PSM) == 1, f'the card refuses the speed: a toast, nothing applied or restarted ({did})')
+    mm, btn = mode_machine(EPM, 7)
+    expect(mode_styles(mm, btn) == ['btn_imgspeed0_style'] and mode_tap(mm)[1][0] == ('pc_speed_set', True, 1), 'a playspeed_mode out of range reads as 1x')
+    mm, btn = mode_machine(MUS, 2)
+    r, did = mode_tap(mm)
+    expect(not mode_styles(mm, btn) and (r, did) == (O['RET_OK'], []) and not [c for c in mm.calls if c[0] == 'np_mode_button'], f'music: the play mode button is stock\'s, never touched, and a tap is stock\'s ({r}, {did})')
+    mm, btn = mode_machine(EPM, 2)
+    mm.play([mm.record(album='Local', artist='A', path=MUS, rid=1)], 0); mm.tick()
+    back = [c for c in mm.calls if c[0] in ('np_mode_button', 'widget_use_style')]; mm.tick(); again = [c for c in mm.calls if c[0] in ('np_mode_button', 'widget_use_style')]
+    expect(back == [('np_mode_button', WIN)] and not again and mode_tap(mm) == (O['RET_OK'], []),
+           f'music after the episode: stock puts the play mode\'s picture back, once, and a tap is stock\'s again ({back})')
+    # an episode's or a book part's prev / next buttons skip back NP_SKIP_BACK and forward NP_SKIP_FWD seconds: the tick swaps the five states' images, the click handler (bound after the
+    # stock init, so it runs first) seeks and keeps stock's handler away with RET_STOP; music keeps stock's buttons
+    EP1, MUSIC1 = '/mnt/mmc/Podcasts/Show/e1.mp3', '/mnt/mmc/a/1.flac'
+    def skip_machine(path, pt=(100, 600, 1)):
+        mm = NowMachine(); mm.page(); mm.src(0); pv, nx = mm.widget('btn_prev'), mm.widget('btn_next'); mm.widget('btn_queue')
+        mm.pt = pt; mm.play([mm.record(path=path)], 0); mm.init()
+        return mm, pv, nx
+    def skip_look(mm, btn): return [mm.props.get((btn, f'style:{s}:bg_image')) for s in ('normal', 'disable', 'focused', 'over', 'pressed')]
+    def skip_tap(mm, fwd):
+        mm.calls = []; r = mm.call(PSYMS['np_on_skip'], a0=fwd, a1=0)
+        return r, [c[1] for c in mm.calls if c[0] == 'seek_time']
+    STOP, OK = O['RET_STOP'], O['RET_OK']
+    for what, path in (('an episode', EP1), ('a book part', BK)):
+        mm, pv, nx = skip_machine(path)
+        expect(skip_look(mm, pv) == ['np_back15'] * 4 + ['np_back15_down'] and skip_look(mm, nx) == ['np_fwd30'] * 4 + ['np_fwd30_down'],
+               f'{what}: prev and next wear the skip glyphs in every state ({skip_look(mm, pv)}, {skip_look(mm, nx)})')
+        expect(skip_look(mm, mm.widgets['btn_queue']) == ['np_playlist'] * 4 + ['np_playlist_down'], f'{what}: the queue button is the plain list in every state')
+        ons = [c for c in mm.calls if c[0] == 'widget_on' and c[1] in (pv, nx)]
+        expect(sorted(c[1:] for c in ons) == sorted([(pv, O['EVT_CLICK'], PSYMS['np_on_skip'], 0), (nx, O['EVT_CLICK'], PSYMS['np_on_skip'], 1)]), f'{what}: one click handler on each button, after stock\'s ({ons})')
+        expect(skip_tap(mm, 0) == (STOP, [85]) and skip_tap(mm, 1) == (STOP, [115]), f'{what} at 100 s: back seeks to 85, then forward to 115, both RET_STOP (stock changes no track)')
+        mm.calls = []; mm.tick(); mm.tick()
+        expect(not [c for c in mm.calls if c[0] == 'widget_set_prop_str' and c[1] in (pv, nx)], f'{what}: later ticks set no image again')
+    for pt, fwd, want, why in (((10, 600, 1), 0, [0], 'back in the first seconds goes to the start'), ((0, 600, 1), 0, [0], 'back at the start seeks to 0'),
+                               ((580, 600, 1), 1, [595], 'forward near the end stops NP_SKIP_END before it'), ((596, 600, 1), 1, [], 'forward in the last seconds does nothing'),
+                               ((100, 0, 1), 1, [], 'no length yet: no seek'), ((100, 600, 0), 0, [], 'the player gives no time: no seek')):
+        mm, pv, nx = skip_machine(EP1, pt)
+        expect(skip_tap(mm, fwd) == (STOP, want), f'an episode at {pt}: {why}, RET_STOP')
+    mm, pv, nx = skip_machine(MUSIC1)
+    expect(skip_look(mm, pv) == [None] * 5 and skip_look(mm, nx) == [None] * 5 and skip_tap(mm, 0) == (OK, []) and skip_tap(mm, 1) == (OK, []), 'music: the buttons are never touched and a tap is stock\'s (RET_OK, no seek)')
+    mm, pv, nx = skip_machine(EP1)
+    mm.play([mm.record(path=MUSIC1)], 0); mm.tick()
+    expect(skip_look(mm, pv) == ['np_prev'] * 4 + ['np_prev_down'] and skip_look(mm, nx) == ['np_next'] * 4 + ['np_next_down'] and skip_tap(mm, 1) == (OK, [])
+           and skip_look(mm, mm.widgets['btn_queue']) == ['np_playqueue'] * 4 + ['np_playqueue_down'], 'music after the episode: the transport and queue glyphs are back and a tap is stock\'s')
+    mm = NowMachine(); mm.page(); mm.src(0); mm.widget('btn_prev'); mm.play([mm.record(path=EP1)], 0); mm.init()
+    expect(not [c for c in mm.calls if c[0] == 'widget_set_prop_str' and 'bg_image' in str(c)] and skip_tap(mm, 0) == (OK, []), 'a page without both buttons: no glyph, no handler of ours acts')
+    # an episode or a book part shows the cover page alone: the slide view is turned to it, takes no touch (no swipe to lyrics or info), and the page dots are hidden; music gets both back
+    def pages_machine(path, page=0):
+        mm = NowMachine(); mm.page(); mm.src(0); sv, dots = mm.widget('slide_view'), mm.widget('slide_indicator'); mm.props[(sv, 'value')] = page
+        mm.play([mm.record(path=path)], 0); mm.init()
+        return mm, sv, dots
+    def pages_did(mm, sv, dots): return [c for c in mm.calls if c[0] in ('widget_set_prop_int', 'widget_set_sensitive', 'widget_set_visible') and c[1] in (sv, dots)]
+    for what, path in (('an episode', EP1), ('a book part', BK)):
+        for page in (0, 1, 2):
+            mm, sv, dots = pages_machine(path, page)
+            turned = [c for c in mm.calls if c[0] == 'widget_set_prop_int' and c[1] == sv]
+            expect(turned == ([('widget_set_prop_int', sv, 'value', 0)] if page else []) and mm.props.get((sv, 'sensitive')) == 0 and mm.props.get((dots, 'visible')) == 0 and mm.props.get((dots, 'sensitive')) == 0,
+                   f'{what}, the page opened on slide {page}: the cover page, the slide view takes no touch, the dots are hidden ({turned})')
+        mm.tick()
+        expect(not pages_did(mm, sv, dots), f'{what}: later ticks do nothing more to the slide view or the dots ({pages_did(mm, sv, dots)})')
+        mm.play([mm.record(path=MUSIC1)], 0); mm.tick()
+        expect(mm.props.get((sv, 'sensitive')) == 1 and mm.props.get((dots, 'visible')) == 1 and mm.props.get((dots, 'sensitive')) == 1 and not [c for c in mm.calls if c[0] == 'widget_set_prop_int' and c[1] == sv],
+               f'music after {what}: the slide view swipes again and the dots show; the page is not turned')
+    mm, sv, dots = pages_machine(MUSIC1, 1)
+    expect(not pages_did(mm, sv, dots), f'music: the slide view and the dots are never touched ({pages_did(mm, sv, dots)})')
+    # a slide view that refuses the turn (it is animating) is not locked on the wrong page: nothing is locked until the cover page is confirmed, and every tick asks again
+    mm = NowMachine(); mm.page(); mm.src(0); sv, dots = mm.widget('slide_view'), mm.widget('slide_indicator'); mm.props[(sv, 'value')] = 1; mm.sv_refuse = 2
+    mm.play([mm.record(path=EP1)], 0); mm.init()
+    expect(pages_did(mm, sv, dots) == [('widget_set_prop_int', sv, 'value', 0)] and (sv, 'sensitive') not in mm.props and (dots, 'visible') not in mm.props, f'an episode starting while the lyrics slide refuses the turn: asked, nothing locked ({pages_did(mm, sv, dots)})')
+    mm.tick()
+    expect(pages_did(mm, sv, dots) == [('widget_set_prop_int', sv, 'value', 0)] and (sv, 'sensitive') not in mm.props, 'the next tick asks again; still refused, still not locked')
+    mm.tick()
+    expect(mm.props[(sv, 'value')] == 0 and mm.props.get((sv, 'sensitive')) == 0 and mm.props.get((dots, 'visible')) == 0, 'once the cover page is confirmed the slide view is locked and the dots hidden')
+    mm.props[(sv, 'value')] = 2; mm.tick()   # a slide that was still moving when the lock went on ends on its page
+    expect(pages_did(mm, sv, dots) == [('widget_set_prop_int', sv, 'value', 0)] and mm.props[(sv, 'value')] == 0, f'a locked slide view found on another page is turned back to the cover ({pages_did(mm, sv, dots)})')
+    for n in ('np_back15', 'np_fwd30', 'np_back15_down', 'np_fwd30_down'):
+        im = asset_image(n); box = im.getchannel('A').point(lambda v: 255 if v > 200 else 0).getbbox()
+        expect(im.size == asset_image('np_prev').size == (44, 44) and box is not None and box[2] - box[0] >= 22 and box[3] - box[1] >= 24, f'{n}: a 44 px glyph like np_prev ({im.size}, ink {box})')
+    # the ring is open where the arrowhead points: its upper left on the back glyph (the upper right is ring), the mirror image on the forward one
+    rr = mod_icons.SKIP_RING_D / 2; gy = round(22 + mod_icons.SKIP_DROP - rr * 0.766); gl, gr = round(22 - rr * 0.643), round(22 + rr * 0.643)   # the ring at 40 degrees either side of its top
+    gaps = [[sum(asset_image(n).getchannel('A').crop((x - 2, gy - 2, x + 2, gy + 2)).getdata()) for x in (gl, gr)] for n in ('np_back15', 'np_fwd30')]
+    expect(gaps[0][0] < 200 < 1000 < gaps[0][1] and gaps[1][1] < 200 < 1000 < gaps[1][0], f'the back glyph\'s ring opens at its upper left (the arrowhead points left), the forward glyph\'s at its upper right ({gaps})')
     m = bk_machine(1)
     m.calls = []; m.src(0); m.tick()
     expect(len(art_paint(m)) == 1, 'busy, then no picture: the book\'s cover')

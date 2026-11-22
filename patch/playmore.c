@@ -72,24 +72,21 @@
 #define PM_ALBUMS_WINDOW "m1plus_albums_page" /* our Albums page's window (tools/pod_pages.py ALBUMS) */
 
 /* what each page shows, top to bottom, as indices into pm.row[]; the sheet is as high as its page's rows (PM_PAGE_N, PM_PAGE2_N) */
-static const unsigned char pm_page[6][PM_PAGE_MAX] = {
+static const unsigned char pm_page[5][PM_PAGE_MAX] = {
     {4, 5, 2, PM_MODE, PM_MORE}, /* Look up album, Look up artist, Add to playlist, Display Mode, More */
     {PM_BACK, 1, PM_SLEEP, 0, PM_ART,
      6}, /* the back header, Playback speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete */
     {PM_GOEP, 1, PM_SLEEP,
-     PM_MORE}, /* page 1 of a podcast episode: Go to Podcasts, Playback speed, Sleep Timer, More (the rows that mean nothing for an episode are hidden) */
+     0}, /* page 1 of a podcast episode: Go to Podcasts, Playback speed, Sleep Timer, A-B repeat (the rows that mean nothing for an episode are hidden; no More page, so no Delete) */
     {PM_BACK, PM_TAPE, PM_VINYL, PM_VU,
      PM_LYR}, /* the Display Mode page: the back header, Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode */
     {PM_MODE, 1, PM_SLEEP,
-     PM_MORE}, /* page 1 of an audiobook part: Display Mode, Playback speed, Sleep Timer, More (a part has no album or artist to look up, nor a playlist to join) */
-    {PM_BACK, 0,
-     6}, /* the More page of an episode or part: the back header, A-B repeat, Delete (Speed and Sleep Timer are on its page 1; no Find Cover & Lyrics: no album or song to look up) */
+     0}, /* page 1 of an audiobook part: Display Mode, Playback speed, Sleep Timer, A-B repeat (a part has no album or artist to look up, nor a playlist to join; no More page, so no Delete) */
 };
-static const unsigned char pm_rows[6] = {PM_PAGE_N,      PM_PAGE2_N,     PM_PAGE_EP_N,
-                                         PM_PAGE_MODE_N, PM_PAGE_BOOK_N, PM_PAGE2_EP_N};
-static const char *const pm_glass[6] = {
+static const unsigned char pm_rows[5] = {PM_PAGE_N, PM_PAGE2_N, PM_PAGE_EP_N, PM_PAGE_MODE_N, PM_PAGE_BOOK_N};
+static const char *const pm_glass[5] = {
     "pc_sheet5", "pc_sheet6", "pc_sheet4", "pc_sheet5",
-    "pc_sheet4", "pc_sheet3"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
+    "pc_sheet4"}; /* each set's own picture, as high as its rows (the bottom sheets' one family of panes, tools/mod_icons.py PC_SHEETS) */
 
 static struct {
     void *dlg, *lv, *sv, *bar,
@@ -103,21 +100,33 @@ static struct {
 } pm __attribute__((section(".scratch")));
 
 /* The row set shown: 0 the first page, 1 the More page, 2 the first page of an episode, 3 the Display Mode page, 4 the first page
- * of an audiobook part, 5 the More page of an episode or part. */
+ * of an audiobook part. An episode or part has no More page: whatever pm.page says, it is on its first page (or the Display Mode page). */
 static int pm_set(void) {
     if (pm.page == 2) return 3;
-    if (pm.page) return pm.ep || pm.book ? 5 : 1;
-    return pm.ep ? 2 : pm.book ? 4 : 0;
+    if (pm.ep) return 2;
+    if (pm.book) return 4;
+    return pm.page ? 1 : 0;
+}
+
+/* The playing track's kind, read each time the rows are laid out and at Delete's tap: the sheet can stay open while the queue moves on. */
+static void pm_kind_now(void) {
+    void *track = cc_playing();
+    pm.ep = track && pc_is_path(cc_str(track, REC_PATH));
+    pm.book = track && bk_is_path(cc_str(track, REC_PATH));
 }
 
 /* The rows as pm.page says: the shown ones at y = position x PM_ROW_H, the others hidden and parked under the sheet; the
  * children stacked in that order; the sheet PM_PAGE_N rows high on the bottom of the screen. */
 static void pm_arrange(void) {
     unsigned char used[PM_ROWS];
-    int set = pm_set(),
-        stream = sbs_playing_stream(); /* (the track now: the sheet can stay open across a track change) */
-    unsigned i, k = 0, n = pm_rows[set];
-    int h = (int)n * PM_ROW_H;
+    int set, stream = sbs_playing_stream(); /* (the track now: the sheet can stay open across a track change) */
+    unsigned i, k = 0, n;
+    int h;
+    pm_kind_now(); /* so is its kind: an episode or a part that the queue reached under the open sheet gets its own page, without More and Delete */
+    if ((pm.ep || pm.book) && pm.page == 1) pm.page = 0;
+    set = pm_set();
+    n = pm_rows[set];
+    h = (int)n * PM_ROW_H;
     memset(used, 0, sizeof used);
     widget_invalidate_force(pm.dlg, (void *)0);
     for (i = 0; i < PM_ROWS; i++) {
@@ -521,6 +530,15 @@ static int pm_stream_now(void) {
     return 1;
 }
 
+/* An episode or a book part is never deleted from here (its page has no Delete row). The queue can reach one while music's More page is open, with Delete still showing: the tap lays the sheet out
+ * again, as the part's page, and does nothing else. */
+static int pm_spoken_now(void) {
+    void *rec = cc_playing();
+    if (!rec || !pc_spoken_path(cc_str(rec, REC_PATH))) return 0;
+    pm_arrange();
+    return 1;
+}
+
 /* The track Delete was asked for: the queue record's id and path, compared again after the confirm. */
 #define PM_DEL_PATH 768
 static int pm_same_track(int id, const char *path) {
@@ -546,7 +564,7 @@ static int pm_on_delete(void *ctx, void *e) {
     int id, ans;
     (void)e;
     if (!pm.dlg || ctx != pm.dlg) return RET_OK;
-    if (pm_stream_now()) return RET_STOP;
+    if (pm_stream_now() || pm_spoken_now()) return RET_STOP;
     rec = cc_playing();
     window_close(ctx);
     if (!rec) {
@@ -669,8 +687,6 @@ static void pm_start(void *dlg) {
     if (!widget_on(pm.row[PM_ADDPL], EVT_CLICK, pm_on_addpl, dlg)) goto fail;
     pm.page = 0;
     track = cc_playing();
-    pm.ep = track && pc_is_path(cc_str(track, REC_PATH));
-    pm.book = track && bk_is_path(cc_str(track, REC_PATH));
     pm.srv = track && sba_rec_track(*(int *)((char *)track + REC_ID))[0] != 0;
     pm_arrange();
     return;

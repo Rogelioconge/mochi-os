@@ -79,8 +79,13 @@ static const char *const np_iw_names[NI_N] = {
 
 static struct {
     void *fav; /* btn_fav (stock's star button): wears the bookmark styles while an episode plays */
-    void *mode; /* btn_playmode: hidden while an audiobook part plays (a book plays in order) */
-    int modehid; /* 1 while np_mode_sync has the mode button hidden */
+    void *mode; /* btn_playmode: the speed button while an episode or a book part plays */
+    int speedon; /* 1 while np_mode_sync has a speed style on it: its tap changes the speed */
+    void *prev, *next,
+        *queue; /* btn_prev, btn_next: the skip buttons while an episode or a book part plays; btn_queue: a plain list then */
+    int skipon; /* 1 while np_skip_sync has the skip glyphs on them: their taps seek */
+    void *dots; /* slide_indicator: hidden while an episode or a book part plays (the cover page alone) */
+    int pageoff; /* 1 while np_pages_sync holds the slide view on the cover page */
     int favrec, favv; /* a server track's star: the REC_ID favv (1 starred) was read for, 0 none yet */
     unsigned favgen; /* sba_gen() at that read: the cache changed since when it differs */
     void *win, *rem, *tot; /* the window, np_remaining (ours), label_playlen (stock) */
@@ -1268,14 +1273,121 @@ static int np_on_fav(void *ctx, void *e) {
     return RET_OK;
 }
 
-/* The play mode button while an audiobook part plays: hidden, since a book plays its parts in order (bk_play sets List play)
- * and Shuffle or Repeat one would break that. Only a button this hid is shown again, so stock's own state of it is left alone. */
+/* The play mode button while an episode or an audiobook part plays is the speed button (docs/modules/nowplaying.md "Spoken audio controls"): it wears the page theme's btn_imgspeed<mode>_style
+ * (the text 1x .. 2x) for stock's playspeed_mode, and a tap goes to the next speed. Stock sets the button's style itself (its click handler, the page's fill, stock_np_mode_button), so every tick
+ * compares the name; back on music, stock_np_mode_button puts the play mode's picture back. A book plays its parts in order (bk_play sets List play), an episode queue too: the tap never reaches
+ * stock's handler while the speed shows. */
+static int np_speed_mode(void) {
+    int mode = *(volatile int *)PLAYSPEED_MODE;
+    return mode < 0 || mode >= PC_SPEEDS ? 0 : mode;
+}
+
 static void np_mode_sync(void) {
+    static const char *const style[PC_SPEEDS] = {"btn_imgspeed0_style", "btn_imgspeed1_style", "btn_imgspeed2_style",
+                                                 "btn_imgspeed3_style"};
     void *rec = cc_playing();
-    int book = rec && bk_is_path(cc_str(rec, REC_PATH));
-    if (!np.mode || book == np.modehid) return;
-    m1_show(np.mode, !book);
-    np.modehid = book;
+    const char *cur, *want;
+    if (!np.mode) return;
+    if (!rec || !pc_spoken_path(cc_str(rec, REC_PATH))) {
+        if (np.speedon) stock_np_mode_button(np.win);
+        np.speedon = 0;
+        return;
+    }
+    cur = *(const char *const *)((char *)np.mode + WIDGET_STYLE);
+    want = style[np_speed_mode()];
+    if (!cur || strcmp(cur, want)) widget_use_style(np.mode, want);
+    np.speedon = 1;
+}
+
+/* A tap on the speed button: the show's or the book's next speed is saved (pc_speed_set) and put in the player (pc_speed_apply). The decoder takes a speed only when it starts, so a player that
+ * plays or is paused is restarted at its place as stock's Multiple Speed handlers do (0x4799c8: save_stop_player, then save_start_player(1) when it was paused, else (0)). */
+static int np_on_mode(void *ctx, void *e) {
+    void *rec = cc_playing();
+    const char *path;
+    unsigned key;
+    int st;
+    (void)ctx;
+    (void)e;
+    if (!np.speedon || !rec) return RET_OK;
+    path = cc_str(rec, REC_PATH);
+    key = bk_is_path(path) ? bk_book_of(path) : pc_show_of(path);
+    if (!key || !pc_speed_set(key, (np_speed_mode() + 1) % PC_SPEEDS)) {
+        pod_toast(TR("Storage unavailable"));
+        return RET_STOP;
+    }
+    pc_speed_apply(key);
+    st = mclGetPlayStatus();
+    if (st == MB_PLAYING || st == NP_PAUSED) {
+        save_stop_player();
+        save_start_player(mclGetSavePlayStatus() == NP_PAUSED);
+    }
+    np_mode_sync();
+    return RET_STOP;
+}
+
+/* The prev / next buttons while an episode or an audiobook part plays (docs/modules/nowplaying.md "Skip buttons"): they skip back NP_SKIP_BACK and forward NP_SKIP_FWD seconds in the track, as a
+ * podcast player's do. The widgets, their slots and stock's handlers stay: np_skip_sync (each tick) puts the skip glyphs on the five states, and np_on_skip (bound after the stock init, so it runs
+ * first) seeks with the stock seek_time and returns RET_STOP only while those glyphs show; music is stock's. The hardware keys still change track. */
+#define NP_SKIP_BACK 15
+#define NP_SKIP_FWD 30
+#define NP_SKIP_END \
+    5 /* a forward skip lands at most this far from the end: the track ends by playing, never by the tap */
+
+static void np_skip_look(void *btn, const char *img, const char *down) {
+    static const char *const state[5] = {"normal", "disable", "focused", "over", "pressed"};
+    char name[40];
+    int i;
+    if (!btn) return;
+    for (i = 0; i < 5; ++i) {
+        snprintf(name, sizeof name, "style:%s:bg_image", state[i]);
+        widget_set_prop_str(btn, name, i == 4 ? down : img);
+    }
+}
+
+static void np_skip_sync(void) {
+    void *rec = cc_playing();
+    int on = rec && pc_spoken_path(cc_str(rec, REC_PATH));
+    if (on == np.skipon || !np.prev || !np.next) return;
+    np_skip_look(np.prev, on ? "np_back15" : "np_prev", on ? "np_back15_down" : "np_prev_down");
+    np_skip_look(np.next, on ? "np_fwd30" : "np_next", on ? "np_fwd30_down" : "np_next_down");
+    /* the queue button: a plain list, since the queue holds episodes or parts, not songs */
+    np_skip_look(np.queue, on ? "np_playlist" : "np_playqueue", on ? "np_playlist_down" : "np_playqueue_down");
+    np.skipon = on;
+}
+
+/* An episode or a book part has no lyrics, and its file facts say little: the page is the cover page alone. The slide view goes to the cover page and takes no touch (so no swipe turns it;
+ * the controls are not its children), and the page dots are hidden. Music gets both back. */
+static void np_pages_sync(void) {
+    void *rec = cc_playing();
+    int on = rec && pc_spoken_path(cc_str(rec, REC_PATH));
+    if (!np.sv) return;
+    /* looked at every tick, locked or not: a slide still moving when the lock went on ends on its page afterwards, and a slide view that is
+     * animating can refuse the turn. Until the cover page is confirmed nothing is locked, and the turn is asked again at the next tick. */
+    if (on && widget_get_prop_int(np.sv, "value", NP_ART_PAGE) != NP_ART_PAGE) {
+        widget_set_prop_int(np.sv, "value", NP_ART_PAGE);
+        if (widget_get_prop_int(np.sv, "value", NP_ART_PAGE) != NP_ART_PAGE) return;
+    }
+    if (on == np.pageoff) return;
+    widget_set_sensitive(np.sv, !on);
+    if (np.dots) m1_show(np.dots, !on);
+    np.pageoff = on;
+}
+
+/* A tap on btn_prev (ctx 0) or btn_next (ctx 1). A stopped player or one with no length yet takes no skip (seek_time does nothing when stopped); the tap is still ours. */
+static int np_on_skip(void *ctx, void *e) {
+    int pos = 0, len = 0, to;
+    (void)e;
+    if (!np.skipon) return RET_OK;
+    if (get_playtimeandlength(&pos, &len) != 1 || len <= 0 || pos < 0) return RET_STOP;
+    if (ctx) {
+        to = pos + NP_SKIP_FWD;
+        if (to > len - NP_SKIP_END) to = len - NP_SKIP_END;
+        if (to <= pos) return RET_STOP; /* already in the last seconds */
+    } else
+        to = pos > NP_SKIP_BACK ? pos - NP_SKIP_BACK : 0;
+    seek_time(to);
+    np_time();
+    return RET_STOP;
 }
 
 static void np_work(void) {
@@ -1292,6 +1404,8 @@ static void np_work(void) {
     ly_tick(); /* the lyrics page (patch/lyrics.c) */
     np_fav_sync();
     np_mode_sync();
+    np_skip_sync();
+    np_pages_sync();
 }
 
 static int np_tick(const void *timer) {
@@ -1345,6 +1459,7 @@ static int np_on_foreground(void *ctx, void *e) {
     np_work(); /* the page is current when it reappears (fg still 0: a new colour tints the bar once, below) */
     /* the mode button's picture follows the play mode: stock sets it only in its own click handler, so a mode set on the Queue page (or elsewhere) is shown now */
     stock_np_mode_button(ctx);
+    np_mode_sync(); /* an episode's or a part's speed again */
     np.fg = 1;
     np_bar_apply();
     return RET_OK;
@@ -1362,6 +1477,14 @@ static void np_start(void *win) {
     np.fav = widget_lookup(win, "btn_fav", 1);
     if (np.fav) widget_on(np.fav, EVT_CLICK, np_on_fav, (void *)0);
     np.mode = widget_lookup(win, "btn_playmode", 1);
+    np.prev = widget_lookup(win, "btn_prev", 1);
+    np.next = widget_lookup(win, "btn_next", 1);
+    if (np.prev && np.next) {
+        widget_on(np.prev, EVT_CLICK, np_on_skip, (void *)0);
+        widget_on(np.next, EVT_CLICK, np_on_skip, (void *)1);
+    }
+    np.queue = widget_lookup(win, "btn_queue", 1);
+    if (np.mode) widget_on(np.mode, EVT_CLICK, np_on_mode, (void *)0);
     if (!np.el || !np.pt) np.el = np.pt = (void *)0; /* only the pair is swapped */
     np.shown = np.eshown = -1;
     np.idx = widget_lookup(win, "label_index", 1);
@@ -1396,6 +1519,7 @@ static void np_start(void *win) {
     m1_bind(win, "btn_queue", np_on_queue, (void *)0);
     np.sv = widget_lookup(win, "slide_view",
                           1); /* its page: the cover springs only while the art page shows; the info page's reset */
+    np.dots = widget_lookup(win, "slide_indicator", 1);
     ly_start(win);
     if (np.irow && np.ihead) { /* the content's touch and fades */
         void *sc = np.iw[NI_SCROLL];

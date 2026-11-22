@@ -388,6 +388,9 @@ WIFI_LOCK = {f'wifi_{i}': i for i in range(1, 5)}                               
 NP = {'np_play': ('pil:play', 44, 0, 'fg', 'np_play_down'), 'np_pause': ('pil:pause', 44, 0, 'fg', 'np_pause_down'),
       'np_stop': ('pil:stop', 44, 0, 'fg', 'np_stop_down'),   # the Large Cover lock screen's play/stop button while radio plays (patch/lockscreen.c)
       'np_next': ('pil:next', 44, 0, 'fg', 'np_next_down'), 'np_prev': ('pil:prev', 44, 0, 'fg', 'np_prev_down'),
+      'np_back15': ('pil:back15', 44, 0, 'fg', 'np_back15_down'), 'np_fwd30': ('pil:fwd30', 44, 0, 'fg', 'np_fwd30_down'),   # an episode's or a book's prev / next buttons: skip back 15 s, forward 30 s (patch/nowplaying.c np_skip_sync)
+      **{f'np_speed{i}': (f'pil:speed{i}', (52, 30), 0, 'mid', None) for i in range(4)},   # their play mode button: the speed, 1x .. 2x (np_mode_sync; the page theme's btn_imgspeed<i>_style)
+      'np_playlist': ('list', 30, 18, 'mid', 'np_playlist_down'),   # their queue button: a list without the note
       'np_next_off': ('pil:next', 44, 0, 'off', None),   # the Large Cover lock screen's next button while radio plays: NP_OFF grey, inert
       'mb_play': ('pil:mb_play', 32, 0, 'white', 'mb_play_down'), 'mb_pause': ('pil:mb_pause', 32, 0, 'white', 'mb_pause_down'),
       'mb_stop': ('pil:mb_stop', 32, 0, 'white', 'mb_stop_down'),   # the play/pause slot while a station connects or plays (patch/minibar.c mb_glyph): a tap stops
@@ -1483,12 +1486,50 @@ def ab_wave():
             d.rounded_rectangle([round(x * s), round(y * s), round((x + w) * s) - 1, round((y + h) * s) - 1], radius=w / 2 * s, fill=255)
     im = Image.new('RGBA', (px, px), AB_WAVE_RGB); im.putalpha(_aa((px, px), shape, 16, True)); return im
 
+# The skip buttons of an episode or a book (patch/nowplaying.c np_skip_sync, in the prev / next slots): an open ring with an arrowhead
+# at its top (pointing left: back; right: forward) and the seconds inside, in the tile font. Ring: mid-stroke diameter, stroke, the gap
+# behind the arrowhead in degrees; the arrowhead's length and half height; the digits' px and extra stroke; the ring centre's drop.
+SKIPS = {'back15': ('15', False), 'fwd30': ('30', True)}
+SKIP_RING_D, SKIP_RING_W, SKIP_RING_GAP, SKIP_HEAD, SKIP_NUM_PX, SKIP_NUM_BOLD, SKIP_DROP = 24, 2.1, 58, (6.5, 4.5), 11, 0.3, 1.5
+def skip_mask(kind, size):
+    """The 'L' mask of the skip glyph `kind` (back15, fwd30) on a size (px or (w, h)) canvas."""
+    import math
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
+    w, h = size if isinstance(size, tuple) else (size, size)
+    text, fwd = SKIPS[kind]; s = 8
+    big = Image.new('L', (w * s, h * s), 0); d = ImageDraw.Draw(big)
+    cx, cy, r, sw = w / 2 * s, (h / 2 + SKIP_DROP) * s, SKIP_RING_D / 2 * s, SKIP_RING_W * s
+    # drawn as the back glyph (the forward one is its mirror image): the ring runs clockwise from the top round to the gap's far end
+    d.arc([cx - r - sw / 2, cy - r - sw / 2, cx + r + sw / 2, cy + r + sw / 2], 270, 270 - SKIP_RING_GAP + 360, fill=255, width=round(sw))
+    a = math.radians(270 - SKIP_RING_GAP); ex, ey = cx + r * math.cos(a), cy + r * math.sin(a)
+    d.ellipse([ex - sw / 2, ey - sw / 2, ex + sw / 2, ey + sw / 2], fill=255)                      # the tail's round end
+    hl, hh = SKIP_HEAD[0] * s, SKIP_HEAD[1] * s; bx = cx + hl * 0.3
+    _round_poly(d, [(bx / s, (cy - r - hh) / s), (bx / s, (cy - r + hh) / s), ((bx - hl) / s, (cy - r) / s)], 1.0, s)
+    if fwd: big = ImageOps.mirror(big); d = ImageDraw.Draw(big)
+    f = ImageFont.truetype(TILE_FONT, SKIP_NUM_PX * s); bold = round(SKIP_NUM_BOLD * s); bb = f.getbbox(text, stroke_width=bold)
+    d.text((cx - (bb[0] + bb[2]) / 2, cy - (bb[1] + bb[3]) / 2), text, font=f, fill=255, stroke_width=bold, stroke_fill=255)
+    return big.resize((w, h), Image.LANCZOS)
+
+# The speed button of an episode or a book (patch/nowplaying.c np_mode_sync, in the play mode slot): stock's playspeed_mode 0..3 as text in the tile font, centred on the canvas.
+NP_SPEEDS = {'speed0': '1×', 'speed1': '1.25×', 'speed2': '1.5×', 'speed3': '2×'}
+SPEED_PX, SPEED_BOLD = 14, 0.15
+def speed_mask(kind, size):
+    """The 'L' mask of the speed text `kind` (speed0 .. speed3) on a size (px or (w, h)) canvas."""
+    from PIL import Image, ImageDraw, ImageFont
+    w, h = size if isinstance(size, tuple) else (size, size)
+    s = 8; big = Image.new('L', (w * s, h * s), 0); d = ImageDraw.Draw(big)
+    f = ImageFont.truetype(TILE_FONT, SPEED_PX * s); bold = round(SPEED_BOLD * s); bb = f.getbbox(NP_SPEEDS[kind], stroke_width=bold)
+    d.text((w * s / 2 - (bb[0] + bb[2]) / 2, h * s / 2 - (bb[1] + bb[3]) / 2), NP_SPEEDS[kind], font=f, fill=255, stroke_width=bold, stroke_fill=255)
+    return big.resize((w, h), Image.LANCZOS)
+
 def pil_glyph(kind, size, rgb, alpha=255):
-    """The solid glyph `kind` (play, pause, next, prev, grabber) on a size (px or (w, h)) canvas, in rgb at alpha."""
+    """The solid glyph `kind` (play, pause, next, prev, back15, fwd30, grabber) on a size (px or (w, h)) canvas, in rgb at alpha."""
     from PIL import Image
     w, h = size if isinstance(size, tuple) else (size, size)
     shape = {'grabber': g_grabber, 'drop_grabber': lambda d, s, w, h: g_grabber(d, s, w, h, 0), 'wave': g_wave}.get(kind)
-    if kind in ('stop', 'mb_stop'):   # Radio Now Playing's stop: a filled rounded square (the mini bar's, 18 of 32 px, sits lighter than the pause bars' 22 px)
+    if kind in SKIPS: mask = skip_mask(kind, (w, h))
+    elif kind in NP_SPEEDS: mask = speed_mask(kind, (w, h))
+    elif kind in ('stop', 'mb_stop'):   # Radio Now Playing's stop: a filled rounded square (the mini bar's, 18 of 32 px, sits lighter than the pause bars' 22 px)
         from PIL import ImageDraw
         ss, a = 8, round(min(w, h) * (0.5 if kind == 'stop' else 0.5625)); big = Image.new('L', (w * ss, h * ss), 0)
         ImageDraw.Draw(big).rounded_rectangle([(w * ss - a * ss) // 2, (h * ss - a * ss) // 2, (w * ss + a * ss) // 2 - 1, (h * ss + a * ss) // 2 - 1], radius=a * ss // 5, fill=255)

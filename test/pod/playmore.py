@@ -29,11 +29,10 @@ GO_ALBUM, GO_ARTIST, ADD, MORE, BACK, SPEED, AB, DELETE, SEARCH, TAPE, VINYL, GO
 ROWS = STOCK_NAMES + ['pod_more', 'pod_back', 'pod_tape', 'pod_vinyl', 'pod_goep', 'pod_art', 'pod_sleep', 'pod_mode', 'pod_lyr', 'pod_vu']
 PAGE1, PAGE2 = [GO_ALBUM, GO_ARTIST, ADD, MODE, MORE], [BACK, SPEED, SLEEP, AB, ART, DELETE]
 PAGE_MODE = [BACK, TAPE, VINYL, VU, LYR]   # the Display Mode page (a tap on page 1's Display Mode row)
-PAGE_EP = [GOEP, SPEED, SLEEP, MORE]   # page 1 of a podcast episode
-PAGE_BOOK = [MODE, SPEED, SLEEP, MORE]   # page 1 of an audiobook part
-PAGE2_EP = [BACK, AB, DELETE]   # the More page of an episode or part: no Speed or Sleep Timer (on page 1), no Find Cover & Lyrics
-HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE, HIDDEN_BOOK, HIDDEN2_EP = (sorted(set(range(17)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE, PAGE_BOOK, PAGE2_EP))
-EP_H, EP2_H = O['PM_PAGE_EP_N'] * ROW_H, O['PM_PAGE2_EP_N'] * ROW_H   # 200 px and 150 px
+PAGE_EP = [GOEP, SPEED, SLEEP, AB]   # page 1 of a podcast episode
+PAGE_BOOK = [MODE, SPEED, SLEEP, AB]   # page 1 of an audiobook part
+HIDDEN1, HIDDEN2, HIDDEN_EP, HIDDEN_MODE, HIDDEN_BOOK = (sorted(set(range(17)) - set(p)) for p in (PAGE1, PAGE2, PAGE_EP, PAGE_MODE, PAGE_BOOK))
+EP_H = O['PM_PAGE_EP_N'] * ROW_H   # 200 px
 N1, NM = len(PAGE1), len(PAGE_MODE)
 YS1 = [i * ROW_H for i in range(N1)]             # page 1's rows: 0, 50, 100, 150, 200
 VT = {'dialog': LI_VT, 'list_view': LV_VT, 'scroll_view': SV_VT, 'list_item': LI_VT, 'image': IMG_VT}
@@ -892,7 +891,7 @@ def run(ctx):
         return m
     m = ep_sheet(); img = [c for c in m.calls if c[0] == 'image_base_set_image']
     expect(m.shown() == PAGE_EP and all(m.live(i) for i in PAGE_EP) and all(m.dead(i) for i in HIDDEN_EP),
-           f'episode: page 1 shows Go to Podcasts, Speed, Sleep Timer and More; Look up album, Look up artist, Add to playlist and Display Mode (and the rows of its page) are hidden and insensitive ({m.shown()})')
+           f'episode: page 1 shows Go to Podcasts, Speed, Sleep Timer and A-B repeat (no More, so no Delete: hidden and insensitive); Look up album, Look up artist, Add to playlist and Display Mode (and the rows of its page) are hidden and insensitive ({m.shown()})')
     expect(m.ys() == [0, 50, 100, 150] and set(m.hs()) == {ROW_H} and m.stacked()[:4] == PAGE_EP and sorted(m.stacked()[4:]) == HIDDEN_EP,
            f'episode: the rows close up at 0, 50, 100 and 150, the usual row pitch, the hidden ones stacked last ({m.ys()}, {m.stacked()})')
     expect(m.size(m.dialog) == (320, EP_H) and m.size(m.lv) == (320, EP_H) and m.size(m.sv) == (310, EP_H) and m.size(m.bar) == (10, EP_H) and m.vh() == EP_H and m.size(m.glass) == (320, EP_H)
@@ -905,14 +904,9 @@ def run(ctx):
     expect(m.hit(160, SCREEN_H - EP_H - 25) == ['playmore_dialog'] or 'pod_tape' not in m.hit(160, SCREEN_H - EP_H - 25), 'episode: above the sheet is no row')
     m.window_event(O['EVT_WINDOW_TO_BG'])
     expect(m.top() == SCREEN_H - EP_H, f'episode: another dialog over the sheet leaves it on the bottom ({m.top()})')
-    m.click_more()
-    expect(m.shown() == PAGE2_EP and all(m.live(i) for i in PAGE2_EP) and all(m.dead(i) for i in HIDDEN2_EP) and m.size(m.dialog) == (320, EP2_H) and m.top() == SCREEN_H - EP2_H
-           and [c for c in m.calls if c[0] == 'image_base_set_image'][-1] == ('image_base_set_image', m.glass, 'pc_sheet3'),
-           f'episode: More opens the short second page: the back header, A-B repeat and Delete, 150 px; Find Cover & Lyrics hidden and insensitive ({m.shown()})')
-    m.calls = []; m.call(PSYMS['pm_on_art'], a0=m.dialog, a1=0, count=100000)
-    expect('onlineart_open' not in [c[0] for c in m.calls], 'episode: a Find Cover & Lyrics click that reaches the handler opens nothing')
-    m.click_back()
-    expect(m.shown() == PAGE_EP and m.size(m.dialog) == (320, EP_H) and m.size(m.glass) == (320, EP_H) and all(m.dead(i) for i in HIDDEN_EP), 'episode: the back header returns to the episode\'s page 1')
+    expect(m.dead(DELETE) and m.dead(MORE), 'episode: Delete and More are hidden and insensitive')
+    m.call(PSYMS['pm_on_more'], a0=m.dialog, a1=0, count=100000); m.sync()
+    expect(m.shown() == PAGE_EP and m.size(m.dialog) == (320, EP_H), 'episode: a More click that reaches the handler (pm.page 1) still shows the episode\'s page 1, no removed set')
     m = ep_sheet()
     expect(m.handlers_of(m.rows[GOEP], O['EVT_CLICK']) == [(PSYMS['pm_on_goep'], m.dialog)] and ('widget_set_tr_text', m.nodes['pod_goep_label'], 'Go to Podcasts') in m.calls,
            'Go to Podcasts has our click handler alone and its translated text')
@@ -936,13 +930,12 @@ def run(ctx):
     # -- 7d. an audiobook part is playing: page 1 is Display Mode, Speed, Sleep Timer and More (patch/playmore.c pm_set) ------------------------------------
     m = ep_sheet('/mnt/mmc/Audiobooks/Book One/01.mp3'); img = [c for c in m.calls if c[0] == 'image_base_set_image']
     expect(m.shown() == PAGE_BOOK and all(m.live(i) for i in PAGE_BOOK) and all(m.dead(i) for i in HIDDEN_BOOK),
-           f'audiobook part: page 1 shows Display Mode, Speed, Sleep Timer and More; Look up album, Look up artist and Add to playlist are hidden and insensitive ({m.shown()})')
+           f'audiobook part: page 1 shows Display Mode, Speed, Sleep Timer and A-B repeat; Delete and More are hidden and insensitive; Look up album, Look up artist and Add to playlist are hidden and insensitive ({m.shown()})')
     expect(m.ys() == [0, 50, 100, 150] and m.size(m.dialog) == (320, EP_H) and m.size(m.glass) == (320, EP_H) and m.top() == SCREEN_H - EP_H and img[-1] == ('image_base_set_image', m.glass, 'pc_sheet4'),
            f'audiobook part: the sheet is four rows, 200 px, on the bottom of the screen, with the 200 px glass ({m.size(m.dialog)}, y {m.top()})')
-    m.click_more()
-    expect(m.shown() == PAGE2_EP and all(m.dead(i) for i in HIDDEN2_EP) and m.size(m.dialog) == (320, EP2_H), 'audiobook part: More opens the short second page (back header, A-B repeat, Delete)')
-    m.click_back()
-    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, EP_H) and all(m.dead(i) for i in HIDDEN_BOOK), 'audiobook part: the back header returns to the part\'s page 1')
+    expect(m.dead(DELETE) and m.dead(MORE), 'audiobook part: Delete and More are hidden and insensitive')
+    m.call(PSYMS['pm_on_more'], a0=m.dialog, a1=0, count=100000); m.sync()
+    expect(m.shown() == PAGE_BOOK and m.size(m.dialog) == (320, EP_H), 'audiobook part: a More click that reaches the handler still shows the part\'s page 1, no removed set')
     m.click_row(MODE)
     expect(m.shown() == PAGE_MODE, f'audiobook part: Display Mode opens the Display Mode page ({m.shown()})')
     m.click_back()
@@ -1303,6 +1296,18 @@ def run(ctx):
     m.confirm_answer = O['CONFIRM_YES']; m.on_confirm = lambda mm: setattr(mm, 'play_pos', 1)
     m.call(PSYMS['pm_on_delete'], a0=m.dialog, a1=0, count=2000000)
     expect(not [x for x in m.calls if x[0] == 'delete_playqueue_file'] and [x[1] for x in m.calls if x[0] == 'toast'] == ['msg_delsongfailed'], 'nor is it deleted when the queue reaches it under Delete\'s question')
+    # the queue reaches an episode or a book part while music's More page is open, Delete still showing: the tap asks and deletes nothing, and lays the sheet out as the part's own page
+    for what, path, first in (('a book part', '/mnt/mmc/Audiobooks/Book One/01.mp3', MODE), ('an episode', '/mnt/mmc/Podcasts/Show One/ep1.mp3', GOEP)):
+        m = PM(); m.play([m.record(path='/mnt/mmc/Music/a/1.flac', rid=3), m.record(path=path, rid=4)], 0); m.open(); m.click_more()
+        was = m.live(DELETE); m.play_pos = 1; m.calls = []; m.confirm_answer = 0x14
+        ret = m.call(PSYMS['pm_on_delete'], a0=m.dialog, a1=0, count=2000000)
+        expect(was and ret == O['RET_STOP'] and not [x for x in m.calls if x[0] in ('confirm', 'delete_playqueue_file', 'window_close')] and not m.live(DELETE) and not m.live(MORE)
+               and m.shown()[0] == first and len(m.shown()) == O['PM_PAGE_EP_N'],
+               f'music\'s More page, then {what} plays: Delete was live, its tap asks, deletes and closes nothing, and the sheet becomes the part\'s page ({ret}, {m.shown()})')
+        m = PM(); m.play([m.record(path='/mnt/mmc/Music/a/1.flac', rid=3), m.record(path=path, rid=4)], 0); m.open(); m.click_more(); m.calls = []
+        m.confirm_answer = 0x14; m.on_confirm = lambda mm: setattr(mm, 'play_pos', 1)
+        m.call(PSYMS['pm_on_delete'], a0=m.dialog, a1=0, count=2000000)
+        expect(not [x for x in m.calls if x[0] == 'delete_playqueue_file'] and [x[1] for x in m.calls if x[0] == 'toast'] == ['msg_delsongfailed'], f'nor is {what} deleted when the queue reaches it under Delete\'s question')
     for t in (2, 3, 0xf0, 0xf1):
         m = PM(); m.play_type = t; m.play([m.record(path='http://tidal.example/track', rid=9)], 0); m.open()
         expect(m.live(ADD), f'an address under a stream play type of stock\'s ({t:#x}: Tidal, DLNA) is not ours: the row is stock\'s')

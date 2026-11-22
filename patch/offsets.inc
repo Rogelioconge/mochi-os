@@ -905,10 +905,9 @@
  * PM_PAGE2_N (page 2) or PM_PAGE_MODE_N (the Display Mode page) at a time and puts the sheet, as high as they are, on the bottom of the 480 px screen (the stock 130 + 350 ends there too). */
 #define PM_ROW_H 50
 #define PM_PAGE_N 5               /* page 1's rows (Look up album, Look up artist, Add to playlist, Display Mode, More; the asset's pod_goep, Go to Podcasts, is the episode's first row): the sheet is that high (PM_ROW_H x) */
-#define PM_PAGE_EP_N 4            /* page 1 of a podcast episode (Go to Podcasts, Speed, Sleep Timer, More) */
-#define PM_PAGE_BOOK_N 4          /* page 1 of an audiobook part (Display Mode, Speed, Sleep Timer, More) */
+#define PM_PAGE_EP_N 4            /* page 1 of a podcast episode (Go to Podcasts, Speed, Sleep Timer, A-B repeat) */
+#define PM_PAGE_BOOK_N 4          /* page 1 of an audiobook part (Display Mode, Speed, Sleep Timer, A-B repeat) */
 #define PM_PAGE2_N 6              /* page 2's rows (the back header, Speed, Sleep Timer, A-B repeat, Find Cover & Lyrics, Delete) */
-#define PM_PAGE2_EP_N 3           /* page 2 of an episode or audiobook part (the back header, A-B repeat, Delete) */
 #define PM_PAGE_MODE_N 5          /* the Display Mode page's rows (the back header, Cassette Mode, Vinyl Mode, VU Meter Mode, Lyrics Mode) */
 #define PM_PAGE_MAX 6             /* the tallest page's rows */
 #define PM_SCREEN_H 480

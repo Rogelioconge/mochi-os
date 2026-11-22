@@ -319,6 +319,9 @@ first).
 - **Speeds** are 1x, 1.25x, 1.5x and 2x per show. They change RAM and player state without writing
   stock's PLAYSPEED configuration, and music restores the previous mode. A speed change is applied
   at the next track open.
+- Now Playing's button row for an episode or a book part is speed, back 15 s, play, forward 30 s
+  and a plain queue glyph ([nowplaying](nowplaying.md) "Spoken audio controls"). Its speed button
+  restarts the player, so that change is heard at once.
 
 ## Network and feeds
 

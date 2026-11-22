@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Approximate PIL mock-up of the Now Playing page (ui/playing_page.bin + its page theme); not pixel-exact AWTK.
 
-  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,out=HZ][,key1=LABEL][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing][,paused|,art=PX] ...
+  preview_nowplaying.py OUT.png LABEL=RAW_DIR[,page=N][,info=cd|hires|dsd|mp3|long][,out=HZ][,key1=LABEL][,scroll=PX][,full][,cover=FILE][,tint=RRGGBB][,playing][,paused|,art=PX][,skip] ...
 
 RAW_DIR is a tree's rootfs/release/assets/default/raw. Each panel draws a 30 px status bar and the 450 px
 window under it. Styles resolve as on the device: inline style:<state>:<prop>, then the window theme
@@ -11,7 +11,7 @@ hscroll_label text from margin_left 2 and clipped to its margins); the glyphs th
 values (title, times, cover...) are sample data. The cover is a synthetic gradient, or cover=FILE (drawn at the
 widget's size, and its box average gives the window colour through mod_nowplaying.tone, as patch/nowplaying.c
 does); tint=RRGGBB is a cover's average colour given directly. page=N shows slide page N (0 cover, 1 lyrics,
-2 info; paused draws the cover and its shadow at the paused size, art=PX at any side of the spring; scroll=PX shows the info page's content scrolled by that many px, full draws the whole content as a taller panel). The remaining time label is shown in place of the total, as with the hook running.
+2 info; paused draws the cover and its shadow at the paused size, art=PX at any side of the spring; scroll=PX shows the info page's content scrolled by that many px, full draws the whole content as a taller panel; skip draws an episode's page: speed, back 15 s, forward 30 s, the plain queue glyph, no page dots). The remaining time label is shown in place of the total, as with the hook running.
 """
 import argparse, os, sys
 from PIL import Image, ImageDraw, ImageFont
@@ -283,6 +283,10 @@ def main():
             if o.startswith('key1='): p.key1 = o[5:]   # another language's Sample Rate label
             if o.startswith('scroll='): p.scroll = int(o[7:])
             if o == 'full': p.full = True
+            if o == 'skip':   # an episode or a book part: the skip glyphs, as np_skip_sync sets them
+                for n, g in (('btn_prev', 'np_back15'), ('btn_next', 'np_fwd30'), ('btn_queue', 'np_playlist')): root.find(n).set('style:normal:bg_image', g)
+                root.find('btn_playmode').set('style', 'btn_imgspeed0_style')   # the speed button at 1x (np_mode_sync)
+                root.find('slide_indicator').set('visible', 'false')            # the cover page alone: no page dots (np_pages_sync)
             if o.startswith('tint='): p.tint = tone(*(int(o[5:][k:k + 2], 16) for k in (0, 2, 4)))
         shots.append((label, p.render(root, page)))
     top, pad = 18, 10

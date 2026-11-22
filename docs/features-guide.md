@@ -203,7 +203,10 @@ Use a show's **…** menu to change its list:
 | Filter | Cycle through **All**, **Unplayed** (including partially played episodes) and **Downloaded**. |
 
 Use an episode's **…** menu to mark it played or unplayed. While an episode plays, Now Playing's **…**
-offers Go to Podcasts, Playback Speed, Sleep Timer and More.
+offers Go to Podcasts, Playback Speed, Sleep Timer and A-B Repeat. Now Playing's bottom row becomes
+speed, back 15 seconds, play, forward 30 seconds and queue: tap the speed (**1×**) to step through
+1×, 1.25×, 1.5× and 2× for that show. The hardware keys still change episode. The lyrics and
+information pages are not shown for an episode.
 
 Selection, Mark All as Played, deletion and the queue after the episode you start apply to the
 visible rows. If a filter leaves no results, use **…** to switch back. An episode marked played
@@ -283,8 +286,10 @@ Split such books into parts or chapters first.
 - Open a book and tap **Play**, **Resume** or **Play Again**. Resume returns to your saved position
   in the part you were listening to; tapping a part plays from it to the end of the book.
 - **… → Playback Speed** cycles through 1x, 1.25x, 1.5x and 2x. The playing part shows a wave icon.
-- While a part plays, Now Playing hides the play mode button; the book plays its parts in order.
-  Its **…** offers Display Mode, Playback Speed, Sleep Timer and More.
+- While a part plays, Now Playing's bottom row is speed, back 15 seconds, play, forward 30 seconds
+  and queue. Tap the speed (**1×**) to step through the speeds; the book plays its parts in order,
+  and the hardware keys still change part. The lyrics and information pages are not shown. Its **…** offers Display Mode, Playback Speed, Sleep
+  Timer and A-B Repeat.
 
 ### Find and download LibriVox books
 

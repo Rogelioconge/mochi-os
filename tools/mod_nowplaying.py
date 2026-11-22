@@ -658,6 +658,7 @@ ICONS = {'btn_imgrandom_style': 'np_random', 'btn_imgcycle_style': 'np_cycle', '
 SAVE = {'btn_imgfav_style': ('btn_imgsave_style', 'np_save'), 'btn_imgunfav_style': ('btn_imgunsave_style', 'np_unsave')}
 # play/pause: the app swaps btn_play between these default.bin styles; page-local copies win (the window
 # theme is searched first) and leave default.bin, and every other page's play button, untouched.
+SPEED_STYLES = 4   # PC_SPEEDS (patch/offsets.inc): btn_imgspeed0_style .. 3, icons np_speed0 .. 3
 PLAY = {'btn_imgplay_style': ('np_play', 'np_play_down'), 'btn_imgpause_style': ('np_pause', 'np_pause_down')}
 
 def apply_style(th):
@@ -670,6 +671,10 @@ def apply_style(th):
             s = awtk_style.Item('button', new, t.state, list(t.props))
             s.set('icon', icon); th.items.append(s)
     template = th.find('button', 'btn_imgrandom_style')
+    for i in range(SPEED_STYLES):   # the play mode button as an episode's or a book's speed button (patch/nowplaying.c np_mode_sync): the mode styles with the speed's text image
+        name = f'btn_imgspeed{i}_style'; assert not th.find(style=name), f'{name} already in the page theme'
+        for t in template:
+            s = awtk_style.Item('button', name, t.state, list(t.props)); s.set('icon', f'np_speed{i}'); th.items.append(s)
     for name, (icon, down) in PLAY.items():
         assert not th.find(style=name), f'{name} already in the page theme'
         for t in template:

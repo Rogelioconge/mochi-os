@@ -35,8 +35,8 @@ has 12 px corners. Existing widget names are kept.
 - The stock `slider_play` keeps its 30 px seek target and 6 px track (30% white track,
   `#FFFFFFEB` fill, radius 4).
 - The mode button keeps its four steps and looks; the shown mode follows the Shuffle flag, see
-  [shuffle](shuffle.md). While an audiobook part plays it is hidden and insensitive (`np_mode_sync`, each tick):
-  a book plays its parts in order (`bk_play` sets List play). Only a button `np_mode_sync` hid is shown again.
+  [shuffle](shuffle.md). While an episode or an audiobook part plays it is the speed button, see
+  "Spoken audio controls".
 - Favourite is a filled or outline star. While a podcast plays it is a saved/unsaved bookmark.
   While a server track plays it is the server's favourite ([subsonic](subsonic.md)); stock's
   `manage_myfav` never writes the stream record.
@@ -68,6 +68,52 @@ each time it returns to the front). Stock writes `label_index` only on a track c
 tick (`np_index`) writes `%d/%d` from `mclGetPlayPos() + 1` and the play queue size, only when the text changed,
 so Play Next, Add to Queue and Clear show at once. The label is hidden when the setting is off, the queue holds
 fewer than two tracks, or the position is outside it. A page without `label_index` is left alone.
+
+## Spoken audio controls
+
+While an episode or an audiobook part plays (`pc_spoken_path`), the button row is a podcast
+player's: speed, back 15 s, play, forward 30 s, queue. The widgets keep their names, slots and
+stock handlers; music keeps stock's buttons.
+
+**Speed** (`btn_playmode`):
+
+- `np_mode_sync` (each tick, and after `stock_np_mode_button` when the page returns to the front)
+  puts the page theme's `btn_imgspeed<n>_style` on the button for stock's `playspeed_mode` n
+  (0..3: 1×, 1.25×, 1.5×, 2×; out of range reads as 0). The styles copy `btn_imgrandom_style` with
+  the 52 x 30 text images `np_speed0..3` (`speed_mask` in `tools/mod_icons.py`). Stock sets the
+  button's style itself, so the tick compares the name. Back on music, `stock_np_mode_button`
+  restores the play mode's picture once.
+- `np_on_mode`, bound after the stock init, saves the show's or the book's next speed
+  (`pc_speed_set`, key `pc_show_of` / `bk_book_of`) and applies it (`pc_speed_apply`). The decoder
+  takes a speed only when it starts, so a playing or paused player is restarted at its place as
+  stock's Multiple Speed handlers do: `save_stop_player`, then `save_start_player(1)` when it was
+  paused, else `(0)`. A refused save toasts "Storage unavailable" and changes nothing. `RET_STOP`
+  keeps stock's play mode handler away, so an episode queue or a book never gets Shuffle or Repeat
+  one from this button.
+
+**Queue** (`btn_queue`): `np_skip_sync` sets the plain list `np_playlist` (Lucide `list`) in place
+of `np_playqueue`; the tap is unchanged.
+
+**Pages:** `np_pages_sync` keeps the cover page alone, since an episode or a part has no lyrics.
+Every tick of spoken audio sets `slide_view`'s `value` to 0 when another page shows. Once the
+cover page is confirmed, the slide view is made insensitive (no swipe; the controls are not its
+children) and `slide_indicator` is hidden. A slide view that refuses the turn while it animates is
+left unlocked and asked again at the next tick; a page reached after the lock is turned back the
+same way. Music makes both live again; the page is not turned back.
+
+**Skip** (`btn_prev`, `btn_next`): back `NP_SKIP_BACK` (15) and forward `NP_SKIP_FWD` (30) seconds.
+
+- `np_skip_sync` (each tick) sets the five states' `bg_image` to `np_back15` / `np_fwd30` (pressed:
+  `_down`), and back to `np_prev` / `np_next` for music. The glyphs are `skip_mask` in
+  `tools/mod_icons.py`: an open ring, an arrowhead and the seconds in the tile font.
+- `np_on_skip` is bound to both buttons after the stock init, so it runs before stock's click
+  handler. While the skip glyphs show it seeks with stock's `seek_time` and returns `RET_STOP`;
+  otherwise `RET_OK` leaves the tap to stock.
+- Back stops at 0. Forward lands at most `NP_SKIP_END` (5) seconds before the end and does nothing
+  inside them, so a track ends by playing. No time or length from the player: no seek.
+- `seek_time` resumes a paused player and waits up to 2 s for the position, as the slider does.
+- The hardware keys, the mini player, the lock screen and the other display modes still change
+  track.
 
 ## Cover tone and corners
 

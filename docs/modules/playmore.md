@@ -19,10 +19,9 @@ there is no slide.
 | Page | Rows | Height / glass |
 |---|---|---|
 | 1 (opens here) | Look up album, Look up artist, Add to playlist, **Display Mode** (chevron), **More** (chevron) | 250 px, `pc_sheet5` |
-| 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, Playback speed, **Sleep Timer**, More | 200 px, `pc_sheet4` |
-| 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, Playback speed, **Sleep Timer**, More | 200 px, `pc_sheet4` |
+| 1 of a podcast episode (`pm.ep`) | **Go to Podcasts**, Playback speed, **Sleep Timer**, A-B repeat | 200 px, `pc_sheet4` |
+| 1 of an audiobook part (`pm.book`, `bk_is_path`) | Display Mode, Playback speed, **Sleep Timer**, A-B repeat | 200 px, `pc_sheet4` |
 | 2 (More; its back header returns to the page it came from) | back header **< More**, Playback speed, **Sleep Timer**, A-B repeat, **Cover & Lyrics**, Delete song (red `#FF6B6B`) | 300 px, `pc_sheet6` |
-| 2 of an episode or part | back header **< More**, A-B repeat, Delete song | 150 px, `pc_sheet3` |
 | Display Mode | back header **< Display Mode**, **Cassette Mode**, **Vinyl Mode**, **VU Meter Mode**, **Lyrics Mode** | 250 px, `pc_sheet5` |
 
 Online search is never shown. Hidden rows are `visible=false` and `sensitive=false`.
@@ -143,6 +142,10 @@ hairline. The dialog gets `highlight`. New row glyphs: `pod_ic_tape`, `pod_ic_vi
   file. Stock's own stream types (2, 3, `0xf0`, `0xf1`) keep stock's rows. A downloaded Subsonic
   track is a file and keeps both rows. Checked at layout and again at
   the tap (`pm_stream_now`).
+- **An episode or a book part is never deleted here.** Its page has no Delete row. The track's
+  kind is read at every layout (`pm_kind_now`), and `pm_on_delete` asks again at the tap
+  (`pm_spoken_now`): when the queue reached an episode or part under music's open More page, the
+  tap lays out that track's page and deletes nothing.
 - **Add to playlist opens our picker.** `pm_on_addpl` redoes stock's handler (`0x4798f0`) and stops
   it. Stock's `player_addplayList` runs first (it fills the tags a folder-played row lacks; -5
   with no track or a stopped player leaves stock's handler to say its message). Then the sheet
