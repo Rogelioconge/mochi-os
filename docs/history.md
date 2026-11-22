@@ -26,6 +26,8 @@ and [UI reference](ui.md).
   History, Mono Audio and Crossfeed, Year groups in Albums and Subsonic folders.
 - **1.7.0:** Pins on Home, a Volume page, a shared Select mode, an Update Library page and a
   French keyboard.
+- **1.8.0:** bug fixes and polish, Crossfade, a redrawn status bar and battery, a smoother Now
+  Playing and podcast skip controls.
 
 ## Device findings
 
