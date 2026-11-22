@@ -1135,7 +1135,7 @@ def run(ctx):
         if el <= 0: return a
         if el >= ms: return b
         i = el // 10; g = tab[i] + int((tab[i + 1] - tab[i]) * (el % 10) / 10)
-        return b + int((a - b) * g / 1024)
+        d = (a - b) * g; return b + 2 * int((d + (1024 if d >= 0 else -1024)) / 2048)   # an even number of px from the target: half on each side
     A, S_ = O['NP_ART'], O['NP_ART_SMALL']
     expect((O['NP_ART_X'], O['NP_SHADOW_PAD']) == (mn.ART_X, mn.SHADOW_PAD) and S_ == mn.ART_SMALL == 194 and abs(S_ / A - 0.73) < 0.01, 'the paused cover is 194 px (0.73, Apple Music\'s ratio), the art and shadow constants are the asset\'s')
     sm = NowMachine()
@@ -1145,7 +1145,9 @@ def run(ctx):
     expect(got == [size_model(*p) for p in pts], f'np_art_size equals the model (spring tables from the formula, linear between entries) ({[(p, g, size_model(*p)) for p, g in zip(pts, got) if g != size_model(*p)][:3]})')
     down, up = [csz(A, S_, t) for t in range(0, 401, 5)], [csz(S_, A, t) for t in range(0, 641, 5)]
     expect(all(x >= y for x, y in zip(down, down[1:])) and min(down) == S_ and down[-1] == S_, 'the shrink is critically damped: it never goes under 194 px and lands there')
-    expect(A + 1 <= max(up) <= A + 2 and up[-1] == A, f'the grow bounces subtly: 1 or 2 px past 264 ({max(up)}), then lands there')
+    expect(max(up) == A + 2 and up[-1] == A, f'the grow bounces subtly: 2 px past 264 ({max(up)}), 1 px on each side, then lands there')
+    odd = [s for s in down + up if (A - s) % 2]
+    expect(not odd, f'every size of a spring is an even number of px from the full cover: it stays centred, no edge moves alone ({sorted(set(odd))[:8]})')
 
     def paused_page(status=3, lit=True):
         m = NowMachine(); m.page(); m.widget('img_np_shadow'); m.widget('btn_play'); m.src(0); m.status = status; m.screen(lit); m.init()

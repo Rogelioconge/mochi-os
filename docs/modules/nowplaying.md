@@ -50,7 +50,8 @@ and every other status keep 264 px.
 
 - Motion: `np_art_size` steps a spring by elapsed time on a 16 ms frame timer: critically damped for 400 ms
   to the small size, underdamped (zeta 0.75) for 640 ms back, 2 px past 264 before it lands. A change
-  mid-spring turns it round from the current size.
+  mid-spring turns it round from the current size. Every size is an even number of px from the target,
+  so the cover stays centred and the bounce shows 1 px on each side.
 - The cover springs only while the art page shows, lit and in front. Otherwise (opened while paused,
   screen dark, another page or the lyrics or info page in front, no timer) it is put at its size at once;
   a running spring that stops being seen lands on its next frame or tick.

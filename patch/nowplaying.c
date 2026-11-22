@@ -182,15 +182,17 @@ static const short np_grow_tab[NP_GROW_MS / 10 + 1] = {
     91,   70,   52,  36,  22,  11,  1,   -7,  -13, -18, -22, -25, -27, -28, -29, -29, -29, -28, -27, -25, -24, -22,
     -21,  -19,  -17, -16, -14, -13, -11, -10, -9,  -7,  -6,  -5,  -4,  -4,  -3,  -2,  -2,  -1,  -1,  0,   0};
 
-/* The cover's side `el` ms into a spring from `from` to `to` px: the grow table when it gets bigger, else the shrink one; linear between entries, `to` from the table's end on. */
+/* The cover's side `el` ms into a spring from `from` to `to` px: the grow table when it gets bigger, else the shrink one; linear between entries, `to` from the table's end on. The side is an even number
+ * of px from `to` (rounded to the nearest), so the cover stays centred: an odd step would move one edge alone, and the bounce would show on one side only. */
 __attribute__((noinline)) int np_art_size(int from, int to, int el) {
     const short *tab = to > from ? np_grow_tab : np_shrink_tab;
-    int ms = to > from ? NP_GROW_MS : NP_SHRINK_MS, idx, g;
+    int ms = to > from ? NP_GROW_MS : NP_SHRINK_MS, idx, g, d;
     if (el <= 0) return from;
     if (el >= ms) return to;
     idx = el / 10;
     g = tab[idx] + (tab[idx + 1] - tab[idx]) * (el % 10) / 10;
-    return to + (from - to) * g / 1024;
+    d = (from - to) * g;
+    return to + 2 * ((d + (d >= 0 ? 1024 : -1024)) / 2048);
 }
 
 /* The cover (and its shadow, scaled alike) at a side of s px, centred where the full cover is; the corner table follows the radius (NP_ART_R at the full size, scaled, never more). The old and the new
