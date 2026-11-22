@@ -362,6 +362,17 @@ def section_tests(ctx):
     m.fs[PINS] = H.dump([])
     m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=8000000)
     expect(not m.is_shown(m.pins) and m.vh() == base_vh and m.row_ys() == ys0, 'the to-foreground reads the file again: with nothing pinned the section goes and the rows are back at the top')
+    # a pin whose name alone changed in the file (a renamed playlist: same id, same cover keys) keeps its tile and shows the new name
+    def names(m):
+        e = m.alloc(0x40); m.u.mem_write(e, bytes(0x40)); m.setword(e + O['EVENT_PAINT_CANVAS'], 0x22220000)
+        m.texts.clear()
+        m.call(PSYMS['pn_on_paint'], a0=0, a1=e, count=40000000)
+        return [t[0] for t in m.texts]
+    m = PH(entries=[playlist(3, 'Jazz', (11, 22, 33)), album('Homogenic', 'Bjork')]); m.begin()
+    first = names(m)
+    m.fs[PINS] = H.dump([playlist(3, 'Evening', (11, 22, 33)), album('Homogenic', 'Bjork')])
+    m.call(PSYMS['pn_on_foreground'], a0=m.root, a1=0, count=8000000)
+    expect(first == ['Jazz', 'Homogenic'] and names(m) == ['Evening', 'Homogenic'], f'a renamed playlist\'s pin shows its new name at the next to-foreground ({first}, {names(m)})')
 
 def tr(m, name):
     """The last translation key the payload set on the widget."""

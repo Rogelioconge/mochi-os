@@ -570,7 +570,7 @@ static void pn_set(grid_tile_t *t, const pin_t *e) {
     if (!nk) t->art = 2; /* no album with a cover: the placeholder */
 }
 
-/* The tiles for the pins. A tile whose pin (and cover keys) moved to another place keeps its cover; the others are made again; a tile whose cover was only the placeholder
+/* The tiles for the pins. A tile whose pin (and cover keys) moved to another place keeps its cover and takes the pin's name again; the others are made again; a tile whose cover was only the placeholder
  * tries again when its cache file exists now. */
 static void pn_tiles(void) {
     grid_tile_t old[PIN_MAX];
@@ -594,6 +594,9 @@ static void pn_tiles(void) {
             if (!(used >> j & 1) && okey[j] == e->key && okind[j] == e->kind && pn_same_ck(ock[j], e->ck)) {
                 used |= 1u << j;
                 memcpy(&pn.g.tiles[i], &old[j], sizeof old[j]);
+                grid_set(&pn.g.tiles[i], e->name, "",
+                         old[j].ckey); /* (a renamed playlist keeps its id and keys: the name is the file's) */
+                pn.g.tiles[i].fit = 0;
                 pn.tph[i] = oph[j];
                 if (e->kind == 'r') {
                     int st = oph[j] ? ap_lookup(e->name, AP_HEAD, url) : AP_NONE;
