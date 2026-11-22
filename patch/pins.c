@@ -56,7 +56,7 @@
 
 typedef struct {
     char kind; /* a album, p playlist, s song, r artist */
-    unsigned key; /* an album's identity (pn_album_id), a playlist's stock id; never 0 */
+    unsigned key; /* an album's identity (pn_album_id), a playlist's stock id (from 0); else never 0 */
     unsigned ck[4]; /* cover keys: an album's row key then zeros; a playlist's distinct album keys, then zeros */
     char name[PIN_STR],
         path[PIN_PATH]; /* a song's path is the file's alone; an artist's is its scope ("0" Artists, "1" Album Artists, "" an old line) */
@@ -147,7 +147,7 @@ static int pn_line(const char **pp, const char *stop, pin_t *e) {
         if (p[19 + 9 * k] != '\t') return 0;
         if (e->ck[k]) ++nz;
     }
-    if (!ok || !e->key) return 0;
+    if (!ok || (!e->key && e->kind != 'p')) return 0; /* (stock playlist ids start at 0) */
     if (e->kind != 'p' && (!e->ck[0] || nz != 1)) return 0; /* an album's, a song's and an artist's one cover key */
     if (e->kind == 'p') { /* the non-zero keys first, then zeros, no key twice */
         for (k = 0; k < 4; ++k)
@@ -389,7 +389,7 @@ int pins_pin_album(const char *album, unsigned ckey, const char *path) {
 int pins_pin_playlist(int id, const char *name, const unsigned *keys, unsigned nk) {
     pin_t e;
     unsigned i, j, m = 0;
-    if (id <= 0 || !name || !*name) return PINS_FAIL;
+    if (id < 0 || !name || !*name) return PINS_FAIL;
     memset(&e, 0, sizeof e);
     e.kind = 'p';
     e.key = (unsigned)id;
@@ -413,7 +413,7 @@ int pins_has_album(const char *album) {
 static int pn_pl_at(int id, const char *name) {
     char nm[PIN_STR];
     int at;
-    if (id <= 0 || !name || !*name) return -1;
+    if (id < 0 || !name || !*name) return -1;
     pn_copy(nm, sizeof nm, name);
     at = pn_at('p', (unsigned)id);
     return at >= 0 && !strcmp(pn.ent[at].name, nm) ? at : -1;
@@ -435,7 +435,7 @@ int pins_unpin_album(const char *album) {
 
 int pins_unpin_playlist(int id, const char *name) {
     char nm[PIN_STR];
-    if (id <= 0 || !name || !*name) return 0;
+    if (id < 0 || !name || !*name) return 0;
     pn_copy(nm, sizeof nm, name);
     return pn_unpin('p', (unsigned)id, nm, 1);
 }
@@ -444,7 +444,7 @@ int pins_rename_playlist(int id, const char *old, const char *name) {
     char nm[PIN_STR];
     pin_t keep;
     int at;
-    if (id <= 0 || !old || !*old || !name || !*name || pn_load() < 0) return 0;
+    if (id < 0 || !old || !*old || !name || !*name || pn_load() < 0) return 0;
     at = pn_pl_at(id, old);
     if (at < 0) return 0;
     pn_copy(nm, sizeof nm, name);

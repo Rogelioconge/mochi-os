@@ -8,12 +8,12 @@
 
 An album's key is its identity as Recently Played has it (identity(): FNV-1a of its title, ASCII letters folded to lower case; the stock album list groups albums by title alone),
 its first cover key is the Cover Flow cache key of the album row (cc_album_key; never 0, the other three are 0) and its path is a track of the album (the way to find the stock row
-again; may be empty). A playlist's key is its stock id (REC_DISC, never 0), the cover keys are the keys of up to four distinct albums of its songs (the mosaic of the Playlists page),
+again; may be empty). A playlist's key is its stock id (REC_DISC, from 0), the cover keys are the keys of up to four distinct albums of its songs (the mosaic of the Playlists page),
 nonzero ones first, and its path is empty. A song's key is the FNV-1a of its file path (song_id(): case as written, never 0), its first cover key the key of its album's cover (the
 library album of its album tag: cc_album_rep_key, else the record's own key; never 0, the other three 0), its name the title tag (the file's name without one) and its path the file's path (never
 empty; a track of a CUE image, which shares its file with the others, has "<CUE start>@" before the path, the start 1 to 9 digits without a leading zero: song_path()). An artist's key is the FNV-1a of its name as the Artists page lists it, ASCII letters folded (identity(), as an album's title), its one cover key the artist photo's cache key (artist_key(): FNV-1a of the name trimmed, ASCII
 case folded, without a leading "The "; never 0, the other three 0), its name the artist and its path the artist list it was pinned from: "0" Artists, "1" Album Artists (an old line has it empty; the payload then looks in the list shown, then the other). The name is never empty (an album's title, a playlist's name). Read strictly: the first line exactly the magic, at most MAX lines of
-exactly eight fields, a known kind, a non-zero key (no (kind, key) twice), eight hex digits per cover key, no control byte (below 0x20, or 0x7f) in a field, every line ended by a
+exactly eight fields, a known kind, a non-zero key (a playlist's id may be 0; no (kind, key) twice), eight hex digits per cover key, no control byte (below 0x20, or 0x7f) in a field, every line ended by a
 newline, names under STR bytes and paths under PATH, the whole file at most FILE_MAX bytes. Anything else is an empty list.
 """
 import os, sys
@@ -78,7 +78,7 @@ def parse(data):
         kind, key, c0, c1, c2, c3, name, path = f
         if kind not in (ALBUM, PLAYLIST, SONG, ARTIST) or not all(_hex8(x) for x in (key, c0, c1, c2, c3)): return []
         k, cs = int(key, 16), tuple(int(x, 16) for x in (c0, c1, c2, c3))
-        if not k or (kind, k) in seen: return []
+        if (not k and kind != PLAYLIST) or (kind, k) in seen: return []   # a stock playlist id starts at 0
         if kind != PLAYLIST and (not cs[0] or any(cs[1:])): return []   # an album's and a song's one cover key
         if kind == SONG and split_song_path(path.decode('latin-1')) is None: return []
         if kind == ARTIST and path not in (b'', b'0', b'1'): return []

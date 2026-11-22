@@ -206,7 +206,12 @@ def file_and_api_tests(ctx):
     # nothing to pin, no write
     m = machine(); m.calls = []
     expect(m.call(PSYMS['pins_pin_album'], a0=m.cstr(''), a1=5, a2=0, count=4000000) & 0xffffffff == 0xfffffffe and m.call(PSYMS['pins_pin_album'], a0=m.cstr('x'), a1=0, a2=0, count=4000000) & 0xffffffff == 0xfffffffe
-           and m.call(PSYMS['pins_pin_playlist'], a0=0, a1=m.cstr('x'), a2=0, a3=0, count=4000000) & 0xffffffff == 0xfffffffe and PINS not in m.fs, 'an empty name, no cover key or no playlist id pins nothing (PINS_FAIL)')
+           and m.call(PSYMS['pins_pin_playlist'], a0=0xffffffff, a1=m.cstr('x'), a2=0, a3=0, count=4000000) & 0xffffffff == 0xfffffffe and PINS not in m.fs, 'an empty name, no cover key or a negative playlist id pins nothing (PINS_FAIL)')
+    # stock's playlist ids start at 0: the first playlist pins, is found, follows a rename and unpins like any other; the file with key 0 reads back
+    m = machine(); zero = playlist(0, 'First', (11,))
+    expect(pin_playlist(m, zero, (11,)) == 0 and m.fs[PINS] == H.dump([zero]) and H.parse(m.fs[PINS]) == [zero] and has_playlist(m, zero) == 1, 'playlist id 0 pins and is found (the model reads key 0 of a playlist)')
+    expect(m.call(PSYMS['pins_rename_playlist'], a0=0, a1=m.cstr('First'), a2=m.cstr('Renamed'), count=4000000) == 1 and m.fs[PINS] == H.dump([playlist(0, 'Renamed', (11,))]), 'playlist id 0: its pin follows a rename')
+    expect(m.call(PSYMS['pins_unpin_playlist'], a0=0, a1=m.cstr('Renamed'), count=4000000) == 1 and H.parse(m.fs[PINS]) == [], 'playlist id 0 unpins')
     # a failed write
     m = machine(); m.fail.add(('rename', PINS))
     expect(pin_album(m, ENTRIES[0]) == -2 and PINS not in m.fs and PINS_TMP not in m.fs, 'a failed write answers PINS_FAIL and leaves no file')
@@ -351,6 +356,9 @@ def section_tests(ctx):
         m = PH(entries=ENTRIES[:n]); m.begin()
         got = [m.call(PSYMS['pn_x'], a0=i, count=100000) for i in range(n)]
         expect(got == xs and [pod_ui.pin_x(i, n) for i in range(n)] == xs, f'{n} pins: tile x {xs} (centred row for 1 and 2, left-aligned otherwise), got {got}')
+    # a pin of stock's first playlist (id 0) is a pin like any other
+    m = PH(entries=[playlist(0, 'First', (11,))]); m.begin()
+    expect(m.is_shown(m.pins) and m.s32(m.pins + 0xc) == 130, 'a file whose playlist pin has id 0 shows its section')
     # a bad file is no section
     m = PH(entries=b'junk'); m.begin()
     expect(not m.is_shown(m.pins) and m.vh() == base_vh, 'a malformed file shows nothing')

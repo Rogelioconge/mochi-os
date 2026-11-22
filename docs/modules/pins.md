@@ -96,13 +96,13 @@ One line per pin, in the user's order (a new pin is appended), at most six.
 - **Album:** key = `pn_album_id`, FNV-1a of the title with ASCII letters folded (the same identity as
   Recently Played's `rc_id`: stock groups albums by title alone). First cover key = `cc_album_key` of the
   album row (never 0; the other three 0). Path = a track of the album (to find the row again; may be empty).
-- **Playlist:** key = the stock playlist id (`REC_DISC`, never 0). Cover keys = distinct album keys of its
+- **Playlist:** key = the stock playlist id (`REC_DISC`, from 0). Cover keys = distinct album keys of its
   songs, non-zero first then zeros. Path empty. A playlist pin is its id **and** its name, because
   `createPlayListItem` reuses the lowest free id after a delete: the stock row is matched on both (`pn_pl_find`),
   and `pins_has_playlist` / `pins_unpin_playlist` / `pins_label_playlist` take the page's name (`sg.name`), so a
   replacement playlist of the same id is not pinned by the deleted one's pin. Pinning the replacement replaces the
   stale entry in place (never two entries for one id).
-- **Strict read** (`pn_load`): exact magic, at most 6 lines of exactly eight fields, known kind, non-zero key,
+- **Strict read** (`pn_load`): exact magic, at most 6 lines of exactly eight fields, known kind, non-zero key (a playlist's id may be 0),
   no (kind, key) twice, eight lowercase hex digits per cover key, non-empty name, no control bytes, every line
   newline-terminated, names under `PIN_STR` (96) bytes, paths under `PIN_PATH` (256), file under
   `PIN_FILE_MAX` (3072). Anything else shows no pins.
