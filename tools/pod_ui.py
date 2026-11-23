@@ -3594,8 +3594,28 @@ def build_page(page):
         return build_artists_page(page)
     root = Widget('window', 0, 0, 0, 0, [('name', page.name)])
     styled(root, ('normal', 'disable', 'focused'), 'bg_color', '#000000')
-    root.children.append(navbar(page.title, settings=page is pod_pages.EXTRAS_PAGE))
+    home_title = 'Library' if page is pod_pages.MENU else page.title
+    nav = navbar(home_title, settings=page is pod_pages.EXTRAS_PAGE)
+    if page is pod_pages.MENU:
+        for state in ('normal', 'focused', 'disable'):
+            nav.set(f'style:{state}:bg_color', '#0a101a')
+    root.children.append(nav)
     lv = stock_list(page.rows, len(page.rows) * ROW_H > CLIENT_H - NAVBAR_H)
+    if page is pod_pages.MENU:
+        # MOX Home: native AWTK row styling, preserving widget geometry and IDs.
+        for i, item in enumerate(lv.children[0].children):
+            if item.type != 'list_item':
+                continue
+            base = '#213951' if i == 1 else (
+                '#152334' if i % 2 == 0 else '#111d2c'
+            )
+            item.set('style:normal:bg_color', base)
+            item.set('style:focused:bg_color', '#26415c')
+            item.set('style:pressed:bg_color', '#304d68')
+            for state in ('normal', 'focused', 'pressed', 'disable'):
+                item.set(f'style:{state}:round_radius', '10')
+                item.set(f'style:{state}:border_width', '0')
+                item.set(f'style:{state}:border_color', '#00000000')
     root.children.append(lv)
     root.children.append(nav_fade())
     if page is pod_pages.EXTRAS_PAGE:   # the group headers, after the rows (the payload shows the ones whose group has a row and stacks them in place)
