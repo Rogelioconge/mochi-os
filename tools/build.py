@@ -37,7 +37,7 @@ def about(tag):
 # tools/<module>.py WORKDIR WORKDIR [args] edits the tree in place (venv python: Pillow, fontTools);
 # <module>.added_rels(stock rootfs, *args), where defined, lists the files it adds (fwtool --allow-added).
 # The battery step runs first and the font right after it, before anything that measures text.
-STEPS = [('mod_theme', []), ('mod_lists', []), ('mod_nowplaying', []), ('mod_boot', []),
+STEPS = [('mod_theme', []), ('mod_mox_stage', []), ('mod_lists', []), ('mod_nowplaying', []), ('mod_boot', []),
          ('mod_ipodrows', []), ('mod_pulldown', []), ('mod_lockscreen', []), ('mod_wallpaper', []),
          ('mod_icons', []), ('mod_strings', []), ('mod_polish', []), ('mod_overlays', []),
          ('mod_cacerts', []), ('mod_cardrun', []), ('mod_webapp', []), ('mod_wpa', []), ('mod_player', []),
