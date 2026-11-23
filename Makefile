@@ -32,6 +32,7 @@ doctor:
 	$(RUN) tools/doctor.py
 test: lint
 	$(RUN) tools/check.py $(if $(TEST),--test "$(TEST)",--tests-only) $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
+	$(RUN) test/mox_boot.py
 dev: lint format-check
 	$(RUN) tools/check.py --dev $(if $(FRESH),--fresh) $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
 preview:

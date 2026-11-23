@@ -153,6 +153,17 @@ static int hm_read_start(void) { /* the setting; anything but "0", or no file, i
     return !(n == 1 && c == '0');
 }
 
+/* MOX OS: read-only early boot eligibility check.
+ * This does not authorize skipping stock Home yet.
+ * No markers are changed and no windows are created.
+ */
+static int __attribute__((unused)) mox_boot_candidate(void) {
+    if (home_off()) return 0;
+    if (!hm_exists("/mnt/mmc/mox-native-enable")) return 0;
+    if (hm_exists(MARKER) || hm_exists(BAD_NOTE)) return 0;
+    return hm_read_start() ? 1 : 0;
+}
+
 static void hm_arm(void) {
     hs.state = H_OFF;
     hs.start = 1;
