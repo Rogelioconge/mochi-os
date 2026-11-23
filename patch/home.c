@@ -14,7 +14,8 @@
  *      cannot be written the marker stays, so the next boot is stock too) and stop;
  *   4. the bad note exists -> stop;
  *   5. write the marker (temp file, fsync, rename, directory fsync); any failure -> stop;
- *   6. arm: a one-shot UI timer removes the marker CLEAR_MS later (the boot completed);
+ *   6. arm: a one-shot deadline checks for an AFTER_PAINT event before clearing the marker;
+ *      missing paint falls back to the stock Home with a sticky failure note;
  *   7. add the "M1+ Music" icon to the stock grid (whatever the setting says; a failure adds nothing),
  *      register a Home "to foreground" handler (it re-adds the icon if the stock code rebuilt the grid) and,
  *      when the setting says M1+ Music, schedule the first pod-menu open.
@@ -38,6 +39,9 @@ static struct {
     void *entry; /* the entry menu window (the Settings page opens over it) */
     int tries;
     int as_home; /* the menu being opened is the Home instance: its Back is hidden */
+    int home_valid; /* the Home entry was fully set up, not just window_open success */
+    int stock_painted; /* an AFTER_PAINT event was observed on stock Home */
+    int entry_painted; /* an AFTER_PAINT event was observed on the validated entry */
     void *home; /* the stock Home window */
     void *menu; /* the Settings page window (it opens over the entry menu, or over the Extras page) */
     void *extras; /* the Extras page window while it is open (Settings can be opened from it); cleared by its destroy */
@@ -118,14 +122,16 @@ static void hm_log(const char *s) {
 
 int home_off(void) { return hm_exists(KILL_SD) || hm_exists(KILL_DATA); }
 
-static void hm_clear_marker(void) {
-    unlink(MARKER);
-    hm_sync_dir(DATA_DIR);
+static int hm_clear_marker(void) {
+    if (unlink(MARKER) != 0 && hm_exists(MARKER)) return 0;
+    return hm_sync_dir(DATA_DIR) == 0;
 }
 
 /* A marker at boot: the last attempt never proved itself. Record it (the bad note is sticky: no
  * later boot arms again until the user re-enables M1+ Music) and fall back to Shanling. If the note
  * cannot be written the marker stays, so every following boot is stock as well. */
+static void hm_failure_grid(const char *message);
+
 static void hm_record_failure(void) {
     if (home_write_atomic(BAD_NOTE, BAD_TMP, "1\n") != 0) return;
     home_write_atomic(START_FILE, START_TMP, "0\n");
@@ -133,14 +139,39 @@ static void hm_record_failure(void) {
     hm_log("m1plus: marker found; falling back to Shanling");
 }
 
-/* The boot completed: remove the marker (UI thread, CLEAR_MS after the hook). */
-static int hm_clear(const void *unused) {
+/* An AFTER_PAINT notification is evidence that the toolkit completed a paint
+ * dispatch, NOT a hardware framebuffer readback. It must be received on the
+ * expected window, after the menu layout was validated. */
+static int hm_painted(void *ctx, void *unused) {
     (void)unused;
-    if (hs.state == H_ARMED) {
-        hm_clear_marker();
-        hs.state = H_PROVEN;
-        hm_log("m1plus: boot ok, marker cleared");
+    if (hs.state != H_ARMED) return RET_OK;
+    if (ctx && ctx == hs.home) hs.stock_painted = 1;
+    if (ctx && ctx == hs.entry && hs.home_valid) hs.entry_painted = 1;
+    return RET_OK;
+}
+
+/* The deadline is NOT proof of a successful launch. Only a window that has
+ * actually received AFTER_PAINT can clear the crash marker. If it has not
+ * happened within CLEAR_MS, restore stock and persist a failure. */
+static int hm_clear(const void *unused) {
+    int ready;
+    (void)unused;
+    if (hs.state != H_ARMED) return RET_OK;
+    if (hs.start && !hs.grid && !home_off())
+        ready = hs.home_valid && hs.entry && hs.entry_painted && widget_is_window_opened(hs.entry);
+    else
+        ready = hs.home && hs.stock_painted && widget_is_window_opened(hs.home);
+    if (!ready) {
+        hm_failure_grid("m1plus: no painted Home by boot deadline; Shanling recovery");
+        return RET_OK;
     }
+    /* Do not label a boot proven if the marker cannot be removed durably. */
+    if (!hm_clear_marker()) {
+        hm_log("m1plus: marker clear not durable; next boot will recover");
+        return RET_OK;
+    }
+    hs.state = H_PROVEN;
+    hm_log("m1plus: rendered Home observed; marker cleared");
     return RET_OK;
 }
 
@@ -225,11 +256,14 @@ static int hm_open(const void *unused) {
             hm_grid(1); /* never opened: show the stock grid */
         return RET_OK;
     }
+    /* open_page calls home_menu_opened synchronously before returning.
+     * A return value of 0 alone does not prove the Home layout was usable. */
+    hs.entry = (void *)0;
+    hs.home_valid = 0;
+    hs.entry_painted = 0;
     hs.as_home = 1;
-    if (m1plus_open_entry() != 0) {
-        hs.as_home = 0;
-        hm_grid(1);
-    }
+    if (m1plus_open_entry() != 0 || !hs.home_valid)
+        hm_failure_grid("m1plus: Home entry did not initialize; Shanling recovery");
     return RET_OK;
 }
 
@@ -262,6 +296,27 @@ static void hm_grid(int show) {
     if (!g) return;
     widget_set_visible(g, show, 0);
     widget_set_sensitive(g, show);
+}
+
+/* Fail closed if a menu window exists but its Home layout cannot initialize.
+ * Restore the *already constructed* stock grid immediately, stop scheduling
+ * Home opens this session, and latch a durable failure for the next boot.
+ * If the failure note cannot be written, leave MARKER in place: next boot
+ * sees it and falls back. The existing clear timer observes H_OFF. */
+static void hm_failure_grid(const char *message) {
+    if (hs.grid && hs.state == H_OFF) return;
+    hs.grid = 1;
+    hs.as_home = 0;
+    hs.home_valid = 0;
+    hs.entry_painted = 0;
+    hs.start = 0;
+    hs.state = H_OFF;
+    hm_grid(1);
+    if (home_write_atomic(BAD_NOTE, BAD_TMP, "1\n") == 0) {
+        home_write_atomic(START_FILE, START_TMP, "0\n");
+        hm_clear_marker();
+    }
+    hm_log(message);
 }
 
 /* The "M1+ Music" icon on the stock grid: a clone of what the stock icon builder (0x533d8c) makes per icon, in
@@ -318,16 +373,40 @@ static void hm_add_icon(void *win) {
     if (ind) slide_indicator_set_max(ind, pages + 1);
 }
 
+/* Until stock grid rehydration has been proven, MOX may only cover a
+ * completely constructed Shanling Home. The root alone is insufficient:
+ * recovery must have at least one real slide page to show. This is an
+ * independent fail-closed requirement for a future grid-free cutover. */
+static int hm_stock_rescue_ready(void *win) {
+    void *grid = win ? widget_lookup(win, GRID_ROOT, 1) : (void *)0;
+    void *sv = win ? widget_lookup(win, "home_sview", 1) : (void *)0;
+    unsigned i, pages;
+    if (!grid || !hm_is(sv, "slide_view")) return 0;
+    pages = widget_count_children(sv);
+    if (pages == 0 || pages > 8) return 0;
+    for (i = 0; i < pages; i++)
+        if (!hm_is(widget_get_child(sv, i), "view")) return 0;
+    return 1;
+}
+
 /* The Home instance of the menu has no top bar: the navbar view is hidden (hidden and insensitive; a hidden
  * widget still takes touches) and the stock list moves up to fill the 450 px window
  * less HOME_PAD above and below (the first row starts a little below the status bar and the last one ends above the screen edge). The stock list_view's
  * children keep their widths (scroll_view and its bar); only the heights follow. Nothing is touched unless the
  * navbar and the list are both found (then 1 is returned: the mini player bar, patch/minibar.c, starts on a window laid out so). */
 static int hm_fill_window(void *win) {
-    void *nb = widget_lookup(win, "navigationbar_view", 1), *lv = widget_lookup(win, "pod_listview", 1);
+    void *nb = widget_lookup(win, "navigationbar_view", 1), *lv = widget_lookup(win, "pod_listview", 1),
+         *sv = widget_lookup(win, "pod_scrollview", 1);
     static const char *const kids[] = {"pod_scrollview", "scroll_bar_m"};
     unsigned i;
-    if (!nb || !lv) return 0;
+    char row_name[20];
+    if (!nb || !lv || !sv) return 0;
+    /* A missing row can leave an empty/partial Home even when the list exists.
+     * Verify the entire compiled Menu asset before hiding Shanling's grid. */
+    for (i = 0; i < POD_MENU_ROWS; i++) {
+        snprintf(row_name, sizeof row_name, "pod_row%u", i);
+        if (!widget_lookup(win, row_name, 1)) return 0;
+    }
     widget_set_visible(nb, 0, 0);
     widget_set_sensitive(nb, 0);
     widget_move(lv, 0, HOME_PAD);
@@ -347,14 +426,24 @@ void home_menu_opened(void *win, int settings, int entry) {
     if (entry) {
         hs.entry = win;
         if (hs.as_home) {
-            if (hm_fill_window(win)) { /* the mini player bar and the Recently Played shelf: this instance only */
+            if (hm_stock_rescue_ready(hs.home) &&
+                hm_fill_window(win)) { /* rescue grid and complete Home are required */
                 minibar_start(win);
                 pins_start(win);
                 recent_start(win);
                 dailymix_start(win);
                 homecover_start(win);
+                /* Install paint observer before accepting the menu as Home. */
+                if (widget_on(win, EVT_AFTER_PAINT, hm_painted, win)) {
+                    hs.home_valid = 1; /* the full required layout exists */
+                    hs.entry_painted = 0;
+                    hm_grid(0);
+                } else {
+                    hm_failure_grid("m1plus: cannot observe Home paint; Shanling recovery");
+                }
+            } else {
+                hm_failure_grid("m1plus: Home layout or stock rescue grid incomplete; Shanling recovery");
             }
-            hm_grid(0);
             hs.as_home = 0;
         }
     }
@@ -382,6 +471,8 @@ int home_restore(void) {
     if (!hs.grid || !hs.home || !hs.start || !hm_ready() || home_off()) return 0;
     hs.grid = 0;
     hs.as_home = 1;
+    hs.home_valid = 0; /* an icon restore must validate the new window too */
+    hs.entry_painted = 0;
     return 1;
 }
 
@@ -389,6 +480,8 @@ int home_restore(void) {
 void home_restore_failed(int restored) {
     if (!restored) return;
     hs.as_home = 0;
+    hs.home_valid = 0;
+    hs.entry_painted = 0;
     hs.grid = 1;
 }
 
@@ -424,6 +517,11 @@ void home_boot(void *win) {
     if (hs.state == H_NEW) hm_arm();
     if (hm_ready()) {
         hs.home = win;
+        hs.stock_painted = 0;
+        if (!widget_on(win, EVT_AFTER_PAINT, hm_painted, win)) {
+            hm_failure_grid("m1plus: cannot observe stock Home paint; Shanling recovery");
+            return;
+        }
         hm_add_icon(win); /* after the marker, in the guard's path; a failure adds nothing */
         widget_on(win, EVT_WINDOW_TO_FG, hm_fg, win);
         fr_boot(); /* the UI language's CJK forms, before the first frame; a mismatch leaves the font as it is */

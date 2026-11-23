@@ -39,7 +39,7 @@ def about(tag):
 # The battery step runs first and the font right after it, before anything that measures text.
 STEPS = [('mod_theme', []), ('mod_mox_stage', []), ('mod_lists', []), ('mod_nowplaying', []), ('mod_boot', []),
          ('mod_ipodrows', []), ('mod_pulldown', []), ('mod_lockscreen', []), ('mod_wallpaper', []),
-         ('mod_icons', []), ('mod_strings', []), ('mod_polish', []), ('mod_overlays', []),
+         ('mod_icons', []), ('mod_strings', []), ('mod_polish', []), ('mod_mox_native', []), ('mod_overlays', []),
          ('mod_cacerts', []), ('mod_cardrun', []), ('mod_webapp', []), ('mod_wpa', []), ('mod_player', []),
          ('mod_bluealsa', []), ('mod_uac2', [])]
 BASE = ('mod_battery', 'mod_font', 'mod_space')     # stock tree -> battery art, font, space (cached as one stage)

@@ -1139,6 +1139,7 @@ def refresh_and_fallback_tests(ctx):
         m = minibar.BM()
         for n in ['navigationbar_view', 'btn_return', 'btn_backtoplayer', 'app_gesture', 'home_sview', 'home_sindicator'] + [f'pod_row{i}' for i in range(len(pod_pages.MENU.rows))] + list(pod_ui.SH_NAMES):
             m.widget(n)
+        m.stock_rescue_grid()
         m.props[(m.widgets['pod_shelf'], 'visible')] = 0
         if entries: m.fs[RECENT] = pod_recent.dump(ents(3))
         return m

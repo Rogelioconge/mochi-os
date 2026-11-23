@@ -1,89 +1,65 @@
-<p align="center">
-  <img src="docs/m1plus-music.jpg" alt="M1+ Music on the Shanling M1 Plus, showing iPod mode, Now Playing and Vinyl Mode" width="100%">
-</p>
+# Mochi OS 🎧
 
-<p align="center">
-  A modern music-player interface for the <b>Shanling M1 Plus</b>.<br>
-  Built on official V2.1 firmware.
-</p>
+**An independent, community-oriented firmware project for the Shanling M1 Plus.**
 
-<p align="center">
-  <b><a href="https://github.com/imfing/m1plus-music/releases/latest">Download</a></b> ·
-  <b><a href="#install-and-update">Install</a></b> ·
-  <b><a href="docs/guide.md">User guide</a></b> ·
-  <b><a href="#screenshots">Screenshots</a></b> ·
-  <b><a href="#documentation">Development</a></b>
-</p>
+> **Status: early development. No public firmware release is available yet.**
+> Do not flash prototype files or publish `update.bin` built from an unverified tree.
 
-## Features
+## What makes it different?
 
-- **Browse:** Cover Flow, album grids and lists, artist photos, A–Z indexes, playlists and folders.
-- **Search:** music and podcasts with an on-screen QWERTY or French AZERTY keyboard, also in Tidal.
-- **Home:** pinned albums, playlists, songs and artists, Daily Mix, Recently Played and a floating mini player.
-- **Now Playing:** cover-colour backgrounds, rounded artwork, three lyrics sizes, an idle display, Continue Playing into the next album, Cassette, Vinyl and Lyrics Mode.
-- **Extras:** album and folder shuffle, a virtual iPod and online cover and lyrics lookup.
-- **Podcasts:** feeds, directory search, episode downloads, filters and per-show order.
-- **Audiobooks:** books from the card, plus LibriVox search and download.
-- **Radio:** internet radio with a station browser.
-- **Scrobbling:** ListenBrainz and Last.fm, logged offline on the card.
-- **Subsonic:** browse, search, stream and download from Navidrome, Gonic or Airsonic.
-- **Equalizer:** 10-band editor, AutoEq downloads and a separate EQ per output.
-- **Wi-Fi:** WPA3 and Enhanced Open, plus a browser page to manage the card.
-- **Settings:** menu and pull-down tiles, a Volume page, playback, display, charge limit and a music-driven LED.
-- **Appearance:** accent colours, a lock screen with mini player, Inter and Source Han Sans.
-- **Languages:** 13 translations following the player's language setting.
+Mochi OS is intended to be a complete alternative firmware distribution, **not a color theme for M1+ Music**. Its guiding idea is **music first**:
 
-Stock settings and Tidal remain accessible. See the [user guide](docs/guide.md) for controls.
+- **Now Playing as the home experience:** show the last song, its cover art and playback controls; no unintended auto-play on boot.
+- **Real-audio waveform seek bar:** the bars reflect the actual intensity envelope of the song, and highlight playback progress. Currently a host prototype; not on-device yet.
+- **Minimalist appearance:** a single flat background color, restrained accent themes and readable typography.
+- **Powerful audio features:** preserve useful M1+ Music capabilities such as parametric EQ, AutoEQ, library and Cover Flow when compatible and tested.
+- **Purposeful navigation:** avoid redundant pages and hide Pod Mode; remove old code only after dependencies are audited.
+- **Custom boot and shutdown artwork:** reserved for the Mochi OS brand. Artwork has not been incorporated yet.
 
-## Screenshots
+The project's interface, navigation, asset design and versioning are being developed independently. Its initial technical implementation builds on **official Shanling V2.1** and **[imfing's M1+ Music](https://github.com/imfing/m1plus-music)**. See [credits and licensing](docs/CREDITS.md).
 
-**Library:** Cover Flow, albums and playlists.
+## Waveform preview
 
-![Cover Flow, the album grid and playlist mosaics](docs/screenshots/library.jpg)
+![Waveform computed from a synthetic test audio track](docs/waveform-demo.png)
 
-**Playback:** Now Playing, synced lyrics and album details.
+*Development preview. The bars come from an original test signal with changing amplitude; this is not yet a device screenshot or user music.*
 
-![Now Playing, synced lyrics and an album's track list](docs/screenshots/playback.jpg)
+## Progress
 
-**Extras:** iPod mode, Vinyl Mode and podcasts.
+| Area | Status |
+|---|---|
+| Standalone design mockups and AWTK resource prototype | Experimental; not integrated |
+| Pure-C 64-bar waveform renderer | Prototype with automated tests |
+| Waveform analysis from real WAV/FLAC audio on a computer | Working host-side prototype |
+| On-device waveform computation, persistence and playback hook | Not implemented |
+| Music-first launcher and last-session restoration | Planned |
+| Native library, Cover Flow redesign, PEQ / AutoEQ integration | Planned |
+| Public flashable firmware release | **Not available** |
 
-![The touch-wheel iPod interface, a cover-tinted record and the podcast library](docs/screenshots/extras.jpg)
+## Getting started
 
-**Home, settings and search:** Daily Mix, grouped settings and QWERTY search.
+- [Project architecture](docs/ARCHITECTURE.md)
+- [Building and testing locally](docs/DEVELOPMENT.md)
+- [Real-audio waveform design](docs/WAVEFORM.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
+- [Safety and responsible testing](SECURITY.md)
 
-![Daily Mix on Home, the Settings page and music search with the QWERTY keyboard](docs/screenshots/settings-and-search.jpg)
+For the host waveform proof of concept, with FFmpeg installed:
 
-## Install and update
+```bash
+python3 tools/mochi_waveform.py "/path/to/track.flac" --out /tmp/mochi-waveform.json
+python3 -m unittest discover -s test -p 'test_mochi_waveform.py' -v
+```
 
-Still early in development and tested only on my own M1 Plus.
+The JSON is an *analysis artifact*, not a firmware update. No personal music files should be checked into the repository.
 
-Download `update.bin` and `SHA256SUMS` from the [latest release](https://github.com/imfing/m1plus-music/releases/latest).
-Verify the checksum, then install `update.bin` from the TF card using the player's System Update menu.
-Once installed, later releases can be installed over Wi-Fi from **Settings → General → Software Update**.
-Follow the [installation guide](docs/install.md) for preparation, updates and restoring stock.
+## Firmware, updates and safety
 
-## Documentation
+The project does **not** contain Shanling's proprietary firmware. Builders must supply permitted official inputs separately. The MIPS/AWTK integration and hard recovery must be validated before publishing any flashable image. An earlier local developer build booted on one unit, but that does **not** establish that Mochi OS is device-ready or safe for general installation.
 
-Start with [installation](docs/install.md) and the [user guide](docs/guide.md). For building or
-contributing, see the [development workflow](docs/workflow.md) and the
-[documentation index](docs/README.md).
+**No public `update.bin` or one-click installation is offered at this stage.**
 
-## Support
+## License and attribution
 
-If M1+ Music is useful to you, you can support its development on [Ko-fi](https://ko-fi.com/imfing).
-
-## License
-
-[MIT](LICENSE). Shanling firmware is not included. Font and icon licenses accompany their assets.
-
-## Acknowledgements
-
-- Inspired by Diamond Bond's [q2-pod](https://github.com/DiamondBond/q2-pod) for the Shanling Q2.
-  It also supplied the parametric EQ design, the UTC RTC fix and the charge-limit idea; borrowed
-  files carry their own notices. The Q2 and M1 Plus differ, so no address or patch word is reused
-  unchecked.
-- Subsonic is based on a pull request by Gaurav Mishra and the work of shivaluma. The Dynamic LED
-  is based on a pull request by Gaurav Mishra. Split Genres is based on a contribution by powkakashi.
-- Crossfeed uses the algorithm and settings of Boris Mikhaylov's [bs2b](https://bs2b.sourceforge.net) (libbs2b, MIT).
-- The radio placeholder glyph derives from [IconPark](https://github.com/bytedance/IconPark) `radio` (Apache-2.0).
-- The Last.fm and DLNA marks are from [Simple Icons](https://simpleicons.org) (CC0-1.0), the MusicBrainz mark from Wikimedia Commons (public domain); all are trademarks of their owners.
+The inherited code retains its existing MIT license and copyright notices, with third-party notices preserved. Mochi contributors' original code can be offered under the same license subject to review. See [docs/CREDITS.md](docs/CREDITS.md). Neither Shanling nor imfing officially endorses Mochi OS.

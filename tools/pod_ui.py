@@ -3609,13 +3609,38 @@ def build_page(page):
             base = '#213951' if i == 1 else (
                 '#152334' if i % 2 == 0 else '#111d2c'
             )
-            item.set('style:normal:bg_color', base)
-            item.set('style:focused:bg_color', '#26415c')
-            item.set('style:pressed:bg_color', '#304d68')
+            # Native AWTK card states.  The C touch handler switches the card,
+            # not the underlying stock list row, and never changes its action.
+            focused = '#294866' if i == 1 else '#1c3046'
+            pressed = '#345f83' if i == 1 else '#304b66'
+            # MOX: inset visual card; original row remains the touch target.
+            card = Widget('view', 6, 3, item.w - 12, item.h - 6, [
+                ('name', f'mox_card{i}'),
+                ('sensitive', 'false'),
+            ])
             for state in ('normal', 'focused', 'pressed', 'disable'):
-                item.set(f'style:{state}:round_radius', '10')
+                item.set(f'style:{state}:bg_color', '#00000000')
                 item.set(f'style:{state}:border_width', '0')
                 item.set(f'style:{state}:border_color', '#00000000')
+                card.set(f'style:{state}:bg_color', (
+                    pressed if state == 'pressed' else
+                    focused if state == 'focused' else base
+                ))
+                card.set(f'style:{state}:round_radius', '10')
+                card.set(f'style:{state}:border_width', '0')
+                card.set(f'style:{state}:border_color', '#00000000')
+            # A subtle vertical accent identifies Cover Flow without moving
+            # the row, changing its hitbox, or depending on new image assets.
+            if i == 1:
+                marker = Widget('view', 6, 11, 2, card.h - 22, [
+                    ('name', 'mox_cover_accent'), ('sensitive', 'false'),
+                ])
+                for state in ('normal', 'focused', 'pressed', 'disable'):
+                    marker.set(f'style:{state}:bg_color', '#83C8FF')
+                    marker.set(f'style:{state}:round_radius', '1')
+                    marker.set(f'style:{state}:border_width', '0')
+                card.children.append(marker)
+            item.children.insert(0, card)
     root.children.append(lv)
     root.children.append(nav_fade())
     if page is pod_pages.EXTRAS_PAGE:   # the group headers, after the rows (the payload shows the ones whose group has a row and stacks them in place)

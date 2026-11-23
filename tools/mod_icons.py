@@ -1977,11 +1977,20 @@ def apply_pod_rows(out, rows):
             lab.x, lab.w = POD_TEXT_X, right - POD_TEXT_X
             ic = Widget('image', POD_ICON_X, (row.h - POD_ICON) // 2, POD_ICON, POD_ICON,
                         [('name', 'pod_icon'), ('image', img), ('draw_type', 'icon'), ('sensitive', 'false')])
-            row.children.insert(0, ic)
+            # MOX Home: paint the decorative card behind the icon.
+            # Other pages retain their original child order.
+            has_mox_card = (
+                bool(row.children)
+                and (row.children[0].name or "").startswith("mox_card")
+            )
+            row.children.insert(1 if has_mox_card else 0, ic)
             for st in ROW_STATES: row.set(f'style:{st}:border_width', '0')
-            hair = Widget('view', HAIR_X, row.h - 1, min(row.w, 310) - HAIR_X, 1, [('name', 'pod_hair'), ('sensitive', 'false')])
-            for st in ROW_STATES: hair.set(f'style:{st}:bg_color', HAIR_COLOUR)
-            row.children.append(hair)
+            # MOX cards already provide visual separation.
+            # Preserve the original hairline on all other pages.
+            if not has_mox_card:
+                hair = Widget('view', HAIR_X, row.h - 1, min(row.w, 310) - HAIR_X, 1, [('name', 'pod_hair'), ('sensitive', 'false')])
+                for st in ROW_STATES: hair.set(f'style:{st}:bg_color', HAIR_COLOUR)
+                row.children.append(hair)
     for k in POD_UI:
         p = os.path.join(out, UI_DIR, k + '.bin')
         if os.path.exists(p):

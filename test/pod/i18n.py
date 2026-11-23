@@ -150,7 +150,9 @@ def run(ctx):
             expect(not (t and k), f'{page.key}:{w.name} does not carry both text and tr_text')
         expect(not bad, f'{page.key}: every text is a tr_text key of ours or the stock tables, or a brand name ({bad})')
         title = tree.find('label_title')
-        expect(pod_i18n.shown_english(title) == page.title, f'{page.key}: the title reads {page.title!r} (was {pod_i18n.shown_english(title)!r})')
+        expected_title = 'Library' if page is pod_pages.MENU else page.title
+        expect(pod_i18n.shown_english(title) == expected_title,
+               f'{page.key}: the title reads {expected_title!r} (was {pod_i18n.shown_english(title)!r})')
         for i, r in enumerate(page.rows):
             lab = next(c for c in tree.find(f'pod_row{i}').children if c.type == 'hscroll_label')
             expect(pod_i18n.shown_english(lab) == r.label, f'{page.key}:pod_row{i} reads {r.label!r}')

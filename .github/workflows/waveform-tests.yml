@@ -1,0 +1,18 @@
+name: Mochi waveform host tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify host tools
+        run: ffmpeg -version && ffprobe -version && cc --version
+      - name: Waveform tests (no flash, no firmware inputs)
+        run: python3 -m unittest discover -s test -p test_mochi_waveform.py -v

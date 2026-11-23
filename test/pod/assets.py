@@ -12,6 +12,17 @@ def is_light(c): return len(c) >= 7 and min(int(c[1:3], 16), int(c[3:5], 16), in
 def run(ctx):
     expect = ctx.expect
     ui_dir = os.path.join(WORK, 'rootfs', 'release/assets/default/raw/ui')
+    # MOX OS has a separate AWTK Home entry; it must be an exact, audited
+    # variant of the regular M1+ Music menu, preserving all row bindings.
+    import mod_mox_native
+    native_src = os.path.join(ui_dir, mod_mox_native.SOURCE)
+    native_out = os.path.join(ui_dir, mod_mox_native.NATIVE)
+    native_bytes = open(native_out, 'rb').read()
+    expect(native_bytes == mod_mox_native.transform(open(native_src, 'rb').read()),
+           'MOX Home is a separate, validated AWTK resource with the same row actions')
+    expect(os.path.basename(native_out) == 'mox_home.bin' and
+           awtk_ui.parse(native_bytes).name == 'mox_home_page',
+           'MOX Home has a unique window identity (not Shanling Home or M1+ Music menu)')
 
     # 25. Contrast in the built assets: every button we style inline has a dark background and
     #     light text in every widget state (theme-styled navbar buttons excepted).
@@ -111,12 +122,71 @@ def run(ctx):
             expect(len(ic) == 1 and ic[0].get('image') in added and ic[0].get('sensitive') == 'false',
                    f'{key}:{row.name} has one insensitive icon image from the added set')
             used.update(c.get('image') for c in ic)
-            lab = next(c for c in row.children if c.type == 'hscroll_label'); hair = [c for c in row.children if c.name == 'pod_hair']
-            expect((ic[0].x, ic[0].w, ic[0].h) == (16, 24, 24) and ic[0].y == (row.h - 24) // 2 and lab.x == 56
-                   and len(hair) == 1 and (hair[0].x, hair[0].y, hair[0].w, hair[0].h) == (56, row.h - 1, min(row.w, 310) - 56, 1) and hair[0].get('sensitive') == 'false'
-                   and all(hair[0].get(f'style:{st}:bg_color') == '#222222' for st in mod_icons.ROW_STATES)
-                   and all(row.get(f'style:{st}:border_width') == '0' for st in mod_icons.ROW_STATES) and row.get('style') == 'list_item_style',
-                   f'{key}:{row.name}: bare 24 px glyph at x 16, title at x 56, the #222222 hairline inset to x 56 (the theme\'s full-width one off), pressed band is the stock style\'s')
+            lab = next(c for c in row.children if c.type == 'hscroll_label')
+            hair = [c for c in row.children if c.name == 'pod_hair']
+            cards = [c for c in row.children if (c.name or '').startswith('mox_card')]
+
+            common = (
+                (ic[0].x, ic[0].w, ic[0].h) == (16, 24, 24)
+                and ic[0].y == (row.h - 24) // 2
+                and lab.x == 56
+                and row.get('style') == 'list_item_style'
+                and all(row.get(f'style:{st}:border_width') == '0'
+                        for st in mod_icons.ROW_STATES)
+            )
+
+            if key == 'm1plus_menu':
+                i = int(row.name.removeprefix('pod_row'))
+                name = f'mox_card{i}'
+                expected_color = (
+                    '#213951' if i == 1 else
+                    '#152334' if i % 2 == 0 else '#111d2c'
+                )
+                card_ok = (
+                    len(cards) == 1
+                    and cards[0].name == name
+                    and [c.name for c in row.children[:2]] == [name, 'pod_icon']
+                    and (cards[0].x, cards[0].y, cards[0].w, cards[0].h)
+                        == (6, 3, row.w - 12, row.h - 6)
+                    and cards[0].get('sensitive') == 'false'
+                    and cards[0].get('style:normal:bg_color') == expected_color
+                    and cards[0].get('style:focused:bg_color') == (
+                        '#294866' if i == 1 else '#1c3046'
+                    )
+                    and cards[0].get('style:pressed:bg_color') == (
+                        '#345f83' if i == 1 else '#304b66'
+                    )
+                    and all(cards[0].get(f'style:{st}:round_radius') == '10'
+                            for st in ('normal', 'focused', 'pressed', 'disable'))
+                    and not hair
+                    and (
+                        len(cards[0].children) == (1 if i == 1 else 0)
+                    )
+                    and (
+                        i != 1 or (
+                            cards[0].children[0].name == 'mox_cover_accent'
+                            and cards[0].children[0].get('sensitive') == 'false'
+                            and (cards[0].children[0].x, cards[0].children[0].y,
+                                 cards[0].children[0].w, cards[0].children[0].h)
+                                == (6, 11, 2, cards[0].h - 22)
+                            and cards[0].children[0].get('style:normal:bg_color') == '#83C8FF'
+                        )
+                    )
+                )
+                expect(common and card_ok,
+                       f'{key}:{row.name}: MOX card, icon, text and geometry')
+            else:
+                original_ok = (
+                    not cards
+                    and len(hair) == 1
+                    and (hair[0].x, hair[0].y, hair[0].w, hair[0].h)
+                        == (56, row.h - 1, min(row.w, 310) - 56, 1)
+                    and hair[0].get('sensitive') == 'false'
+                    and all(hair[0].get(f'style:{st}:bg_color') == '#222222'
+                            for st in mod_icons.ROW_STATES)
+                )
+                expect(common and original_ok,
+                       f'{key}:{row.name}: original icon and hairline')
     expect(used | {'pod_ic_tape', 'pod_ic_vinyl', 'pod_ic_vu', 'pod_ic_art', 'pod_ic_sleep', 'pod_ic_mode'} == set(mod_icons.pod_row_names()), 'every added row icon is used by a row (pod_ic_tape, pod_ic_vinyl, pod_ic_vu, pod_ic_art, pod_ic_sleep, pod_ic_mode: the Tape, Vinyl, Find Cover & Lyrics, Sleep Timer and Display Mode rows of Now Playing\'s More dialog, tests/pod/playmore.py)')
     # the Home grid icon (patch/home.c builds the widget): its two 66x66 images and the style that names them
     import awtk_style
@@ -256,8 +326,11 @@ def run(ctx):
     expect(not stale and not any(n in demo for n in old_names) and demo.count(b'M1+ Music\0') >= 1,
            f'no user-visible old name (M1 Pod, M1+ Pod) is left in our ui files, the string tables or demo ({stale})')
     menu = awtk_ui.parse(open(os.path.join(ui_dir, 'm1plus_menu.bin'), 'rb').read())
-    expect(b'M1+ Music' in open(os.path.join(ui_dir, 'm1plus_menu.bin'), 'rb').read() and menu.find('label_title') is not None,
-           'the menu navbar title is M1+ Music')
+    import pod_i18n
+    title = menu.find('label_title')
+    prop, value = pod_i18n.text_prop('Library')
+    expect(title is not None and title.get(prop) == value,
+           'MOX Home title uses the translated Library key')
     expect(os.path.exists(os.path.join(ui_dir, 'm1plus_menu.bin')) and b'/mnt/data/m1plus-start' in demo and b'/mnt/mmc/m1plus-off' in demo,
            'the internal name is m1plus: m1plus_menu.bin, /mnt/data/m1plus-start, /mnt/mmc/m1plus-off')
     old_files = sorted(os.path.relpath(os.path.join(d, f), raw) for d, _, fs in os.walk(raw) for f in fs if 'm1pod' in f)

@@ -166,7 +166,7 @@
 #define LOG_ENABLE "/mnt/mmc/m1plus-log" /* opt-in: an empty file on the card turns the log on */
 #define LOG_FILE "/mnt/mmc/m1plus.log"
 
-#define CLEAR_MS 5000 /* the marker is removed this long after the hook ran */
+#define CLEAR_MS 5000 /* paint-confirmation deadline; time alone never clears MARKER */
 #define OPEN_FIRST_MS 10 /* the first pod-menu open (1200 before) */
 #define OPEN_MS 10 /* later opens, after a window above Home closed (250 before) */
 #define RETRY_MS 50 /* Home not opened yet: ask again (250 before) */
@@ -323,6 +323,9 @@ extern int pod_queue_move(unsigned from, unsigned to);
 extern int pod_queue_remove(unsigned i);
 extern void menu_arrange(void *win,
                          int extras); /* patch/menu.c: the rows as the saved list says (the scroll offset is clamped) */
+extern void menu_mox_bind(void *win); /* only the new menu: card touch animation, stock actions remain */
+extern void menu_mox_reset(void *win); /* restore last tapped card when the menu returns */
+extern void menu_mox_select(unsigned id); /* remember a Home row tap, never replace its action */
 extern int dailymix_setting(void); /* the Settings > Home Screen switch: 1 on (the default) */
 extern int dailymix_toggle(void); /* flip it, saved atomically; the new state, or -1 when it could not be saved */
 extern void dailymix_regen(

@@ -40,6 +40,22 @@ class BM(Machine):
         self.sbtrack, self.sbcover = {}, {}   # server track REC_ID -> track id (sba_rec_track); REC_ID -> (sba_rec_cover's answer, the file's path) (patch/sbapi.c, tested in sbapi.py)
         for n in ('sba_rec_track', 'sba_rec_cover', 'sba_now_cover'): self.handlers[PSYMS[n]] = n
 
+    def stock_rescue_grid(self):
+        """Mirror the stock Home rescue pages in the isolated MIPS test world.
+
+        Since MOX's rescue guard checks the complete slide_view, an empty
+        mock is not a valid Shanling Home.  Match test/pod/home.py (6/6/5).
+        """
+        sv = self.widgets['home_sview']
+        self.types[sv] = 'slide_view'
+        pages = []
+        for icon_count in (6, 6, 5):
+            page = self.alloc(0x80)
+            self.types[page] = 'view'
+            self.children[page] = [self.alloc(0x80) for _ in range(icon_count)]
+            pages.append(page)
+        self.children[sv] = pages
+
     def _hook(self, u, address, size, _):
         name = self.handlers.get(address, '')
         a0, a1, a2, a3 = (u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3))
@@ -308,6 +324,7 @@ def run(ctx):
         m = BM()
         for n in ['navigationbar_view', 'img_nb_fade', 'btn_return', 'btn_backtoplayer', 'app_gesture', 'home_sview', 'home_sindicator'] + [f'pod_row{i}' for i in range(len(pod_pages.MENU.rows))]:
             m.widget(n)
+        m.stock_rescue_grid()
         return m
     m = home_machine()
     m.call(PSYMS['m1plus_home_init'], a0=HOME_WIN, a1=0x55, count=3000000)

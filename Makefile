@@ -33,6 +33,15 @@ doctor:
 test: lint
 	$(RUN) tools/check.py $(if $(TEST),--test "$(TEST)",--tests-only) $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
 	$(RUN) test/mox_boot.py
+	$(RUN) test/mox_ui_review.py
+	$(RUN) test/mox_touch.py
+	$(RUN) test/mox_nav.py
+	$(RUN) test/mox_recovery.py
+	$(RUN) test/mox_native.py
+	$(RUN) test/mox_cutover_audit.py
+	$(RUN) test/mox_rehydrate_audit.py
+	$(RUN) test/mox_rebuild_contract.py
+	$(RUN) test/mox_grid_rebuild.py
 dev: lint format-check
 	$(RUN) tools/check.py --dev $(if $(FRESH),--fresh) $(if $(JOBS),--jobs "$(JOBS)") $(if $(PERF),--perf)
 preview:

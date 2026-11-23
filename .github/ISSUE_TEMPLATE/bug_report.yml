@@ -1,0 +1,28 @@
+name: Bug report
+description: Reproducible bug in Mochi OS
+body:
+  - type: markdown
+    attributes:
+      value: "Do not post secrets, firmware dumps, personal music files or full device backups."
+  - type: textarea
+    id: bug
+    attributes:
+      label: What happened?
+      description: Expected behavior and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Build or commit SHA
+  - type: dropdown
+    id: evidence
+    attributes:
+      label: Where was the issue observed?
+      options: [Device, Emulator, Host-only, Mockup]

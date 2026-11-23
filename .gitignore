@@ -24,3 +24,28 @@ __pycache__/
 .DS_Store
 fonts/*
 !fonts/README.md
+
+# Mochi OS: avoid publishing firmware and personal assets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.flac
+*.mp3
+*.wav
+*.ape
+*.dsf
+*.dff
+**/update.bin
+firmware/
+.venv/
+.mochi-wave-cache/
+.mochi-backups/
+
+# Mochi OS - temporary development files
+mox-sprint*/
+mox-fix-dev/
+.mochi-backups/
+MOX-SPRINT-README.txt

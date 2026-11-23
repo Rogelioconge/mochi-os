@@ -382,6 +382,7 @@ static int on_settings(void *ctx, void *e) {
 static int on_menu_fg(void *ctx, void *e) {
     (void)e;
     menu_arrange(ctx, 0);
+    menu_mox_reset(ctx); /* restore focus AFTER reordering/hiding rows */
     return RET_OK;
 }
 
@@ -618,6 +619,18 @@ static int on_row(void *ctx, void *e) {
     const struct pod_row *row = ctx;
     (void)e;
     if (!row) return RET_OK;
+    /* Only taps on the Home Menu's own row objects update MOX focus.
+     * Pointer equality is intentional: other pages use the same action IDs. */
+    {
+        const struct pod_page *menu = &POD_PAGES[POD_MENU_PAGE];
+        int i;
+        for (i = 0; i < menu->count; i++) {
+            if (row == &menu->rows[i]) {
+                menu_mox_select((unsigned)i);
+                break;
+            }
+        }
+    }
     if (row >= POD_PAGES[POD_VOLUME_PAGE].rows &&
         row < POD_PAGES[POD_VOLUME_PAGE].rows + POD_PAGES[POD_VOLUME_PAGE].count) {
         volpage_go((int)(row - POD_PAGES[POD_VOLUME_PAGE]
@@ -1345,8 +1358,11 @@ static int open_page(int index, int as_home) {
     int i, refresh = 0, pcrows = 0;
     if (index < 0 || index >= POD_PAGE_COUNT) return -1;
     page = &POD_PAGES[index];
-    win = pd_window_open(
-        page->asset); /* opened from the page in front: pd_open_page closes it with that page (patch/pulldown.c) */
+    /* MOX OS Home now has its own compiled AWTK entry resource. Regular
+     * M1+ Music menus still use the original asset. Stock Shanling Home is
+     * built first and remains the recovery path if this resource fails. */
+    win = pd_window_open(as_home && index == POD_ENTRY_PAGE ? "mox_home" : page->asset);
+    /* pd_open_page closes the child along with its parent (patch/pulldown.c). */
     if (!win) return -1;
     for (i = 0; i < page->count; i++)
         if (page->rows[i].action == ACT_PCDIR)
@@ -1416,6 +1432,7 @@ static int open_page(int index, int as_home) {
         homecover_cache_open(win, index); /* counts the cache folder in steps while the page is open */
     if (index == POD_MENU_PAGE) {
         menu_arrange(win, 0);
+        menu_mox_bind(win); /* once per new window: no duplicate callbacks on foreground */
         widget_on(win, EVT_WINDOW_TO_FG, on_menu_fg, win); /* back in front after the Main Menu page: arrange again */
     } else if (index == POD_EXTRAS_PAGE) {
         menu_arrange(win, 1);
@@ -1524,8 +1541,10 @@ int m1plus_home_click(void *icon, void *e) {
     const char *name = icon ? *(const char **)((char *)icon + W_NAME) : (const char *)0;
     int id = (name && name[0]) ? atoi(name) : -1;
     if (id == POD_ENTRY_ID && !pod_off()) {
-        int restored = home_restore(); /* after "Shanling Home": this tap makes M1+ Music Home again */
-        if (open_page(POD_ENTRY_PAGE, 1) == 0) return RET_OK;
+        int restored = home_restore(); /* only a genuine session restore opens the native MOX Home */
+        /* A normal Shanling-grid tap must use m1plus_menu: mox_home has its navbar
+         * hidden in the AWTK resource even before home_menu_opened() runs. */
+        if (open_page(POD_ENTRY_PAGE, restored ? 1 : 0) == 0) return RET_OK;
         home_restore_failed(restored);
     } else if (recovery_tap(id) && !pod_off()) {
         if (open_page(POD_ENTRY_PAGE, 0) == 0) return RET_OK;

@@ -30,6 +30,7 @@ SETTINGS, HOMESET = pod_pages.SETTINGS_PAGE, pod_pages.DEVELOPER_PAGE
 NAVBAR, LISTVIEW, SCROLLVIEW, SCROLLBAR = 'navigationbar_view', 'pod_listview', 'pod_scrollview', 'scroll_bar_m'
 ICON_STYLE = 'home_m1plus_style'
 ICON_NAME = str(pod_pages.HOME_ENTRY)
+MOX_HOME_KEY = 'mox_home'   # separate Home window; an ordinary icon tap still opens page.key
 
 
 def menu_machine(page, icons=(6, 6, 5)):
@@ -75,6 +76,7 @@ def home_tests(expect, page):
     ALLOWED |= {'widget_lookup', 'widget_set_visible', 'widget_set_sensitive'}   # the grid is hidden (after the marker)
     ALLOWED |= {'locale_info_on'}   # patch/fontregion.c fr_boot: the language and theme change handlers (test/pod/fontregion.py)
     clear_cb, open_cb, fg_cb = PSYMS['hm_clear'], PSYMS.get('hm_open'), PSYMS.get('hm_fg')
+    paint_cb = PSYMS['hm_painted']
 
     # -- the hook itself: two words over home_page_init's PIC prologue, the third and the rest untouched
     d = built_demo_bytes()
@@ -96,7 +98,9 @@ def home_tests(expect, page):
                    for n in m.names()), 'no window is opened, shown, hidden or navigated at boot by the guard')   # (this Machine has no widgets)
     expect(m.timers == [(clear_cb, CLEAR_MS), (open_cb, OPEN_FIRST_MS)], f'also the first open timer ({m.timers})')
     wo = [c for c in m.calls if c[0] == 'widget_on' and c[1] != m.wm]   # (fr_boot's theme handler is on the window manager)
-    expect(wo == [('widget_on', HOME_WIN, 0x12d, fg_cb, HOME_WIN)], f'one Home-foreground handler on the Home window ({wo})')
+    expect(wo == [('widget_on', HOME_WIN, 0x120, paint_cb, HOME_WIN),
+                  ('widget_on', HOME_WIN, 0x12d, fg_cb, HOME_WIN)],
+           f'Home has paint proof and foreground handlers ({wo})')
     expect([c[1:3] for c in m.calls if c[0] == 'widget_on' and c[1] == m.wm] == [(m.wm, 0x14a)] and len([c for c in m.calls if c[0] == 'locale_info_on']) == 1,
            'the ready path runs fr_boot: one theme handler on the window manager, one locale handler')
     # a stock init that fails leaves everything stock
@@ -110,15 +114,22 @@ def home_tests(expect, page):
     boot(m)
     expect(gp == [pod.GP], f'the trampoline restores $gp ({gp})')
 
-    # -- 2. the marker proves itself: the timer removes it (once), a later Home init changes nothing
-    m = Machine(); boot(m); m.call(clear_cb)
+    # -- 2. time alone is NOT success: a real paint event on the expected window is required.
+    # Starting in Shanling is tested here because it does not depend on opening a music menu.
+    m = Machine(); m.fs[START] = b'0\n'; boot(m)
+    m.call(paint_cb, a0=HOME_WIN + 0x100)  # unrelated window, not proof
+    expect(RUN in m.fs, 'wrong window cannot clear marker')
+    m.call(paint_cb, a0=HOME_WIN)           # actual stock window AFTER_PAINT
+    m.call(clear_cb)
     expect(RUN not in m.fs and ('unlink', RUN) in m.calls and ('fsync', '/mnt/data') in m.calls,
-           'the clear timer removes the marker and syncs the directory')
+           'paint-confirmed stock Home removes and syncs marker')
     m.call(clear_cb); expect('unlink' not in m.names(), 'clearing twice touches nothing')
     m.call(PSYMS['m1plus_home_init'], a0=HOME_WIN + 0x100, a1=0)
     expect(RUN not in m.fs and not [c for c in m.calls if c[0] == 'open'], 'a re-created Home does not arm again')
-    expect([c for c in m.calls if c[0] == 'widget_on'] == [('widget_on', HOME_WIN + 0x100, 0x12d, fg_cb, HOME_WIN + 0x100)],
-           'but the new Home window gets the foreground handler (and fr_boot registers its change handlers only once)')
+    expect([c for c in m.calls if c[0] == 'widget_on'] == [
+        ('widget_on', HOME_WIN + 0x100, 0x120, paint_cb, HOME_WIN + 0x100),
+        ('widget_on', HOME_WIN + 0x100, 0x12d, fg_cb, HOME_WIN + 0x100)],
+           'a rebuilt Home keeps both paint and foreground handlers')
     m = Machine(); m.present.add(KILL_SD); boot(m); m.call(clear_cb)
     expect('unlink' not in m.names(), 'the clear timer does nothing when the guard is off')
 
@@ -172,7 +183,8 @@ def home_tests(expect, page):
     # -- 6. the opt-in log (SD card): off by default, on with /mnt/mmc/m1plus-log
     m = Machine(); boot(m)
     expect(LOG not in m.fs and not any(c[0] == 'open' and c[1] == LOG for c in m.calls), 'no log file unless the card has m1plus-log')
-    m = Machine(); m.present.add(LOG_ON); boot(m); m.call(clear_cb)
+    m = Machine(); m.fs[START] = b'0\n'; m.present.add(LOG_ON); boot(m)
+    m.call(paint_cb, a0=HOME_WIN); m.call(clear_cb)
     expect(LOG in m.fs and b'armed' in m.fs[LOG] and b'marker cleared' in m.fs[LOG], f'with m1plus-log the events are appended ({m.fs.get(LOG)})')
 
     # ===================== the launcher =====================
@@ -330,8 +342,10 @@ def home_tests(expect, page):
 
     # 8. the first open: the stock Home is the topmost normal window and opened -> the pod menu as Home
     m = armed(); m.top_main = HOME_WIN
+    m.windows[page.key] = 0  # proving the native Home does not fall back to the normal entry asset
     m.call(open_cb)
-    expect(('window_open', page.key) in m.calls, 'the pod menu opens when Home is the topmost normal window')
+    expect(('window_open', MOX_HOME_KEY) in m.calls and ('window_open', page.key) not in m.calls,
+           'MOX Home opens independently of the normal menu when Shanling Home is topmost')
     nb, lv, sv_, bar = (m.widgets[n] for n in (NAVBAR, LISTVIEW, SCROLLVIEW, SCROLLBAR))
     expect(('widget_set_visible', nb, 0) in m.calls and ('widget_set_sensitive', nb, 0) in m.calls,
            'the Home instance has no top bar: the navbar view is hidden and insensitive (visible=false alone still takes touches)')
@@ -347,13 +361,15 @@ def home_tests(expect, page):
            'one window, after asking the window manager what is on top')
     expect(not [c for c in m.calls if c[0] == 'widget_set_text_utf8'], 'the menu has no Start-in row to relabel: it lives on the Settings page')
     # the Home instance with a tree that lacks the navbar or the list: nothing is hidden or moved
-    for gone in (NAVBAR, LISTVIEW):
+    for gone in (NAVBAR, LISTVIEW, SCROLLVIEW, 'pod_row11'):
         m = armed(); m.top_main = HOME_WIN; m.widgets.pop(gone); m.call(open_cb)
-        expect(('window_open', page.key) in m.calls and not moved(m) and
+        expect(('window_open', MOX_HOME_KEY) in m.calls and not moved(m) and
                ('widget_set_visible', m.widgets.get(NAVBAR, -1), 0) not in m.calls, f'no {gone}: the page opens as it is, nothing moved or hidden')
+        expect(('widget_set_visible', m.widgets[GRID], 1) in m.calls,
+               f'no {gone}: a partial Home layout restores the stock grid')
     # the touches: the rows reach the top of the screen, the hidden navbar takes none (demo's own hit test)
     m = armed(); m.top_main = HOME_WIN; m.call(open_cb)
-    tree = asset_tree(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui', page.key + '.bin'))
+    tree = asset_tree(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui', MOX_HOME_KEY + '.bin'))
     for nm in (NAVBAR, LISTVIEW, SCROLLVIEW, SCROLLBAR):
         nd, h = node(tree, nm), m.widgets[nm]
         for k in 'xywh':
@@ -389,7 +405,7 @@ def home_tests(expect, page):
         m.call(open_cb)
     expect('window_open' not in m.names() and n == MAX_TRIES - 1, f'a Home that never opens: {MAX_TRIES - 1} retries, then stop ({n})')
     m = armed(); m.top_main = HOME_WIN; m.home_opened = 0; m.call(open_cb); m.home_opened = 1; m.call(open_cb)
-    expect(('window_open', page.key) in m.calls, 'a Home that opens late gets the menu')
+    expect(('window_open', MOX_HOME_KEY) in m.calls, 'a late-opened Shanling Home gets MOX Home')
 
     # 11. the go-home paths: each ends with Home coming to the foreground (0x12d) -> reopen
     m = armed(); m.top_main = HOME_WIN; m.call(open_cb)            # the menu is up
@@ -399,17 +415,27 @@ def home_tests(expect, page):
     m.timers = []
     m.call(fg_cb, a0=HOME_WIN); expect(not m.timers, 'a second foreground event while one is pending schedules nothing')
     m.top_main = HOME_WIN; m.call(open_cb)
-    expect(('window_open', page.key) in m.calls, 'and the menu comes back')
+    expect(('window_open', MOX_HOME_KEY) in m.calls, 'and MOX Home comes back')
     m.call(fg_cb, a0=HOME_WIN)
     expect(m.timers == [(open_cb, OPEN_MS)], 'the pending flag is cleared by the open, so the next return schedules again')
 
     # 12. the navbar is hidden on the Home instance only; the menu the icon opens (the stock grid is behind it) keeps it
     m = armed()
+    m.windows[MOX_HOME_KEY] = 0  # MOX may be unavailable: a normal Shanling tile must still work.
     tap_icon(m)
-    expect(('window_open', page.key) in m.calls and not hid(m) and not moved(m),
-           'the icon opens the menu with its navbar (Back, title, bars icon) and the list where it is')
+    expect(('window_open', page.key) in m.calls and ('window_open', MOX_HOME_KEY) not in m.calls
+           and not hid(m) and not moved(m),
+           'the icon opens the normal menu with its navbar even if MOX Home cannot open')
+    native = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui/mox_home.bin'), 'rb').read())
+    normal = awtk_ui.parse(open(os.path.join(WORK, 'rootfs/release/assets/default/raw/ui', page.key + '.bin'), 'rb').read())
+    native_bar, normal_bar = native.find(NAVBAR), normal.find(NAVBAR)
+    expect(native.name == 'mox_home_page' and native_bar is not None
+           and native_bar.get('visible') == 'false' and native_bar.get('sensitive') == 'false'
+           and normal.name == 'm1plus_menu_page' and normal_bar is not None
+           and normal_bar.get('visible') != 'false' and normal_bar.get('sensitive') != 'false',
+           'native Home starts without a navbar; the normal menu keeps visible Back controls')
     m = armed(); m.top_main = HOME_WIN; m.window = 0; m.call(open_cb)
-    expect(('window_open', page.key) in m.calls and not hid(m), 'a failed open hides nothing')
+    expect(('window_open', MOX_HOME_KEY) in m.calls and not hid(m), 'a failed MOX Home open hides nothing')
     expect(('widget_set_visible', m.widgets[GRID], 1) in m.calls, 'and a failed open shows the stock grid again (it was hidden at boot)')
     m.window = 0x20001000
     tap_icon(m)
@@ -467,7 +493,7 @@ def home_tests(expect, page):
     m.call(fg_cb, a0=HOME_WIN); expect(not m.timers, 'the grid stays: Home in the foreground schedules nothing')
     m.call(open_cb); expect('window_open' not in m.names(), 'and a stale timer does not open the menu either')
     tap_icon(m)
-    expect(('window_open', page.key) in m.calls and ('widget_set_visible', m.widgets[NAVBAR], 0) in m.calls and
+    expect(('window_open', MOX_HOME_KEY) in m.calls and ('widget_set_visible', m.widgets[NAVBAR], 0) in m.calls and
            ('widget_set_visible', m.widgets[GRID], 0) in m.calls and ('widget_move', m.widgets[LISTVIEW], 0, O['HOME_PAD']) in m.calls,
            'the icon on the grid restores M1+ Music as Home: no navbar, list up, grid hidden')
     m.timers = []; m.call(fg_cb, a0=HOME_WIN)
@@ -509,11 +535,11 @@ def home_tests(expect, page):
     m = armed(); m.top_main = HOME_WIN; m.call(open_cb); settings_row(m, start_i)
     settings_row(m, grid_i)
     tap_icon(m)
-    expect(('window_open', page.key) in m.calls and not hid(m), 'with Start in: Shanling the icon opens a normal menu, with its navbar')
+    expect(('window_open', page.key) in m.calls and ('window_open', MOX_HOME_KEY) not in m.calls and not hid(m), 'with Start in: Shanling the icon opens the normal menu with Back')
     m = menu_machine(page); m.fs[START] = b'0\n'; boot(m)
     expect(not any(c[0] == 'widget_set_visible' for c in m.calls), 'a Shanling start never hides the grid')
     tap_icon(m)
-    expect(('window_open', page.key) in m.calls and not hid(m), 'and its icon opens the menu with the navbar (there is no pod Home to restore)')
+    expect(('window_open', page.key) in m.calls and ('window_open', MOX_HOME_KEY) not in m.calls and not hid(m), 'Shanling boot: the icon still opens the menu with Back')
     for kill in (KILL_SD, KILL_DATA):
         m = armed(); m.top_main = HOME_WIN; m.call(open_cb); settings_row(m, grid_i); m.present.add(kill)
         tap_icon(m)

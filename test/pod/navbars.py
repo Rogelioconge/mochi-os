@@ -17,6 +17,41 @@ OUR_FILES = ('about_page.bin', 'albuminfo_page.bin', 'lyrics.ttf')  # lyrics.ttf
 BUILDERS = ((0x524e4c, 0x5251e0), (0x526a3c, 0x527010), (0x5312dc, 0x5316c0), (0x535188, 0x5357c0), (0x53d5f8, 0x53d900))
 
 
+def pre_mox_home(data):
+    """Reverse only MOX's seven audited home_page.bin cosmetic edits.
+
+    This feeds the EXISTING stock-asset digest, so modifying any other stock
+    asset still fails the pinned check. The inverse is exact and its output
+    must reproduce the built asset when MOX's transform is reapplied.
+    """
+    import mod_mox_home
+
+    root = awtk_ui.parse(data)
+    assert awtk_ui.serialize(root) == data, 'MOX stock Home: non-exact AWTK roundtrip'
+    idx, _ = mod_mox_home.audit(root)
+    original = {
+        ('home_bottomview', 'style:normal:bg_color'): '#000000',
+        ('home_sindicator', 'style:normal:selected_fg_color'): '#EEEEEE',
+        ('home_sindicator', 'style:normal:fg_color'): '#555555',
+        ('home_scrlabel_artist', 'style:normal:text_color'): '#AAAAAA',
+        ('home_scrlabel_artist', 'style:normal:font_size'): '16',
+        ('home_scrlabel_artist', 'style:disable:font_size'): '16',
+        ('home_scrlabel_artist', 'style:focused:font_size'): '16',
+    }
+    assert original.keys() == mod_mox_home.STYLES.keys(), 'MOX Home edits changed: update integrity audit'
+    for key, before in original.items():
+        name, prop = key
+        actual = idx[name].get(prop)
+        assert actual == mod_mox_home.STYLES[key], (
+            f'MOX Home unexpected value at {name}/{prop}: {actual!r}'
+        )
+        idx[name].set(prop, before)
+    restored = awtk_ui.serialize(root)
+    recreated = awtk_ui.serialize(mod_mox_home.transform(awtk_ui.parse(restored)))
+    assert recreated == data, 'MOX Home asset differs beyond audited cosmetic styles'
+    return restored
+
+
 def stock_digests(assets):
     """{area: sha256 of the sorted (relative path, file sha256) list} over assets/ (release/assets), without our pages and images (ui/m1plus_*, NEW_IMAGES) and
     OUR_FILES, and 'demo-builders': the bytes of the stock pages' navbar builders in demo."""
@@ -26,8 +61,10 @@ def stock_digests(assets):
         for f in sorted(glob.glob(os.path.join(assets, area, '**', '*'), recursive=True)):
             if not os.path.isfile(f): continue
             rel = os.path.relpath(f, assets); name = os.path.basename(f)
-            if (area.endswith('/ui') and name.startswith('m1plus_')) or name in OUR_FILES or (area.endswith('/ui') and name in OVERLAY_UI) or (name.endswith('.png') and name[:-4] in mod_overlays.NAMES) or (area.endswith('/images') and name.startswith(NEW_IMAGES)): continue
+            if (area.endswith('/ui') and (name.startswith('m1plus_') or name == 'mox_home.bin')) or name in OUR_FILES or (area.endswith('/ui') and name in OVERLAY_UI) or (name.endswith('.png') and name[:-4] in mod_overlays.NAMES) or (area.endswith('/images') and name.startswith(NEW_IMAGES)): continue
             data = open(f, 'rb').read()
+            if rel == 'default/raw/ui/home_page.bin':
+                data = pre_mox_home(data)  # hash exactly as mod_theme built it, before MOX's visual stage
             if area.endswith('/strings'):   # the string tables without OUR keys (tools/pod_i18n.py TEXT, which every feature adds to) the other stock keys and their texts only
                 data = awtk_strings.serialize([kv for kv in awtk_strings.parse(data) if kv[0] not in pod_i18n.TEXT])
             h.update(rel.encode() + b'\0' + hashlib.sha256(data).digest())

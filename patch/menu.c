@@ -309,6 +309,58 @@ static int mn_arrange(void *win, int extras) {
 
 void menu_arrange(void *win, int extras) { mn_arrange(win, extras); }
 
+/* MOX UI visual feedback, layered on top of the existing stock row actions.
+ * The card is an insensitive child, so the parent list_item still owns every
+ * hit-test and EVT_CLICK. A swipe is cancelled by stock's EVT_POINTER_ABORT;
+ * this callback only changes the card style and never consumes navigation. */
+static int mn_mox_touch(void *ctx, void *e) {
+    void *card = ctx;
+    int type = e ? *(int *)e : 0;
+    if (!card) return RET_OK;
+    if (type == EVT_POINTER_DOWN)
+        widget_set_state(card, "pressed");
+    else if (type == EVT_POINTER_UP || type == EVT_POINTER_ABORT)
+        widget_set_state(card, "normal");
+    return RET_OK;
+}
+
+/* Called exactly once per newly opened Menu window in m1plus.c, never on
+ * foreground relayout. Fail closed unless all MOX cards are present. */
+void menu_mox_bind(void *win) {
+    void *rows[N + 1], *cards[N + 1];
+    unsigned i;
+    if (!win) return;
+    for (i = 0; i <= N; i++) {
+        rows[i] = mn_find(win, "pod_row", i);
+        cards[i] = rows[i] ? mn_find(rows[i], "mox_card", i) : (void *)0;
+        if (!cards[i]) return; /* stock asset: leave its events untouched */
+    }
+    for (i = 0; i <= N; i++) {
+        widget_on(rows[i], EVT_POINTER_DOWN, mn_mox_touch, cards[i]);
+        widget_on(rows[i], EVT_POINTER_UP, mn_mox_touch, cards[i]);
+        widget_on(rows[i], EVT_POINTER_ABORT, mn_mox_touch, cards[i]);
+    }
+}
+
+/* In-memory only: the last tapped Home row (1-based, 0 = none).
+ * Do not save to disk: this is visual context, not navigation state. */
+static unsigned mn_mox_active __attribute__((section(".scratch")));
+
+void menu_mox_select(unsigned id) { mn_mox_active = id <= N ? id + 1 : 0; }
+
+/* Restore the last tapped row when returning from a subpage. If the user
+ * removed that row in Settings > Main Menu, do not highlight a hidden item.
+ * The row action and actual navigation remain owned by m1plus.c. */
+void menu_mox_reset(void *win) {
+    unsigned i;
+    if (!win) return;
+    for (i = 0; i <= N; i++) {
+        void *row = mn_find(win, "pod_row", i);
+        void *card = row ? mn_find(row, "mox_card", i) : (void *)0;
+        if (card) widget_set_state(card, mn_mox_active == i + 1 && widget_get_visible(row) ? "focused" : "normal");
+    }
+}
+
 /* A section of the Home list (the Recently Played shelf, patch/recent.c; the Daily Mix card, patch/dailymix.c) shows or hides: visible and sensitive together;
  * the list keeps its place. Nothing changes when the asset has no such section or is not ours. */
 static void mn_section(void *win, const char *name, int on) {
