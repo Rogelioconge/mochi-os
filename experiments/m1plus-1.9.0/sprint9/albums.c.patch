@@ -9,7 +9,7 @@
  #include "i18n.h"
  #include "viewsort.h"
 @@ -117,6 +118,7 @@
-     int seen; /* the scroll offset the loader last looked at (the direction is read and fed into al_dir) */
+     int seen; /* the scroll offset the loader last looked at (the direction is read from its change) */
      int dir; /* the way the content last went: 1 down the list, -1 back up */
      int noscroll; /* the scroll events could not be registered: the loader keeps polling for as long as the page is up */
 +    mox_perf_page_t perf; /* opt-in UX latency statistics */
@@ -49,7 +49,7 @@
      }
      al_kick();
 @@ -542,12 +552,14 @@
- /* The scroll_view's EVT_SCROLL (every change of its offset: the drag, the fling, a scroll_to) and its scroll end: the title, dir, loader */
+ /* The scroll_view's EVT_SCROLL (every change of its offset: the drag, the fling, a scroll_to) and its scroll end: the direction is read and the loader armed. */
  static int al_on_scroll(void *ctx, void *e) {
 +    unsigned long long pt = mox_perf_start(&al.perf);
      (void)ctx;
