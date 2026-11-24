@@ -1,0 +1,188 @@
+--- a/patch/albums.c
++++ b/patch/albums.c
+@@ -58,10 +58,12 @@
+  */
+ #include "offsets.inc"
+ #include "stock.h"
+ #include "home.h"
+ #include "scroll.h"
++#include "touchguard.h"
++extern void *mox_first_scroll_target;
+ #include "covercache.h"
+ #include "common.h"
+ #include "grid.h"
+ #include "azlist.h"
+ #include "i18n.h"
+@@ -115,10 +117,11 @@
+     int seen; /* the scroll offset the loader last looked at (the direction is read from its change) */
+     int dir; /* the way the content last went: 1 down the list, -1 back up */
+     int noscroll; /* the scroll events could not be registered: the loader keeps polling for as long as the page is up */
+     int down; /* the cell or row a press began on, + 1 (0 none) */
+     m1_tap_t tap; /* and where (screen coordinates) */
++    mox_touch_t touch; /* complete gesture: cumulative drag + scroll changes */
+     unsigned more_timer; /* the loader's */
+     /* the background cache build (the shared worker, patch/covercache.c): build_timer is the one-shot start, then the poll;
+      * own = this page holds the worker's job set; done = the worker's done counter at the last poll */
+     unsigned build_timer;
+     int own, done;
+@@ -785,35 +788,55 @@
+     if (al.list) grid_set_press(&al.press, 0, al.sv);
+     if (!rec || !al.fg || al.vs.on) return;
+     rowmenu_open_album(&al.rm, a, pins_has_album(cc_str(rec, REC_ALBUM)), al_sheet);
+ }
+ 
++/* AWTK can deliver sparse MOVE events while covers or the library are busy.
++ * An album is opened only if the entire pointer gesture remained a tap:
++ * the finger never left the drag threshold, the list did not scroll during
++ * the gesture, and the scroll_view is no longer dragging/coasting. */
+ static int al_on_down(void *ctx, void *e) {
+     int a;
+     (void)ctx;
+     al.down = 0;
+-    if (!e || !al.view) return RET_OK;
++    mox_touch_cancel(&al.touch);
++    if (!e || !al.view || !al.fg) return RET_OK;
++    mox_touch_begin(&al.touch, I(e, PE_X), I(e, PE_Y), al_off(), grid_moving(al.sv));
++    if (al.touch.cancelled) return RET_OK;
+     a = al_item_of(e);
+     al.down = a + 1, m1_tap_at(&al.tap, e);
+     if (al.list) grid_set_press(&al.press, a + 1, al.sv);
+     if (a >= 0 && al_pinnable(a)) rowmenu_hold_start(a, al_on_hold);
+     return RET_OK;
+ }
+ 
+ static int al_on_move(void *ctx, void *e) {
+     (void)ctx;
+-    if (al.down && e) rowmenu_hold_move(&al.tap, e); /* a drift of SC_DRAG_PX or more is a drag, not a long press */
++    if (al.down && e) {
++        int was_cancelled = al.touch.cancelled;
++        mox_touch_move(&al.touch, I(e, PE_X), I(e, PE_Y), al_off(), SC_DRAG_PX);
++        if (al.touch.cancelled) {
++            if (!was_cancelled) {
++                rowmenu_hold_stop();
++                if (al.list) grid_set_press(&al.press, 0, al.sv);
++            }
++        } else {
++            rowmenu_hold_move(&al.tap, e);
++        }
++    }
+     return RET_OK;
+ }
+ 
+ static int al_on_up(void *ctx, void *e) {
+     int a = al.down - 1;
++    int valid = e && mox_touch_end(&al.touch, I(e, PE_X), I(e, PE_Y), al_off(),
++                                   grid_moving(al.sv), SC_DRAG_PX);
+     (void)ctx;
+     rowmenu_hold_stop();
+     al.down = 0;
+     if (al.list) grid_set_press(&al.press, 0, al.sv);
+-    if (a < 0 || !e || !al.view) return RET_OK;
++    if (a < 0 || !e || !al.view || !valid) return RET_OK;
+     if (m1_tap_near(&al.tap, e) && al_item_of(e) == a) {
+         int row = (int)(al.order ? al.order[a] : (unsigned)a); /* the stock row */
+         if (al.src) { /* a source's album: its album page; an artist's All Songs tile: the source's songs of that artist */
+             void *rec = deque_at(al.albums, (unsigned)row);
+             if (al_is_card(
+@@ -838,10 +861,11 @@
+ 
+ /* The scroll_view took the gesture as a drag (it aborts its children's press), or the window went to the background. */
+ static int al_on_abort(void *ctx, void *e) {
+     (void)ctx;
+     (void)e;
++    mox_touch_cancel(&al.touch);
+     rowmenu_hold_stop();
+     al.down = 0;
+     if (al.list) grid_set_press(&al.press, 0, al.sv);
+     return RET_OK;
+ }
+@@ -915,10 +939,11 @@
+ }
+ 
+ static int al_on_destroy(void *ctx, void *e) {
+     (void)ctx;
+     (void)e;
++    if (mox_first_scroll_target == al.sv) mox_first_scroll_target = (void *)0;
+     m1_timer_stop(&al.more_timer);
+     m1_timer_stop(&al.gen_timer);
+     ls_cover_end(&al.cp);
+     ls_spin_end(al.spin);
+     al_build_end(); /* the timer removed, the worker cancelled (cc_build_stop) */
+@@ -1244,10 +1269,11 @@
+     if (al.az_ok) {
+         az_make_disc(&al.az);
+         az_bind_rail(&al.az, al_on_rail, al_on_rail_paint);
+     }
+     al.started = 1;
++    mox_first_scroll_target = al.sv; /* opt in only while this page is alive */
+     return 1;
+ }
+ 
+ /* The empty page: the status line says why. A source's page keeps the large title (the content view) and shows, by the source's state: while the list is on its way only the one spinner;
+  * no Wi-Fi or a failed request, the reason; else "No albums". */
+--- a/patch/scroll.c
++++ b/patch/scroll.c
+@@ -28,20 +28,24 @@
+  */
+ #include "offsets.inc"
+ #include "stock.h"
+ #include "scroll.h"
+ #include "home.h"
++#include "scrollfirst.h"
+ 
+ #define B(w, off) (*(unsigned char *)((char *)(w) + (off)))
+ #define I(w, off) (*(int *)((char *)(w) + (off)))
+ #define P(w, off) (*(void **)((char *)(w) + (off)))
+ 
+ static int sc_state __attribute__((section(".scratch"))); /* 0 not read yet, 1 on, 2 kill switch */
+ 
+ /* The list a tile or row is lifted in (a Home pin, patch/pins.c; a playlist row in Edit mode, patch/songs.c), for the hook below: yslidable off at the lift does not last, a layout turns it back on each
+  * time (scroll_view_set_yslidable(sv, 1), 0x60b1e4), so the hook turns it off again before every pointer event of the lift reaches the list. */
+ void *m1_lift_sv __attribute__((section(".scratch")));
++/* Opt-in only: Albums registers its scroll_view after opening and clears it on destroy.
++ * The global hook retains the original behaviour for Songs, Home, settings and stock pages. */
++void *mox_first_scroll_target __attribute__((section(".scratch")));
+ 
+ static int sc_off(void) {
+     if (!sc_state) sc_state = home_off() ? 2 : 1;
+     return sc_state != 1;
+ }
+@@ -74,16 +78,38 @@
+     ev[0] = EVT_POINTER_ABORT;
+     widget_dispatch_event_to_target_recursive(w, ev);
+     return RET_OK;
+ }
+ 
++/* First drag MOVE: the stock handler sends the child ABORT and sets dragged=1,
++ * then returns without moving the viewport. Replaying that SAME event once after
++ * the stock handler has transitioned the state uses the stock delta/clamp path.
++ * This targets Albums only; no change to inertia, thresholds or velocity code.
++ * widget_dispatch calls the vtable's on_event directly (not this before-children
++ * hook), so the two calls cannot recurse through m1plus_scroll_event.
++ * WARNING: experimental until real AWTK / device validation. */
++__attribute__((noinline)) static int sc_first_move(void *w, void *e) {
++    if (!mox_first_move_candidate(B(w, SC_PRESSED), B(w, SC_DRAGGED), B(w, SC_SNAP), B(w, SC_XSLIDE),
++                                  B(w, SC_YSLIDE), I(w, SC_DOWN_X), I(w, SC_DOWN_Y), I(e, PE_X),
++                                  I(e, PE_Y), SC_DRAG_PX))
++        return RET_OK;
++    if (P(w, SC_WA) || sc_off()) return RET_OK;
++    widget_dispatch(w, e); /* native transition + abort of child press */
++    /* An abort handler may remove the page. Check registration before touching w again. */
++    if (mox_first_scroll_target == w && B(w, SC_PRESSED) && B(w, SC_DRAGGED) && !P(w, SC_WA))
++        widget_dispatch(w, e); /* native drag/update of the scroll offset */
++    return SC_RET_STOP; /* this MOVE was already fully dispatched */
++}
++
+ /* g_scroll_view_vtable.on_event_before_children (tools/pod.py patch_scroll): widget_on_event_before_children passes the
+  * widget and the event, both non-null. Anything but a pointer DOWN or UP is stock. */
+ int m1plus_scroll_event(void *w, void *e) {
+     unsigned type = *(unsigned *)e & 0xffff;
+     if (w == m1_lift_sv)
+         B(w, SC_YSLIDE) =
+             0; /* a Home pin or a playlist row is lifted (patch/pins.c, patch/songs.c): the list does not slide with its drag or fling at its drop, whatever a layout set since the hold; no late-drag abort either */
+     if (type == EVT_POINTER_DOWN) return sc_down(w, e);
++    if (type == EVT_POINTER_MOVE && w == mox_first_scroll_target && w != m1_lift_sv)
++        return sc_first_move(w, e);
+     if (type == EVT_POINTER_UP) return sc_up(w, e);
+     return RET_OK;
+}
