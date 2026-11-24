@@ -1,9 +1,8 @@
 """Read-only Pillow preview of the 320x480 physical UI; *not* a real AWTK screenshot."""
 from __future__ import annotations
 
-import math
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 from player_ui import BG, TEXT, SECONDARY, THEMES
 from wave import segments
 

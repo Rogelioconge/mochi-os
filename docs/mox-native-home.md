@@ -31,3 +31,11 @@ No generar ni flashear un update.bin de esta etapa sin pruebas adicionales.
   la ruta normal incluso cuando `mox_home` no puede abrirse.
 
 Sin flasheo: estas pruebas no certifican interacción física en el M1 Plus.
+
+## Sprint 13 — Now Playing independiente (recursos, todavía sin apertura)
+
+`tools/mod_mox_nowplaying.py` genera `mox_now_playing.bin` (ventana AWTK de 320 × 450 px) y un tema de ventana `styles/mox_now_playing_page.bin`. La ventana se define en código original de Mochi; el tema se construye a partir de los estilos de botones de `playing_page`, con estados play/pausa, favoritos y modos, respetando los recursos y créditos existentes.
+
+El paso se ejecuta después de `mod_nowplaying` y `mod_mox_native`. Ambos recursos se registran para el empaquetado con `--allow-added`; no se modifica `playing_page.bin` ni la ruta de audio. Todavía **ningún hook abre esta ventana**, ni hay sincronización de carátula, datos o controles en el dispositivo. La barra de progreso es un slider normal: no representa una waveform real.
+
+La prueba `test/mox_nowplaying.py` inspecciona la estructura, los controles, el tema, el build y la escritura determinista. No equivale a ejecutar AWTK en el dispositivo. No flashear ni publicar `update.bin` de esta etapa sin integración y recuperación verificadas.

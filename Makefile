@@ -38,6 +38,7 @@ test: lint
 	$(RUN) test/mox_nav.py
 	$(RUN) test/mox_recovery.py
 	$(RUN) test/mox_native.py
+	$(RUN) test/mox_nowplaying.py
 	$(RUN) test/mox_cutover_audit.py
 	$(RUN) test/mox_rehydrate_audit.py
 	$(RUN) test/mox_rebuild_contract.py
