@@ -1,0 +1,134 @@
+--- a/patch/songs.c
++++ b/patch/songs.c
+@@ -59,6 +59,7 @@
+ #include "covercache.h"
+ #include "common.h"
+ #include "grid.h"
++#include "mox_perf.h"
+ #include "azlist.h"
+ #include "i18n.h"
+ #include "songops.h"
+@@ -136,6 +137,7 @@
+     az_t al; /* the sections and the rail (patch/azlist.c); al.nsec is 0 for a plain list */
+     void *albums; /* the library's albums (cc_albums), for the cover lookup */
+     int albums_tried;
++    mox_perf_page_t perf; /* opt-in UX latency statistics */
+     int press; /* the row under the finger, + 1 */
+     int seen, dir, noscroll;
+     int down; /* the row a press began on, + 1 */
+@@ -735,7 +737,11 @@
+         return RET_OK;
+     }
+     I(canvas, CANVAS_OY) += off;
+-    sg_paint_rows(canvas);
++    {
++        unsigned long long pt = mox_perf_start(&sg.perf);
++        sg_paint_rows(canvas);
++        mox_perf_end(&sg.perf, &sg.perf.paint, pt);
++    }
+     I(canvas, CANVAS_OY) -= off;
+     return RET_OK;
+ }
+@@ -827,7 +833,11 @@
+     if (a >= 0) {
+         tile_t *t = sg_tile(a);
+         int top = sg_row_y(a) - sg_off();
+-        sg_art(t);
++        {
++            unsigned long long pt = mox_perf_start(&sg.perf);
++            sg_art(t);
++            mox_perf_end(&sg.perf, &sg.perf.cover, pt);
++        }
+         if (top < GRID_VIEW_H && top + ROW > 0) sg_redraw();
+     }
+     sg_kick();
+@@ -970,6 +980,7 @@
+ /* The scroll_view's EVT_SCROLL (every change of its offset) and scroll end: the title, the direction, the loader and, when the page has gone far from where
+  * the build looked, a new build. */
+ static int sg_on_scroll(void *ctx, void *e) {
++    unsigned long long pt = mox_perf_start(&sg.perf);
+     (void)ctx;
+     (void)e;
+     if (!sg.view) return RET_OK;
+@@ -977,6 +988,7 @@
+     sg_title_update();
+     sg_kick();
+     if (!sg.rv && m1_abs(sg_first() - sg.build_at) > SG_BUILD_MOVE && !grid_moving(sg.sv)) sg_build_later();
++    mox_perf_end(&sg.perf, &sg.perf.scroll, pt);
+     return RET_OK;
+ }
+ 
+@@ -1122,6 +1134,7 @@
+ 
+ static void sg_pills(void);
+ static void sg_load(int keep) {
++    unsigned long long mp_all = mox_perf_start(&sg.perf), mp_part;
+     unsigned i;
+     int at = keep ? sg_off() : 0, same = 0, st = LS_ST_READY;
+     void *list = (void *)0;
+@@ -1142,7 +1155,9 @@
+     sg.al.nsec = 0, sg.press = sg.down = 0, sg.wait = 0;
+     if (!sg.albums_tried && !sg.src) {
+         sg.albums_tried = 1;
++        mp_part = mox_perf_start(&sg.perf);
+         sg.albums = cc_albums();
++        mox_perf_end(&sg.perf, &sg.perf.database, mp_part);
+     }
+     sg.sort = sg_lib() ? *(int *)SORT_FLAG : 0; /* (a list has the order of its query: sort_flag is the library's) */
+     if (sg.sort < 0 || sg.sort > 4) sg.sort = 0;
+@@ -1154,8 +1169,13 @@
+                   !sg.src->complete(sg.src,
+                                     sg.which); /* (a scoped list is read whole; the paging is of the unscoped Songs) */
+         list = sg.src->list(sg.src, sg.which, sg.scope_d ? deque_at(sg.scope_d, 0) : (void *)0);
+-    } else if (sg_query() > 0)
+-        list = *(void **)PDEQ_SHOWLIST;
++    } else {
++        int n;
++        mp_part = mox_perf_start(&sg.perf);
++        n = sg_query();
++        mox_perf_end(&sg.perf, &sg.perf.database, mp_part);
++        if (n > 0) list = *(void **)PDEQ_SHOWLIST;
++    }
+     if (list && sg_flipped()) sg_reverse(list);
+     if (list) sg.count = deque_size(list);
+     sg.dlq = 0, sg.al.sec_text = (const char *const *)0, sg.al.sec_act = (const char *)0;
+@@ -1178,6 +1198,7 @@
+     }
+     sg.al.count = (int)sg.count;
+     if (sg.count) {
++        mp_part = mox_perf_start(&sg.perf);
+         sg.list = list, sg.first = deque_at(list, 0);
+         for (i = 0; i < sg.count; ++i) {
+             void *rec = deque_at(list, i);
+@@ -1199,6 +1220,7 @@
+             sg.al.hdr_h = SG_HDR_H, sg.al.norail = 1;
+         }
+     }
++    if (sg.count) mox_perf_end(&sg.perf, &sg.perf.index, mp_part);
+     /* The same rows as before (count and every sig; the tiles hold their texts and covers by row): the tiles and the placeholder stay, so a list read again
+      * does not flash its covers away. Anything else, or a doubt, drops them. A cover that was not there (art 2) is looked for again. */
+     if (old && old_n && (sg.src ? old_n <= sg.count : old_n == sg.count) && sg.g.tiles &&
+@@ -1256,6 +1278,7 @@
+         if (list && list != sg.list) deque_destroy(list); /* (an empty list, or no memory for its index) */
+         if (!sg.gen_timer) sg.gen_timer = timer_add(sg_on_gen, (void *)0, LS_GEN_MS);
+     }
++    mox_perf_end(&sg.perf, &sg.perf.total, mp_all);
+ }
+ 
+ /* The source's gen moved (rows came, a download changed): read the list again where it does not disturb the user (select mode, the card, a finger on the list) and the page is on top.
+@@ -2325,6 +2348,7 @@
+ static int sg_on_destroy(void *ctx, void *e) {
+     (void)ctx;
+     (void)e;
++    mox_perf_dump(&sg.perf, "songs", sg.count);
+     sg_lift_end(0);
+     if (sg.handle) bitmap_destroy(sg.handle);
+     if (sg.pk_add) bitmap_destroy(sg.pk_add);
+@@ -2411,6 +2435,7 @@
+         while (i > 0 && ((unsigned char)name[i] & 0xc0) == 0x80) --i;
+     sg.name[i] = 0;
+     sg.win = window_open("m1plus_songs");
++    if (sg.win) mox_perf_begin_page(&sg.perf);
+     if (!sg.win) {
+         if (sg.scope_d) deque_destroy(sg.scope_d), sg.scope_d = (void *)0;
+         free(sg.pk_h);
