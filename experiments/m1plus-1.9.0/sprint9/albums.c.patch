@@ -1,0 +1,100 @@
+--- a/patch/albums.c
++++ b/patch/albums.c
+@@ -65,6 +65,7 @@
+ #include "covercache.h"
+ #include "common.h"
+ #include "grid.h"
++#include "mox_perf.h"
+ #include "azlist.h"
+ #include "i18n.h"
+ #include "viewsort.h"
+@@ -117,6 +118,7 @@
+     int seen; /* the scroll offset the loader last looked at (the direction is read and fed into al_dir) */
+     int dir; /* the way the content last went: 1 down the list, -1 back up */
+     int noscroll; /* the scroll events could not be registered: the loader keeps polling for as long as the page is up */
++    mox_perf_page_t perf; /* opt-in UX latency statistics */
+     int down; /* the cell or row a press began on, + 1 (0 none) */
+     m1_tap_t tap; /* and where (screen coordinates) */
+     mox_touch_t touch; /* complete gesture: cumulative drag + scroll changes */
+@@ -404,10 +406,14 @@
+     if (!canvas || !al.view || !al.g.tiles || !al.count) return RET_OK;
+     I(canvas, CANVAS_OY) += off;
+     if (al.circ) al_paint_head(canvas);
+-    if (al.list)
+-        al_paint_list(canvas);
+-    else
+-        al_paint_grid(canvas);
++    {
++        unsigned long long pt = mox_perf_start(&al.perf);
++        if (al.list)
++            al_paint_list(canvas);
++        else
++            al_paint_grid(canvas);
++        mox_perf_end(&al.perf, &al.perf.paint, pt);
++    }
+     I(canvas, CANVAS_OY) -= off;
+     return RET_OK;
+ }
+@@ -532,7 +538,11 @@
+     if (a >= 0) {
+         tile_t *t = al_tile(a);
+         int top = al_cell_y(a) - al_off();
+-        al_art(t, a);
++        {
++            unsigned long long pt = mox_perf_start(&al.perf);
++            al_art(t, a);
++            mox_perf_end(&al.perf, &al.perf.cover, pt);
++        }
+         if (top < GRID_VIEW_H && top + (al.list ? LIST_ROW_H : CELL_H) > 0) al_redraw();
+     }
+     al_kick();
+@@ -542,12 +552,14 @@
+ /* The scroll_view's EVT_SCROLL (every change of its offset: the drag, the fling, a scroll_to) and its scroll end: the title, dir, loader */
+ static int al_on_scroll(void *ctx, void *e) {
++    unsigned long long pt = mox_perf_start(&al.perf);
+     (void)ctx;
+     (void)e;
+     if (!al.view) return RET_OK;
+     al_fade();
+     grid_dir(al_off(), &al.seen, &al.dir);
+     al_kick();
++    mox_perf_end(&al.perf, &al.perf.scroll, pt);
+     return RET_OK;
+ }
+ 
+@@ -941,6 +953,7 @@
+ static int al_on_destroy(void *ctx, void *e) {
+     (void)ctx;
+     (void)e;
++    mox_perf_dump(&al.perf, "albums", al.count);
+     if (mox_first_scroll_target == al.sv) mox_first_scroll_target = (void *)0;
+     m1_timer_stop(&al.more_timer);
+     m1_timer_stop(&al.gen_timer);
+@@ -1404,6 +1417,7 @@
+     if (al.win) return -1;
+     memset(&al, 0, sizeof al);
+     al.win = window_open("m1plus_albums");
++    if (al.win) mox_perf_begin_page(&al.perf);
+     if (!al.win) return -1;
+     al.list = list;
+     al.artist_row = artist_row, al.scope = scope;
+@@ -1451,6 +1465,7 @@
+             image_base_set_image(al.vs.glyph[VS_SEARCH - VS_SORTS], "pod_ic_vsphoto");
+         al_pin_row(); /* (Select's slot: Pin Artist) */
+     }
++    unsigned long long mp_open = mox_perf_start(&al.perf);
+     al.sort = artist_row ? cc_scoped_sort() : cc_sort_mode();
+     al.rev = cc_sort_rev();
+     vs_view(&al.vs, list);
+@@ -1509,9 +1524,11 @@
+     }
+     al.az.count = (int)al.count;
+     if (!al.count || !al_begin()) {
++        mox_perf_end(&al.perf, &al.perf.total, mp_open);
+         al_empty();
+         return 0;
+     }
++    mox_perf_end(&al.perf, &al.perf.total, mp_open);
+     return 0;
+ }
+ 
